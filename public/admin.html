@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Nexatech — Admin Command Center</title>
+<title>Nexatech Admin Command Center</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/admin.css">
 </head>
@@ -50,10 +50,10 @@
       <!-- Overview -->
       <section data-panel="overview">
         <div class="cards">
-          <div class="kpi"><small>Stores Launched</small><strong id="kpi-stores">—</strong></div>
-          <div class="kpi"><small>Leads (Total)</small><strong id="kpi-leads">—</strong></div>
-          <div class="kpi"><small>Pending Webhooks</small><strong id="kpi-pending">—</strong></div>
-          <div class="kpi"><small>Page Views</small><strong id="kpi-views">—</strong></div>
+          <div class="kpi"><small>Stores Launched</small><strong id="kpi-stores"> </strong></div>
+          <div class="kpi"><small>Leads (Total)</small><strong id="kpi-leads"> </strong></div>
+          <div class="kpi"><small>Pending Webhooks</small><strong id="kpi-pending"> </strong></div>
+          <div class="kpi"><small>Page Views</small><strong id="kpi-views"> </strong></div>
         </div>
         <div class="grid2">
           <div class="card">
@@ -108,14 +108,14 @@
           <button data-mtab="reviews">Review Screenshots (2550×1650)</button>
         </div>
         <div class="card">
-          <h3>Add Media <small style="font-weight:500;color:#64748B">— file or URL, with progress & preview</small></h3>
+          <h3>Add Media <small style="font-weight:500;color:#64748B"> file or URL, with progress & preview</small></h3>
           <form id="media-form" style="display:grid;gap:10px">
             <div style="display:flex;gap:10px;flex-wrap:wrap">
               <label>Type<select name="type" id="media-type"><option value="portfolio">portfolio</option><option value="sales_proof">sales_proof</option><option value="testimonials">testimonials</option><option value="reviews">reviews</option></select></label>
               <label>Category / Tag<input name="category" placeholder="Fashion, Beauty, Tech Gadgets..."></label>
               <label>Result stat (e.g. $850 in 45 days)<input name="result_stat"></label>
             </div>
-            <label>Caption / Store name<input name="caption" placeholder="Elégance Mode — Fashion Store"></label>
+            <label>Caption / Store name<input name="caption" placeholder="Elégance Mode Fashion Store"></label>
             <label>Alt text (SEO)<input name="alt_text" placeholder="Fashion store homepage"></label>
             <label>Tags (comma-separated)<input name="tags"></label>
             <label>Case-study text (portfolio only)<textarea name="case_study_text" rows="3" placeholder="What was built, timeline, result..."></textarea></label>
@@ -131,7 +131,7 @@
           </form>
         </div>
         <div class="card">
-          <h3>Media Gallery <small style="color:#64748B">— drag to reorder, toggle publish, edit inline</small></h3>
+          <h3>Media Gallery <small style="color:#64748B"> drag to reorder, toggle publish, edit inline</small></h3>
           <div id="media-gallery" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px"></div>
         </div>
       </section>
@@ -160,7 +160,7 @@
       <!-- Sections -->
       <section data-panel="sections" class="hidden">
         <div class="card">
-          <h3>Homepage Sections — visibility, order, animation</h3>
+          <h3>Homepage Sections visibility, order, animation</h3>
           <p style="font-size:12px;color:#64748B">Drag to reorder. Toggle visibility to hide any section without code changes. Per-section animation toggle + global Reduced Motion (in Branding tab).</p>
           <div id="sections-list" style="display:grid;gap:8px"></div>
           <button class="btn btn-primary" id="btn-save-sections">Save Layout</button>
@@ -187,10 +187,10 @@
       <!-- Analytics -->
       <section data-panel="analytics" class="hidden">
         <div class="cards">
-          <div class="kpi"><small>Page Views</small><strong id="a-views">—</strong></div>
-          <div class="kpi"><small>Unique Visitors</small><strong id="a-unique">—</strong></div>
-          <div class="kpi"><small>Funnel: Starts</small><strong id="a-starts">—</strong></div>
-          <div class="kpi"><small>Funnel: Completions</small><strong id="a-completions">—</strong></div>
+          <div class="kpi"><small>Page Views</small><strong id="a-views"> </strong></div>
+          <div class="kpi"><small>Unique Visitors</small><strong id="a-unique"> </strong></div>
+          <div class="kpi"><small>Funnel: Starts</small><strong id="a-starts"> </strong></div>
+          <div class="kpi"><small>Funnel: Completions</small><strong id="a-completions"> </strong></div>
         </div>
         <div class="grid2">
           <div class="card"><h3>Daily Views (7d)</h3><canvas id="chart-daily" height="160"></canvas></div>
@@ -210,7 +210,7 @@
           <label>Calendly / Booking URL<input id="int-calendly" placeholder="https://calendly.com/..."></label>
         </div>
         <div class="card">
-          <h3>Webhooks — Separate for Bot and Form</h3>
+          <h3>Webhooks Separate for Bot and Form</h3>
           <p style="font-size:12px;color:#94A3B8">Configure automation webhooks. <b>Form webhook</b> fires on new application submits (leads). <b>Bot webhook</b> fires on chatbot messages. Leave empty to disable. Use n8n, Zapier, Make, or your own endpoint.</p>
           <label>Form / Leads Webhook URL (new applications) <input id="int-webhook-form" placeholder="https://.../webhook/form"></label>
           <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="int-webhook-form-enabled"> Enable Form Webhook</label>

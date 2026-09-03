@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Terms and Conditions   Nexatech Dropshipping Store</title>
+<title>Terms and Conditions Nexatech Dropshipping Store</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/style.css">
 <style>
@@ -35,13 +35,13 @@
 <main class="legal-wrap">
   <a href="/" style="font-size:13px;color:var(--text-muted);font-weight:700">← Back to Home</a>
   <h1 id="t-title">Terms and Conditions</h1>
-  <small id="t-updated">Last updated:  </small>
+  <small id="t-updated">Last updated: </small>
   <div class="legal-content" id="t-content">Loading...</div>
 </main>
 <footer class="footer">
   <div class="container">
     <div class="copy">
-      <span id="f-copy">© Nexatech   All rights reserved.</span>
+      <span id="f-copy">© Nexatech All rights reserved.</span>
       <span><a href="/privacy.html">Privacy</a> • <a href="/terms.html">Terms</a></span>
     </div>
   </div>
@@ -53,10 +53,10 @@
     document.getElementById('t-title').textContent=c.terms_title||'Terms and Conditions';
     document.getElementById('t-updated').textContent='Last updated: '+(c.terms_last_updated||' ');
     document.getElementById('t-content').innerHTML=c.terms_content||'<p>No content yet.</p>';
-    document.title=(c.terms_title||'Terms')+'   '+ (c.site_name||'Nexatech');
+    document.title=(c.terms_title||'Terms')+' '+ (c.site_name||'Nexatech');
     const wa=c.whatsapp_number||'19283825389';
     const cal=c.calendly_url||'#';
-    document.getElementById('nav-wa').href='https://wa.me/'+wa.replace(/\D/g,'')+'?text='+encodeURIComponent('Hi Nexatech   terms question');
+    document.getElementById('nav-wa').href='https://wa.me/'+wa.replace(/\D/g,'')+'?text='+encodeURIComponent('Hi Nexatech terms question');
     document.getElementById('nav-book').href=cal;
     document.getElementById('f-copy').textContent=c.footer_copyright||'© Nexatech';
     if(c.favicon_url) document.querySelector('link[rel="icon"]').href=c.favicon_url;

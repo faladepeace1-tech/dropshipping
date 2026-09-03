@@ -185,7 +185,7 @@ function renderContentForms(){
     const val=CONTENT[field.key]??'';
     const displayVal = typeof val==='object' ? JSON.stringify(val, null, 2) : String(val);
     const label=document.createElement('label');
-    label.textContent=field.label + `   ${field.key}`;
+    label.textContent=field.label + ` ${field.key}`;
     let input;
     if(field.type==='textarea'){
       input=document.createElement('textarea'); input.rows=3; input.value=displayVal;
@@ -302,7 +302,7 @@ $('#btn-save-content').addEventListener('click', async()=>{
   $$('#content-forms input[type="text"]').forEach(()=>{});
   const r=await fetch('/api/content',{method:'PUT',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify(payload)});
   const j=await r.json();
-  $('#content-msg').textContent = r.ok ? 'Saved   preview updates instantly.' : (j.error||'Save failed');
+  $('#content-msg').textContent = r.ok ? 'Saved preview updates instantly.' : (j.error||'Save failed');
   if(r.ok) await loadContent();
 });
 $('#btn-save-scarcity').addEventListener('click', async()=>{
@@ -328,10 +328,10 @@ $('#btn-save-integrations').addEventListener('click', async()=>{
   if(payload.whatsapp_number) payload.whatsapp_link = 'https://wa.me/' + payload.whatsapp_number.replace(/\D/g,'');
   const r=await fetch('/api/content',{method:'PUT',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify(payload)});
   const j=await r.json();
-  $('#int-msg').textContent=r.ok?'Saved   webhooks and contact updated instantly.':(j.error||'Failed');
+  $('#int-msg').textContent=r.ok?'Saved webhooks and contact updated instantly.':(j.error||'Failed');
   if(r.ok) await loadContent();
 });
-$('#btn-publish').addEventListener('click', ()=>{ alert('Changes are live instantly   no draft queue. (This button confirms publish.)'); window.open('/','_blank'); });
+$('#btn-publish').addEventListener('click', ()=>{ alert('Changes are live instantly no draft queue. (This button confirms publish.)'); window.open('/','_blank'); });
 $('#btn-revert').addEventListener('click', async()=>{
   if(!lastPublishedContent) return alert('No snapshot');
   if(!confirm('Revert to last published snapshot?')) return;
@@ -548,7 +548,7 @@ async function loadTeam(){
     div.innerHTML=`
       <img src="${m.photo_url||''}" style="width:64px;height:64px;border-radius:10px;object-fit:cover;background:#132238">
       <div style="flex:1">
-        <b>${m.name}</b> <small style="color:#94A3B8">  ${m.role||''}</small>
+        <b>${m.name}</b> <small style="color:#94A3B8"> ${m.role||''}</small>
         <div style="font-size:12px;color:#94A3B8">${m.credibility_note||''}</div>
         <small style="color:${m.published?'#34D399':'#F87171'}">${m.published?'Published':'Draft'}</small>
       </div>
@@ -790,7 +790,7 @@ function drawChart(id, labels, values, label){
   values.forEach((v,i)=>{
     const h=(v/max)*(H-pad*2);
     const x=pad + i*gap + gap*0.2;
-    const y=H-pad - h;
+    const y=H-pad h;
     ctx.fillStyle='#00D1FF';
     ctx.fillRect(x,y,barW,h);
     ctx.fillStyle='#94A3B8'; ctx.font='10px Inter';
