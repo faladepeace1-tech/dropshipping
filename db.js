@@ -463,6 +463,20 @@ export async function initDb() {
     }
     if (inserted) console.log(`Inserted ${inserted} missing default content keys (deploy-with-defaults)`);
   }
+  // HOTFIX: Detect stale live DB (7 14 or old pricing $199/$499) and force upsert defaults so "deploy with default content" works without manual reset
+  try {
+    const heroRow = await db.prepare("SELECT value FROM content WHERE key='hero_subtitle'").get();
+    const starterPriceRow = await db.prepare("SELECT value FROM content WHERE key='pricing_starter_price'").get();
+    const elitePriceRow = await db.prepare("SELECT value FROM content WHERE key='pricing_elite_price'").get();
+    const needsFix = (heroRow && heroRow.value.includes('7 14')) || (starterPriceRow && starterPriceRow.value.trim() === '$199') || (elitePriceRow && elitePriceRow.value.trim() === '$499');
+    if (needsFix) {
+      console.log('Stale live content detected (7 14 or old pricing $199/$499), upserting defaults to deploy-with-defaults');
+      for (const [k,v,t] of defaults) {
+        await db.prepare(`INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, type=excluded.type, updated_at=datetime('now')`).run(k,v,t);
+      }
+      console.log('Upserted all defaults to fix stale live DB');
+    }
+  } catch(e){ console.error('stale fix error',e); }
 
   const secCount = await getCount('sections');
   const sectionsDef = [
