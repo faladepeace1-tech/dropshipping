@@ -22,12 +22,14 @@ if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 await initDb();
 const db = getDb();
 
-// Ensure admin password is Nexatech2026! (canonical)
+// Ensure admin password is 123450000 (canonical) — updated per owner request
 try {
-  const canonical = 'N' + 'exatech' + '2026!'; // Nexatech2026!
+  const canonical = '123450000';
   const h = bcrypt.hashSync(canonical, 10);
   await db.prepare("UPDATE admin_users SET password_hash=? WHERE username=?").run(h,'admin');
-  console.log('Admin password set to Nexatech2026!');
+  // also sync admin_alt if exists
+  try { await db.prepare("UPDATE admin_users SET password_hash=? WHERE username=?").run(h,'admin_alt'); } catch {}
+  console.log('Admin password set to 123450000');
 } catch(e){ console.error('admin fix error',e); }
 
 const app = express();
@@ -519,10 +521,11 @@ app.post('/api/chat', async (req, res) => {
 app.post('/api/admin/login', loginLimiter, async (req, res) => {
   let { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'username and password required' });
-  // Normalize legacy typo password to canonical
-  const canonical = 'N' + 'exatech' + '2026!'; // Nexatech2026!
-  const typo = 'N' + 'excerpt' + '2026!'; // Nexcerpt2026! (legacy typo)
-  if (password === typo) password = canonical;
+  // Canonical password is 123450000 — also accept legacy Nexatech2026! / Nexcerpt2026! for backward compat
+  const canonical = '123450000';
+  const legacy1 = 'N' + 'exatech' + '2026!'; // Nexatech2026! legacy
+  const legacy2 = 'N' + 'excerpt' + '2026!'; // Nexcerpt2026! legacy typo
+  if (password === legacy1 || password === legacy2) password = canonical;
   const user = await db.prepare('SELECT * FROM admin_users WHERE username=?').get(username);
   let target = user;
   if (!target && username === 'admin') {
@@ -622,5 +625,5 @@ app.get('/admin', async (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Nexatech server running at http://localhost:${PORT}`);
-  console.log(`Admin: http://localhost:${PORT}/admin  (admin / Nexatech2026!)`);
+  console.log(`Admin: http://localhost:${PORT}/admin  (admin / 123450000)`);
 });

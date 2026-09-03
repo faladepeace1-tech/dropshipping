@@ -6,5 +6,5 @@ data.sqlite-wal
 server*.log
 .env
 .DS_Store
-public/uploads/*
+# public/uploads/* disabled - uploads are now tracked so Render deploys media (per owner request)
 !public/uploads/.gitkeep

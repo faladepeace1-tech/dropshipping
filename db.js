@@ -346,7 +346,7 @@ export async function initDb() {
       ['calendly_url', 'https://calendly.com/nexatech/strategy-call', 'text'],
       ['hero_badge', 'Only {remaining} build slots left this month', 'text'],
       ['hero_title', 'Your Profitable Dropshipping Store Built, Launched & Ready to Sell', 'text'],
-      ['hero_subtitle', 'We handle product research, supplier setup, store design & payment integration. You own everything. We launch in 7 14 days with proven winning products.', 'text'],
+      ['hero_subtitle', 'We handle product research, supplier setup, store design & payment integration. You own everything. We launch in 7 to 14 days with proven winning products.', 'text'],
       ['hero_cta_primary', 'Book a Free Strategy Call', 'text'],
       ['hero_cta_secondary', 'Chat on WhatsApp', 'text'],
       ['social_proof_title', 'Trusted by ambitious founders', 'text'],
@@ -380,7 +380,7 @@ export async function initDb() {
       ['faq_subtitle', 'No hype. Just clear terms.', 'text'],
       ['faq_items', JSON.stringify([
         { q: "Do I own the store 100%?", a: "Yes. You own the domain, Shopify/store account, and all assets. We build it in your account nothing is held hostage." },
-        { q: "How long until my store is live?", a: "7 14 days from kickoff, depending on tier. Timeline is in your contract." },
+        { q: "How long until my store is live?", a: "7 to 14 days from kickoff, depending on tier. Timeline is in your contract." },
         { q: "I've been scammed before how are you different?", a: "We show live, DB-verified proof, offer video walkthroughs of past stores, and you own everything before final payment. No vague promises." },
         { q: "What if my store doesn't convert?", a: "Elite includes 60-day CRO support + ad-angle pivots. We don't ghost after handover our roadmap targets your first profitable month." },
         { q: "What’s the refund/support policy?", a: "Due to done-for-you labor, deposits are non-refundable, but we revise until handover criteria are met. Support window depends on tier (14/30/60 days)." },
@@ -438,7 +438,7 @@ export async function initDb() {
       ['privacy_content', `<h2>Introduction</h2><p>At Nexatech Dropshipping Store, we respect your privacy and are committed to protecting your personal data. This policy explains how we collect, use, and safeguard your information.</p><h2>Information We Collect</h2><p>We collect information you provide via our application form (name, email, WhatsApp, niche preferences) and anonymous analytics (page views, click events) to improve our service.</p><h2>How We Use Your Information</h2><ul><li>To contact you about your store application via WhatsApp/Email</li><li>To personalize your strategy call</li><li>To improve our website and services</li><li>To comply with legal obligations</li></ul><h2>Data Sharing</h2><p>We never sell your data. We may share it with trusted automation tools (e.g., webhooks you configure) solely to fulfill your request.</p><h2>Your Rights</h2><p>You may request access, correction, or deletion of your personal data by emailing saheednexatech@gmail.com.</p><h2>Contact</h2><p>Questions? Email <strong>saheednexatech@gmail.com</strong> or WhatsApp <strong>+1 928 382 5389</strong>.</p>`, 'html'],
       ['terms_title', 'Terms and Conditions', 'text'],
       ['terms_last_updated', 'September 3, 2026', 'text'],
-      ['terms_content', `<h2>1. Services</h2><p>Nexatech builds, launches, and hands over done-for-you dropshipping stores. Timelines (7 14 days) are estimates and depend on client responsiveness.</p><h2>2. Ownership</h2><p>You own 100% of the store, domain, and assets upon handover. We build in your account.</p><h2>3. Payments & Refunds</h2><p>Due to done-for-you labor, deposits are non-refundable. We revise until handover criteria are met. Support windows: Starter 14 days, Pro 30 days, Elite 60 days.</p><h2>4. Results Disclaimer</h2><p>We provide real, current sales proof but do not guarantee specific revenue. Success depends on traffic, product-market fit, and execution.</p><h2>5. Client Responsibilities</h2><p>You are responsible for running traffic (ads), complying with platform policies, and providing timely feedback.</p><h2>6. Limitation of Liability</h2><p>Our liability is limited to the amount paid for services.</p><h2>7. Governing Law</h2><p>These terms are governed by applicable international commercial law.</p><p>Contact: saheednexatech@gmail.com | +1 928 382 5389</p>`, 'html']
+      ['terms_content', `<h2>1. Services</h2><p>Nexatech builds, launches, and hands over done-for-you dropshipping stores. Timelines (7 to 14 days) are estimates and depend on client responsiveness.</p><h2>2. Ownership</h2><p>You own 100% of the store, domain, and assets upon handover. We build in your account.</p><h2>3. Payments & Refunds</h2><p>Due to done-for-you labor, deposits are non-refundable. We revise until handover criteria are met. Support windows: Starter 14 days, Pro 30 days, Elite 60 days.</p><h2>4. Results Disclaimer</h2><p>We provide real, current sales proof but do not guarantee specific revenue. Success depends on traffic, product-market fit, and execution.</p><h2>5. Client Responsibilities</h2><p>You are responsible for running traffic (ads), complying with platform policies, and providing timely feedback.</p><h2>6. Limitation of Liability</h2><p>Our liability is limited to the amount paid for services.</p><h2>7. Governing Law</h2><p>These terms are governed by applicable international commercial law.</p><p>Contact: saheednexatech@gmail.com | +1 928 382 5389</p>`, 'html']
     ];
     for (const r of defaults) {
       await db.prepare('INSERT INTO content (key,value,type) VALUES (?,?,?)').run(r[0], r[1], r[2]);
@@ -468,26 +468,38 @@ export async function initDb() {
   }
 
   const adminCount = await getCount('admin_users');
-  const canonicalPw = 'N' + 'exatech' + '2026!';
-  const typoPw = 'N' + 'excerpt' + '2026!';
+  const canonicalPw = '123450000';
+  const legacy1 = 'N' + 'exatech' + '2026!';
+  const legacy2 = 'N' + 'excerpt' + '2026!';
   if (adminCount === 0) {
     const hashCanonical = bcrypt.hashSync(canonicalPw, 10);
-    const hashTypo = bcrypt.hashSync(typoPw, 10);
     await db.prepare('INSERT INTO admin_users (username,password_hash) VALUES (?,?)').run('admin', hashCanonical);
-    try { await db.prepare('INSERT INTO admin_users (username,password_hash) VALUES (?,?)').run('admin_alt', hashTypo); } catch {}
-    console.log('Seeded admin user: admin / Nexatech2026!');
+    try { await db.prepare('INSERT INTO admin_users (username,password_hash) VALUES (?,?)').run('admin_alt', hashCanonical); } catch {}
+    console.log('Seeded admin user: admin / 123450000');
   } else {
     const admin = await db.prepare('SELECT * FROM admin_users WHERE username=?').get('admin');
     if (admin) {
       let ok=false;
       try { ok = bcrypt.compareSync(canonicalPw, admin.password_hash); } catch {}
-      try { if(!ok) ok = bcrypt.compareSync(typoPw, admin.password_hash); } catch {}
       if (!ok) {
         const newHash = bcrypt.hashSync(canonicalPw, 10);
         await db.prepare('UPDATE admin_users SET password_hash=? WHERE username=?').run(newHash, 'admin');
-        console.log('Updated admin password hash to Nexatech2026!');
+        try { await db.prepare('UPDATE admin_users SET password_hash=? WHERE username=?').run(newHash, 'admin_alt'); } catch {}
+        console.log('Updated admin password hash to 123450000');
       }
     }
+    // Ensure admin_alt also synced
+    try {
+      const alt = await db.prepare('SELECT * FROM admin_users WHERE username=?').get('admin_alt');
+      if (alt) {
+        let okAlt=false;
+        try { okAlt = bcrypt.compareSync(canonicalPw, alt.password_hash); } catch {}
+        if (!okAlt) {
+          const h2 = bcrypt.hashSync(canonicalPw, 10);
+          await db.prepare('UPDATE admin_users SET password_hash=? WHERE username=?').run(h2, 'admin_alt');
+        }
+      }
+    } catch {}
   }
 
   const mediaCount = await getCount('media');
@@ -566,6 +578,10 @@ export async function initDb() {
     if(phoneOld && phoneOld.includes('234 812')) {
       await db.prepare("UPDATE content SET value=? WHERE key='footer_phone'").run('+1 928 382 5389');
     }
+    // Fix legacy "7 14" -> "7 to 14" in hero / faq / terms
+    try { await db.prepare("UPDATE content SET value = REPLACE(value, '7 14 days', '7 to 14 days') WHERE value LIKE '%7 14 days%'").run(); } catch {}
+    try { await db.prepare("UPDATE content SET value = REPLACE(value, '7 14 Day', '7 to 14 Day') WHERE value LIKE '%7 14 Day%'").run(); } catch {}
+    try { await db.prepare("UPDATE content SET value = REPLACE(value, '(7 14 days)', '(7 to 14 days)') WHERE value LIKE '%(7 14 days)%'").run(); } catch {}
     const hasReviews = await db.prepare('SELECT key FROM sections WHERE key=?').get('reviews');
     if(!hasReviews){
       // get max order

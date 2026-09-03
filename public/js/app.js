@@ -281,7 +281,7 @@ document.addEventListener('keydown', e=>{
 let sx=0;
 $('#modal-media').addEventListener('touchstart', e=> sx=e.touches[0].clientX, {passive:true});
 $('#modal-media').addEventListener('touchend', e=>{
-  const dx=e.changedTouches[0].clientX sx;
+  const dx=e.changedTouches[0].clientX - sx;
   if(Math.abs(dx)>40){
     if(dx<0) {MODAL_INDEX=(MODAL_INDEX+1)%MODAL_ITEMS.length; updateModal();}
     else {MODAL_INDEX=(MODAL_INDEX-1+MODAL_ITEMS.length)%MODAL_ITEMS.length; updateModal();}
@@ -539,8 +539,8 @@ function initParticles(){
   document.addEventListener('mousemove', e=>{
     if(window.innerWidth<=768) return;
     const rect=canvas.getBoundingClientRect();
-    mouse.x=(e.clientX-rect.left)/rect.width .5;
-    mouse.y=(e.clientY-rect.top)/rect.height .5;
+    mouse.x=(e.clientX-rect.left)/rect.width - .5;
+    mouse.y=(e.clientY-rect.top)/rect.height - .5;
     mouse.active=true;
   });
   document.addEventListener('visibilitychange', ()=>{
@@ -565,11 +565,11 @@ function initParticles(){
       if(p.y<0||p.y>h) p.vy*=-1;
       // parallax offset
       const px=p.x + parX * (0.5 + (p.r/2));
-      const py=p.y + parY * (0.5 + (p.r/2)) sPar*0.2;
+      const py=p.y + parY * (0.5 + (p.r/2)) - sPar*0.2;
       // connections
       for(let j=i+1;j<particles.length;j++){
         const q=particles[j];
-        const qx=q.x + parX*0.5, qy=q.y + parY*0.5 sPar*0.2;
+        const qx=q.x + parX*0.5, qy=q.y + parY*0.5 - sPar*0.2;
         const dx=px-qx, dy=py-qy; const dist=Math.hypot(dx,dy);
         if(dist<110){
           ctx.strokeStyle=`rgba(0,209,255,${(1-dist/110)*0.14})`;
@@ -580,7 +580,7 @@ function initParticles(){
     }
     // draw dots
     particles.forEach(p=>{
-      const px=p.x + parX*0.8, py=p.y + parY*0.8 sPar*0.15;
+      const px=p.x + parX*0.8, py=p.y + parY*0.8 - sPar*0.15;
       ctx.beginPath(); ctx.arc(px,py,p.r,0,Math.PI*2);
       ctx.fillStyle='rgba(124,58,237,0.55)'; // accent-2
       ctx.fill();
