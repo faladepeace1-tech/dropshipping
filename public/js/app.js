@@ -1,4 +1,4 @@
-// Nexatech — Frontend App
+// Nexatech Frontend App
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 let CONTENT={}, STATS={}, SCARCITY={}, SECTIONS=[];
@@ -73,7 +73,7 @@ function applyTheme(c){
   if(c.footer_email) $('#footer-email').textContent=c.footer_email;
   if(c.footer_phone) $('#footer-phone').textContent=c.footer_phone;
   if(c.footer_address) $('#footer-address').textContent=c.footer_address;
-  if(c.footer_copyright) $('#footer-copyright').textContent=c.footer_copyright + ` — ${new Date().getFullYear()}`;
+  if(c.footer_copyright) $('#footer-copyright').textContent=c.footer_copyright + ` ${new Date().getFullYear()}`;
   else $('#footer-copyright').textContent=`© ${new Date().getFullYear()} Nexatech Dropshipping Store. All rights reserved.`;
 }
 
@@ -90,13 +90,13 @@ async function loadContent(){
   const calendly=CONTENT.calendly_url||'#';
   const heroWA = CONTENT.hero_cta_secondary || 'Chat on WhatsApp';
   const heroBook = CONTENT.hero_cta_primary || 'Book a Free Strategy Call';
-  $('#hero-wa').textContent=heroWA; $('#hero-wa').href=whatsappLink(waNum, `Hi Nexatech! I'm interested in a dropshipping store — can we talk?`);
+  $('#hero-wa').textContent=heroWA; $('#hero-wa').href=whatsappLink(waNum, `Hi Nexatech! I'm interested in a dropshipping store can we talk?`);
   $('#hero-book').textContent=heroBook+' →'; $('#hero-book').href=calendly;
   $('#nav-whatsapp').href=whatsappLink(waNum, `Hi Nexatech! Quick question about your store packages.`);
   $('#nav-book').href=calendly;
   $('#drawer-wa').href=whatsappLink(waNum, `Hi Nexatech! Quick question about your store packages.`);
   $('#drawer-book').href=calendly;
-  $('#cta-wa').href=whatsappLink(waNum, `Hi Nexatech! I'm ready to own a store that sells — what's the next step?`);
+  $('#cta-wa').href=whatsappLink(waNum, `Hi Nexatech! I'm ready to own a store that sells what's the next step?`);
   $('#cta-book').href=calendly;
   // click tracking
   for(const id of ['nav-whatsapp','nav-book','hero-wa','hero-book','cta-wa','cta-book','mentorship-wa']){
@@ -181,7 +181,7 @@ function renderPortfolio(filter){
   const grid=$('#portfolio-grid'); grid.innerHTML='';
   const filtered = filter==='All'? PORTFOLIO : PORTFOLIO.filter(p=> (p.category||'').toLowerCase()===filter.toLowerCase() || (p.tags||'').toLowerCase().includes(filter.toLowerCase()));
   if(filtered.length===0){
-    grid.innerHTML='<p class="sub">No stores in this category yet — check back soon or view All.</p>';
+    grid.innerHTML='<p class="sub">No stores in this category yet check back soon or view All.</p>';
     return;
   }
   filtered.forEach((item, idx)=>{
@@ -258,9 +258,9 @@ function updateModal(){
   $('#modal-tag').textContent=item.category||'Store';
   $('#modal-title').textContent=item.caption||'Store';
   $('#modal-result').textContent=item.result_stat||'';
-  $('#modal-desc').textContent=item.case_study_text||'A fully-configured dropshipping store built for conversions — premium theme, winning products, and automated fulfillment.';
+  $('#modal-desc').textContent=item.case_study_text||'A fully-configured dropshipping store built for conversions premium theme, winning products, and automated fulfillment.';
   const waNum=CONTENT.whatsapp_number||'2348123456789';
-  $('#modal-cta').href=whatsappLink(waNum, `Hi Nexatech! I love the ${item.category||''} store "${item.caption||''}" — I want a store like this. How do we start?`);
+  $('#modal-cta').href=whatsappLink(waNum, `Hi Nexatech! I love the ${item.category||''} store "${item.caption||''}" I want a store like this. How do we start?`);
   $('#modal-cta').onclick=()=>track('cta_click','modal-cta',{store:item.caption});
 }
 function closeModal(){
@@ -307,7 +307,7 @@ async function loadMedia(){
     if(isVideo){ const v=el.querySelector('video'); if(v) v.play().catch(()=>{}); }
     tGrid.appendChild(el);
   });
-  // Reviews wall — uniform 2550×1650 landscape screenshots & videos
+  // Reviews wall uniform 2550×1650 landscape screenshots & videos
   try{
     const revR=await fetch('/api/media?type=reviews'); const reviews=await revR.json();
     const rGrid=$('#reviews-grid'); const empty=$('#reviews-empty');
@@ -404,7 +404,7 @@ function parseJSON(v, fallback){
   return fallback;
 }
 
-// Lead Form — multi-step
+// Lead Form multi-step
 let currentStep=1;
 const totalSteps=3;
 function showStep(n){
@@ -416,7 +416,7 @@ function showStep(n){
   $('#bar1').classList.toggle('on', n>=1);
   $('#bar2').classList.toggle('on', n>=2);
   $('#bar3').classList.toggle('on', n>=3);
-  const labels=['Step 1 of 3 — Vision','Step 2 of 3 — Qualification','Step 3 of 3 — Contact & Delivery'];
+  const labels=['Step 1 of 3 Vision','Step 2 of 3 Qualification','Step 3 of 3 Contact & Delivery'];
   $('#step-indicator').textContent=labels[n-1];
   $('#btn-prev').classList.toggle('hidden', n===1);
   $('#btn-next').classList.toggle('hidden', n===totalSteps);
@@ -495,7 +495,7 @@ $('#lead-form').addEventListener('submit', async e=>{
     const res=await fetch('/api/leads',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     const j=await res.json();
     if(!res.ok) throw new Error(j.error||'Submission failed');
-    msg.style.color='var(--success)'; msg.textContent=j.message||"Application received — we'll reach out on WhatsApp shortly";
+    msg.style.color='var(--success)'; msg.textContent=j.message||"Application received we'll reach out on WhatsApp shortly";
     if(j.whatsappFallback){
       const a=document.createElement('a'); a.href=j.whatsappFallback; a.target='_blank'; a.className='btn btn-primary'; a.style.marginTop='10px'; a.textContent='Chat on WhatsApp now →';
       a.addEventListener('click',()=>track('cta_click','form-whatsapp-fallback'));
@@ -512,7 +512,7 @@ $('#lead-form').addEventListener('submit', async e=>{
   }
 });
 
-// Hero particles — lightweight network dots
+// Hero particles lightweight network dots
 function initParticles(){
   const canvas=$('#hero-particles'); if(!canvas) return;
   const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches || document.body.classList.contains('reduced');
@@ -675,7 +675,7 @@ function initChat(){
       if(j.fallback) { const a=document.createElement('a'); a.href=whatsappLink(CONTENT.whatsapp_number, text); a.target='_blank'; a.textContent=' Chat on WhatsApp →'; a.style.color='var(--accent-2)'; a.style.fontWeight='700'; bot.appendChild(a); }
       body.appendChild(bot);
     }catch{
-      const bot=document.createElement('div'); bot.className='msg bot'; bot.textContent='Not available right now — please chat on WhatsApp.';
+      const bot=document.createElement('div'); bot.className='msg bot'; bot.textContent='Not available right now please chat on WhatsApp.';
       const a=document.createElement('a'); a.href=whatsappLink(CONTENT.whatsapp_number, text); a.target='_blank'; a.textContent=' Open WhatsApp →'; a.style.color='var(--accent-2)'; bot.appendChild(a); body.appendChild(bot);
     }
     body.scrollTop=body.scrollHeight;

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Privacy Policy — Nexatech Dropshipping Store</title>
+<title>Privacy Policy   Nexatech Dropshipping Store</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/style.css">
 <style>
@@ -35,13 +35,13 @@
 <main class="legal-wrap">
   <a href="/" style="font-size:13px;color:var(--text-muted);font-weight:700">← Back to Home</a>
   <h1 id="p-title">Privacy Policy</h1>
-  <small id="p-updated">Last updated: —</small>
+  <small id="p-updated">Last updated:  </small>
   <div class="legal-content" id="p-content">Loading...</div>
 </main>
 <footer class="footer">
   <div class="container">
     <div class="copy">
-      <span id="f-copy">© Nexatech — All rights reserved.</span>
+      <span id="f-copy">© Nexatech   All rights reserved.</span>
       <span><a href="/privacy.html">Privacy</a> • <a href="/terms.html">Terms</a></span>
     </div>
   </div>
@@ -51,12 +51,12 @@
   try{
     const r=await fetch('/api/content'); const j=await r.json(); const c=j.content;
     document.getElementById('p-title').textContent=c.privacy_title||'Privacy Policy';
-    document.getElementById('p-updated').textContent='Last updated: '+(c.privacy_last_updated||'—');
+    document.getElementById('p-updated').textContent='Last updated: '+(c.privacy_last_updated||' ');
     document.getElementById('p-content').innerHTML=c.privacy_content||'<p>No content yet.</p>';
-    document.title=(c.privacy_title||'Privacy Policy')+' — '+ (c.site_name||'Nexatech');
+    document.title=(c.privacy_title||'Privacy Policy')+'   '+ (c.site_name||'Nexatech');
     const wa=c.whatsapp_number||'19283825389';
     const cal=c.calendly_url||'#';
-    document.getElementById('nav-wa').href='https://wa.me/'+wa.replace(/\D/g,'')+'?text='+encodeURIComponent('Hi Nexatech — privacy question');
+    document.getElementById('nav-wa').href='https://wa.me/'+wa.replace(/\D/g,'')+'?text='+encodeURIComponent('Hi Nexatech   privacy question');
     document.getElementById('nav-book').href=cal;
     document.getElementById('f-copy').textContent=c.footer_copyright||'© Nexatech';
     // favicon/logo

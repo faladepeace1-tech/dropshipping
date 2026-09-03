@@ -185,7 +185,7 @@ function renderContentForms(){
     const val=CONTENT[field.key]??'';
     const displayVal = typeof val==='object' ? JSON.stringify(val, null, 2) : String(val);
     const label=document.createElement('label');
-    label.textContent=field.label + ` — ${field.key}`;
+    label.textContent=field.label + `   ${field.key}`;
     let input;
     if(field.type==='textarea'){
       input=document.createElement('textarea'); input.rows=3; input.value=displayVal;
@@ -302,7 +302,7 @@ $('#btn-save-content').addEventListener('click', async()=>{
   $$('#content-forms input[type="text"]').forEach(()=>{});
   const r=await fetch('/api/content',{method:'PUT',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify(payload)});
   const j=await r.json();
-  $('#content-msg').textContent = r.ok ? 'Saved — preview updates instantly.' : (j.error||'Save failed');
+  $('#content-msg').textContent = r.ok ? 'Saved   preview updates instantly.' : (j.error||'Save failed');
   if(r.ok) await loadContent();
 });
 $('#btn-save-scarcity').addEventListener('click', async()=>{
@@ -328,10 +328,10 @@ $('#btn-save-integrations').addEventListener('click', async()=>{
   if(payload.whatsapp_number) payload.whatsapp_link = 'https://wa.me/' + payload.whatsapp_number.replace(/\D/g,'');
   const r=await fetch('/api/content',{method:'PUT',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify(payload)});
   const j=await r.json();
-  $('#int-msg').textContent=r.ok?'Saved — webhooks and contact updated instantly.':(j.error||'Failed');
+  $('#int-msg').textContent=r.ok?'Saved   webhooks and contact updated instantly.':(j.error||'Failed');
   if(r.ok) await loadContent();
 });
-$('#btn-publish').addEventListener('click', ()=>{ alert('Changes are live instantly — no draft queue. (This button confirms publish.)'); window.open('/','_blank'); });
+$('#btn-publish').addEventListener('click', ()=>{ alert('Changes are live instantly   no draft queue. (This button confirms publish.)'); window.open('/','_blank'); });
 $('#btn-revert').addEventListener('click', async()=>{
   if(!lastPublishedContent) return alert('No snapshot');
   if(!confirm('Revert to last published snapshot?')) return;
@@ -394,7 +394,7 @@ function renderMediaGallery(){
       </div>
       <div style="padding:10px;display:grid;gap:6px">
         <b style="font-size:13px">${item.caption||'(no caption)'}</b>
-        <small style="color:#94A3B8">${item.category||'—'} • ${item.result_stat||''}</small>
+        <small style="color:#94A3B8">${item.category||' '} • ${item.result_stat||''}</small>
         <small style="color:#94A3B8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${item.url}</small>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           <button class="btn btn-ghost" data-edit="${item.id}" style="padding:6px 10px;font-size:11px">Edit</button>
@@ -548,7 +548,7 @@ async function loadTeam(){
     div.innerHTML=`
       <img src="${m.photo_url||''}" style="width:64px;height:64px;border-radius:10px;object-fit:cover;background:#132238">
       <div style="flex:1">
-        <b>${m.name}</b> <small style="color:#94A3B8">— ${m.role||''}</small>
+        <b>${m.name}</b> <small style="color:#94A3B8">  ${m.role||''}</small>
         <div style="font-size:12px;color:#94A3B8">${m.credibility_note||''}</div>
         <small style="color:${m.published?'#34D399':'#F87171'}">${m.published?'Published':'Draft'}</small>
       </div>
@@ -703,7 +703,7 @@ function renderLeads(){
       const isHigh=lead.wasScammed==='yes';
       card.innerHTML=`
         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-          <b>${lead.name||'—'}</b> ${isHigh?'<span class="badge" style="background:#F59E0B;color:#fff">High Empathy Needed</span>':''}
+          <b>${lead.name||' '}</b> ${isHigh?'<span class="badge" style="background:#F59E0B;color:#fff">High Empathy Needed</span>':''}
           <span class="badge ${lead.webhook_status==='sent'?'badge-sent':lead.webhook_status==='failed'?'badge-failed':'badge-pending'}">${lead.webhook_status||'pending'}</span>
         </div>
         <small>${lead.storeName||''} • ${lead.preferredNiche||''} ${lead.preferredNicheOther?`(${lead.preferredNicheOther})`:''}</small>
@@ -757,10 +757,10 @@ async function loadOverview(){
   const c=await fetch('/api/content').then(r=>r.json());
   const leads=await fetch('/api/admin/leads',{headers:authHeaders()}).then(r=>r.json()).catch(()=>[]);
   const events=await fetch('/api/admin/analytics',{headers:authHeaders()}).then(r=>r.json()).catch(()=>null);
-  $('#kpi-stores').textContent=c.stats.stores_launched||'—';
+  $('#kpi-stores').textContent=c.stats.stores_launched||' ';
   $('#kpi-leads').textContent=leads.length||0;
   $('#kpi-pending').textContent=leads.filter(l=>l.webhook_status!=='sent').length;
-  $('#kpi-views').textContent=events? events.totalViews : '—';
+  $('#kpi-views').textContent=events? events.totalViews : ' ';
 }
 async function loadAnalytics(){
   const r=await fetch('/api/admin/analytics',{headers:authHeaders()});
@@ -773,7 +773,7 @@ async function loadAnalytics(){
   drawChart('chart-daily', ANALYTICS.daily.map(d=>d.d), ANALYTICS.daily.map(d=>d.c), 'Views');
   drawChart('chart-cta', ANALYTICS.ctaClicks.map(c=>c.element_id), ANALYTICS.ctaClicks.map(c=>c.c), 'Clicks');
   drawChart('chart-source', ANALYTICS.trafficSource.map(s=>s.name||'Unknown'), ANALYTICS.trafficSource.map(s=>s.c), 'Leads');
-  $('#top-portfolio').innerHTML = ANALYTICS.topPortfolio.length? ANALYTICS.topPortfolio.map(t=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)"><span>${t.element_id||'—'}</span><b>${t.c}</b></div>`).join('') : '<small style="color:#94A3B8">No portfolio views yet.</small>';
+  $('#top-portfolio').innerHTML = ANALYTICS.topPortfolio.length? ANALYTICS.topPortfolio.map(t=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)"><span>${t.element_id||' '}</span><b>${t.c}</b></div>`).join('') : '<small style="color:#94A3B8">No portfolio views yet.</small>';
 }
 function drawChart(id, labels, values, label){
   const canvas=document.getElementById(id);
