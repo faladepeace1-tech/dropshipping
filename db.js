@@ -336,9 +336,8 @@ export async function initDb() {
     return parseInt(row?.c ?? row?.count ?? 0, 10);
   };
 
-  const count = await getCount('content');
-  if (count === 0) {
-    const defaults = [
+  // Default content definitions — used for initial seed AND for deploy-with-defaults ensure
+  const defaults = [
       ['site_name', 'Nexatech Dropshipping Store', 'text'],
       ['tagline', "We don't just build stores we engineer high-converting storefronts backed by real, current sales proof.", 'text'],
       ['whatsapp_number', '19283825389', 'text'],
@@ -439,15 +438,34 @@ export async function initDb() {
       ['terms_title', 'Terms and Conditions', 'text'],
       ['terms_last_updated', 'September 3, 2026', 'text'],
       ['terms_content', `<h2>1. Services</h2><p>Nexatech builds, launches, and hands over done-for-you dropshipping stores. Timelines (7 to 14 days) are estimates and depend on client responsiveness.</p><h2>2. Ownership</h2><p>You own 100% of the store, domain, and assets upon handover. We build in your account.</p><h2>3. Payments & Refunds</h2><p>Due to done-for-you labor, deposits are non-refundable. We revise until handover criteria are met. Support windows: Starter 14 days, Pro 30 days, Elite 60 days.</p><h2>4. Results Disclaimer</h2><p>We provide real, current sales proof but do not guarantee specific revenue. Success depends on traffic, product-market fit, and execution.</p><h2>5. Client Responsibilities</h2><p>You are responsible for running traffic (ads), complying with platform policies, and providing timely feedback.</p><h2>6. Limitation of Liability</h2><p>Our liability is limited to the amount paid for services.</p><h2>7. Governing Law</h2><p>These terms are governed by applicable international commercial law.</p><p>Contact: saheednexatech@gmail.com | +1 928 382 5389</p>`, 'html']
-    ];
+  ];
+  const count = await getCount('content');
+  const forceReset = process.env.FORCE_DEFAULT_CONTENT === 'true' || process.env.RESET_CONTENT === 'true';
+  if (count === 0 || forceReset) {
+    if (forceReset && count !== 0) {
+      // Clear and reseed when forced (deploy with default content)
+      try { await db.exec('DELETE FROM content'); } catch {}
+      console.log('FORCE_DEFAULT_CONTENT enabled — reseeding content with defaults');
+    }
     for (const r of defaults) {
       await db.prepare('INSERT INTO content (key,value,type) VALUES (?,?,?)').run(r[0], r[1], r[2]);
     }
+    if (count === 0) console.log(`Seeded ${defaults.length} default content keys`);
+  } else {
+    // Ensure missing defaults are inserted (deploy-with-defaults: live DB may be partial)
+    let inserted = 0;
+    for (const [k,v,t] of defaults) {
+      const ex = await db.prepare('SELECT key FROM content WHERE key=?').get(k);
+      if (!ex) {
+        await db.prepare('INSERT INTO content (key,value,type) VALUES (?,?,?)').run(k,v,t);
+        inserted++;
+      }
+    }
+    if (inserted) console.log(`Inserted ${inserted} missing default content keys (deploy-with-defaults)`);
   }
 
   const secCount = await getCount('sections');
-  if (secCount === 0) {
-    const sections = [
+  const sectionsDef = [
       ['navbar', 1, 0, 0],
       ['hero', 1, 1, 1],
       ['social_proof', 1, 2, 1],
@@ -463,8 +481,17 @@ export async function initDb() {
       ['lead_form', 1, 12, 1],
       ['cta_band', 1, 13, 1],
       ['footer', 1, 14, 0]
-    ];
-    for (const r of sections) await db.prepare('INSERT INTO sections (key,visible,display_order,animation_enabled) VALUES (?,?,?,?)').run(r[0], r[1], r[2], r[3]);
+  ];
+  if (secCount === 0 || forceReset) {
+    if (forceReset && secCount !== 0) { try { await db.exec('DELETE FROM sections'); } catch {} }
+    for (const r of sectionsDef) await db.prepare('INSERT INTO sections (key,visible,display_order,animation_enabled) VALUES (?,?,?,?)').run(r[0], r[1], r[2], r[3]);
+    if (forceReset) console.log('FORCE_DEFAULT_CONTENT: reseeded sections');
+  } else {
+    // ensure missing sections exist (deploy-with-defaults)
+    for (const [k,v,o,a] of sectionsDef) {
+      const ex = await db.prepare('SELECT key FROM sections WHERE key=?').get(k);
+      if (!ex) await db.prepare('INSERT INTO sections (key,visible,display_order,animation_enabled) VALUES (?,?,?,?)').run(k,v,o,a);
+    }
   }
 
   const adminCount = await getCount('admin_users');
@@ -503,8 +530,7 @@ export async function initDb() {
   }
 
   const mediaCount = await getCount('media');
-  if (mediaCount === 0) {
-    const medias = [
+  const mediasDef = [
       ['portfolio','Fashion','https://images.unsplash.com/photo-1483985988355-763728e1935b?w=800','Elégance Mode Fashion Store','Fashion store','Fashion','$12,400 in 60 days Fashion niche','Built a premium fashion store with curated collections, size-guide logic, and UGC-driven landing pages. Launched in 10 days, hit $12,400 revenue by day 60.',1,1],
       ['portfolio','Beauty','https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=800','GlowLab Beauty & Skincare','Beauty store','Beauty','$8,500 in 45 days Beauty','Skincare niche store with quiz funnel and bundle offers. 3.2% conversion rate after CRO pass.',2,1],
       ['portfolio','Tech Gadgets','https://images.unsplash.com/photo-1468495244123-6c6c332eeece?w=800','TechNest Gadgets','Tech store','Tech Gadgets','$21,000 in 30 days Tech Gadgets','Gadget dropshipper with high-ticket upsells and automated fulfillment. ROAS 2.8 on TikTok ads.',3,1],
@@ -516,30 +542,37 @@ export async function initDb() {
       ['sales_proof','','https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=800','Stripe Dashboard 312 orders','Orders dashboard','','', '',3,1],
       ['testimonials','','https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400','"Nexatech built my store in 9 days and I made my first sale on day 12. No hype." Ada, Lagos','Ada testimonial','','', '',1,1],
       ['testimonials','','https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400','"The product research alone was worth it. Three winners in week one." Tunde, Abuja','Tunde testimonial','','', '',2,1],
-    ];
-    for (const r of medias) await db.prepare('INSERT INTO media (type,category,url,caption,alt_text,tags,result_stat,case_study_text,display_order,published) VALUES (?,?,?,?,?,?,?,?,?,?)').run(r[0],r[1],r[2],r[3],r[4],r[5],r[6],r[7],r[8],r[9]);
+  ];
+  if (mediaCount === 0 || forceReset) {
+    if (forceReset && mediaCount !== 0) { try { await db.exec('DELETE FROM media'); } catch {} }
+    for (const r of mediasDef) await db.prepare('INSERT INTO media (type,category,url,caption,alt_text,tags,result_stat,case_study_text,display_order,published) VALUES (?,?,?,?,?,?,?,?,?,?)').run(r[0],r[1],r[2],r[3],r[4],r[5],r[6],r[7],r[8],r[9]);
+    if (forceReset) console.log('FORCE_DEFAULT_CONTENT: reseeded media');
   }
 
   const teamCount = await getCount('team');
-  if (teamCount === 0) {
-    const teams = [
+  const teamsDef = [
       ['David Okafor','Founder & Store Architect','Built 120+ stores, ex-Jumia growth lead','https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400','https://linkedin.com',1,1],
       ['Amara Eze','Product Research Lead','Sourced 500+ winning products, 2.8 avg ROAS','https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400','https://linkedin.com',2,1],
       ['Chidi Nwosu','Fulfillment & Automation','DSers & AutoDS specialist, 99.2% fulfillment SLA','https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400','https://linkedin.com',3,1],
       ['Zainab Musa','CRO & Performance','CRO strategist, +42% avg conversion lift','https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400','https://linkedin.com',4,1]
-    ];
-    for (const r of teams) await db.prepare('INSERT INTO team (name,role,credibility_note,photo_url,social_url,display_order,published) VALUES (?,?,?,?,?,?,?)').run(r[0],r[1],r[2],r[3],r[4],r[5],r[6]);
+  ];
+  if (teamCount === 0 || forceReset) {
+    if (forceReset && teamCount !== 0) { try { await db.exec('DELETE FROM team'); } catch {} }
+    for (const r of teamsDef) await db.prepare('INSERT INTO team (name,role,credibility_note,photo_url,social_url,display_order,published) VALUES (?,?,?,?,?,?,?)').run(r[0],r[1],r[2],r[3],r[4],r[5],r[6]);
+    if (forceReset) console.log('FORCE_DEFAULT_CONTENT: reseeded team');
   }
 
   const statsCount = await getCount('stats_cache');
-  if (statsCount === 0) {
-    const stats = [
+  const statsDef = [
       ['stores_launched','47'],
       ['verified_sales','38200000'],
       ['happy_clients','41'],
       ['avg_launch_days','11']
-    ];
-    for (const r of stats) await db.prepare('INSERT INTO stats_cache (metric,value) VALUES (?,?)').run(r[0],r[1]);
+  ];
+  if (statsCount === 0 || forceReset) {
+    if (forceReset && statsCount !== 0) { try { await db.exec('DELETE FROM stats_cache'); } catch {} }
+    for (const r of statsDef) await db.prepare('INSERT INTO stats_cache (metric,value) VALUES (?,?)').run(r[0],r[1]);
+    if (forceReset) console.log('FORCE_DEFAULT_CONTENT: reseeded stats');
   }
 
   // Migrations
@@ -592,6 +625,14 @@ export async function initDb() {
       await db.prepare("UPDATE sections SET display_order = display_order + 1 WHERE key IN ('faq','lead_form','cta_band','footer')").run();
     }
   } catch(e){ console.error('migration error', e); }
+}
+
+export async function reseedDefaults() {
+  // Force reseed with default content — used for "deploy with default content" requirement
+  process.env.FORCE_DEFAULT_CONTENT = 'true';
+  await initDb();
+  delete process.env.FORCE_DEFAULT_CONTENT;
+  return true;
 }
 
 export function getDb() { return db; }

@@ -10,7 +10,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import cron from 'node-cron';
-import { initDb, getDb } from './db.js';
+import { initDb, getDb, reseedDefaults } from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -559,6 +559,17 @@ app.get('/api/admin/me', requireAuth, async (req, res) => {
 app.post('/api/admin/refresh-stats', requireAuth, async (req, res) => {
   refreshStats();
   res.json({ ok: true });
+});
+
+// Force reseed default content — deploy with default content (owner request)
+app.post('/api/admin/reset-defaults', requireAuth, async (req, res) => {
+  try {
+    await reseedDefaults();
+    res.json({ ok: true, message: 'Default content reseeded — refresh the site' });
+  } catch (e) {
+    console.error('reseed error', e);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // Scheduled jobs

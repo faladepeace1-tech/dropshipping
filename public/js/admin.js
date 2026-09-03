@@ -818,6 +818,13 @@ $('#btn-refresh-stats').addEventListener('click', async()=>{
   const r=await fetch('/api/admin/refresh-stats',{method:'POST',headers:authHeaders()});
   if(r.ok){ alert('Stats refreshed'); loadOverview(); }
 });
+$('#btn-reset-defaults')?.addEventListener('click', async()=>{
+  if(!confirm('Reset live site to DEFAULT content? This will overwrite hero, portfolio, pricing, etc. with the seeded defaults from code. Leads will be preserved. Continue?')) return;
+  const r=await fetch('/api/admin/reset-defaults',{method:'POST',headers:authHeaders()});
+  const j=await r.json().catch(()=>({}));
+  if(r.ok){ alert('Defaults reseeded — refresh the public site to see changes'); await loadContent(); await loadMedia(); await loadTeam(); await loadSections(); await loadOverview(); }
+  else alert('Reset failed: '+(j.error||r.statusText));
+});
 
 // Init
 (async()=>{
