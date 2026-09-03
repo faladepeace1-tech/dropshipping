@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nexatech — Admin Command Center</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/admin.css">
+</head>
+<body>
+<div id="login-view" class="login-wrap">
+  <form id="login-form" class="login-card">
+    <h1>Nexatech Admin</h1>
+    <p style="color:#94A3B8;font-size:13px;margin:0 0 14px">Single-owner login. Default: <b>admin / Nexatech2026!</b></p>
+    <label>Username<input name="username" value="admin" required></label>
+    <label>Password<input name="password" type="password" required placeholder="••••••••"></label>
+    <button class="btn btn-primary" type="submit">Sign In</button>
+    <div id="login-msg" style="font-size:13px;color:#F87171;min-height:18px"></div>
+  </form>
+</div>
+
+<div id="app" class="hidden">
+  <aside class="sidebar">
+    <div class="brand"><span class="mark">N</span> NEXATECH <small>ADMIN</small></div>
+    <nav class="side-nav">
+      <button data-tab="overview" class="active">Overview</button>
+      <button data-tab="content">Content & Theme</button>
+      <button data-tab="media">Media Manager</button>
+      <button data-tab="team">Experts (Team)</button>
+      <button data-tab="sections">Sections & Layout</button>
+      <button data-tab="leads">Leads / CRM</button>
+      <button data-tab="analytics">Analytics</button>
+      <button data-tab="settings">Integrations</button>
+    </nav>
+    <div style="margin-top:auto;display:grid;gap:8px">
+      <button id="btn-preview" class="btn btn-ghost">Preview Site →</button>
+      <button id="btn-logout" class="btn btn-ghost">Logout</button>
+    </div>
+  </aside>
+  <main class="main">
+    <header class="topbar">
+      <h2 id="tab-title">Overview</h2>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span id="auth-user" style="font-size:12px;color:#64748B"></span>
+        <button id="btn-publish" class="btn btn-primary">Publish changes</button>
+        <button id="btn-revert" class="btn btn-ghost">Revert to last published</button>
+      </div>
+    </header>
+    <div class="content">
+      <!-- Overview -->
+      <section data-panel="overview">
+        <div class="cards">
+          <div class="kpi"><small>Stores Launched</small><strong id="kpi-stores">—</strong></div>
+          <div class="kpi"><small>Leads (Total)</small><strong id="kpi-leads">—</strong></div>
+          <div class="kpi"><small>Pending Webhooks</small><strong id="kpi-pending">—</strong></div>
+          <div class="kpi"><small>Page Views</small><strong id="kpi-views">—</strong></div>
+        </div>
+        <div class="grid2">
+          <div class="card">
+            <h3>Quick Actions</h3>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-primary" data-tab-jump="leads">Open Leads</button>
+              <button class="btn btn-ghost" data-tab-jump="media">Add Portfolio Item</button>
+              <button class="btn btn-ghost" id="btn-refresh-stats">Refresh Stats Cache</button>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Scarcity Badge (honest capacity)</h3>
+            <p style="font-size:12px;color:#64748B">Remaining slots are computed as <code>total − leads this month</code>. You set the total; the number shown is never hand-typed.</p>
+            <label>Total build slots this month<input id="scarcity-total" type="number" min="1"></label>
+            <label>Badge label template (use {remaining})<input id="scarcity-label" placeholder="Only {remaining} build slots left this month"></label>
+            <button class="btn btn-primary" id="btn-save-scarcity">Save</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Content & Theme -->
+      <section data-panel="content" class="hidden">
+        <div class="tabs-mini" id="content-tabs">
+          <button data-ctab="general" class="active">General</button>
+          <button data-ctab="navbar">Navbar</button>
+          <button data-ctab="hero">Hero</button>
+          <button data-ctab="social">Social Proof</button>
+          <button data-ctab="portfolio">Portfolio</button>
+          <button data-ctab="proof">Sales Proof</button>
+          <button data-ctab="experts">Experts</button>
+          <button data-ctab="how">How It Works</button>
+          <button data-ctab="pricing">Pricing</button>
+          <button data-ctab="testimonials">Testimonials</button>
+          <button data-ctab="reviews">Reviews (2550×1650)</button>
+          <button data-ctab="faq">FAQ</button>
+          <button data-ctab="cta">CTA Band</button>
+          <button data-ctab="footer">Footer</button>
+          <button data-ctab="legal">Legal</button>
+          <button data-ctab="theme">Branding & Theme</button>
+        </div>
+        <div id="content-forms"></div>
+        <button class="btn btn-primary" id="btn-save-content">Save Content</button>
+        <div id="content-msg" style="font-size:13px;margin-top:8px"></div>
+      </section>
+
+      <!-- Media -->
+      <section data-panel="media" class="hidden">
+        <div class="tabs-mini" id="media-tabs">
+          <button data-mtab="portfolio" class="active">Portfolio</button>
+          <button data-mtab="sales_proof">Sales Proof</button>
+          <button data-mtab="testimonials">Testimonials</button>
+          <button data-mtab="reviews">Review Screenshots (2550×1650)</button>
+        </div>
+        <div class="card">
+          <h3>Add Media <small style="font-weight:500;color:#64748B">— file or URL, with progress & preview</small></h3>
+          <form id="media-form" style="display:grid;gap:10px">
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <label>Type<select name="type" id="media-type"><option value="portfolio">portfolio</option><option value="sales_proof">sales_proof</option><option value="testimonials">testimonials</option><option value="reviews">reviews</option></select></label>
+              <label>Category / Tag<input name="category" placeholder="Fashion, Beauty, Tech Gadgets..."></label>
+              <label>Result stat (e.g. $850 in 45 days)<input name="result_stat"></label>
+            </div>
+            <label>Caption / Store name<input name="caption" placeholder="Elégance Mode — Fashion Store"></label>
+            <label>Alt text (SEO)<input name="alt_text" placeholder="Fashion store homepage"></label>
+            <label>Tags (comma-separated)<input name="tags"></label>
+            <label>Case-study text (portfolio only)<textarea name="case_study_text" rows="3" placeholder="What was built, timeline, result..."></textarea></label>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+              <label>Upload file<input type="file" name="file" accept="image/*,video/*"></label>
+              <span style="color:#64748B">or</span>
+              <label style="flex:1">Image/Video URL<input name="url" placeholder="https://..."></label>
+            </div>
+            <div id="media-hint" style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:10px;font-size:12px;color:#1E40AF;display:none"><b>Tip:</b> <span id="media-hint-text"></span></div>
+            <div id="media-preview" style="display:none;border:1px dashed #CBD5E1;border-radius:12px;padding:10px"><img id="media-preview-img" style="max-height:180px;border-radius:8px"><div id="media-preview-meta" style="font-size:12px;color:#64748B;margin-top:6px"></div></div>
+            <div id="upload-progress" style="display:none"><div style="height:8px;background:#E2E8F0;border-radius:999px;overflow:hidden"><div id="upload-bar" style="height:100%;width:0%;background:#0B1220;transition:width .2s"></div></div><small id="upload-text" style="color:#64748B">Uploading…</small></div>
+            <button class="btn btn-primary" type="submit">Upload</button>
+          </form>
+        </div>
+        <div class="card">
+          <h3>Media Gallery <small style="color:#64748B">— drag to reorder, toggle publish, edit inline</small></h3>
+          <div id="media-gallery" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px"></div>
+        </div>
+      </section>
+
+      <!-- Team -->
+      <section data-panel="team" class="hidden">
+        <div class="card">
+          <h3>Add Expert</h3>
+          <form id="team-form" style="display:grid;gap:10px">
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <label>Name<input name="name" required></label>
+              <label>Role<input name="role" placeholder="CRO Specialist"></label>
+            </div>
+            <label>Credibility note<input name="credibility_note" placeholder="Built 120+ stores..."></label>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <label>Photo file<input type="file" name="photo" accept="image/*"></label>
+              <label style="flex:1">or Photo URL<input name="photo_url" placeholder="https://..."></label>
+              <label>Social URL<input name="social_url" placeholder="https://linkedin.com/in/..."></label>
+            </div>
+            <button class="btn btn-primary" type="submit">Add Expert</button>
+          </form>
+        </div>
+        <div class="card"><h3>Experts</h3><div id="team-list" style="display:grid;gap:10px"></div></div>
+      </section>
+
+      <!-- Sections -->
+      <section data-panel="sections" class="hidden">
+        <div class="card">
+          <h3>Homepage Sections — visibility, order, animation</h3>
+          <p style="font-size:12px;color:#64748B">Drag to reorder. Toggle visibility to hide any section without code changes. Per-section animation toggle + global Reduced Motion (in Branding tab).</p>
+          <div id="sections-list" style="display:grid;gap:8px"></div>
+          <button class="btn btn-primary" id="btn-save-sections">Save Layout</button>
+        </div>
+      </section>
+
+      <!-- Leads -->
+      <section data-panel="leads" class="hidden">
+        <div class="card">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between">
+            <h3>Leads / Mini-CRM</h3>
+            <div style="display:flex;gap:8px">
+              <input id="lead-search" placeholder="Search name, email, whatsapp, niche" style="padding:8px 10px;border:1px solid #E2E8F0;border-radius:10px">
+              <select id="lead-stage-filter"><option value="">All stages</option><option value="new">New Application</option><option value="contacted">Contacted</option><option value="scheduled">Call Scheduled</option><option value="closed">Client Closed</option><option value="archived">Archived</option></select>
+              <label style="display:flex;align-items:center;gap:6px;font-size:12px"><input type="checkbox" id="lead-scam-filter"> High Empathy Only</label>
+              <a class="btn btn-ghost" href="/api/admin/leads/export.csv" target="_blank">Export CSV</a>
+            </div>
+          </div>
+          <div id="leads-kanban" style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;overflow:auto;margin-top:12px"></div>
+          <div id="leads-table" style="margin-top:16px;overflow:auto"></div>
+        </div>
+      </section>
+
+      <!-- Analytics -->
+      <section data-panel="analytics" class="hidden">
+        <div class="cards">
+          <div class="kpi"><small>Page Views</small><strong id="a-views">—</strong></div>
+          <div class="kpi"><small>Unique Visitors</small><strong id="a-unique">—</strong></div>
+          <div class="kpi"><small>Funnel: Starts</small><strong id="a-starts">—</strong></div>
+          <div class="kpi"><small>Funnel: Completions</small><strong id="a-completions">—</strong></div>
+        </div>
+        <div class="grid2">
+          <div class="card"><h3>Daily Views (7d)</h3><canvas id="chart-daily" height="160"></canvas></div>
+          <div class="card"><h3>CTA Clicks by Placement</h3><canvas id="chart-cta" height="160"></canvas></div>
+          <div class="card"><h3>Traffic Source (self-reported)</h3><canvas id="chart-source" height="160"></canvas></div>
+          <div class="card"><h3>Top Portfolio Views</h3><div id="top-portfolio"></div></div>
+        </div>
+      </section>
+
+      <!-- Settings -->
+      <section data-panel="settings" class="hidden">
+        <div class="card">
+          <h3>Contact & Booking</h3>
+          <label>WhatsApp Number (digits, with country code, e.g. 19283825389)<input id="int-wa"></label>
+          <label>Contact Email (footer & privacy)<input id="int-email" placeholder="saheednexatech@gmail.com"></label>
+          <label>Contact Phone Display<input id="int-phone" placeholder="+1 928 382 5389"></label>
+          <label>Calendly / Booking URL<input id="int-calendly" placeholder="https://calendly.com/..."></label>
+        </div>
+        <div class="card">
+          <h3>Webhooks — Separate for Bot and Form</h3>
+          <p style="font-size:12px;color:#94A3B8">Configure automation webhooks. <b>Form webhook</b> fires on new application submits (leads). <b>Bot webhook</b> fires on chatbot messages. Leave empty to disable. Use n8n, Zapier, Make, or your own endpoint.</p>
+          <label>Form / Leads Webhook URL (new applications) <input id="int-webhook-form" placeholder="https://.../webhook/form"></label>
+          <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="int-webhook-form-enabled"> Enable Form Webhook</label>
+          <label>Chatbot Webhook URL (bot messages) <input id="int-webhook-bot" placeholder="https://.../webhook/bot"></label>
+          <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="int-webhook-bot-enabled"> Enable Bot Webhook</label>
+          <details style="margin-top:8px"><summary style="font-size:12px;color:#94A3B8;cursor:pointer">Legacy single webhook (fallback)</summary>
+            <label>Legacy Automation Webhook URL<input id="int-webhook" placeholder="https://... (n8n / Zapier)"></label>
+            <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="int-webhook-enabled"> Enable legacy webhook (used if new ones empty)</label>
+          </details>
+          <button class="btn btn-primary" id="btn-save-integrations">Save Integrations</button>
+          <div id="int-msg" style="font-size:13px;margin-top:8px"></div>
+          <div style="font-size:11px;color:#94A3B8;margin-top:8px">Tip: Test with https://webhook.site to see payloads. Payloads include full lead data or chat message + sessionId.</div>
+        </div>
+        <div class="card">
+          <h3>Theme & Branding</h3>
+          <p style="font-size:12px;color:#94A3B8">All theme colours, logo and favicon are editable under <b>Content & Theme → Branding & Theme</b> tab. Changes apply instantly site-wide via CSS custom properties.</p>
+          <button class="btn btn-ghost" data-tab-jump="content">Go to Branding →</button>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<!-- Edit modals -->
+<dialog id="edit-media-dialog" style="border:none;border-radius:16px;max-width:560px;width:92vw;padding:0;overflow:hidden">
+  <form method="dialog" style="display:grid;gap:0">
+    <div style="padding:16px;border-bottom:1px solid #E2E8F0;display:flex;justify-content:space-between;align-items:center"><b>Edit Media</b><button value="cancel" style="border:none;background:#F1F5F9;border-radius:999px;width:32px;height:32px;cursor:pointer">✕</button></div>
+    <div style="padding:16px;display:grid;gap:10px" id="edit-media-body"></div>
+    <div style="padding:12px 16px;background:#F8FAFC;display:flex;gap:8px;justify-content:flex-end"><button value="cancel" class="btn btn-ghost">Cancel</button><button id="edit-media-save" value="default" class="btn btn-primary">Save</button></div>
+  </form>
+</dialog>
+
+<dialog id="edit-team-dialog" style="border:none;border-radius:16px;max-width:520px;width:92vw;padding:0;overflow:hidden">
+  <form method="dialog" style="display:grid;gap:0">
+    <div style="padding:16px;border-bottom:1px solid #E2E8F0;display:flex;justify-content:space-between;align-items:center"><b>Edit Expert</b><button value="cancel" style="border:none;background:#F1F5F9;border-radius:999px;width:32px;height:32px;cursor:pointer">✕</button></div>
+    <div style="padding:16px;display:grid;gap:10px" id="edit-team-body"></div>
+    <div style="padding:12px 16px;background:#F8FAFC;display:flex;gap:8px;justify-content:flex-end"><button value="cancel" class="btn btn-ghost">Cancel</button><button id="edit-team-save" value="default" class="btn btn-primary">Save</button></div>
+  </form>
+</dialog>
+
+<script src="/js/admin.js" type="module"></script>
+</body>
+</html>

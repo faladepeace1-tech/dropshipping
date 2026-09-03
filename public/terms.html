@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Terms and Conditions — Nexatech Dropshipping Store</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/style.css">
+<style>
+.legal-wrap{max-width:800px;margin:0 auto;padding:40px 20px}
+.legal-wrap h1{font-size:32px;letter-spacing:-.03em;margin:0 0 8px}
+.legal-wrap small{color:var(--text-muted)}
+.legal-content{margin-top:18px;background:#fff;border:1px solid var(--border);border-radius:16px;padding:22px;box-shadow:var(--shadow);line-height:1.7}
+.legal-content h2{font-size:18px;margin:22px 0 8px}
+.legal-content p,.legal-content li{color:#334155;font-size:14px}
+.legal-content ul{padding-left:18px}
+</style>
+</head>
+<body>
+<header class="header scrolled">
+  <div class="container nav">
+    <a class="logo" href="/"><span class="logo-mark">N</span> <span id="logo-text">NEXATECH</span></a>
+    <nav class="nav-links">
+      <a href="/#portfolio">Portfolio</a>
+      <a href="/#proof">Proof</a>
+      <a href="/#pricing">Pricing</a>
+      <a href="/#faq">FAQ</a>
+    </nav>
+    <div class="nav-cta">
+      <a class="btn btn-ghost hide-mobile" id="nav-wa" href="#" target="_blank">WhatsApp Us</a>
+      <a class="btn btn-primary" id="nav-book" href="#" target="_blank">Book a Call</a>
+    </div>
+  </div>
+</header>
+<main class="legal-wrap">
+  <a href="/" style="font-size:13px;color:var(--text-muted);font-weight:700">← Back to Home</a>
+  <h1 id="t-title">Terms and Conditions</h1>
+  <small id="t-updated">Last updated: —</small>
+  <div class="legal-content" id="t-content">Loading...</div>
+</main>
+<footer class="footer">
+  <div class="container">
+    <div class="copy">
+      <span id="f-copy">© Nexatech — All rights reserved.</span>
+      <span><a href="/privacy.html">Privacy</a> • <a href="/terms.html">Terms</a></span>
+    </div>
+  </div>
+</footer>
+<script>
+(async()=>{
+  try{
+    const r=await fetch('/api/content'); const j=await r.json(); const c=j.content;
+    document.getElementById('t-title').textContent=c.terms_title||'Terms and Conditions';
+    document.getElementById('t-updated').textContent='Last updated: '+(c.terms_last_updated||'—');
+    document.getElementById('t-content').innerHTML=c.terms_content||'<p>No content yet.</p>';
+    document.title=(c.terms_title||'Terms')+' — '+ (c.site_name||'Nexatech');
+    const wa=c.whatsapp_number||'19283825389';
+    const cal=c.calendly_url||'#';
+    document.getElementById('nav-wa').href='https://wa.me/'+wa.replace(/\D/g,'')+'?text='+encodeURIComponent('Hi Nexatech — terms question');
+    document.getElementById('nav-book').href=cal;
+    document.getElementById('f-copy').textContent=c.footer_copyright||'© Nexatech';
+    if(c.favicon_url) document.querySelector('link[rel="icon"]').href=c.favicon_url;
+    if(c.logo_text) document.getElementById('logo-text').textContent=c.logo_text;
+    if(c.logo_url) document.getElementById('logo-text').innerHTML='<img src="'+c.logo_url+'" style="height:28px" alt="logo">';
+  }catch(e){ document.getElementById('t-content').textContent='Failed to load.'; }
+})();
+</script>
+</body>
+</html>
