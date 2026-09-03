@@ -23,11 +23,12 @@ function applyTheme(c){
   for(const [k,css] of Object.entries(map)) if(c[k]) r.style.setProperty(css,c[k]);
   if(c.font_family) r.style.setProperty('--font',c.font_family);
   if(c.logo_text) $('#logo-text').textContent=c.logo_text;
-  if(c.logo_url){
-    // if logo image provided, replace text
-    if(c.logo_url.trim()){
-      $('#logo-text').innerHTML=`<img src="${c.logo_url}" alt="logo" style="height:28px">`;
-    }
+  // Logo image replaces the N mark, text stays always (per owner request)
+  const mark = document.querySelector('.logo-mark');
+  if(c.logo_url && c.logo_url.trim()){
+    if(mark) mark.innerHTML=`<img src="${c.logo_url}" alt="logo" style="width:100%;height:100%;object-fit:cover;border-radius:10px;display:block">`;
+  } else {
+    if(mark && mark.querySelector('img')) mark.innerHTML='N';
   }
   if(c.favicon_url && c.favicon_url.trim()) $('#favicon').href=c.favicon_url;
   if(c.seo_title) {$('#seo-title').textContent=c.seo_title; document.title=c.seo_title;}

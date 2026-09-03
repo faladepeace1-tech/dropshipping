@@ -124,20 +124,20 @@ const CONTENT_SCHEMA = {
     {key:'pricing_subtitle', label:'Pricing Subtitle', type:'textarea'},
     {key:'pricing_starter_name', label:'Starter Name'},
     {key:'pricing_starter_price', label:'Starter Price'},
-    {key:'pricing_starter_features', label:'Starter Features (JSON array)', type:'textarea'},
+    {key:'pricing_starter_features', label:'Starter Features (one per line, text format)', type:'textarea'},
     {key:'pricing_starter_whatsapp', label:'Starter WhatsApp Message', type:'textarea'},
     {key:'pricing_pro_name', label:'Pro Name'},
     {key:'pricing_pro_price', label:'Pro Price'},
-    {key:'pricing_pro_features', label:'Pro Features (JSON array)', type:'textarea'},
+    {key:'pricing_pro_features', label:'Pro Features (one per line, text format)', type:'textarea'},
     {key:'pricing_pro_whatsapp', label:'Pro WhatsApp Message', type:'textarea'},
     {key:'pricing_elite_name', label:'Elite Name'},
     {key:'pricing_elite_price', label:'Elite Price'},
-    {key:'pricing_elite_features', label:'Elite Features (JSON array)', type:'textarea'},
+    {key:'pricing_elite_features', label:'Elite Features (one per line, text format)', type:'textarea'},
     {key:'pricing_elite_whatsapp', label:'Elite WhatsApp Message', type:'textarea'},
     {key:'mentorship_title', label:'Mentorship Title'},
     {key:'mentorship_subtitle', label:'Mentorship Subtitle', type:'textarea'},
     {key:'mentorship_price', label:'Mentorship Price'},
-    {key:'mentorship_bullets', label:'Mentorship Bullets (JSON array)', type:'textarea'},
+    {key:'mentorship_bullets', label:'Mentorship Bullets (one per line, text format)', type:'textarea'},
     {key:'pricing_mentorship_whatsapp', label:'Mentorship WhatsApp Message', type:'textarea'},
   ],
   testimonials: [
@@ -196,14 +196,24 @@ let currentCTab='general';
 function renderContentForms(){
   const wrap=$('#content-forms'); wrap.innerHTML='';
   const schema=CONTENT_SCHEMA[currentCTab]||[];
+  const listKeys = ['pricing_starter_features','pricing_pro_features','pricing_elite_features','mentorship_bullets'];
   schema.forEach(field=>{
     const val=CONTENT[field.key]??'';
-    const displayVal = typeof val==='object' ? JSON.stringify(val, null, 2) : String(val);
+    let displayVal = typeof val==='object' ? JSON.stringify(val, null, 2) : String(val);
+    // For list fields, show as one per line text format (not raw JSON) per owner request
+    if(listKeys.includes(field.key)){
+      try{
+        const arr = typeof val === 'string' ? JSON.parse(val) : val;
+        if(Array.isArray(arr)) displayVal = arr.join('\n');
+      }catch{}
+    }
     const label=document.createElement('label');
     label.textContent=field.label + `   ${field.key}`;
     let input;
     if(field.type==='textarea'){
-      input=document.createElement('textarea'); input.rows=3; input.value=displayVal;
+      input=document.createElement('textarea'); input.rows=4; input.value=displayVal;
+      if(listKeys.includes(field.key)) input.placeholder = 'One item per line — text format';
+    } else if(field.type==='image_upload'){
     } else if(field.type==='image_upload'){
       // preview
       const preview=document.createElement('div');
@@ -303,10 +313,20 @@ async function loadContent(){
 $('#btn-save-content').addEventListener('click', async()=>{
   const inputs=$$('#content-forms [data-key]');
   const payload={};
+  const listKeysSave = ['pricing_starter_features','pricing_pro_features','pricing_elite_features','mentorship_bullets'];
   inputs.forEach(inp=>{
     let v=inp.value;
-    // detect json keys
-    if(inp.dataset.key.includes('features') || inp.dataset.key.includes('bullets') || inp.dataset.key==='faq_items'){
+    // For list keys, convert text lines to JSON array string (text format per owner request) — also accepts raw JSON for backward compat
+    if(listKeysSave.includes(inp.dataset.key)){
+      let lines;
+      const trimmed = v.trim();
+      if(trimmed.startsWith('[')){
+        try{ const parsed = JSON.parse(trimmed); if(Array.isArray(parsed)) lines = parsed; else lines = trimmed.split('\n').map(s=>s.trim()).filter(Boolean); }catch{ lines = v.split('\n').map(s=>s.trim()).filter(Boolean); }
+      } else {
+        lines = v.split('\n').map(s=>s.trim()).filter(Boolean);
+      }
+      v = JSON.stringify(lines);
+    } else if(inp.dataset.key.includes('features') || inp.dataset.key.includes('bullets') || inp.dataset.key==='faq_items'){
       // keep as string; server will store as json if valid
       try{ JSON.parse(v); }catch{ /* allow raw */ }
     }
