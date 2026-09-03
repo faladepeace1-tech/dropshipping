@@ -33,7 +33,7 @@ try {
 } catch(e){ console.error('admin fix error',e); }
 
 const app = express();
-
+app.set('trust proxy', 1); // Required for Render + Cloudflare (X-Forwarded-For) + express-rate-limit
 // Security & middleware
 app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
 app.use(cors({ origin: true, credentials: true }));

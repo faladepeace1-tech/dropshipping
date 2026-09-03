@@ -63,6 +63,23 @@ function convertSqlForPg(sql){
   // datetime('now') / datetime("now") -> NOW()
   s = s.replace(/datetime\s*\(\s*['\"]now['\"]\s*\)/gi, 'NOW()');
   s = s.replace(/datetime\s*\(\s*now\s*\)/gi, 'NOW()');
+  // date('now','start of month') -> date_trunc('month', NOW())
+  s = s.replace(/date\s*\(\s*['\"]now['\"]\s*,\s*['\"]start of month['\"]\s*\)/gi, "date_trunc('month', NOW())");
+  // date('now','-7 days') / date('now','-30 days') -> NOW() - INTERVAL '7 days'
+  s = s.replace(/date\s*\(\s*['\"]now['\"]\s*,\s*['\"]-(\d+)\s*days['\"]\s*\)/gi, "NOW() - INTERVAL '$1 days'");
+  s = s.replace(/date\s*\(\s*['\"]now['\"]\s*,\s*['\"]-(\d+)\s*day['\"]\s*\)/gi, "NOW() - INTERVAL '$1 day'");
+  // date('now') -> CURRENT_DATE
+  s = s.replace(/date\s*\(\s*['\"]now['\"]\s*\)/gi, 'CURRENT_DATE');
+  // date(col) where col is timestamp/created_at -> col::date for PG (SQLite date() vs PG)
+  s = s.replace(/\bdate\s*\(\s*timestamp\s*\)/gi, "timestamp::date");
+  s = s.replace(/\bdate\s*\(\s*created_at\s*\)/gi, "created_at::date");
+  s = s.replace(/\bdate\s*\(\s*([a-z_][a-z0-9_\.]*)\s*\)/gi, (m, col) => {
+    const lower = col.toLowerCase();
+    if (lower === 'now' || lower.includes('interval') || lower.includes('trunc')) return m;
+    // avoid double-converting already handled cases
+    if (col.includes('::')) return m;
+    return `${col}::date`;
+  });
   // ON CONFLICT(key) -> ON CONFLICT (key)
   s = s.replace(/ON CONFLICT\s*\(\s*([a-zA-Z_0-9]+)\s*\)/gi, 'ON CONFLICT ($1)');
   s = s.replace(/ON CONFLICT\s*([a-zA-Z_0-9]+)\s+DO/gi, 'ON CONFLICT ($1) DO');
