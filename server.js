@@ -639,19 +639,25 @@ app.post('/api/admin/webhook-test', requireAuth, async (req, res) => {
   if(want==='form' || want==='all'){
     const effectiveFormUrl = formUrl || (webhookEnabled ? webhookUrl : '');
     const effectiveFormEnabled = formUrl ? formEnabled : webhookEnabled;
-    if(effectiveFormEnabled && effectiveFormUrl){
-      results.form = await testOne(effectiveFormUrl, mockLead, 'form');
+    if(effectiveFormUrl){
+      const r = await testOne(effectiveFormUrl, mockLead, 'form');
+      r.enabled = effectiveFormEnabled;
+      if(!effectiveFormEnabled) r.warning = 'Form webhook URL is set but NOT enabled — check Enable Form Webhook and Save';
+      results.form = r;
     } else {
-      results.form = { ok:false, error: 'Form webhook not enabled / not configured', url: effectiveFormUrl||'' };
+      results.form = { ok:false, error: 'Form webhook not enabled / not configured', url: '' };
     }
   }
   if(want==='chat' || want==='all'){
     const effectiveBotUrl = botUrl || (webhookEnabled ? webhookUrl : '');
     const effectiveBotEnabled = botUrl ? botEnabled : webhookEnabled;
-    if(effectiveBotEnabled && effectiveBotUrl){
-      results.chat = await testOne(effectiveBotUrl, mockChat, 'chat');
+    if(effectiveBotUrl){
+      const r = await testOne(effectiveBotUrl, mockChat, 'chat');
+      r.enabled = effectiveBotEnabled;
+      if(!effectiveBotEnabled) r.warning = 'Chatbot webhook URL is set but NOT enabled — check Enable Bot Webhook and Save';
+      results.chat = r;
     } else {
-      results.chat = { ok:false, error: 'Chatbot webhook not enabled / not configured', url: effectiveBotUrl||'' };
+      results.chat = { ok:false, error: 'Chatbot webhook not enabled / not configured', url: '' };
     }
   }
   if(want==='all' && !formUrl && !botUrl && webhookEnabled && webhookUrl){
