@@ -214,12 +214,10 @@
           <label>Calendly / Booking URL<input id="int-calendly" placeholder="https://calendly.com/..."></label>
         </div>
         <div class="card">
-          <h3>Webhooks Separate for Bot and Form</h3>
-          <p style="font-size:12px;color:#94A3B8">Configure automation webhooks. <b>Form webhook</b> fires on new application submits (leads). <b>Bot webhook</b> fires on chatbot messages. Leave empty to disable. Use n8n, Zapier, Make, or your own endpoint.</p>
+          <h3>Form Webhook (Leads)</h3>
+          <p style="font-size:12px;color:#94A3B8">Form webhook fires on new application submits (leads). Use n8n, Zapier, Make, or your own endpoint. Chatbot now uses <b>Gemini Direct</b> below (no webhook needed for chat).</p>
           <label>Form / Leads Webhook URL (new applications) <input id="int-webhook-form" placeholder="https://.../webhook/form"></label>
           <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="int-webhook-form-enabled"> Enable Form Webhook</label>
-          <label>Chatbot Webhook URL (bot messages) <input id="int-webhook-bot" placeholder="https://.../webhook/bot"></label>
-          <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="int-webhook-bot-enabled"> Enable Bot Webhook</label>
           <details style="margin-top:8px"><summary style="font-size:12px;color:#94A3B8;cursor:pointer">Legacy single webhook (fallback)</summary>
             <label>Legacy Automation Webhook URL<input id="int-webhook" placeholder="https://... (n8n / Zapier)"></label>
             <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="int-webhook-enabled"> Enable legacy webhook (used if new ones empty)</label>
@@ -227,12 +225,10 @@
           <button class="btn btn-primary" id="btn-save-integrations">Save Integrations</button>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
             <button class="btn btn-ghost" id="btn-test-webhook-form" style="border-color:#F59E0B;color:#F59E0B">Test Form Webhook →</button>
-            <button class="btn btn-ghost" id="btn-test-webhook-chat" style="border-color:#00D1FF;color:#00D1FF">Test Chat Webhook →</button>
-            <button class="btn btn-ghost" id="btn-test-webhook-all">Test All Webhooks</button>
           </div>
           <div id="int-msg" style="font-size:13px;margin-top:8px"></div>
           <pre id="webhook-test-result" style="display:none;background:#0B1220;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px;font-size:11px;color:#94A3B8;overflow:auto;max-height:240px;white-space:pre-wrap;word-break:break-all"></pre>
-          <div style="font-size:11px;color:#94A3B8;margin-top:8px">Tip: Test with https://webhook.site to see payloads. Payloads include full lead data or chat message + sessionId. We send mock data: <code>Test User / test@example.com</code> for form, and a hello message for chat.</div>
+          <div style="font-size:11px;color:#94A3B8;margin-top:8px">Tip: Test with https://webhook.site to see payloads. Payload includes full lead data. We send mock: <code>Test User / test@example.com</code>.</div>
         </div>
         <div class="card" style="border-color:rgba(124,58,237,.3)">
           <h3>Chatbot — Gemini Direct (replaces n8n webhook for chat)</h3>

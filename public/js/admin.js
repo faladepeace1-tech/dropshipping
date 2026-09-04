@@ -359,9 +359,7 @@ $('#btn-save-integrations').addEventListener('click', async()=>{
     webhook_url: $('#int-webhook').value,
     webhook_enabled: String($('#int-webhook-enabled').checked),
     webhook_form_url: $('#int-webhook-form')?.value || '',
-    webhook_form_enabled: String($('#int-webhook-form-enabled')?.checked || false),
-    webhook_chatbot_url: $('#int-webhook-bot')?.value || '',
-    webhook_chatbot_enabled: String($('#int-webhook-bot-enabled')?.checked || false)
+    webhook_form_enabled: String($('#int-webhook-form-enabled')?.checked || false)
   };
   // sync whatsapp_link automatically
   if(payload.whatsapp_number) payload.whatsapp_link = 'https://wa.me/' + payload.whatsapp_number.replace(/\D/g,'');
@@ -370,31 +368,28 @@ $('#btn-save-integrations').addEventListener('click', async()=>{
   $('#int-msg').textContent=r.ok?'Saved   webhooks and contact updated instantly.':(j.error||'Failed');
   if(r.ok) await loadContent();
 });
-// Webhook test — send mock data (per owner request)
+// Webhook test — form only (chat now via Gemini, per owner request)
 async function testWebhook(type){
-  const btnMap = {form:'btn-test-webhook-form', chat:'btn-test-webhook-chat', all:'btn-test-webhook-all'};
-  const btn = document.getElementById(btnMap[type]||btnMap.all);
+  const btn = document.getElementById('btn-test-webhook-form');
   const out = $('#webhook-test-result');
-  if(btn){ btn.disabled=true; const orig=btn.textContent; btn.textContent='Testing...'; out.style.display='block'; out.textContent='Sending mock '+type+' payload...'; }
+  if(btn){ btn.disabled=true; btn.textContent='Testing...'; out.style.display='block'; out.textContent='Sending mock '+type+' payload...'; }
   try{
-    const r=await fetch('/api/admin/webhook-test',{method:'POST',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify({type})});
+    const r=await fetch('/api/admin/webhook-test',{method:'POST',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify({type:'form'})});
     const j=await r.json();
     if(out){ out.style.display='block'; out.textContent = JSON.stringify(j, null, 2); }
     if(!r.ok) $('#int-msg').textContent = j.error||'Webhook test failed';
     else $('#int-msg').textContent = 'Webhook test sent — see result below';
   }catch(e){ if(out){ out.style.display='block'; out.textContent='Error: '+e.message; } }
-  finally{ if(btn){ btn.disabled=false; btn.textContent = type==='form'?'Test Form Webhook →': type==='chat'?'Test Chat Webhook →':'Test All Webhooks'; } }
+  finally{ if(btn){ btn.disabled=false; btn.textContent='Test Form Webhook →'; } }
 }
 $('#btn-test-webhook-form')?.addEventListener('click', ()=> testWebhook('form'));
-$('#btn-test-webhook-chat')?.addEventListener('click', ()=> testWebhook('chat'));
-$('#btn-test-webhook-all')?.addEventListener('click', ()=> testWebhook('all'));
 // Gemini direct (replaces chatbot webhook)
 async function loadGeminiStatus(){
   try{
     const r=await fetch('/api/admin/gemini-key',{headers:authHeaders()});
     const j=await r.json();
     const el=$('#gemini-key-status');
-    if(el) el.textContent = j.dbHas||j.envHas ? `Key set (${j.masked||'env'} via ${j.source}, model: ${j.model})` : 'No key set — chatbot will use n8n webhook';
+    if(el) el.textContent = j.dbHas||j.envHas ? `Key set (${j.masked||'env'} via ${j.source}, model: ${j.model})` : 'No key set — chatbot disabled, paste Gemini key above';
     const modelEl=$('#int-gemini-model');
     if(modelEl && j.model) modelEl.placeholder = j.model;
   }catch{}

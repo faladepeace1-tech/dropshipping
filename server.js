@@ -558,42 +558,19 @@ async function callGemini(userMessage){
 app.post('/api/chat', async (req, res) => {
   const { message, sessionId } = req.body;
   if (!message) return res.status(400).json({ error: 'message required' });
-  // 1) Prefer direct Gemini if API key is set (owner request: paste API key instead of n8n webhook for chatbot)
+  // Gemini direct only for chatbot (webhook removed per owner request — chat uses Gemini, form uses webhook)
   const geminiKey = await getGeminiKey();
-  if(geminiKey){
-    const reply = await callGemini(message);
-    if(reply){
-      return res.json({ reply, source: 'gemini', model: GEMINI_MODEL });
-    }
-    // if Gemini fails, fallback to webhook below
-    console.log('Gemini failed, falling back to webhook');
+  if(!geminiKey){
+    return res.status(503).json({ error: 'Chatbot not configured — set Gemini API key in Admin → Integrations → Gemini Direct', fallback: 'Please chat on WhatsApp instead.' });
   }
-  // 2) Fallback to chatbot-specific webhook (n8n) if no Gemini key or Gemini failed
-  const botUrlRow = await db.prepare('SELECT value FROM content WHERE key=?').get('webhook_chatbot_url');
-  const botEnabledRow = await db.prepare('SELECT value FROM content WHERE key=?').get('webhook_chatbot_enabled');
-  const legacyRow = await db.prepare('SELECT value FROM content WHERE key=?').get('webhook_url');
-  const legacyEnabledRow = await db.prepare('SELECT value FROM content WHERE key=?').get('webhook_enabled');
-  const legacyUrl = legacyRow?.value?.trim() || '';
-  const legacyEnabled = legacyEnabledRow?.value === 'true';
-  const botUrl = botUrlRow?.value?.trim() || '';
-  const botEnabled = botUrl ? (botEnabledRow?.value === 'true') : legacyEnabled;
-  const webhookUrl = botUrl || legacyUrl || '';
-  const webhookEnabled = botEnabled;
-  if (!webhookEnabled || !webhookUrl) {
-    return res.status(503).json({ error: 'Not available right now', fallback: 'Please chat on WhatsApp instead.' });
+  const reply = await callGemini(message);
+  if(reply){
+    // fetch model for response
+    let model = GEMINI_MODEL;
+    try{ const r = await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_model'); if(r?.value?.trim()) model = r.value.trim(); }catch{}
+    return res.json({ reply, source: 'gemini', model });
   }
-  try {
-    const controller = new AbortController();
-    const t = setTimeout(()=>controller.abort(), 8000);
-    const chatPayload = { message, sessionId, type: 'chat', chatInput: message, body: { chatInput: message, message, sessionId } };
-    const resp = await fetch(webhookUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(chatPayload), signal: controller.signal });
-    clearTimeout(t);
-    if (!resp.ok) throw new Error('webhook failed');
-    const data = await resp.json().catch(()=>({ reply: 'Thanks! We received your message.' }));
-    res.json({ reply: data.reply || data.message || 'Thanks! We received your message. We\'ll reply on WhatsApp shortly.' });
-  } catch (e) {
-    res.status(503).json({ error: 'Not available right now', fallback: 'Please chat on WhatsApp instead.' });
-  }
+  return res.status(503).json({ error: 'Gemini failed — check API key/model', fallback: 'Please chat on WhatsApp instead.' });
 });
 
 // --- Auth ---
@@ -735,17 +712,11 @@ app.post('/api/admin/webhook-test', requireAuth, async (req, res) => {
       results.form = { ok:false, error: 'Form webhook not enabled / not configured', url: '' };
     }
   }
-  if(want==='chat' || want==='all'){
-    const effectiveBotUrl = botUrl || (webhookEnabled ? webhookUrl : '');
-    const effectiveBotEnabled = botUrl ? botEnabled : webhookEnabled;
-    if(effectiveBotUrl){
-      const r = await testOne(effectiveBotUrl, mockChat, 'chat');
-      r.enabled = effectiveBotEnabled;
-      if(!effectiveBotEnabled) r.warning = 'Chatbot webhook URL is set but NOT enabled — check Enable Bot Webhook and Save';
-      results.chat = r;
-    } else {
-      results.chat = { ok:false, error: 'Chatbot webhook not enabled / not configured', url: '' };
-    }
+  if(want==='chat'){
+    results.chat = { ok:false, error: 'Chatbot is Gemini Direct now — no webhook, use Test Gemini → in the Gemini card', url: '' };
+  } else if(want==='all'){
+    // For 'all', also note chat is Gemini
+    results.chat = { ok:false, error: 'Chatbot is Gemini Direct now — no webhook, use Test Gemini →', url: '' };
   }
   if(want==='all' && !formUrl && !botUrl && webhookEnabled && webhookUrl){
     // also report legacy

@@ -699,9 +699,33 @@ function initReveal(){
   }, 1200);
 }
 
-// Chatbot
+// Chatbot — persists in sessionStorage (survives reload, new tab gets fresh per owner request)
 function initChat(){
   const btn=$('#chat-btn'), win=$('#chat-win'), close=$('#chat-close'), input=$('#chat-input'), send=$('#chat-send'), body=$('#chat-body');
+  const CHAT_KEY = 'nexatech_chat_history';
+  function saveHistory(){
+    try{
+      const msgs=[...body.querySelectorAll('.msg')].map(el=>({cls:el.className, html:el.innerHTML, text:el.textContent}));
+      sessionStorage.setItem(CHAT_KEY, JSON.stringify(msgs));
+    }catch{}
+  }
+  function loadHistory(){
+    try{
+      const raw=sessionStorage.getItem(CHAT_KEY);
+      if(!raw) return false;
+      const arr=JSON.parse(raw);
+      if(!Array.isArray(arr) || arr.length===0) return false;
+      body.innerHTML='';
+      arr.forEach(m=>{
+        const d=document.createElement('div'); d.className=m.cls; d.innerHTML=m.html;
+        body.appendChild(d);
+      });
+      body.scrollTop=body.scrollHeight;
+      return true;
+    }catch{ return false; }
+  }
+  // restore on load (survives reload, new tab has empty sessionStorage)
+  const hadHistory = loadHistory();
   btn.addEventListener('click', ()=> win.classList.toggle('open'));
   close.addEventListener('click', ()=> win.classList.remove('open'));
   $$('.quick button').forEach(b=> b.addEventListener('click', ()=>{
@@ -711,6 +735,7 @@ function initChat(){
     const text=input.value.trim(); if(!text) return;
     const u=document.createElement('div'); u.className='msg user'; u.textContent=text; body.appendChild(u);
     input.value=''; body.scrollTop=body.scrollHeight;
+    saveHistory();
     track('chat_message','chat', {text});
     try{
       const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text, sessionId})});
@@ -724,9 +749,12 @@ function initChat(){
       const a=document.createElement('a'); a.href=whatsappLink(CONTENT.whatsapp_number, text); a.target='_blank'; a.textContent=' Open WhatsApp →'; a.style.color='var(--accent-2)'; bot.appendChild(a); body.appendChild(bot);
     }
     body.scrollTop=body.scrollHeight;
+    saveHistory();
   }
   send.addEventListener('click', sendMsg);
   input.addEventListener('keydown', e=>{ if(e.key==='Enter') sendMsg(); });
+  // if no history, keep initial bot greeting and save it
+  if(!hadHistory) saveHistory();
 }
 
 // Init all
