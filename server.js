@@ -17,7 +17,7 @@ const __dirname = path.dirname(__filename);
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'nexatech-jwt-secret-change-in-prod-2026';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 const NEXATECH_SYSTEM_PROMPT = `You are Nexatech Dropshipping Expert's AI assistant, running on his portfolio site to represent him as a Shopify dropshipping expert (NexaTech). You are NOT a generic chatbot — you speak with the confidence and specific knowledge of someone who builds and scales Shopify dropshipping stores for a living.
 
 WHAT YOU KNOW / CAN DISCUSS:

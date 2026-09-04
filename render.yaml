@@ -17,5 +17,5 @@ services:
       - key: GEMINI_API_KEY
         sync: false
       - key: GEMINI_MODEL
-        value: gemini-1.5-flash
+        value: gemini-2.5-flash
     healthCheckPath: /api/health

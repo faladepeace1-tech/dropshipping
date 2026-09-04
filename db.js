@@ -451,6 +451,8 @@ export async function initDb() {
       ['webhook_chatbot_enabled', 'false', 'boolean'],
       ['webhook_form_url', '', 'text'],
       ['webhook_form_enabled', 'false', 'boolean'],
+      ['gemini_api_key', '', 'text'],
+      ['gemini_model', 'gemini-2.5-flash', 'text'],
       ['privacy_title', 'Privacy Policy', 'text'],
       ['privacy_last_updated', 'September 3, 2026', 'text'],
       ['privacy_content', `<h2>Introduction</h2><p>At Nexatech Dropshipping Store, we respect your privacy and are committed to protecting your personal data. This policy explains how we collect, use, and safeguard your information.</p><h2>Information We Collect</h2><p>We collect information you provide via our application form (name, email, WhatsApp, niche preferences) and anonymous analytics (page views, click events) to improve our service.</p><h2>How We Use Your Information</h2><ul><li>To contact you about your store application via WhatsApp/Email</li><li>To personalize your strategy call</li><li>To improve our website and services</li><li>To comply with legal obligations</li></ul><h2>Data Sharing</h2><p>We never sell your data. We may share it with trusted automation tools (e.g., webhooks you configure) solely to fulfill your request.</p><h2>Your Rights</h2><p>You may request access, correction, or deletion of your personal data by emailing saheednexatech@gmail.com.</p><h2>Contact</h2><p>Questions? Email <strong>saheednexatech@gmail.com</strong> or WhatsApp <strong>+1 928 382 5389</strong>.</p>`, 'html'],
@@ -651,6 +653,10 @@ export async function initDb() {
     await ensure('reviews_subtitle','Real WhatsApp... 2550 × 1650 px','text');
     await ensure('certificates_title','Certificates & Awards','text');
     await ensure('certificates_subtitle','Verified credentials, partnerships and awards that prove credibility.','text');
+    await ensure('gemini_api_key','','text');
+    await ensure('gemini_model','gemini-2.5-flash','text');
+    // upgrade old 1.5 model to 2.5 free per owner request
+    try{ const gm = (await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_model'))?.value; if(gm && gm.includes('1.5')) await db.prepare("UPDATE content SET value='gemini-2.5-flash' WHERE key='gemini_model'").run(); }catch{}
     // contact migration
     const waOld = (await db.prepare('SELECT value FROM content WHERE key=?').get('whatsapp_number'))?.value;
     if(waOld && waOld.includes('234')) {
