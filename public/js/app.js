@@ -656,12 +656,13 @@ function initHeader(){
   $('#drawer').addEventListener('click', e=>{ if(e.target.id==='drawer') e.currentTarget.classList.remove('open'); });
 }
 
-// Reveal observer
+// Reveal observer — ensure all steps/process show everything (per owner request)
 function initReveal(){
   const els=$$('.reveal, .proof-card, .testi, .team-card, .step');
   if(window.matchMedia('(prefers-reduced-motion: reduce)').matches || document.body.classList.contains('reduced')){
     els.forEach(el=>el.classList.add('in'));
     $('#progress-line')?.classList.add('on');
+    const pl = $('#progress-line'); if(pl) pl.style.transform='scaleX(1)';
     return;
   }
   const io=new IntersectionObserver(es=>{
@@ -673,8 +674,9 @@ function initReveal(){
           const steps=[...document.querySelectorAll('.step')];
           const visible=steps.filter(s=>s.classList.contains('in')).length;
           const pct=visible/steps.length;
-          $('#progress-line').style.transform=`scaleX(${pct})`;
-          if(pct===1) $('#progress-line').classList.add('on');
+          const pl = $('#progress-line');
+          if(pl) pl.style.transform=`scaleX(${pct})`;
+          if(pct===1 && pl) pl.classList.add('on');
         }
       }
     });
@@ -682,6 +684,19 @@ function initReveal(){
   els.forEach(el=>io.observe(el));
   // also observe progress line trigger
   const how=$('#how-it-works'); if(how) io.observe(how);
+  // Fallback: show everything after 1.2s even if not intersecting (fixes "only show 1" report)
+  setTimeout(()=>{
+    const steps = document.querySelectorAll('.step');
+    if([...steps].some(s=>!s.classList.contains('in'))){
+      steps.forEach(s=>s.classList.add('in'));
+      const pl = $('#progress-line');
+      if(pl){ pl.style.transform='scaleX(1)'; pl.classList.add('on'); }
+    }
+    // also ensure all reveal els eventually show
+    $$('.reveal, .proof-card, .testi, .team-card').forEach(el=>{
+      if(!el.classList.contains('in')) el.classList.add('in');
+    });
+  }, 1200);
 }
 
 // Chatbot
