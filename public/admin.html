@@ -234,6 +234,23 @@
           <pre id="webhook-test-result" style="display:none;background:#0B1220;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px;font-size:11px;color:#94A3B8;overflow:auto;max-height:240px;white-space:pre-wrap;word-break:break-all"></pre>
           <div style="font-size:11px;color:#94A3B8;margin-top:8px">Tip: Test with https://webhook.site to see payloads. Payloads include full lead data or chat message + sessionId. We send mock data: <code>Test User / test@example.com</code> for form, and a hello message for chat.</div>
         </div>
+        <div class="card" style="border-color:rgba(124,58,237,.3)">
+          <h3>Chatbot — Gemini Direct (replaces n8n webhook for chat)</h3>
+          <p style="font-size:12px;color:#94A3B8">Paste your Gemini API key here to run the chatbot directly via Google Gemini (no n8n needed for chat). Form leads still use the Form Webhook above. Key is stored securely in DB and never shown publicly. Leave empty to keep using n8n webhook for chat.</p>
+          <label>Gemini API Key <input id="int-gemini-key" type="password" placeholder="AQ.Ab8RN6... or AIza... (paste whole key)"></label>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <span id="gemini-key-status" style="font-size:11px;color:#94A3B8">Checking...</span>
+            <button class="btn btn-ghost" id="btn-show-gemini-key" style="padding:6px 10px;font-size:11px">Show</button>
+          </div>
+          <label>Gemini Model <input id="int-gemini-model" placeholder="gemini-1.5-flash (default)"></label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+            <button class="btn btn-primary" id="btn-save-gemini">Save Gemini Key</button>
+            <button class="btn btn-ghost" id="btn-test-gemini" style="border-color:#7C3AED;color:#7C3AED">Test Gemini →</button>
+          </div>
+          <div id="gemini-msg" style="font-size:13px;margin-top:8px"></div>
+          <pre id="gemini-test-result" style="display:none;background:#0B1220;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px;font-size:11px;color:#94A3B8;overflow:auto;max-height:240px;white-space:pre-wrap;word-break:break-all"></pre>
+          <div style="font-size:11px;color:#94A3B8;margin-top:8px">Knowledge base is the NexaTech prompt (Shopify, product research, ads, suppliers). The model will auto-hand off to WhatsApp `https://wa.me/19283825389` when user wants mentorship. Form webhook is separate.</div>
+        </div>
         <div class="card">
           <h3>Theme & Branding</h3>
           <p style="font-size:12px;color:#94A3B8">All theme colours, logo and favicon are editable under <b>Content & Theme → Branding & Theme</b> tab. Changes apply instantly site-wide via CSS custom properties.</p>

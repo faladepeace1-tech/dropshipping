@@ -16,6 +16,31 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'nexatech-jwt-secret-change-in-prod-2026';
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+const NEXATECH_SYSTEM_PROMPT = `You are Nexatech Dropshipping Expert's AI assistant, running on his portfolio site to represent him as a Shopify dropshipping expert (NexaTech). You are NOT a generic chatbot — you speak with the confidence and specific knowledge of someone who builds and scales Shopify dropshipping stores for a living.
+
+WHAT YOU KNOW / CAN DISCUSS:
+- Shopify store setup, structure, and optimization
+- Winning product research
+- Ad strategy and scaling (Meta/TikTok ads)
+- Supplier sourcing and order automation
+- General dropshipping strategy and troubleshooting
+
+STYLE RULES:
+- Keep replies short — around 5 sentences max.
+- After a short answer, end with a line like "Want me to break that down further?" before giving the full, detailed explanation. Only go long if they say yes.
+- Be accurate. Never guess, invent numbers, or claim things about Shopify, ad platforms, or NexaTech's services that you're not sure of. If unsure, say so plainly instead of making something up.
+- Sound like a knowledgeable person, not a corporate script. No excessive emojis, no hard selling every message.
+
+WHEN TO HAND OFF (IMPORTANT):
+The moment a visitor signals they're ready to get started, want to hire NexaTech, want the mentorship, or ask something like "how do I start"/"how much"/"how do we begin" — do NOT try to close the deal yourself. Immediately send them this WhatsApp link to continue directly with Saheed:
+
+https://wa.me/19283825389?text=Hi%20Nexatech%20%F0%9F%91%8B%2C%0A%0AI%20want%20the%20*Mentorship%20Plan%20-%20%24200*%3A%0A%0A%E2%9C%93%20You%20get%20results%20%26%20make%20sales%20BEFORE%20paying%20for%20mentorship%0A%E2%9C%93%201-on-1%20Store%20Review%0A%E2%9C%93%20Winning%20Product%20Research%0A%E2%9C%93%20Ad%20Strategy%20%26%20Scaling%0A%E2%9C%93%20Supplier%20%26%20Order%20Automation%0A%E2%9C%93%20Lifetime%20Support%0A%0APlease%20send%20me%20details%20on%20how%20to%20get%20started%20with%20the%20Mentorship%20plan
+
+For reference (mention only if it's relevant to the conversation), that link pre-fills a request for the $200 Mentorship Plan, which includes: results/sales before paying, 1-on-1 store review, winning product research, ad strategy & scaling, supplier & order automation, and lifetime support.
+
+Do not repeat the raw link mid-explanation — only send it once the visitor is clearly ready to move forward, framed naturally, e.g. "Let's continue this on WhatsApp with Saheed directly: [link]".`;
 const UPLOAD_DIR = path.join(__dirname, 'public', 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
@@ -94,7 +119,9 @@ app.get('/api/health', async (req, res) => res.json({ status: 'ok', time: new Da
 app.get('/api/content', async (req, res) => {
   const rows = await db.prepare('SELECT key,value,type FROM content').all();
   const obj = {};
+  const SENSITIVE = new Set(['gemini_api_key', 'GEMINI_API_KEY', 'GOOGLE_API_KEY']);
   rows.forEach(r => {
+    if (SENSITIVE.has(r.key)) return; // hide secrets from public
     let v = r.value;
     if (r.type === 'json') { try { v = JSON.parse(v); } catch {} }
     else if (r.type === 'boolean') v = v === 'true';
@@ -486,11 +513,62 @@ app.get('/api/admin/analytics', requireAuth, async (req, res) => {
   res.json({ totalViews, uniqueVisitors, ctaClicks, funnelStarts, funnelCompletions, trafficSource: traffic, geo, daily, topPortfolio, leadsByDay });
 });
 
+// --- Helpers: Gemini ---
+async function getGeminiKey(){
+  if (GEMINI_API_KEY && GEMINI_API_KEY.trim()) return GEMINI_API_KEY.trim();
+  try{
+    const row = await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_api_key');
+    return row?.value?.trim() || '';
+  }catch{ return ''; }
+}
+async function callGemini(userMessage){
+  const key = await getGeminiKey();
+  if(!key) return null;
+  // Model can be overridden via DB gemini_model or env
+  let model = GEMINI_MODEL;
+  try{
+    const row = await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_model');
+    if(row?.value?.trim()) model = row.value.trim();
+  }catch{}
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
+  const payload = {
+    systemInstruction: { parts: [{ text: NEXATECH_SYSTEM_PROMPT }] },
+    contents: [{ role: 'user', parts: [{ text: userMessage }] }],
+    generationConfig: { temperature: 0.7, maxOutputTokens: 600, topP: 0.9 }
+  };
+  try{
+    const controller = new AbortController();
+    const t = setTimeout(()=>controller.abort(), 12000);
+    const resp = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload), signal: controller.signal });
+    clearTimeout(t);
+    const data = await resp.json().catch(()=> ({}));
+    if(!resp.ok){
+      const msg = data?.error?.message || `Gemini error ${resp.status}`;
+      throw new Error(msg);
+    }
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || data?.candidates?.[0]?.content?.parts?.map(p=>p.text).join('\n') || '';
+    return text.trim() || null;
+  }catch(e){
+    console.error('Gemini call failed', e.message);
+    return null;
+  }
+}
+
 // --- API: Chat ---
 app.post('/api/chat', async (req, res) => {
   const { message, sessionId } = req.body;
   if (!message) return res.status(400).json({ error: 'message required' });
-  // Prefer chatbot-specific webhook, fallback to legacy
+  // 1) Prefer direct Gemini if API key is set (owner request: paste API key instead of n8n webhook for chatbot)
+  const geminiKey = await getGeminiKey();
+  if(geminiKey){
+    const reply = await callGemini(message);
+    if(reply){
+      return res.json({ reply, source: 'gemini', model: GEMINI_MODEL });
+    }
+    // if Gemini fails, fallback to webhook below
+    console.log('Gemini failed, falling back to webhook');
+  }
+  // 2) Fallback to chatbot-specific webhook (n8n) if no Gemini key or Gemini failed
   const botUrlRow = await db.prepare('SELECT value FROM content WHERE key=?').get('webhook_chatbot_url');
   const botEnabledRow = await db.prepare('SELECT value FROM content WHERE key=?').get('webhook_chatbot_enabled');
   const legacyRow = await db.prepare('SELECT value FROM content WHERE key=?').get('webhook_url');
@@ -674,6 +752,38 @@ app.post('/api/admin/webhook-test', requireAuth, async (req, res) => {
     results.legacy = await testOne(webhookUrl, { ...mockLead, legacy:true }, 'legacy');
   }
   res.json({ ok: true, results, timestamp: now });
+});
+
+// Gemini API key management (chatbot direct, not n8n) — owner pasted key AQ.Ab8RN6...
+app.get('/api/admin/gemini-key', requireAuth, async (req, res) => {
+  const envHas = !!(GEMINI_API_KEY && GEMINI_API_KEY.trim());
+  let dbHas = false, masked = '';
+  try{
+    const row = await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_api_key');
+    const v = row?.value?.trim() || '';
+    dbHas = !!v;
+    if(v) masked = v.slice(0,4) + '...' + v.slice(-4);
+  }catch{}
+  res.json({ envHas, dbHas, masked, model: GEMINI_MODEL, source: envHas ? 'env' : (dbHas ? 'db' : 'none') });
+});
+app.put('/api/admin/gemini-key', requireAuth, async (req, res) => {
+  const { key, model } = req.body;
+  if(key !== undefined){
+    const val = (key||'').trim();
+    // store in DB (filtered from public /api/content)
+    await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, type=excluded.type").run('gemini_api_key', val, 'text');
+  }
+  if(model){
+    await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('gemini_model', model, 'text');
+  }
+  res.json({ ok: true });
+});
+app.post('/api/admin/gemini-test', requireAuth, async (req, res) => {
+  const { message } = req.body;
+  const testMsg = message || 'Hello, what is NexaTech mentorship?';
+  const reply = await callGemini(testMsg);
+  if(reply) res.json({ ok: true, reply, model: GEMINI_MODEL });
+  else res.status(500).json({ ok:false, error: 'Gemini call failed — check API key and model' });
 });
 
 // Scheduled jobs

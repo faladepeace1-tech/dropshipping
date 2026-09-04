@@ -14,4 +14,8 @@ services:
         value: 10000
       - key: FORCE_DEFAULT_CONTENT
         value: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-1.5-flash
     healthCheckPath: /api/health

@@ -388,6 +388,43 @@ async function testWebhook(type){
 $('#btn-test-webhook-form')?.addEventListener('click', ()=> testWebhook('form'));
 $('#btn-test-webhook-chat')?.addEventListener('click', ()=> testWebhook('chat'));
 $('#btn-test-webhook-all')?.addEventListener('click', ()=> testWebhook('all'));
+// Gemini direct (replaces chatbot webhook)
+async function loadGeminiStatus(){
+  try{
+    const r=await fetch('/api/admin/gemini-key',{headers:authHeaders()});
+    const j=await r.json();
+    const el=$('#gemini-key-status');
+    if(el) el.textContent = j.dbHas||j.envHas ? `Key set (${j.masked||'env'} via ${j.source}, model: ${j.model})` : 'No key set — chatbot will use n8n webhook';
+    const modelEl=$('#int-gemini-model');
+    if(modelEl && j.model) modelEl.placeholder = j.model;
+  }catch{}
+}
+$('#btn-show-gemini-key')?.addEventListener('click', ()=>{
+  const inp=$('#int-gemini-key');
+  if(inp) inp.type = inp.type==='password' ? 'text' : 'password';
+});
+$('#btn-save-gemini')?.addEventListener('click', async()=>{
+  const key=$('#int-gemini-key')?.value || '';
+  const model=$('#int-gemini-model')?.value || '';
+  const r=await fetch('/api/admin/gemini-key',{method:'PUT',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify({key, model})});
+  const j=await r.json();
+  $('#gemini-msg').textContent = r.ok ? 'Gemini key saved — chatbot will now use Gemini directly' : (j.error||'Save failed');
+  if(r.ok){ $('#int-gemini-key').value=''; loadGeminiStatus(); }
+});
+$('#btn-test-gemini')?.addEventListener('click', async()=>{
+  const out=$('#gemini-test-result');
+  const btn=$('#btn-test-gemini');
+  if(btn){ btn.disabled=true; btn.textContent='Testing...'; }
+  if(out){ out.style.display='block'; out.textContent='Testing Gemini with: Hello, what is NexaTech mentorship?'; }
+  try{
+    const r=await fetch('/api/admin/gemini-test',{method:'POST',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify({message:'Hello, what is NexaTech mentorship?'})});
+    const j=await r.json();
+    if(out) out.textContent = JSON.stringify(j, null, 2);
+    $('#gemini-msg').textContent = r.ok ? 'Gemini test succeeded' : (j.error||'Gemini test failed');
+  }catch(e){ if(out) out.textContent='Error: '+e.message; }
+  finally{ if(btn){ btn.disabled=false; btn.textContent='Test Gemini →'; } }
+});
+loadGeminiStatus();
 $('#btn-publish').addEventListener('click', ()=>{ alert('Changes are live instantly   no draft queue. (This button confirms publish.)'); window.open('/','_blank'); });
 $('#btn-revert').addEventListener('click', async()=>{
   if(!lastPublishedContent) return alert('No snapshot');
