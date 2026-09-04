@@ -342,10 +342,16 @@
   </div>
 </div>
 
-<!-- Chatbot -->
+<!-- Chatbot — New Chat / Recent / WhatsApp + persists reload -->
 <button class="chat-btn" id="chat-btn" aria-label="Chat">💬</button>
 <div class="chat-win" id="chat-win">
   <div class="chat-head"><b>Nexatech Assistant</b><button id="chat-close" style="background:none;border:none;color:#fff;cursor:pointer">✕</button></div>
+  <div class="chat-actions" style="display:flex;gap:6px;padding:8px;background:#F8FAFC;border-bottom:1px solid var(--border);flex-wrap:wrap">
+    <button id="chat-new" class="btn btn-ghost" style="padding:6px 10px;font-size:11px">+ New Chat</button>
+    <button id="chat-recent" class="btn btn-ghost" style="padding:6px 10px;font-size:11px">Recent ▾</button>
+    <a id="chat-whatsapp" href="https://wa.me/19283825389?text=Hi%20Nexatech%20%F0%9F%91%8B%2C%0A%0AI%20want%20the%20*Mentorship%20Plan%20-%20%24200*%3A%0A%0A%E2%9C%93%20You%20get%20results%20%26%20make%20sales%20BEFORE%20paying%20for%20mentorship%0A%E2%9C%93%201-on-1%20Store%20Review%0A%E2%9C%93%20Winning%20Product%20Research%0A%E2%9C%93%20Ad%20Strategy%20%26%20Scaling%0A%E2%9C%93%20Supplier%20%26%20Order%20Automation%0A%E2%9C%93%20Lifetime%20Support%0A%0APlease%20send%20me%20details%20on%20how%20to%20get%20started%20with%20the%20Mentorship%20plan" target="_blank" class="btn btn-ghost" style="padding:6px 10px;font-size:11px;border-color:#25D366;color:#25D366">WhatsApp Us</a>
+  </div>
+  <div id="chat-recent-list" style="display:none;max-height:140px;overflow:auto;border-bottom:1px solid var(--border);background:#fff;padding:8px"></div>
   <div class="chat-body" id="chat-body">
     <div class="msg bot">Hi! I’m the Nexatech assistant. Ask me about packages, timelines, or proof or tap a quick question below.</div>
     <div class="quick">

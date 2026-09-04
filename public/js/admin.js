@@ -420,6 +420,67 @@ $('#btn-test-gemini')?.addEventListener('click', async()=>{
   finally{ if(btn){ btn.disabled=false; btn.textContent='Test Gemini →'; } }
 });
 loadGeminiStatus();
+// Google Sheets direct
+async function loadGoogleStatus(){
+  try{
+    const r=await fetch('/api/admin/google/status',{headers:authHeaders()});
+    const j=await r.json();
+    const el=$('#google-client-status');
+    if(el){
+      if(j.hasAuth) el.textContent=`Connected ✓ Doc: ${j.docId||'(none)'} Sheet: ${j.sheetName} | Client: ${j.clientIdMasked||'set'}`;
+      else if(j.hasClient && j.hasSheet) el.textContent=`Client+Sheet set, not yet connected — click Connect`;
+      else if(j.hasClient) el.textContent=`Client set, set Doc ID + Sheet`;
+      else el.textContent='Not configured — add Client ID/Secret + Doc ID';
+      el.style.color = j.hasAuth ? '#10B981' : '#94A3B8';
+    }
+    const docEl=$('#int-google-doc-id'); if(docEl && j.docId) docEl.placeholder=j.docId;
+    const sheetEl=$('#int-google-sheet-name'); if(sheetEl && j.sheetName) sheetEl.placeholder=j.sheetName;
+  }catch{}
+}
+$('#btn-show-google-secret')?.addEventListener('click', ()=>{
+  const inp=$('#int-google-client-secret');
+  if(inp) inp.type = inp.type==='password' ? 'text' : 'password';
+});
+$('#btn-save-google-sheets')?.addEventListener('click', async()=>{
+  const clientId=$('#int-google-client-id')?.value || '';
+  const clientSecret=$('#int-google-client-secret')?.value || '';
+  const docId=$('#int-google-doc-id')?.value || '';
+  const sheetName=$('#int-google-sheet-name')?.value || '';
+  const payload={}; if(clientId) payload.clientId=clientId; if(clientSecret) payload.clientSecret=clientSecret; if(docId) payload.docId=docId; if(sheetName) payload.sheetName=sheetName;
+  // also allow empty to clear? Only send non-empty, but docId empty should clear? We'll send what user typed
+  const body={clientId, clientSecret, docId, sheetName};
+  const r=await fetch('/api/admin/google/sheets',{method:'PUT',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify(body)});
+  const j=await r.json();
+  $('#google-msg').textContent = r.ok ? 'Google Sheets config saved' : (j.error||'Save failed');
+  if(r.ok){ $('#int-google-client-secret').value=''; loadGoogleStatus(); }
+});
+$('#btn-connect-google')?.addEventListener('click', async()=>{
+  const r=await fetch('/api/admin/google/auth-url',{headers:authHeaders()});
+  const j=await r.json();
+  if(!r.ok){ $('#google-msg').textContent=j.error||'Connect failed — set Client ID/Secret first'; return; }
+  window.open(j.url, '_blank', 'width=600,height=700');
+  $('#google-msg').textContent='Opened Google consent — approve and return here, then Test Append';
+});
+$('#btn-test-google-sheets')?.addEventListener('click', async()=>{
+  const out=$('#google-test-result'); const btn=$('#btn-test-google-sheets');
+  if(btn){ btn.disabled=true; btn.textContent='Testing...'; }
+  if(out){ out.style.display='block'; out.textContent='Appending test row...'; }
+  try{
+    const r=await fetch('/api/admin/google/test',{method:'POST',headers:authHeaders()});
+    const j=await r.json();
+    if(out) out.textContent=JSON.stringify(j,null,2);
+    $('#google-msg').textContent = j.ok ? 'Test row appended ✓ Check your sheet' : (j.error||'Test failed — check Doc ID/Sheet + Connect');
+    if(j.ok) loadGoogleStatus();
+  }catch(e){ if(out) out.textContent='Error: '+e.message; }
+  finally{ if(btn){ btn.disabled=false; btn.textContent='Test Append Row →'; } }
+});
+$('#btn-disconnect-google')?.addEventListener('click', async()=>{
+  if(!confirm('Disconnect Google Sheets? This clears refresh token.')) return;
+  const r=await fetch('/api/admin/google/disconnect',{method:'POST',headers:authHeaders()});
+  $('#google-msg').textContent = r.ok ? 'Disconnected' : 'Failed';
+  if(r.ok) loadGoogleStatus();
+});
+loadGoogleStatus();
 $('#btn-publish').addEventListener('click', ()=>{ alert('Changes are live instantly   no draft queue. (This button confirms publish.)'); window.open('/','_blank'); });
 $('#btn-revert').addEventListener('click', async()=>{
   if(!lastPublishedContent) return alert('No snapshot');

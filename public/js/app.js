@@ -699,10 +699,12 @@ function initReveal(){
   }, 1200);
 }
 
-// Chatbot — persists in sessionStorage (survives reload, new tab gets fresh per owner request)
+// Chatbot — persists reload (sessionStorage), new tab fresh, with New/Recent/WhatsApp + reads history before reply
 function initChat(){
   const btn=$('#chat-btn'), win=$('#chat-win'), close=$('#chat-close'), input=$('#chat-input'), send=$('#chat-send'), body=$('#chat-body');
+  const newBtn=$('#chat-new'), recentBtn=$('#chat-recent'), recentList=$('#chat-recent-list');
   const CHAT_KEY = 'nexatech_chat_history';
+  const RECENT_KEY = 'nexatech_recent_chats';
   function saveHistory(){
     try{
       const msgs=[...body.querySelectorAll('.msg')].map(el=>({cls:el.className, html:el.innerHTML, text:el.textContent}));
@@ -718,26 +720,95 @@ function initChat(){
       body.innerHTML='';
       arr.forEach(m=>{
         const d=document.createElement('div'); d.className=m.cls; d.innerHTML=m.html;
+        // re-bind quick buttons if needed (they are outside body)
         body.appendChild(d);
       });
       body.scrollTop=body.scrollHeight;
       return true;
     }catch{ return false; }
   }
+  function getRecents(){ try{ return JSON.parse(localStorage.getItem(RECENT_KEY)||'[]'); }catch{ return []; } }
+  function saveRecents(list){ try{ localStorage.setItem(RECENT_KEY, JSON.stringify(list.slice(0,10))); }catch{} }
+  function archiveCurrent(){
+    try{
+      const msgs=[...body.querySelectorAll('.msg')].map(el=>({cls:el.className, html:el.innerHTML, text:el.textContent}));
+      // don't archive if only greeting
+      const hasUser = msgs.some(m=>m.cls.includes('user'));
+      if(!hasUser) return;
+      const title = (msgs.find(m=>m.cls.includes('user'))?.text || 'Chat').slice(0,36);
+      const recents=getRecents();
+      recents.unshift({id:Date.now(), title, msgs, time:new Date().toLocaleString()});
+      saveRecents(recents);
+    }catch{}
+  }
+  function renderRecent(){
+    if(!recentList) return;
+    const recents=getRecents();
+    if(recents.length===0){ recentList.innerHTML='<div style="padding:8px;font-size:12px;color:#94A3B8">No recent chats yet — start a conversation first.</div>'; return; }
+    recentList.innerHTML='';
+    recents.forEach(r=>{
+      const div=document.createElement('div');
+      div.style.cssText='padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:8px';
+      div.innerHTML=`<div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${sanitize(r.title)}</div><div style="font-size:10px;color:#94A3B8">${sanitize(r.time)}</div></div><button style="font-size:10px;padding:4px 8px;border-radius:999px;border:1px solid #E2E8F0;background:#fff;cursor:pointer" data-load="${r.id}">Load</button><button style="font-size:10px;padding:4px 6px;border:none;background:transparent;color:#F87171;cursor:pointer" data-del="${r.id}">✕</button>`;
+      div.querySelector('[data-load]')?.addEventListener('click', ()=>{
+        body.innerHTML='';
+        r.msgs.forEach(m=>{ const d=document.createElement('div'); d.className=m.cls; d.innerHTML=m.html; body.appendChild(d); });
+        body.scrollTop=body.scrollHeight;
+        saveHistory();
+        recentList.style.display='none';
+        win.classList.add('open');
+      });
+      div.querySelector('[data-del]')?.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        const filtered=getRecents().filter(x=>String(x.id)!==String(r.id));
+        saveRecents(filtered);
+        renderRecent();
+      });
+      recentList.appendChild(div);
+    });
+  }
   // restore on load (survives reload, new tab has empty sessionStorage)
   const hadHistory = loadHistory();
   btn.addEventListener('click', ()=> win.classList.toggle('open'));
   close.addEventListener('click', ()=> win.classList.remove('open'));
+  // New Chat — archive current then reset
+  newBtn?.addEventListener('click', ()=>{
+    archiveCurrent();
+    sessionStorage.removeItem(CHAT_KEY);
+    body.innerHTML=`<div class="msg bot">Hi! I’m the Nexatech assistant. Ask me about packages, timelines, or proof or tap a quick question below.</div><div class="quick"><button data-q="What’s included in Pro?">What’s included in Pro?</button><button data-q="How long to launch?">How long to launch?</button><button data-q="Do I own the store?">Do I own the store?</button></div>`;
+    // re-bind quick
+    body.querySelectorAll('.quick button').forEach(b=> b.addEventListener('click', ()=>{ input.value=b.dataset.q; sendMsg(); }));
+    saveHistory();
+    body.scrollTop=0;
+  });
+  // Recent toggle
+  recentBtn?.addEventListener('click', ()=>{
+    const isOpen = recentList.style.display!=='none';
+    if(isOpen){ recentList.style.display='none'; }
+    else { renderRecent(); recentList.style.display='block'; }
+  });
+  // WhatsApp link already points to https://wa.me/19283825389 — ensure it uses current CONTENT if loaded
+  const waLink = $('#chat-whatsapp');
+  if(waLink){
+    // update after content loads
+    const updWa = ()=>{ if(CONTENT.whatsapp_number) waLink.href=whatsappLink(CONTENT.whatsapp_number, 'Hi Nexatech!'); };
+    // delay until content loaded
+    setTimeout(updWa, 1500);
+  }
   $$('.quick button').forEach(b=> b.addEventListener('click', ()=>{
     input.value=b.dataset.q; sendMsg();
   }));
   async function sendMsg(){
     const text=input.value.trim(); if(!text) return;
-    // Build history from existing msgs (for conversational memory — last 10 turns)
-    const history = [...body.querySelectorAll('.msg')].slice(-10).map(el=>{
+    // Build history from existing msgs BEFORE appending new user msg (so bot reads previous messages before reply)
+    const history = [...body.querySelectorAll('.msg')].slice(-12).map(el=>{
       const isUser = el.classList.contains('user');
-      return { role: isUser ? 'user' : 'model', text: el.textContent.trim().slice(0,2000) };
-    });
+      // Skip quick buttons container text
+      if(el.classList.contains('quick')) return null;
+      const t = el.textContent.trim();
+      if(!t) return null;
+      return { role: isUser ? 'user' : 'model', text: t.slice(0,2000) };
+    }).filter(Boolean).slice(-10);
     const u=document.createElement('div'); u.className='msg user'; u.textContent=text; body.appendChild(u);
     input.value=''; body.scrollTop=body.scrollHeight;
     saveHistory();
@@ -760,6 +831,8 @@ function initChat(){
   input.addEventListener('keydown', e=>{ if(e.key==='Enter') sendMsg(); });
   // if no history, keep initial bot greeting and save it
   if(!hadHistory) saveHistory();
+  // Auto-archive on page hide/reload for recent
+  window.addEventListener('beforeunload', ()=>{ try{ archiveCurrent(); }catch{} });
 }
 
 // Init all

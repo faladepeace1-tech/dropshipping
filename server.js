@@ -11,6 +11,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import cron from 'node-cron';
 import { initDb, getDb, reseedDefaults } from './db.js';
+import { google } from 'googleapis';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -452,6 +453,11 @@ app.post('/api/leads', leadLimiter, async (req, res) => {
     webhookStatus = 'failed';
   }
 
+  // also append to Google Sheets directly (if configured) — no n8n needed
+  try{
+    await appendToGoogleSheet({ name, storeName, preferredNiche, preferredNicheOther, investmentRange, storeStatus, wasScammed, scamDetails, whatsapp, email, preferredContactTime, source, trafficPlan, pageUrl, sessionId, utm_source, utm_medium, utm_campaign, pipeline_stage, webhook_status: webhookStatus, submittedAt: nowIso });
+  }catch(e){ console.error('Sheets append error', e.message); }
+
   // also log event
   try { await db.prepare('INSERT INTO events (event_type,element_id,session_id,page_url,metadata) VALUES (?,?,?,?,?)').run('lead_submitted', 'lead_form', sessionId||'', pageUrl||'', JSON.stringify({ leadId, niche: preferredNiche })); } catch {}
 
@@ -595,6 +601,49 @@ async function callGemini(userMessage, history=[]){
   }catch(e){
     console.error('Gemini call failed', e.message);
     return null;
+  }
+}
+
+// --- Helpers: Google Sheets (direct, no n8n) ---
+async function getGoogleConfig(){
+  const get = async (k) => (await db.prepare('SELECT value FROM content WHERE key=?').get(k))?.value?.trim() || '';
+  return {
+    clientId: await get('google_client_id'),
+    clientSecret: await get('google_client_secret'),
+    docId: await get('google_sheets_doc_id'),
+    sheetName: await get('google_sheets_sheet_name') || 'Sheet1',
+    refreshToken: await get('google_refresh_token'),
+    accessToken: await get('google_access_token'),
+  };
+}
+function getGoogleOAuthClient(config, redirectUri){
+  const { clientId, clientSecret } = config;
+  const redirect = redirectUri || `${process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`}/auth/google/callback`;
+  return new google.auth.OAuth2(clientId, clientSecret, redirect);
+}
+async function appendToGoogleSheet(lead){
+  const cfg = await getGoogleConfig();
+  if(!cfg.clientId || !cfg.clientSecret || !cfg.docId || !cfg.refreshToken) return { ok:false, error:'Google Sheets not fully configured (need Client ID/Secret, Doc ID, and OAuth connect)' };
+  try{
+    const oauth2 = getGoogleOAuthClient(cfg);
+    oauth2.setCredentials({ refresh_token: cfg.refreshToken, access_token: cfg.accessToken || undefined });
+    // Refresh if needed — googleapis will auto-refresh, but we save new tokens
+    try{ const { credentials } = await oauth2.refreshAccessToken().catch(()=>({credentials:{}})); if(credentials?.access_token) { await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('google_access_token', credentials.access_token, 'text'); if(credentials.expiry_date) await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('google_token_expiry', String(credentials.expiry_date), 'text'); oauth2.setCredentials(credentials); } }catch{}
+    const sheets = google.sheets({ version:'v4', auth: oauth2 });
+    const row = [
+      new Date().toISOString(),
+      lead.name||'', lead.storeName||'', lead.preferredNiche||'', lead.preferredNicheOther||'', lead.investmentRange||'', lead.storeStatus||'', lead.wasScammed||'', lead.scamDetails||'', lead.whatsapp||'', lead.email||'', lead.preferredContactTime||'', lead.source||'', lead.trafficPlan||'', lead.pageUrl||'', lead.sessionId||'', lead.utm_source||'', lead.utm_medium||'', lead.utm_campaign||'', lead.pipeline_stage||'new', lead.webhook_status||''
+    ];
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: cfg.docId,
+      range: `${cfg.sheetName}!A:Z`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [row] }
+    });
+    return { ok:true };
+  }catch(e){
+    console.error('Google Sheets append failed', e.message);
+    return { ok:false, error: e.message };
   }
 }
 
@@ -800,6 +849,58 @@ app.post('/api/admin/gemini-test', requireAuth, async (req, res) => {
   const reply = await callGemini(testMsg);
   if(reply) res.json({ ok: true, reply, model: GEMINI_MODEL });
   else res.status(500).json({ ok:false, error: 'Gemini call failed — check API key and model' });
+});
+
+// Google Sheets direct (append row) — matches n8n node: operation append, documentId, sheetName
+app.get('/api/admin/google/status', requireAuth, async (req, res) => {
+  const cfg = await getGoogleConfig();
+  const hasClient = !!(cfg.clientId && cfg.clientSecret);
+  const hasSheet = !!(cfg.docId);
+  const hasAuth = !!cfg.refreshToken;
+  res.json({ hasClient, hasSheet, hasAuth, docId: cfg.docId||'', sheetName: cfg.sheetName||'Sheet1', clientIdMasked: cfg.clientId ? cfg.clientId.slice(0,8)+'...' : '' });
+});
+app.get('/api/admin/google/auth-url', requireAuth, async (req, res) => {
+  const cfg = await getGoogleConfig();
+  if(!cfg.clientId || !cfg.clientSecret) return res.status(400).json({ error: 'Set Client ID and Client Secret first' });
+  const redirect = `${req.protocol}://${req.get('host')}/auth/google/callback`;
+  // Also support RENDER_EXTERNAL_URL if behind proxy
+  const oauth2 = getGoogleOAuthClient(cfg, redirect);
+  const url = oauth2.generateAuthUrl({ access_type: 'offline', prompt: 'consent', scope: ['https://www.googleapis.com/auth/spreadsheets'] });
+  res.json({ url, redirect });
+});
+app.get('/auth/google/callback', async (req, res) => {
+  const { code } = req.query;
+  if(!code) return res.status(400).send('Missing code');
+  try{
+    const cfg = await getGoogleConfig();
+    const redirect = `${req.protocol}://${req.get('host')}/auth/google/callback`;
+    const oauth2 = getGoogleOAuthClient(cfg, redirect);
+    const { tokens } = await oauth2.getToken(code);
+    if(tokens.refresh_token) await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('google_refresh_token', tokens.refresh_token, 'text');
+    if(tokens.access_token) await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('google_access_token', tokens.access_token, 'text');
+    if(tokens.expiry_date) await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('google_token_expiry', String(tokens.expiry_date), 'text');
+    res.send(`<html><body style="font-family:Inter,system-ui;padding:24px"><h2>Google Sheets Connected ✓</h2><p>Refresh token saved. You can close this window and return to Admin → Integrations → Google Sheets.</p><script>setTimeout(()=>window.close(),3000)</script></body></html>`);
+  }catch(e){
+    console.error('Google OAuth callback failed', e.message);
+    res.status(500).send('OAuth failed: '+e.message);
+  }
+});
+app.put('/api/admin/google/sheets', requireAuth, async (req, res) => {
+  const { clientId, clientSecret, docId, sheetName } = req.body;
+  if(clientId !== undefined) await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('google_client_id', (clientId||'').trim(), 'text');
+  if(clientSecret !== undefined) await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('google_client_secret', (clientSecret||'').trim(), 'text');
+  if(docId !== undefined) await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('google_sheets_doc_id', (docId||'').trim(), 'text');
+  if(sheetName !== undefined) await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('google_sheets_sheet_name', (sheetName||'Sheet1').trim()||'Sheet1', 'text');
+  res.json({ ok:true });
+});
+app.post('/api/admin/google/test', requireAuth, async (req, res) => {
+  const testLead = { name:'Test User', storeName:'Test Store', preferredNiche:'Fashion', preferredNicheOther:'', investmentRange:'Starter', storeStatus:'brand_new', wasScammed:'no', scamDetails:'', whatsapp:'+19283825389', email:'test@example.com', preferredContactTime:'', source:'google_test', trafficPlan:'', pageUrl:'https://dropshippingstore.dpdns.org', sessionId:'test-'+Date.now(), utm_source:'test', utm_medium:'admin', utm_campaign:'sheets_test', pipeline_stage:'new', webhook_status:'test', submittedAt: new Date().toISOString() };
+  const r = await appendToGoogleSheet(testLead);
+  res.json(r);
+});
+app.post('/api/admin/google/disconnect', requireAuth, async (req, res) => {
+  await db.prepare("DELETE FROM content WHERE key IN ('google_refresh_token','google_access_token','google_token_expiry')").run();
+  res.json({ ok:true });
 });
 
 // Scheduled jobs
