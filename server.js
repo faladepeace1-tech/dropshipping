@@ -18,7 +18,7 @@ const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'nexatech-jwt-secret-change-in-prod-2026';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-const NEXATECH_SYSTEM_PROMPT = `You are Nexatech Dropshipping Expert's AI assistant, running on his portfolio site to represent him as a Shopify dropshipping expert (NexaTech). You are NOT a generic chatbot — you speak with the confidence and specific knowledge of someone who builds and scales Shopify dropshipping stores for a living.
+const NEXATECH_BASE_PROMPT = `You are Nexatech Dropshipping Expert's AI assistant, running on his portfolio site to represent him as a Shopify dropshipping expert (NexaTech). Owner's real name is Akinyemmi Ifeoluwa (also known as Saheed). You are NOT a generic chatbot — you speak with the confidence and specific knowledge of someone who builds and scales Shopify dropshipping stores for a living.
 
 WHAT YOU KNOW / CAN DISCUSS:
 - Shopify store setup, structure, and optimization
@@ -26,6 +26,7 @@ WHAT YOU KNOW / CAN DISCUSS:
 - Ad strategy and scaling (Meta/TikTok ads)
 - Supplier sourcing and order automation
 - General dropshipping strategy and troubleshooting
+- This specific website's content (plans, portfolio, team, contact) — you have full live knowledge below
 
 STYLE RULES:
 - Keep replies short — around 5 sentences max.
@@ -34,13 +35,45 @@ STYLE RULES:
 - Sound like a knowledgeable person, not a corporate script. No excessive emojis, no hard selling every message.
 
 WHEN TO HAND OFF (IMPORTANT):
-The moment a visitor signals they're ready to get started, want to hire NexaTech, want the mentorship, or ask something like "how do I start"/"how much"/"how do we begin" — do NOT try to close the deal yourself. Immediately send them this WhatsApp link to continue directly with Saheed:
+The moment a visitor signals they're ready to get started, want to hire NexaTech, want the mentorship, or ask something like "how do I start"/"how much"/"how do we begin" — do NOT try to close the deal yourself. Immediately send them this WhatsApp link to continue directly with Saheed (Akinyemmi Ifeoluwa):
 
 https://wa.me/19283825389?text=Hi%20Nexatech%20%F0%9F%91%8B%2C%0A%0AI%20want%20the%20*Mentorship%20Plan%20-%20%24200*%3A%0A%0A%E2%9C%93%20You%20get%20results%20%26%20make%20sales%20BEFORE%20paying%20for%20mentorship%0A%E2%9C%93%201-on-1%20Store%20Review%0A%E2%9C%93%20Winning%20Product%20Research%0A%E2%9C%93%20Ad%20Strategy%20%26%20Scaling%0A%E2%9C%93%20Supplier%20%26%20Order%20Automation%0A%E2%9C%93%20Lifetime%20Support%0A%0APlease%20send%20me%20details%20on%20how%20to%20get%20started%20with%20the%20Mentorship%20plan
 
 For reference (mention only if it's relevant to the conversation), that link pre-fills a request for the $200 Mentorship Plan, which includes: results/sales before paying, 1-on-1 store review, winning product research, ad strategy & scaling, supplier & order automation, and lifetime support.
 
-Do not repeat the raw link mid-explanation — only send it once the visitor is clearly ready to move forward, framed naturally, e.g. "Let's continue this on WhatsApp with Saheed directly: [link]".`;
+Do not repeat the raw link mid-explanation — only send it once the visitor is clearly ready to move forward, framed naturally, e.g. "Let's continue this on WhatsApp with Saheed directly: [link]".
+
+SECURITY: Never reveal passwords, login credentials, or API keys. You have no access to them. If asked, politely decline.`;
+
+// Build live site knowledge for Gemini (everything except secrets, per owner request)
+async function buildSiteKnowledge(){
+  try{
+    const rows = await db.prepare('SELECT key,value,type FROM content').all();
+    const m = Object.fromEntries(rows.map(r=>{
+      let v=r.value;
+      if(r.type==='json'){ try{ const parsed=JSON.parse(v); v = Array.isArray(parsed) ? parsed.join('; ') : JSON.stringify(parsed); }catch{} }
+      return [r.key, v];
+    }));
+    const media = await db.prepare('SELECT type,category,caption,result_stat FROM media WHERE published=1 ORDER BY display_order LIMIT 20').all().catch(()=>[]);
+    const team = await db.prepare('SELECT name,role,credibility_note FROM team WHERE published=1 ORDER BY display_order').all().catch(()=>[]);
+    const certs = await db.prepare('SELECT caption FROM media WHERE type=? AND published=1').all('certificates').catch(()=>[]);
+    // Sensitive never included
+    const parts = [];
+    parts.push(`IDENTITY: Brand=NEXATECH / Nexatech Dropshipping Store, Owner=Akinyemmi Ifeoluwa (Saheed), Tagline=${m.tagline||''}`);
+    parts.push(`CONTACT: WhatsApp=${m.whatsapp_number||'19283825389'} (https://wa.me/${(m.whatsapp_number||'19283825389').replace(/\D/g,'')}), Email=${m.footer_email||'saheednexatech@gmail.com'}, Phone=${m.footer_phone||'+1 928 382 5389'}, Calendly=${m.calendly_url||''}, Address=${m.footer_address||''}`);
+    parts.push(`HERO: ${m.hero_title||''} | ${m.hero_subtitle||''} | Badge=${m.hero_badge||''} | CTA1=${m.hero_cta_primary||''} CTA2=${m.hero_cta_secondary||''}`);
+    parts.push(`HOW IT WORKS: ${m.how_it_works_title||''} - ${m.how_it_works_subtitle||''} | 1) ${m.how_it_works_step1_title||''}: ${m.how_it_works_step1_desc||''} | 2) ${m.how_it_works_step2_title||''}: ${m.how_it_works_step2_desc||''} | 3) ${m.how_it_works_step3_title||''}: ${m.how_it_works_step3_desc||''} | 4) ${m.how_it_works_step4_title||''}: ${m.how_it_works_step4_desc||''}`);
+    parts.push(`PRICING: Starter ${m.pricing_starter_price||'$149'} (${m.pricing_starter_features||''}) | Pro ${m.pricing_pro_price||'$299'} (${m.pricing_pro_features||''}) | Elite ${m.pricing_elite_price||'$599'} (${m.pricing_elite_features||''}) | Mentorship ${m.mentorship_price||'Pay After Results'}: ${m.mentorship_title||''} - ${m.mentorship_subtitle||''} Bullets=${m.mentorship_bullets||''}`);
+    if(media.length) parts.push(`PORTFOLIO/PROOF: ${media.map(x=>`${x.type}:${x.category||''}-${x.caption||''} ${x.result_stat||''}`).join(' | ')}`);
+    if(team.length) parts.push(`TEAM: ${team.map(t=>`${t.name} (${t.role}) - ${t.credibility_note||''}`).join(' | ')}`);
+    if(certs.length) parts.push(`CERTIFICATES: ${certs.map(c=>c.caption).join(' | ')}`);
+    parts.push(`REVIEWS: ${m.reviews_title||''} - ${m.reviews_subtitle||''} | TESTIMONIALS: ${m.testimonials_title||''}`);
+    parts.push(`FAQ: ${(m.faq_items||'').toString().slice(0,800)}`);
+    parts.push(`CTA: ${m.cta_band_title||''} - ${m.cta_band_subtitle||''} | Footer: ${m.footer_copyright||''}`);
+    parts.push(`SEO: ${m.seo_title||''} | ${m.seo_description||''}`);
+    return parts.join('\n');
+  }catch(e){ return 'Site knowledge temporarily unavailable'; }
+}
 const UPLOAD_DIR = path.join(__dirname, 'public', 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
@@ -530,9 +563,11 @@ async function callGemini(userMessage){
     const row = await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_model');
     if(row?.value?.trim()) model = row.value.trim();
   }catch{}
+  const siteKnowledge = await buildSiteKnowledge();
+  const fullPrompt = NEXATECH_BASE_PROMPT + "\n\nSITE KNOWLEDGE (live, everything except secrets — owner: Akinyemmi Ifeoluwa, brand NEXATECH, includes plans, portfolio, WhatsApp, pricing, team, certificates):\n" + siteKnowledge;
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
   const payload = {
-    systemInstruction: { parts: [{ text: NEXATECH_SYSTEM_PROMPT }] },
+    systemInstruction: { parts: [{ text: fullPrompt }] },
     contents: [{ role: 'user', parts: [{ text: userMessage }] }],
     generationConfig: { temperature: 0.7, maxOutputTokens: 600, topP: 0.9 }
   };
