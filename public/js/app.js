@@ -767,8 +767,13 @@ function initChat(){
       recentList.appendChild(div);
     });
   }
-  // restore on load (survives reload, new tab has empty sessionStorage)
-  const hadHistory = loadHistory();
+  // Per owner request: +New Chat OR reload starts fresh (recent kept in localStorage, not current)
+  sessionStorage.removeItem(CHAT_KEY);
+  const hadHistory = false;
+  // don't restore — always start fresh on load/reload; recent is via localStorage
+  body.innerHTML=`<div class="msg bot">Hi! I’m the Nexatech assistant. Ask me about packages, timelines, or proof or tap a quick question below.</div><div class="quick"><button data-q="What’s included in Pro?">What’s included in Pro?</button><button data-q="How long to launch?">How long to launch?</button><button data-q="Do I own the store?">Do I own the store?</button></div>`;
+  body.querySelectorAll('.quick button').forEach(b=> b.addEventListener('click', ()=>{ input.value=b.dataset.q; sendMsg(); }));
+  saveHistory();
   btn.addEventListener('click', ()=> win.classList.toggle('open'));
   close.addEventListener('click', ()=> win.classList.remove('open'));
   // New Chat — archive current then reset
