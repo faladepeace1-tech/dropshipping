@@ -733,12 +733,17 @@ function initChat(){
   }));
   async function sendMsg(){
     const text=input.value.trim(); if(!text) return;
+    // Build history from existing msgs (for conversational memory — last 10 turns)
+    const history = [...body.querySelectorAll('.msg')].slice(-10).map(el=>{
+      const isUser = el.classList.contains('user');
+      return { role: isUser ? 'user' : 'model', text: el.textContent.trim().slice(0,2000) };
+    });
     const u=document.createElement('div'); u.className='msg user'; u.textContent=text; body.appendChild(u);
     input.value=''; body.scrollTop=body.scrollHeight;
     saveHistory();
     track('chat_message','chat', {text});
     try{
-      const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text, sessionId})});
+      const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text, sessionId, history})});
       const j=await r.json();
       const bot=document.createElement('div'); bot.className='msg bot';
       bot.textContent= j.reply || j.error || 'Not available right now';

@@ -554,7 +554,7 @@ async function getGeminiKey(){
     return row?.value?.trim() || '';
   }catch{ return ''; }
 }
-async function callGemini(userMessage){
+async function callGemini(userMessage, history=[]){
   const key = await getGeminiKey();
   if(!key) return null;
   // Model can be overridden via DB gemini_model or env
@@ -566,9 +566,18 @@ async function callGemini(userMessage){
   const siteKnowledge = await buildSiteKnowledge();
   const fullPrompt = NEXATECH_BASE_PROMPT + "\n\nSITE KNOWLEDGE (live, everything except secrets — owner: Akinyemmi Ifeoluwa, brand NEXATECH, includes plans, portfolio, WhatsApp, pricing, team, certificates):\n" + siteKnowledge;
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
+  // Build contents with history (up to last 10 turns) for conversational memory
+  let contents = [];
+  if(Array.isArray(history) && history.length){
+    const clean = history.filter(h=> h && (h.role==='user' || h.role==='model') && h.text).slice(-10);
+    for(const h of clean){
+      contents.push({ role: h.role, parts: [{ text: String(h.text).slice(0,2000) }] });
+    }
+  }
+  contents.push({ role: 'user', parts: [{ text: userMessage }] });
   const payload = {
     systemInstruction: { parts: [{ text: fullPrompt }] },
-    contents: [{ role: 'user', parts: [{ text: userMessage }] }],
+    contents,
     generationConfig: { temperature: 0.7, maxOutputTokens: 600, topP: 0.9 }
   };
   try{
@@ -598,7 +607,8 @@ app.post('/api/chat', async (req, res) => {
   if(!geminiKey){
     return res.status(503).json({ error: 'Chatbot not configured — set Gemini API key in Admin → Integrations → Gemini Direct', fallback: 'Please chat on WhatsApp instead.' });
   }
-  const reply = await callGemini(message);
+  const history = Array.isArray(req.body.history) ? req.body.history : [];
+  const reply = await callGemini(message, history);
   if(reply){
     // fetch model for response
     let model = GEMINI_MODEL;
