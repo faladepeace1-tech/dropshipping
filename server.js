@@ -507,7 +507,8 @@ app.post('/api/chat', async (req, res) => {
   try {
     const controller = new AbortController();
     const t = setTimeout(()=>controller.abort(), 8000);
-    const resp = await fetch(webhookUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message, sessionId, type: 'chat' }), signal: controller.signal });
+    const chatPayload = { message, sessionId, type: 'chat', chatInput: message, body: { chatInput: message, message, sessionId } };
+    const resp = await fetch(webhookUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(chatPayload), signal: controller.signal });
     clearTimeout(t);
     if (!resp.ok) throw new Error('webhook failed');
     const data = await resp.json().catch(()=>({ reply: 'Thanks! We received your message.' }));
@@ -627,13 +628,21 @@ app.post('/api/admin/webhook-test', requireAuth, async (req, res) => {
       utm_campaign: 'webhook_test'
     }
   };
+  const chatMsg = 'Hello — this is a webhook test from Nexatech Admin at ' + now;
+  const chatSid = 'test-chat-'+Date.now();
   const mockChat = {
     event: 'webhook_test',
     type: 'chat',
     mock: true,
     timestamp: now,
-    message: 'Hello — this is a webhook test from Nexatech Admin at ' + now,
-    sessionId: 'test-chat-'+Date.now()
+    message: chatMsg,
+    chatInput: chatMsg,
+    sessionId: chatSid,
+    body: {
+      chatInput: chatMsg,
+      message: chatMsg,
+      sessionId: chatSid
+    }
   };
 
   if(want==='form' || want==='all'){
