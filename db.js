@@ -392,6 +392,8 @@ export async function initDb() {
       ['testimonials_subtitle', 'Honest feedback from store owners.', 'text'],
       ['reviews_title', 'Proof You Can See Reviews & Video Testimonials', 'text'],
       ['reviews_subtitle', 'Real WhatsApp, Trustpilot and video review screenshots Click any to view full screen.', 'text'],
+      ['certificates_title', 'Certificates & Awards', 'text'],
+      ['certificates_subtitle', 'Verified credentials, partnerships and awards that prove credibility.', 'text'],
       ['faq_title', 'Questions? We\'ve Got Honest Answers.', 'text'],
       ['faq_subtitle', 'No hype. Just clear terms.', 'text'],
       ['faq_items', JSON.stringify([
@@ -508,20 +510,39 @@ export async function initDb() {
       ['mentorship', 1, 8, 1],
       ['testimonials', 1, 9, 1],
       ['reviews', 1, 10, 1],
-      ['faq', 1, 11, 1],
-      ['lead_form', 1, 12, 1],
-      ['cta_band', 1, 13, 1],
-      ['footer', 1, 14, 0]
+      ['certificates', 1, 11, 1],
+      ['faq', 1, 12, 1],
+      ['lead_form', 1, 13, 1],
+      ['cta_band', 1, 14, 1],
+      ['footer', 1, 15, 0]
   ];
   if (secCount === 0 || forceReset) {
     if (forceReset && secCount !== 0) { try { await db.exec('DELETE FROM sections'); } catch {} }
     for (const r of sectionsDef) await db.prepare('INSERT INTO sections (key,visible,display_order,animation_enabled) VALUES (?,?,?,?)').run(r[0], r[1], r[2], r[3]);
     if (forceReset) console.log('FORCE_DEFAULT_CONTENT: reseeded sections');
   } else {
-    // ensure missing sections exist (deploy-with-defaults)
+    // ensure missing sections exist (deploy-with-defaults) and fix order
+    let inserted = false;
     for (const [k,v,o,a] of sectionsDef) {
       const ex = await db.prepare('SELECT key FROM sections WHERE key=?').get(k);
-      if (!ex) await db.prepare('INSERT INTO sections (key,visible,display_order,animation_enabled) VALUES (?,?,?,?)').run(k,v,o,a);
+      if (!ex) {
+        await db.prepare('INSERT INTO sections (key,visible,display_order,animation_enabled) VALUES (?,?,?,?)').run(k,v,o,a);
+        inserted = true;
+      }
+    }
+    // Always ensure display_order matches def (fixes duplicate 11 after adding certificates)
+    // Check current order vs def
+    const rows = await db.prepare('SELECT key, display_order FROM sections').all();
+    const map = Object.fromEntries(rows.map(r=>[r.key, r.display_order]));
+    let mismatch = false;
+    for (const [k,,o] of sectionsDef) {
+      if (map[k] !== o) { mismatch = true; break; }
+    }
+    if (inserted || mismatch) {
+      for (const [k,,o] of sectionsDef) {
+        await db.prepare('UPDATE sections SET display_order=? WHERE key=?').run(o, k);
+      }
+      console.log('Reordered sections to include certificates / fix order');
     }
   }
 
@@ -626,8 +647,10 @@ export async function initDb() {
     await ensure('terms_title','Terms and Conditions','text');
     await ensure('terms_last_updated','September 3, 2026','text');
     await ensure('terms_content', `<h2>1. Services</h2><p>...</p>`, 'html');
-    await ensure('reviews_title','Proof You Can See Reviews & Video Testimonials','text');
+     await ensure('reviews_title','Proof You Can See Reviews & Video Testimonials','text');
     await ensure('reviews_subtitle','Real WhatsApp... 2550 × 1650 px','text');
+    await ensure('certificates_title','Certificates & Awards','text');
+    await ensure('certificates_subtitle','Verified credentials, partnerships and awards that prove credibility.','text');
     // contact migration
     const waOld = (await db.prepare('SELECT value FROM content WHERE key=?').get('whatsapp_number'))?.value;
     if(waOld && waOld.includes('234')) {
@@ -653,6 +676,12 @@ export async function initDb() {
       const max = parseInt(maxRow?.m ?? 14,10);
       await db.prepare('INSERT INTO sections (key,visible,display_order,animation_enabled) VALUES (?,?,?,?)').run('reviews',1,10,1);
       // shift others
+      await db.prepare("UPDATE sections SET display_order = display_order + 1 WHERE key IN ('faq','lead_form','cta_band','footer')").run();
+    }
+    const hasCerts = await db.prepare('SELECT key FROM sections WHERE key=?').get('certificates');
+    if(!hasCerts){
+      await db.prepare('INSERT INTO sections (key,visible,display_order,animation_enabled) VALUES (?,?,?,?)').run('certificates',1,11,1);
+      // shift faq, lead_form, cta_band, footer by +1
       await db.prepare("UPDATE sections SET display_order = display_order + 1 WHERE key IN ('faq','lead_form','cta_band','footer')").run();
     }
   } catch(e){ console.error('migration error', e); }

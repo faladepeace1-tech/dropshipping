@@ -90,6 +90,7 @@
           <button data-ctab="pricing">Pricing</button>
           <button data-ctab="testimonials">Testimonials</button>
           <button data-ctab="reviews">Reviews (2550×1650)</button>
+          <button data-ctab="certificates">Certificates & Awards</button>
           <button data-ctab="faq">FAQ</button>
           <button data-ctab="cta">CTA Band</button>
           <button data-ctab="footer">Footer</button>
@@ -108,12 +109,13 @@
           <button data-mtab="sales_proof">Sales Proof</button>
           <button data-mtab="testimonials">Testimonials</button>
           <button data-mtab="reviews">Review Screenshots (2550×1650)</button>
+          <button data-mtab="certificates">Certificates & Awards</button>
         </div>
         <div class="card">
           <h3>Add Media <small style="font-weight:500;color:#64748B"> file or URL, with progress & preview</small></h3>
           <form id="media-form" style="display:grid;gap:10px">
             <div style="display:flex;gap:10px;flex-wrap:wrap">
-              <label>Type<select name="type" id="media-type"><option value="portfolio">portfolio</option><option value="sales_proof">sales_proof</option><option value="testimonials">testimonials</option><option value="reviews">reviews</option></select></label>
+              <label>Type<select name="type" id="media-type"><option value="portfolio">portfolio</option><option value="sales_proof">sales_proof</option><option value="testimonials">testimonials</option><option value="reviews">reviews</option><option value="certificates">certificates</option></select></label>
               <label>Category / Tag<input name="category" placeholder="Fashion, Beauty, Tech Gadgets..."></label>
               <label>Result stat (e.g. $850 in 45 days)<input name="result_stat"></label>
             </div>
@@ -223,8 +225,14 @@
             <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="int-webhook-enabled"> Enable legacy webhook (used if new ones empty)</label>
           </details>
           <button class="btn btn-primary" id="btn-save-integrations">Save Integrations</button>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+            <button class="btn btn-ghost" id="btn-test-webhook-form" style="border-color:#F59E0B;color:#F59E0B">Test Form Webhook →</button>
+            <button class="btn btn-ghost" id="btn-test-webhook-chat" style="border-color:#00D1FF;color:#00D1FF">Test Chat Webhook →</button>
+            <button class="btn btn-ghost" id="btn-test-webhook-all">Test All Webhooks</button>
+          </div>
           <div id="int-msg" style="font-size:13px;margin-top:8px"></div>
-          <div style="font-size:11px;color:#94A3B8;margin-top:8px">Tip: Test with https://webhook.site to see payloads. Payloads include full lead data or chat message + sessionId.</div>
+          <pre id="webhook-test-result" style="display:none;background:#0B1220;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px;font-size:11px;color:#94A3B8;overflow:auto;max-height:240px;white-space:pre-wrap;word-break:break-all"></pre>
+          <div style="font-size:11px;color:#94A3B8;margin-top:8px">Tip: Test with https://webhook.site to see payloads. Payloads include full lead data or chat message + sessionId. We send mock data: <code>Test User / test@example.com</code> for form, and a hello message for chat.</div>
         </div>
         <div class="card">
           <h3>Theme & Branding</h3>

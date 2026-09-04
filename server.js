@@ -572,6 +572,95 @@ app.post('/api/admin/reset-defaults', requireAuth, async (req, res) => {
   }
 });
 
+// Webhook test — send mock data to configured webhooks (owner request)
+app.post('/api/admin/webhook-test', requireAuth, async (req, res) => {
+  const { type } = req.body; // 'form' | 'chat' | 'all'
+  const want = (type || 'all').toLowerCase();
+  const results = {};
+  const now = new Date().toISOString();
+  // Fetch config
+  const getVal = async (k) => (await db.prepare('SELECT value FROM content WHERE key=?').get(k))?.value?.trim() || '';
+  const webhookUrl = await getVal('webhook_url');
+  const webhookEnabled = (await getVal('webhook_enabled')) === 'true';
+  const formUrl = await getVal('webhook_form_url');
+  const formEnabled = (await getVal('webhook_form_enabled')) === 'true';
+  const botUrl = await getVal('webhook_chatbot_url');
+  const botEnabled = (await getVal('webhook_chatbot_enabled')) === 'true';
+
+  async function testOne(url, payload, label){
+    if(!url) return { ok:false, error:'URL not configured' };
+    try{
+      const controller = new AbortController();
+      const t = setTimeout(()=>controller.abort(), 8000);
+      const resp = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload), signal: controller.signal });
+      clearTimeout(t);
+      const text = await resp.text().catch(()=> '');
+      return { ok: resp.ok, status: resp.status, body: text.slice(0,500), url };
+    }catch(e){ return { ok:false, error: e.message, url }; }
+  }
+
+  const mockLead = {
+    event: 'webhook_test',
+    type: 'form',
+    mock: true,
+    timestamp: now,
+    data: {
+      name: 'Test User',
+      storeName: 'Test Store ' + Date.now(),
+      preferredNiche: 'Fashion',
+      preferredNicheOther: '',
+      investmentRange: 'Starter',
+      storeStatus: 'brand_new',
+      wasScammed: 'no',
+      scamDetails: '',
+      whatsapp: '+19283825389',
+      email: 'test+'+Date.now()+'@example.com',
+      preferredContactTime: 'Anytime',
+      source: 'webhook_test',
+      trafficPlan: 'TikTok Ads',
+      consent: true,
+      submittedAt: now,
+      pageUrl: 'https://dropshippingstore.dpdns.org/#test',
+      sessionId: 'test-'+Date.now(),
+      utm_source: 'test',
+      utm_medium: 'admin',
+      utm_campaign: 'webhook_test'
+    }
+  };
+  const mockChat = {
+    event: 'webhook_test',
+    type: 'chat',
+    mock: true,
+    timestamp: now,
+    message: 'Hello — this is a webhook test from Nexatech Admin at ' + now,
+    sessionId: 'test-chat-'+Date.now()
+  };
+
+  if(want==='form' || want==='all'){
+    const effectiveFormUrl = formUrl || (webhookEnabled ? webhookUrl : '');
+    const effectiveFormEnabled = formUrl ? formEnabled : webhookEnabled;
+    if(effectiveFormEnabled && effectiveFormUrl){
+      results.form = await testOne(effectiveFormUrl, mockLead, 'form');
+    } else {
+      results.form = { ok:false, error: 'Form webhook not enabled / not configured', url: effectiveFormUrl||'' };
+    }
+  }
+  if(want==='chat' || want==='all'){
+    const effectiveBotUrl = botUrl || (webhookEnabled ? webhookUrl : '');
+    const effectiveBotEnabled = botUrl ? botEnabled : webhookEnabled;
+    if(effectiveBotEnabled && effectiveBotUrl){
+      results.chat = await testOne(effectiveBotUrl, mockChat, 'chat');
+    } else {
+      results.chat = { ok:false, error: 'Chatbot webhook not enabled / not configured', url: effectiveBotUrl||'' };
+    }
+  }
+  if(want==='all' && !formUrl && !botUrl && webhookEnabled && webhookUrl){
+    // also report legacy
+    results.legacy = await testOne(webhookUrl, { ...mockLead, legacy:true }, 'legacy');
+  }
+  res.json({ ok: true, results, timestamp: now });
+});
+
 // Scheduled jobs
 async function refreshStats() {
   try {

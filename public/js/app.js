@@ -67,6 +67,8 @@ function applyTheme(c){
   if(c.faq_subtitle) $('#faq-subtitle').textContent=c.faq_subtitle;
   if(c.reviews_title) { const el=$('#reviews-title'); if(el) el.textContent=c.reviews_title; }
   if(c.reviews_subtitle) { const el=$('#reviews-subtitle'); if(el) el.textContent=c.reviews_subtitle; }
+  if(c.certificates_title) { const el=$('#certificates-title'); if(el) el.textContent=c.certificates_title; }
+  if(c.certificates_subtitle) { const el=$('#certificates-subtitle'); if(el) el.textContent=c.certificates_subtitle; }
   if(c.lead_form_title) $('#lead-form-title').textContent=c.lead_form_title;
   if(c.lead_form_subtitle) $('#lead-form-subtitle').textContent=c.lead_form_subtitle;
   if(c.cta_band_title) $('#cta-band-title').textContent=c.cta_band_title;
@@ -345,6 +347,33 @@ async function loadMedia(){
       }
     }
   }catch(e){ console.error('reviews load',e); }
+  // Certificates & Awards — image upload grid
+  try{
+    const certR=await fetch('/api/media?type=certificates'); const certs=await certR.json();
+    const cGrid=$('#certs-grid'); const cEmpty=$('#certs-empty');
+    if(cGrid){
+      cGrid.innerHTML='';
+      if(certs.length===0){
+        if(cEmpty) cEmpty.classList.remove('hidden');
+      } else {
+        if(cEmpty) cEmpty.classList.add('hidden');
+        certs.forEach((item, idx)=>{
+          const card=document.createElement('div'); card.className='certs-card reveal';
+          card.style.transitionDelay=(idx*50)+'ms';
+          card.innerHTML=`<img src="${item.url}" alt="${sanitize(item.alt_text||item.caption||'Certificate')}" loading="lazy"><div class="caption">${sanitize(item.caption||'Certificate')}</div>`;
+          card.addEventListener('click', ()=>{
+            MODAL_ITEMS=certs; MODAL_INDEX=certs.findIndex(x=>x.id===item.id);
+            updateModal();
+            $('#portfolio-modal').classList.add('open');
+            document.body.style.overflow='hidden';
+            track('certificate_view', String(item.id));
+          });
+          cGrid.appendChild(card);
+          setTimeout(()=> card.classList.add('in'), 80+idx*60);
+        });
+      }
+    }
+  }catch(e){ console.error('certs load',e); }
   // team
   const teamR=await fetch('/api/team'); const team=await teamR.json();
   const tGrid2=$('#team-grid'); tGrid2.innerHTML='';

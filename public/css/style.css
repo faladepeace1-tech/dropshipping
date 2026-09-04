@@ -254,6 +254,13 @@ button{font:inherit}
 .reviews-card .play-badge span{width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.92);display:grid;place-items:center;font-size:18px;box-shadow:0 8px 20px rgba(0,0,0,.18)}
 .reviews-card .caption{position:absolute;left:10px;bottom:10px;background:rgba(11,18,32,.72);color:#fff;font-size:11px;font-weight:600;padding:6px 10px;border-radius:999px;backdrop-filter:blur(6px);max-width:calc(100% - 20px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
+/* Certificates & Awards — image upload */
+.certs-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+.certs-card{position:relative;overflow:hidden;border-radius:16px;border:1px solid var(--border);background:#fff;box-shadow:var(--shadow);cursor:pointer;aspect-ratio:4/3;transition:transform .2s,box-shadow .2s}
+.certs-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+.certs-card img{width:100%;height:100%;object-fit:contain;padding:12px;display:block;background:#fff}
+.certs-card .caption{position:absolute;left:10px;bottom:10px;background:rgba(11,18,32,.85);color:#fff;font-size:11px;font-weight:600;padding:6px 10px;border-radius:999px;backdrop-filter:blur(6px);max-width:calc(100% - 20px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
 /* Reveal on scroll (global motion) */
 .reveal{opacity:0;transform:translateY(12px);transition:opacity .6s,transform .6s}
 .reveal.in{opacity:1;transform:translateY(0)}

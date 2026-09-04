@@ -148,6 +148,10 @@ const CONTENT_SCHEMA = {
     {key:'reviews_title', label:'Reviews Wall Title'},
     {key:'reviews_subtitle', label:'Reviews Wall Subtitle (include 2550×1650 note)', type:'textarea'},
   ],
+  certificates: [
+    {key:'certificates_title', label:'Certificates & Awards Title'},
+    {key:'certificates_subtitle', label:'Certificates Subtitle', type:'textarea'},
+  ],
   faq: [
     {key:'faq_title', label:'FAQ Title'},
     {key:'faq_subtitle', label:'FAQ Subtitle', type:'textarea'},
@@ -366,6 +370,24 @@ $('#btn-save-integrations').addEventListener('click', async()=>{
   $('#int-msg').textContent=r.ok?'Saved   webhooks and contact updated instantly.':(j.error||'Failed');
   if(r.ok) await loadContent();
 });
+// Webhook test — send mock data (per owner request)
+async function testWebhook(type){
+  const btnMap = {form:'btn-test-webhook-form', chat:'btn-test-webhook-chat', all:'btn-test-webhook-all'};
+  const btn = document.getElementById(btnMap[type]||btnMap.all);
+  const out = $('#webhook-test-result');
+  if(btn){ btn.disabled=true; const orig=btn.textContent; btn.textContent='Testing...'; out.style.display='block'; out.textContent='Sending mock '+type+' payload...'; }
+  try{
+    const r=await fetch('/api/admin/webhook-test',{method:'POST',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify({type})});
+    const j=await r.json();
+    if(out){ out.style.display='block'; out.textContent = JSON.stringify(j, null, 2); }
+    if(!r.ok) $('#int-msg').textContent = j.error||'Webhook test failed';
+    else $('#int-msg').textContent = 'Webhook test sent — see result below';
+  }catch(e){ if(out){ out.style.display='block'; out.textContent='Error: '+e.message; } }
+  finally{ if(btn){ btn.disabled=false; btn.textContent = type==='form'?'Test Form Webhook →': type==='chat'?'Test Chat Webhook →':'Test All Webhooks'; } }
+}
+$('#btn-test-webhook-form')?.addEventListener('click', ()=> testWebhook('form'));
+$('#btn-test-webhook-chat')?.addEventListener('click', ()=> testWebhook('chat'));
+$('#btn-test-webhook-all')?.addEventListener('click', ()=> testWebhook('all'));
 $('#btn-publish').addEventListener('click', ()=>{ alert('Changes are live instantly   no draft queue. (This button confirms publish.)'); window.open('/','_blank'); });
 $('#btn-revert').addEventListener('click', async()=>{
   if(!lastPublishedContent) return alert('No snapshot');
@@ -388,6 +410,9 @@ function updateMediaHint(){
   } else if(currentMediaTab==='portfolio'){
     hint.style.display='block';
     txt.textContent='Portfolio supports any ratio but 16:10 works best. Videos autoplay muted on hover.';
+  } else if(currentMediaTab==='certificates'){
+    hint.style.display='block';
+    txt.innerHTML='For <b>Certificates & Awards</b> upload image files (PNG/JPG/PDF preview as image). Recommended <b>4:3</b> or square, max 5MB. These appear in the homepage Certificates section.';
   } else {
     hint.style.display='none';
   }
