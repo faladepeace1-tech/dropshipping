@@ -367,8 +367,8 @@ $('#btn-save-integrations').addEventListener('click', async()=>{
   if(payload.whatsapp_number) payload.whatsapp_link = 'https://wa.me/' + payload.whatsapp_number.replace(/\D/g,'');
   const r=await fetch('/api/content',{method:'PUT',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify(payload)});
   const j=await r.json();
-  $('#int-msg').textContent=r.ok?'Saved   webhooks and contact updated instantly.':(j.error||'Failed');
-  if(r.ok) await loadContent();
+  $('#int-msg').textContent=r.ok?'Saved ✓ closed until you click Edit again':(j.error||'Failed');
+  if(r.ok){ await loadContent(); const d=document.getElementById('details-contact'); if(d) d.open=false; }
 });
 // Webhook test — form only (chat now via Gemini, per owner request)
 async function testWebhook(type){
@@ -385,7 +385,7 @@ async function testWebhook(type){
   finally{ if(btn){ btn.disabled=false; btn.textContent='Test Form Webhook →'; } }
 }
 $('#btn-test-webhook-form')?.addEventListener('click', ()=> testWebhook('form'));
-// Gemini direct — saved permanently in backend content table (PROTECTED_KEYS, never wiped)
+// Gemini direct — saved permanently in backend content table (PROTECTED_KEYS, never wiped) — collapsed unless Edit
 async function loadGeminiStatus(){
   try{
     const r=await fetch('/api/admin/gemini-key',{headers:authHeaders()});
@@ -397,13 +397,38 @@ async function loadGeminiStatus(){
       else el.textContent = 'No key set — chatbot disabled, paste Gemini key above (AQ.Ab8... or AIza...)';
       el.style.color = j.dbHas ? '#10B981' : (j.envHas ? '#64748B' : '#F87171');
     }
+    const sumEl=$('#gemini-summary-status');
+    if(sumEl){
+      if(j.dbHas) { sumEl.textContent=`${j.masked} ✓ saved permanently`; sumEl.style.color='#10B981'; }
+      else if(j.envHas) { sumEl.textContent='env only — save to persist'; sumEl.style.color='#F59E0B'; }
+      else { sumEl.textContent='not set'; sumEl.style.color='#F87171'; }
+    }
     const modelEl=$('#int-gemini-model');
     if(modelEl){
       modelEl.placeholder = j.model || 'gemini-2.5-flash';
-      if(j.dbModel) modelEl.value = ''; // keep placeholder as saved value
+      if(j.dbModel) modelEl.value = '';
     }
   }catch{}
 }
+// Integrations accordion — only one open at a time, closed by default (backend only, save & close)
+(function(){
+  const ids=['details-contact','details-google','details-gemini','details-theme'];
+  function closeAll(except){
+    ids.forEach(id=>{
+      const d=document.getElementById(id);
+      if(d && d!==except) d.open=false;
+    });
+  }
+  ids.forEach(id=>{
+    const d=document.getElementById(id);
+    if(!d) return;
+    d.addEventListener('toggle', ()=>{
+      if(d.open) closeAll(d);
+    });
+  });
+  // start closed
+  ids.forEach(id=>{ const d=document.getElementById(id); if(d) d.open=false; });
+})();
 $('#btn-show-gemini-key')?.addEventListener('click', ()=>{
   const inp=$('#int-gemini-key');
   if(inp) inp.type = inp.type==='password' ? 'text' : 'password';
@@ -418,10 +443,12 @@ $('#btn-save-gemini')?.addEventListener('click', async()=>{
     const r=await fetch('/api/admin/gemini-key',{method:'PUT',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify({key, model})});
     const j=await r.json();
     if(r.ok){
-      $('#gemini-msg').innerHTML = j.dbHas ? `<span style="color:#10B981">✓ Saved permanently in backend ✓ ${j.masked} — persists across deploys/reloads (content table)</span>` : (j.message||'Saved');
+      $('#gemini-msg').innerHTML = j.dbHas ? `<span style="color:#10B981">✓ Saved permanently in backend ✓ ${j.masked} — closed until you click Edit again</span>` : (j.message||'Saved');
       $('#int-gemini-key').value='';
       if(model) $('#int-gemini-model').value='';
       await loadGeminiStatus();
+      // auto-close details — stays closed until Edit clicked
+      const d=document.getElementById('details-gemini'); if(d) d.open=false;
     } else {
       $('#gemini-msg').textContent = j.error||'Save failed';
     }
@@ -455,6 +482,12 @@ async function loadGoogleStatus(){
       else el.textContent='Not configured — add Client ID/Secret + Doc ID (will be saved permanently)';
       el.style.color = j.hasAuth ? '#10B981' : '#94A3B8';
     }
+    const sumEl=$('#google-summary-status');
+    if(sumEl){
+      if(j.hasAuth) { sumEl.textContent='connected ✓ saved permanently'; sumEl.style.color='#10B981'; }
+      else if(j.hasClient) { sumEl.textContent='saved permanently — not yet connected'; sumEl.style.color='#F59E0B'; }
+      else { sumEl.textContent='not set'; sumEl.style.color='#F87171'; }
+    }
     const docEl=$('#int-google-doc-id'); if(docEl && j.docId){ docEl.placeholder=j.docId; docEl.value = docEl.value || ''; }
     const sheetEl=$('#int-google-sheet-name'); if(sheetEl && j.sheetName) sheetEl.placeholder=j.sheetName;
     // Auto-detect if we have doc + auth but sheet empty? try silently
@@ -483,14 +516,16 @@ $('#btn-save-google-sheets')?.addEventListener('click', async()=>{
   const r=await fetch('/api/admin/google/sheets',{method:'PUT',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify(body)});
   const j=await r.json().catch(()=>({}));
   if(btn){ btn.disabled=false; btn.textContent='Save Google Sheets'; }
-  $('#google-msg').textContent = r.ok ? `Saved permanently ✓ ${j.saved ? `Doc: ${j.saved.docId||'(unchanged)'} Sheet: ${j.saved.sheetName}` : ''} — will persist across deploys until you edit again` : (j.error||'Save failed');
+  $('#google-msg').textContent = r.ok ? `Saved permanently ✓ ${j.saved ? `Doc: ${j.saved.docId||'(unchanged)'} Sheet: ${j.saved.sheetName}` : ''} — closed until you click Edit again` : (j.error||'Save failed');
   if(r.ok){
     if(clientId) $('#int-google-client-id').value='';
     if(clientSecret) $('#int-google-client-secret').value='';
     if(docId) $('#int-google-doc-id').value='';
     if(sheetName) $('#int-google-sheet-name').value='';
     await loadGoogleStatus();
-    // Auto-run detect after save if we have doc
+    // close details — stays closed until Edit
+    const d=document.getElementById('details-google'); if(d) d.open=false;
+    // Auto-run detect after save if we have doc (will reopen if needed)
     if(j.saved?.docId){
       setTimeout(()=> detectGoogleSheet(), 300);
     }
