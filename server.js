@@ -552,13 +552,23 @@ app.get('/api/admin/analytics', requireAuth, async (req, res) => {
   res.json({ totalViews, uniqueVisitors, ctaClicks, funnelStarts, funnelCompletions, trafficSource: traffic, geo, daily, topPortfolio, leadsByDay });
 });
 
-// --- Helpers: Gemini ---
+// --- Helpers: Gemini — DB key takes precedence over env (so saved AQ.Ab8... is actually used)
 async function getGeminiKey(){
-  if (GEMINI_API_KEY && GEMINI_API_KEY.trim()) return GEMINI_API_KEY.trim();
   try{
     const row = await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_api_key');
-    return row?.value?.trim() || '';
-  }catch{ return ''; }
+    const dbVal = row?.value?.trim() || '';
+    if(dbVal) return dbVal;
+  }catch{}
+  if (GEMINI_API_KEY && GEMINI_API_KEY.trim()) return GEMINI_API_KEY.trim();
+  return '';
+}
+async function getGeminiKeySource(){
+  try{
+    const row = await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_api_key');
+    if(row?.value?.trim()) return 'db';
+  }catch{}
+  if (GEMINI_API_KEY && GEMINI_API_KEY.trim()) return 'env';
+  return 'none';
 }
 async function callGemini(userMessage, history=[]){
   const key = await getGeminiKey();
@@ -589,17 +599,21 @@ async function callGemini(userMessage, history=[]){
   try{
     const controller = new AbortController();
     const t = setTimeout(()=>controller.abort(), 12000);
-    const resp = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload), signal: controller.signal });
+    const resp = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json','x-goog-api-key':key}, body: JSON.stringify(payload), signal: controller.signal });
     clearTimeout(t);
     const data = await resp.json().catch(()=> ({}));
     if(!resp.ok){
-      const msg = data?.error?.message || `Gemini error ${resp.status}`;
-      throw new Error(msg);
+      const msg = data?.error?.message || data?.error?.status || `Gemini error ${resp.status} ${resp.statusText}`;
+      // Extra hint for AQ. keys
+      const hint = key.startsWith('AQ.') ? ' (AQ. key — ensure it is a Google AI API key, not OAuth token; try AIza... key from aistudio.google.com)' : '';
+      throw new Error(msg + hint);
     }
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || data?.candidates?.[0]?.content?.parts?.map(p=>p.text).join('\n') || '';
     return text.trim() || null;
   }catch(e){
     console.error('Gemini call failed', e.message);
+    // Also store last error for test endpoint debugging (optional)
+    try{ globalThis.__lastGeminiError = e.message; }catch{}
     return null;
   }
 }
@@ -1067,9 +1081,39 @@ app.put('/api/admin/gemini-key', requireAuth, async (req, res) => {
 app.post('/api/admin/gemini-test', requireAuth, async (req, res) => {
   const { message } = req.body;
   const testMsg = message || 'Hello, what is NexaTech mentorship?';
-  const reply = await callGemini(testMsg);
-  if(reply) res.json({ ok: true, reply, model: GEMINI_MODEL });
-  else res.status(500).json({ ok:false, error: 'Gemini call failed — check API key and model' });
+  const key = await getGeminiKey();
+  const source = await getGeminiKeySource();
+  let model = GEMINI_MODEL;
+  try{ const mr=await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_model'); if(mr?.value?.trim()) model=mr.value.trim(); }catch{}
+  if(!key) return res.status(500).json({ ok:false, error: 'No Gemini API key saved — paste AQ.Ab8... or AIza... in DB and Save', source, model });
+  const masked = key.slice(0,6)+'...'+key.slice(-4);
+  // Try Gemini API with detailed error
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
+  const siteKnowledge = await buildSiteKnowledge();
+  const fullPrompt = NEXATECH_BASE_PROMPT + "\n\nSITE KNOWLEDGE:\n" + siteKnowledge;
+  const payload = {
+    systemInstruction: { parts: [{ text: fullPrompt }] },
+    contents: [{ role:'user', parts:[{ text: testMsg }] }],
+    generationConfig: { temperature: 0.7, maxOutputTokens: 600, topP: 0.9 }
+  };
+  try{
+    const controller=new AbortController(); const t=setTimeout(()=>controller.abort(),12000);
+    const resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify(payload),signal:controller.signal});
+    clearTimeout(t);
+    const data=await resp.json().catch(()=>({}));
+    if(!resp.ok){
+      const gErr=data?.error?.message||`Gemini API ${resp.status} ${resp.statusText}`;
+      const details=data?.error||data;
+      console.error('Gemini test failed', gErr, details);
+      return res.status(500).json({ ok:false, error: gErr, details, model, source, masked, hint: 'If key is AQ.Ab8... verify it is a valid Google AI API key (AIza...) and model gemini-2.5-flash is enabled for your project. Try model gemini-1.5-flash as fallback.' });
+    }
+    const text=data?.candidates?.[0]?.content?.parts?.[0]?.text||data?.candidates?.[0]?.content?.parts?.map(p=>p.text).join('\n')||'';
+    if(!text.trim()) return res.status(500).json({ ok:false, error: 'Empty reply from Gemini', model, source, masked });
+    return res.json({ ok:true, reply:text.trim(), model, source, masked });
+  }catch(e){
+    console.error('Gemini test exception', e.message);
+    return res.status(500).json({ ok:false, error: e.message, model, source, masked });
+  }
 });
 
 // Google Sheets direct (append row) — matches n8n node: operation append, documentId, sheetName
