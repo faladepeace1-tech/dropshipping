@@ -800,9 +800,6 @@ function initChat(){
     // delay until content loaded
     setTimeout(updWa, 1500);
   }
-  $$('.quick button').forEach(b=> b.addEventListener('click', ()=>{
-    input.value=b.dataset.q; sendMsg();
-  }));
   // Helper: create WhatsApp button that stays inside chat frame
   function createWhatsAppButton(userText){
     const waNum = CONTENT.whatsapp_number || '19283825389';
@@ -820,17 +817,19 @@ function initChat(){
   }
   function shouldShowWhatsAppButton(replyText, userText, apiJson){
     if(apiJson && apiJson.fallback) return true;
-    const combined = (replyText||'') + ' ' + (userText||'');
     // If backend still accidentally returned raw wa.me link, we will show button anyway and strip link
     if(/wa\.me/i.test(replyText||'') || /https?:\/\/wa\.me/i.test(apiJson?.reply||'')) return true;
     // Handoff phrases from prompt
-    if(/continue on whatsapp|tap the button below|whatsapp with saheed/i.test(replyText||'')) return true;
-    // User intent handoff
-    if(/how (do|to) (i )?(get )?started|how much|want.*mentorship|hire|get started|how do we begin/i.test(userText||'')) return true;
+    if(/continue on whatsapp|tap the button below|whatsapp with saheed|tap below/i.test(replyText||'')) return true;
+    // User intent handoff — always show button for these, even if reply doesn't mention WhatsApp yet
+    if(/how (do|to) (i )?(get )?started|how much|want.*mentorship|hire|get started|how do we begin|want to start/i.test(userText||'')) return true;
     return false;
   }
+  let isSending=false;
   async function sendMsg(){
+    if(isSending) return;
     const text=input.value.trim(); if(!text) return;
+    isSending=true; send.disabled=true; input.disabled=true;
     const userQuestion = text; // keep for WhatsApp custom prefill
     // Build history from existing msgs BEFORE appending new user msg (so bot reads previous messages before reply)
     const history = [...body.querySelectorAll('.msg')].slice(-12).map(el=>{
@@ -872,12 +871,14 @@ function initChat(){
       bot.appendChild(document.createElement('br'));
       bot.appendChild(btn);
       body.appendChild(bot);
+    } finally {
+      isSending=false; send.disabled=false; input.disabled=false; try{ input.focus(); }catch{}
     }
     body.scrollTop=body.scrollHeight;
     saveHistory();
   }
   send.addEventListener('click', sendMsg);
-  input.addEventListener('keydown', e=>{ if(e.key==='Enter') sendMsg(); });
+  input.addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendMsg(); } });
   // if no history, keep initial bot greeting and save it
   if(!hadHistory) saveHistory();
   // Auto-archive on page hide/reload for recent
