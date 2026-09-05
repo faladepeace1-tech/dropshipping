@@ -23,13 +23,28 @@ function applyTheme(c){
   for(const [k,css] of Object.entries(map)) if(c[k]) r.style.setProperty(css,c[k]);
   if(c.font_family) r.style.setProperty('--font',c.font_family);
   if(c.logo_text) $('#logo-text').textContent=c.logo_text;
-  // Logo image replaces the N mark, text stays always (per owner request)
+  // Logo image replaces the N mark (logo-mark), not logo-text — per owner request, brand name at front of logo, backend only
   const mark = document.querySelector('.logo-mark');
   if(c.logo_url && c.logo_url.trim()){
     if(mark) mark.innerHTML=`<img src="${c.logo_url}" alt="logo" style="width:100%;height:100%;object-fit:cover;border-radius:10px;display:block">`;
   } else {
     if(mark && mark.querySelector('img')) mark.innerHTML='N';
   }
+  // Brand name at front of logo — order controlled by backend logo_position (brand_first = Brand + Mark)
+  try{
+    const logo = document.querySelector('.logo');
+    const textEl = document.getElementById('logo-text');
+    if(logo && mark && textEl){
+      const pos = (c.logo_position || c.brand_position || 'brand_first');
+      if(pos === 'brand_first'){
+        // Brand name front: [text][mark]
+        if(logo.firstElementChild !== textEl) logo.insertBefore(textEl, mark);
+      } else {
+        // Mark first: [mark][text]
+        if(logo.firstElementChild !== mark) logo.insertBefore(mark, textEl);
+      }
+    }
+  }catch{}
   if(c.favicon_url && c.favicon_url.trim()) $('#favicon').href=c.favicon_url;
   if(c.seo_title) {$('#seo-title').textContent=c.seo_title; document.title=c.seo_title;}
   if(c.seo_description) $('#seo-desc').content=c.seo_description;

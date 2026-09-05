@@ -49,6 +49,7 @@ $$('.side-nav button').forEach(b=> b.addEventListener('click', ()=>{
   $$('[data-panel]').forEach(p=> p.classList.toggle('hidden', p.dataset.panel!==tab));
   if(tab==='analytics') loadAnalytics();
   if(tab==='leads') loadLeads();
+  if(tab==='brand') loadBrand();
   if(tab==='campaigns'){ loadCampaigns(); loadTemplates(); loadGmailStatus(); loadOutbox(); }
   if(tab==='overview') loadOverview();
 }));
@@ -643,6 +644,134 @@ async function setupHeaders(mode){
 $('#btn-create-headers')?.addEventListener('click', ()=> setupHeaders('overwrite'));
 $('#btn-append-missing')?.addEventListener('click', ()=> setupHeaders('append-missing'));
 loadGoogleStatus();
+
+// ========== Brand / Logo — backend only, logo in logo-mark, brand name front ==========
+async function loadBrand(){
+  try{
+    // CONTENT already loaded via loadContent — ensure fresh
+    if(!CONTENT || !Object.keys(CONTENT).length) await loadContent();
+    const brandName = CONTENT.logo_text || CONTENT.brand_name || 'NEXATECH';
+    const logoUrl = CONTENT.logo_url || '';
+    const faviconUrl = CONTENT.favicon_url || '';
+    const pos = CONTENT.logo_position || CONTENT.brand_position || 'brand_first';
+    const nameEl=$('#brand-name'); if(nameEl) nameEl.value=brandName;
+    const logoUrlEl=$('#brand-logo-url'); if(logoUrlEl) logoUrlEl.value=logoUrl;
+    const favEl=$('#brand-favicon-url'); if(favEl) favEl.value=faviconUrl;
+    const posEl=$('#brand-position'); if(posEl) posEl.value=pos;
+    // previews
+    const lp=$('#brand-logo-preview');
+    if(lp){
+      if(logoUrl) lp.innerHTML=`<img src="${logoUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:10px;display:block">`;
+      else lp.textContent='N';
+    }
+    const fp=$('#brand-favicon-preview');
+    if(fp){
+      if(faviconUrl) fp.innerHTML=`<img src="${faviconUrl}" style="max-width:100%;max-height:100%;object-fit:contain;display:block">`;
+      else fp.textContent='favicon';
+    }
+    const liveMark=$('#brand-live-preview .logo-mark');
+    const liveText=$('#brand-live-text');
+    if(liveMark){
+      if(logoUrl) liveMark.innerHTML=`<img src="${logoUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:10px;display:block">`;
+      else liveMark.textContent='N';
+    }
+    if(liveText) liveText.textContent=brandName||'NEXATECH';
+    // live preview order — brand name at front of logo
+    const liveWrap=$('#brand-live-preview');
+    if(liveWrap){
+      // brand_first = Brand + Mark, logo_first = Mark + Brand
+      if(pos==='logo_first'){ liveWrap.style.flexDirection='row'; liveWrap.innerHTML=''; liveWrap.appendChild(liveMark); liveWrap.appendChild(document.createTextNode(' ')); liveWrap.appendChild(liveText); }
+      else { liveWrap.style.flexDirection='row'; liveWrap.innerHTML=''; liveWrap.appendChild(liveText); liveWrap.appendChild(document.createTextNode(' ')); liveWrap.appendChild(liveMark); }
+    }
+    // also update admin sidebar brand preview if exists
+  }catch(e){ console.error('loadBrand',e); }
+}
+async function saveBrand(){
+  const brandName=$('#brand-name')?.value?.trim() || '';
+  const logoUrl=$('#brand-logo-url')?.value?.trim() || '';
+  const faviconUrl=$('#brand-favicon-url')?.value?.trim() || '';
+  const pos=$('#brand-position')?.value || 'brand_first';
+  const payload={};
+  if(brandName) payload.logo_text=brandName;
+  if(logoUrl) payload.logo_url=logoUrl;
+  if(faviconUrl) payload.favicon_url=faviconUrl;
+  payload.logo_position=pos;
+  payload.brand_position=pos; // alias
+  const r=await fetch('/api/content',{method:'PUT',headers:{'Content-Type':'application/json',...authHeaders()},body:JSON.stringify(payload)});
+  const j=await r.json().catch(()=>({}));
+  const msgEl=$('#brand-msg');
+  if(r.ok){ if(msgEl) msgEl.innerHTML='<span style="color:#10B981">Brand saved ✓ — logo in logo-mark, brand name at front, favicon updated (backend only)</span>'; await loadContent(); await loadBrand(); }
+  else { if(msgEl) msgEl.textContent=j.error||'Save failed'; }
+}
+$('#btn-save-brand')?.addEventListener('click', saveBrand);
+$('#btn-preview-brand')?.addEventListener('click', ()=> window.open('/', '_blank'));
+$('#brand-name')?.addEventListener('input', ()=>{
+  const v=$('#brand-name').value||'NEXATECH';
+  const lt=$('#brand-live-text'); if(lt) lt.textContent=v;
+});
+$('#brand-logo-url')?.addEventListener('input', ()=>{
+  const v=$('#brand-logo-url').value.trim();
+  const lp=$('#brand-logo-preview');
+  const lm=$('#brand-live-preview .logo-mark');
+  if(v){
+    if(lp) lp.innerHTML=`<img src="${v}" style="width:100%;height:100%;object-fit:cover;border-radius:10px;display:block" onerror="this.style.display='none'">`;
+    if(lm) lm.innerHTML=`<img src="${v}" style="width:100%;height:100%;object-fit:cover;border-radius:10px;display:block">`;
+  } else {
+    if(lp) lp.textContent='N';
+    if(lm) lm.textContent='N';
+  }
+});
+$('#brand-favicon-url')?.addEventListener('input', ()=>{
+  const v=$('#brand-favicon-url').value.trim();
+  const fp=$('#brand-favicon-preview');
+  if(v){
+    if(fp) fp.innerHTML=`<img src="${v}" style="max-width:100%;max-height:100%;object-fit:contain;display:block">`;
+  } else { if(fp) fp.textContent='favicon'; }
+});
+$('#brand-position')?.addEventListener('change', ()=>{
+  const pos=$('#brand-position').value;
+  const liveWrap=$('#brand-live-preview');
+  const lm=liveWrap?.querySelector('.logo-mark');
+  const lt=$('#brand-live-text');
+  if(liveWrap && lm && lt){
+    liveWrap.innerHTML='';
+    if(pos==='logo_first'){ liveWrap.appendChild(lm); liveWrap.appendChild(document.createTextNode(' ')); liveWrap.appendChild(lt); }
+    else { liveWrap.appendChild(lt); liveWrap.appendChild(document.createTextNode(' ')); liveWrap.appendChild(lm); }
+  }
+});
+$('#brand-logo-file')?.addEventListener('change', async()=>{
+  const f=$('#brand-logo-file').files[0]; if(!f) return;
+  const fd=new FormData(); fd.append('file', f);
+  const msgEl=$('#brand-msg');
+  if(msgEl) msgEl.textContent='Uploading logo...';
+  try{
+    const r=await fetch('/api/admin/upload',{method:'POST', headers: authHeaders(), body: fd});
+    const j=await r.json();
+    if(!r.ok) throw new Error(j.error||'Upload failed');
+    $('#brand-logo-url').value=j.url;
+    $('#brand-logo-url').dispatchEvent(new Event('input'));
+    if(msgEl) msgEl.innerHTML=`<span style="color:#10B981">Uploaded: ${j.url} — click Save Brand</span>`;
+    // auto preview
+    const lp=$('#brand-logo-preview'); if(lp) lp.innerHTML=`<img src="${j.url}" style="width:100%;height:100%;object-fit:cover;border-radius:10px;display:block">`;
+  }catch(e){ if(msgEl) msgEl.textContent='Error: '+e.message; }
+});
+$('#brand-favicon-file')?.addEventListener('change', async()=>{
+  const f=$('#brand-favicon-file').files[0]; if(!f) return;
+  const fd=new FormData(); fd.append('file', f);
+  const msgEl=$('#brand-msg');
+  if(msgEl) msgEl.textContent='Uploading favicon...';
+  try{
+    const r=await fetch('/api/admin/upload',{method:'POST', headers: authHeaders(), body: fd});
+    const j=await r.json();
+    if(!r.ok) throw new Error(j.error||'Upload failed');
+    $('#brand-favicon-url').value=j.url;
+    $('#brand-favicon-url').dispatchEvent(new Event('input'));
+    if(msgEl) msgEl.innerHTML=`<span style="color:#10B981">Uploaded: ${j.url} — click Save Brand</span>`;
+  }catch(e){ if(msgEl) msgEl.textContent='Error: '+e.message; }
+});
+// Ensure brand loads when content loads
+const _origLoadContent = loadContent;
+loadContent = async function(){ await _origLoadContent(); await loadBrand(); };
 
 // ========== Campaigns & Gmail CRM — HubSpot-like via same Console Creds ==========
 let CAMPAIGNS=[], TEMPLATES=[], SELECTED_CAMP=null, PERSONAL_LEAD=null;

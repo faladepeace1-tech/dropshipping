@@ -23,6 +23,7 @@
     <div class="brand"><span class="mark">N</span> NEXATECH <small>ADMIN</small></div>
     <nav class="side-nav">
       <button data-tab="overview" class="active">Overview</button>
+      <button data-tab="brand">Brand / Logo</button>
       <button data-tab="content">Content & Theme</button>
       <button data-tab="media">Media Manager</button>
       <button data-tab="team">Experts (Team)</button>
@@ -72,6 +73,42 @@
             <label>Total build slots this month<input id="scarcity-total" type="number" min="1"></label>
             <label>Badge label template (use {remaining})<input id="scarcity-label" placeholder="Only {remaining} build slots left this month"></label>
             <button class="btn btn-primary" id="btn-save-scarcity">Save</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Brand / Logo — backend only, logo in logo-mark not logo-text, brand name at front -->
+      <section data-panel="brand" class="hidden">
+        <div class="card" style="border-color:rgba(124,58,237,.25)">
+          <h3>Brand — Logo & Favicon <small style="font-weight:500;color:#64748B">backend only</small></h3>
+          <p style="font-size:12px;color:#64748B;margin:6px 0 0">Logo is rendered in <code>&lt;span class="logo-mark"&gt;N&lt;/span&gt;</code> — the <b>N mark</b> — not in <code>#logo-text</code>. Brand name is editable and shown <b>at the front of the logo</b>. Upload here, saved permanently.</p>
+          <div style="display:grid;gap:14px;margin-top:14px">
+            <label>Brand Name (editable, front of logo) <input id="brand-name" placeholder="NEXATECH"></label>
+            <div style="display:grid;grid-template-columns:1fr 120px;gap:12px;align-items:start">
+              <div style="display:grid;gap:10px">
+                <label>Logo Image — uploads to <code>logo-mark</code> (replaces N) <input type="file" id="brand-logo-file" accept="image/*"></label>
+                <label>or Logo URL <input id="brand-logo-url" placeholder="https://... or /uploads/..."></label>
+                <small style="color:#94A3B8">Recommended: square PNG/SVG 256×256, transparent. This replaces the <b>N</b> inside <code>.logo-mark</code>.</small>
+              </div>
+              <div id="brand-logo-preview" style="width:112px;height:112px;border:1px solid var(--border);border-radius:14px;display:grid;place-items:center;overflow:hidden;background:#fff;font-weight:900;color:#0B1220">N</div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 120px;gap:12px;align-items:start">
+              <div style="display:grid;gap:10px">
+                <label>Favicon (browser tab) <input type="file" id="brand-favicon-file" accept="image/*,.ico,.svg"></label>
+                <label>or Favicon URL <input id="brand-favicon-url" placeholder="https://... or /uploads/..."></label>
+              </div>
+              <div id="brand-favicon-preview" style="width:112px;height:56px;border:1px solid var(--border);border-radius:10px;display:grid;place-items:center;overflow:hidden;background:#F8FAFC;font-size:11px;color:#94A3B8">favicon</div>
+            </div>
+            <label>Logo Position <select id="brand-position"><option value="brand_first">Brand name at front of logo (Brand + Logo Mark) — default</option><option value="logo_first">Logo mark first (Logo + Brand)</option></select></label>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-primary" id="btn-save-brand">Save Brand</button>
+              <button class="btn btn-ghost" id="btn-preview-brand" type="button">Preview Header →</button>
+            </div>
+            <div id="brand-msg" style="font-size:13px;margin-top:4px"></div>
+            <div style="display:flex;gap:10px;align-items:center;padding:10px;border:1px dashed var(--border);border-radius:12px;background:#F8FAFC">
+              <span style="font-size:11px;color:#64748B">Live header preview (brand front):</span>
+              <span id="brand-live-preview" style="display:inline-flex;align-items:center;gap:8px;font-weight:900"><span class="logo-mark" style="width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#00D1FF,#7C3AED);display:grid;place-items:center;color:#fff">N</span> <span id="brand-live-text">NEXATECH</span></span>
+            </div>
           </div>
         </div>
       </section>

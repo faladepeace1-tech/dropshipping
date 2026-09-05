@@ -507,6 +507,8 @@ export async function initDb() {
       ['logo_text', 'NEXATECH', 'text'],
       ['logo_url', '', 'text'],
       ['favicon_url', '', 'text'],
+      ['logo_position', 'brand_first', 'text'],
+      ['brand_position', 'brand_first', 'text'],
       ['reduced_motion', 'false', 'boolean'],
       ['scarcity_slots_total', '10', 'number'],
       ['scarcity_label', 'Only {remaining} build slots left this month', 'text'],
@@ -540,13 +542,14 @@ export async function initDb() {
   ];
   const count = await getCount('content');
   const forceReset = process.env.FORCE_DEFAULT_CONTENT === 'true' || process.env.RESET_CONTENT === 'true';
-  // Keys that must NEVER be wiped by reseed — user wants API/Client/Secret/Sheet permanently saved until explicitly edited (same console creds reused for Campaigns/Gmail)
+  // Keys that must NEVER be wiped by reseed — user wants API/Client/Secret/Sheet permanently saved until explicitly edited (same console creds reused for Campaigns/Gmail) + Brand logo
   const PROTECTED_KEYS = new Set([
     'google_client_id','google_client_secret','google_sheets_doc_id','google_sheets_sheet_name',
     'google_refresh_token','google_access_token','google_token_expiry','google_column_mapping',
     'gmail_connected_email','gmail_last_sync','gmail_sender_name',
     'gemini_api_key','gemini_model',
-    'webhook_url','webhook_enabled','webhook_form_url','webhook_form_enabled','webhook_chatbot_url','webhook_chatbot_enabled'
+    'webhook_url','webhook_enabled','webhook_form_url','webhook_form_enabled','webhook_chatbot_url','webhook_chatbot_enabled',
+    'logo_text','logo_url','favicon_url','logo_position','brand_position','og_image'
   ]);
   if (count === 0 || forceReset) {
     if (forceReset && count !== 0) {
@@ -758,6 +761,8 @@ export async function initDb() {
     await ensure('gmail_connected_email','','text');
     await ensure('gmail_sender_name','','text');
     await ensure('gmail_last_sync','','text');
+    await ensure('logo_position','brand_first','text');
+    await ensure('brand_position','brand_first','text');
     await ensure('privacy_title','Privacy Policy','text');
     await ensure('privacy_last_updated','September 3, 2026','text');
     await ensure('privacy_content', `<h2>Introduction</h2><p>At Nexatech...</p>`, 'html');
