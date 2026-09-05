@@ -254,6 +254,45 @@ export async function initDb() {
         value TEXT,
         computed_at TIMESTAMP DEFAULT NOW()
       );
+      CREATE TABLE IF NOT EXISTS campaigns (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        body_html TEXT DEFAULT '',
+        body_text TEXT DEFAULT '',
+        from_name TEXT DEFAULT '',
+        from_email TEXT DEFAULT '',
+        reply_to TEXT DEFAULT '',
+        status TEXT DEFAULT 'draft',
+        created_by TEXT DEFAULT 'admin',
+        total_recipients INTEGER DEFAULT 0,
+        sent_count INTEGER DEFAULT 0,
+        failed_count INTEGER DEFAULT 0,
+        open_count INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW(),
+        sent_at TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS campaign_sends (
+        id SERIAL PRIMARY KEY,
+        campaign_id INTEGER REFERENCES campaigns(id) ON DELETE CASCADE,
+        lead_id INTEGER REFERENCES leads(id) ON DELETE SET NULL,
+        email TEXT NOT NULL,
+        name TEXT DEFAULT '',
+        status TEXT DEFAULT 'pending',
+        error TEXT DEFAULT '',
+        message_id TEXT DEFAULT '',
+        sent_at TIMESTAMP,
+        opened_at TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS email_templates (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        body_html TEXT DEFAULT '',
+        body_text TEXT DEFAULT '',
+        category TEXT DEFAULT 'general',
+        created_at TIMESTAMP DEFAULT NOW()
+      );
     `);
   } else {
     db.exec(`
@@ -342,6 +381,45 @@ export async function initDb() {
       metric TEXT PRIMARY KEY,
       value TEXT,
       computed_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS campaigns (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      body_html TEXT DEFAULT '',
+      body_text TEXT DEFAULT '',
+      from_name TEXT DEFAULT '',
+      from_email TEXT DEFAULT '',
+      reply_to TEXT DEFAULT '',
+      status TEXT DEFAULT 'draft',
+      created_by TEXT DEFAULT 'admin',
+      total_recipients INTEGER DEFAULT 0,
+      sent_count INTEGER DEFAULT 0,
+      failed_count INTEGER DEFAULT 0,
+      open_count INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      sent_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS campaign_sends (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      campaign_id INTEGER REFERENCES campaigns(id) ON DELETE CASCADE,
+      lead_id INTEGER REFERENCES leads(id) ON DELETE SET NULL,
+      email TEXT NOT NULL,
+      name TEXT DEFAULT '',
+      status TEXT DEFAULT 'pending',
+      error TEXT DEFAULT '',
+      message_id TEXT DEFAULT '',
+      sent_at TEXT,
+      opened_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS email_templates (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      body_html TEXT DEFAULT '',
+      body_text TEXT DEFAULT '',
+      category TEXT DEFAULT 'general',
+      created_at TEXT DEFAULT (datetime('now'))
     );
   `);
   }
@@ -462,14 +540,35 @@ export async function initDb() {
   ];
   const count = await getCount('content');
   const forceReset = process.env.FORCE_DEFAULT_CONTENT === 'true' || process.env.RESET_CONTENT === 'true';
+  // Keys that must NEVER be wiped by reseed — user wants API/Client/Secret/Sheet permanently saved until explicitly edited (same console creds reused for Campaigns/Gmail)
+  const PROTECTED_KEYS = new Set([
+    'google_client_id','google_client_secret','google_sheets_doc_id','google_sheets_sheet_name',
+    'google_refresh_token','google_access_token','google_token_expiry','google_column_mapping',
+    'gmail_connected_email','gmail_last_sync','gmail_sender_name',
+    'gemini_api_key','gemini_model',
+    'webhook_url','webhook_enabled','webhook_form_url','webhook_form_enabled','webhook_chatbot_url','webhook_chatbot_enabled'
+  ]);
   if (count === 0 || forceReset) {
     if (forceReset && count !== 0) {
-      // Clear and reseed when forced (deploy with default content)
+      // Backup protected integration keys before wiping — they must persist permanently
+      const preserved = {};
+      for(const pk of PROTECTED_KEYS){
+        try{ const row = await db.prepare('SELECT key,value,type FROM content WHERE key=?').get(pk); if(row && row.value && String(row.value).trim()!=='') preserved[pk]=row; }catch{}
+      }
       try { await db.exec('DELETE FROM content'); } catch {}
-      console.log('FORCE_DEFAULT_CONTENT enabled — reseeding content with defaults');
-    }
-    for (const r of defaults) {
-      await db.prepare('INSERT INTO content (key,value,type) VALUES (?,?,?)').run(r[0], r[1], r[2]);
+      console.log('FORCE_DEFAULT_CONTENT enabled — reseeding content with defaults (protected keys backed up)');
+      for (const r of defaults) {
+        await db.prepare('INSERT INTO content (key,value,type) VALUES (?,?,?)').run(r[0], r[1], r[2]);
+      }
+      // Restore protected keys that had values
+      for(const [k,row] of Object.entries(preserved)){
+        try{ await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, type=excluded.type").run(row.key, row.value, row.type); }catch{}
+      }
+      if(Object.keys(preserved).length) console.log(`Restored ${Object.keys(preserved).length} protected integration keys after reseed`);
+    } else {
+      for (const r of defaults) {
+        await db.prepare('INSERT INTO content (key,value,type) VALUES (?,?,?)').run(r[0], r[1], r[2]);
+      }
     }
     if (count === 0) console.log(`Seeded ${defaults.length} default content keys`);
   } else {
@@ -485,12 +584,14 @@ export async function initDb() {
     if (inserted) console.log(`Inserted ${inserted} missing default content keys (deploy-with-defaults)`);
   }
   // FORCE: Always ensure live DB matches code defaults (user reports live still shows 7 14 + $199/$499, so force upsert)
+  // BUT never overwrite protected integration keys — they must stay permanently until user edits via Integrations panel
   try {
-    console.log('Force upserting code defaults to live DB (ensures 7 to 14 + pricing $149/$599 + all 4 steps)');
+    console.log('Force upserting code defaults to live DB (ensures 7 to 14 + pricing $149/$599 + all 4 steps) — protected keys excluded');
     for (const [k,v,t] of defaults) {
+      if(PROTECTED_KEYS.has(k)) continue;
       await db.prepare(`INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, type=excluded.type, updated_at=datetime('now')`).run(k,v,t);
     }
-    console.log('Force upserted defaults');
+    console.log('Force upserted defaults (protected excluded)');
   } catch(e){ console.error('force upsert error',e); }
 
   const secCount = await getCount('sections');
@@ -623,6 +724,20 @@ export async function initDb() {
     if (forceReset) console.log('FORCE_DEFAULT_CONTENT: reseeded stats');
   }
 
+  // Email templates & campaigns seed (HubSpot-like CRM) — uses same Google console creds via Gmail
+  try{
+    const tmplCount = await getCount('email_templates');
+    if(tmplCount===0){
+      const tmplDefaults = [
+        ['Welcome — New Lead','Welcome {{name}}! Your {{storeName}} journey starts','<div style="font-family:Inter,sans-serif;line-height:1.6;color:#0B1220"><p>Hi {{name}},</p><p>Thanks for applying for your <b>{{storeName}}</b> store in the <b>{{preferredNiche}}</b> niche. Our team at <b>Nexatech</b> will review your application and reach out on WhatsApp <b>{{whatsapp}}</b> within 24h.</p><p>While you wait, explore our portfolio and packages on the site.</p><p style="margin-top:16px">— <b>Saheed (Akinyemmi Ifeoluwa)</b><br>NEXATECH Dropshipping Store<br><a href="https://wa.me/19283825389">WhatsApp</a> • saheednexatech@gmail.com</p></div>','general'],
+        ['Follow-up — 48h After Application','Quick check-in, {{name}}','<div style="font-family:Inter,sans-serif;line-height:1.6;color:#0B1220"><p>Hi {{name}},</p><p>Just checking in — did you get our WhatsApp message about your <b>{{storeName}}</b> project?</p><p>We have <b>{{investmentRange}}</b> options and can start your store in 7–14 days. Reply to this email or ping us on WhatsApp to lock your slot.</p><p>— Nexatech</p></div>','followup'],
+        ['Nurture — Why Nexatech','Why founders choose Nexatech, {{name}}','<div style="font-family:Inter,sans-serif;line-height:1.6;color:#0B1220"><p>Hi {{name}},</p><p>Many founders come to us after being scammed. Here’s how we’re different:</p><ul><li>100% ownership — we build in <i>your</i> Shopify account</li><li>Video proof + live store walkthroughs</li><li>Winning product research + supplier automation</li><li>30-day scaling roadmap</li></ul><p>Want the mentorship (results BEFORE payment)? Let us know.</p><p>— Nexatech</p></div>','nurture'],
+      ];
+      for(const t of tmplDefaults) await db.prepare('INSERT INTO email_templates (name,subject,body_html,category) VALUES (?,?,?,?)').run(t[0],t[1],t[2],t[3]);
+      console.log(`Seeded ${tmplDefaults.length} email templates`);
+    }
+  }catch(e){ console.error('templates seed error', e.message); }
+
   // Migrations
   try {
     await db.prepare("UPDATE content SET value = REPLACE(value, '₦', '$') WHERE value LIKE '%₦%'").run();
@@ -637,6 +752,9 @@ export async function initDb() {
     await ensure('webhook_chatbot_enabled','false','boolean');
     await ensure('webhook_form_url','','text');
     await ensure('webhook_form_enabled','false','boolean');
+    await ensure('gmail_connected_email','','text');
+    await ensure('gmail_sender_name','','text');
+    await ensure('gmail_last_sync','','text');
     await ensure('privacy_title','Privacy Policy','text');
     await ensure('privacy_last_updated','September 3, 2026','text');
     await ensure('privacy_content', `<h2>Introduction</h2><p>At Nexatech...</p>`, 'html');

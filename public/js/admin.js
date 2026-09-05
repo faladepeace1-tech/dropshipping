@@ -49,6 +49,7 @@ $$('.side-nav button').forEach(b=> b.addEventListener('click', ()=>{
   $$('[data-panel]').forEach(p=> p.classList.toggle('hidden', p.dataset.panel!==tab));
   if(tab==='analytics') loadAnalytics();
   if(tab==='leads') loadLeads();
+  if(tab==='campaigns'){ loadCampaigns(); loadTemplates(); loadGmailStatus(); loadOutbox(); }
   if(tab==='overview') loadOverview();
 }));
 $$('[data-tab-jump]').forEach(b=> b.addEventListener('click', ()=>{
@@ -420,21 +421,29 @@ $('#btn-test-gemini')?.addEventListener('click', async()=>{
   finally{ if(btn){ btn.disabled=false; btn.textContent='Test Gemini →'; } }
 });
 loadGeminiStatus();
-// Google Sheets direct
+// Google Sheets direct — permanent save + auto-detect
 async function loadGoogleStatus(){
   try{
     const r=await fetch('/api/admin/google/status',{headers:authHeaders()});
     const j=await r.json();
     const el=$('#google-client-status');
     if(el){
-      if(j.hasAuth) el.textContent=`Connected ✓ Doc: ${j.docId||'(none)'} Sheet: ${j.sheetName} | Client: ${j.clientIdMasked||'set'}`;
-      else if(j.hasClient && j.hasSheet) el.textContent=`Client+Sheet set, not yet connected — click Connect`;
-      else if(j.hasClient) el.textContent=`Client set, set Doc ID + Sheet`;
-      else el.textContent='Not configured — add Client ID/Secret + Doc ID';
+      if(j.hasAuth) el.textContent=`Connected ✓ Doc: ${j.docId||'(none)'} Sheet: ${j.sheetName} | Client: ${j.clientIdMasked||'set'} — keys saved permanently`;
+      else if(j.hasClient && j.hasSheet) el.textContent=`Client+Sheet saved (permanent) — not yet connected → click Connect`;
+      else if(j.hasClient) el.textContent=`Client saved permanently, set Doc ID + Sheet`;
+      else el.textContent='Not configured — add Client ID/Secret + Doc ID (will be saved permanently)';
       el.style.color = j.hasAuth ? '#10B981' : '#94A3B8';
     }
-    const docEl=$('#int-google-doc-id'); if(docEl && j.docId) docEl.placeholder=j.docId;
+    const docEl=$('#int-google-doc-id'); if(docEl && j.docId){ docEl.placeholder=j.docId; docEl.value = docEl.value || ''; }
     const sheetEl=$('#int-google-sheet-name'); if(sheetEl && j.sheetName) sheetEl.placeholder=j.sheetName;
+    // Auto-detect if we have doc + auth but sheet empty? try silently
+    if(j.hasAuth && j.docId){
+      // show hint that auto-detect available
+      const hint = $('#google-msg');
+      if(hint && !$('#google-detect-wrap')?.style.display || $('#google-detect-wrap').style.display==='none'){
+        // don't auto-run to avoid API quota, just hint
+      }
+    }
   }catch{}
 }
 $('#btn-show-google-secret')?.addEventListener('click', ()=>{
@@ -446,20 +455,32 @@ $('#btn-save-google-sheets')?.addEventListener('click', async()=>{
   const clientSecret=$('#int-google-client-secret')?.value || '';
   const docId=$('#int-google-doc-id')?.value || '';
   const sheetName=$('#int-google-sheet-name')?.value || '';
-  const payload={}; if(clientId) payload.clientId=clientId; if(clientSecret) payload.clientSecret=clientSecret; if(docId) payload.docId=docId; if(sheetName) payload.sheetName=sheetName;
-  // also allow empty to clear? Only send non-empty, but docId empty should clear? We'll send what user typed
+  // Permanent save: backend only overwrites non-empty — empty keeps old value. This ensures keys never wiped accidentally.
   const body={clientId, clientSecret, docId, sheetName};
+  const btn=$('#btn-save-google-sheets');
+  if(btn){ btn.disabled=true; btn.textContent='Saving...'; }
   const r=await fetch('/api/admin/google/sheets',{method:'PUT',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify(body)});
-  const j=await r.json();
-  $('#google-msg').textContent = r.ok ? 'Google Sheets config saved' : (j.error||'Save failed');
-  if(r.ok){ $('#int-google-client-secret').value=''; loadGoogleStatus(); }
+  const j=await r.json().catch(()=>({}));
+  if(btn){ btn.disabled=false; btn.textContent='Save Google Sheets'; }
+  $('#google-msg').textContent = r.ok ? `Saved permanently ✓ ${j.saved ? `Doc: ${j.saved.docId||'(unchanged)'} Sheet: ${j.saved.sheetName}` : ''} — will persist across deploys until you edit again` : (j.error||'Save failed');
+  if(r.ok){
+    if(clientId) $('#int-google-client-id').value='';
+    if(clientSecret) $('#int-google-client-secret').value='';
+    if(docId) $('#int-google-doc-id').value='';
+    if(sheetName) $('#int-google-sheet-name').value='';
+    await loadGoogleStatus();
+    // Auto-run detect after save if we have doc
+    if(j.saved?.docId){
+      setTimeout(()=> detectGoogleSheet(), 300);
+    }
+  }
 });
 $('#btn-connect-google')?.addEventListener('click', async()=>{
   const r=await fetch('/api/admin/google/auth-url',{headers:authHeaders()});
   const j=await r.json();
   if(!r.ok){ $('#google-msg').textContent=j.error||'Connect failed — set Client ID/Secret first'; return; }
   window.open(j.url, '_blank', 'width=600,height=700');
-  $('#google-msg').textContent='Opened Google consent — approve and return here, then Test Append';
+  $('#google-msg').textContent='Opened Google consent — approve and return here, then Test Append / Auto-Detect';
 });
 $('#btn-test-google-sheets')?.addEventListener('click', async()=>{
   const out=$('#google-test-result'); const btn=$('#btn-test-google-sheets');
@@ -469,17 +490,430 @@ $('#btn-test-google-sheets')?.addEventListener('click', async()=>{
     const r=await fetch('/api/admin/google/test',{method:'POST',headers:authHeaders()});
     const j=await r.json();
     if(out) out.textContent=JSON.stringify(j,null,2);
-    $('#google-msg').textContent = j.ok ? 'Test row appended ✓ Check your sheet' : (j.error||'Test failed — check Doc ID/Sheet + Connect');
+    $('#google-msg').textContent = j.ok ? 'Test row appended ✓ Check your sheet (mapped to detected headers if any)' : (j.error||'Test failed — check Doc ID/Sheet + Connect or Run Auto-Detect');
     if(j.ok) loadGoogleStatus();
   }catch(e){ if(out) out.textContent='Error: '+e.message; }
   finally{ if(btn){ btn.disabled=false; btn.textContent='Test Append Row →'; } }
 });
 $('#btn-disconnect-google')?.addEventListener('click', async()=>{
-  if(!confirm('Disconnect Google Sheets? This clears refresh token.')) return;
+  if(!confirm('Disconnect Google Sheets? This clears refresh token (keeps Client ID/Secret/Doc ID).')) return;
   const r=await fetch('/api/admin/google/disconnect',{method:'POST',headers:authHeaders()});
-  $('#google-msg').textContent = r.ok ? 'Disconnected' : 'Failed';
+  $('#google-msg').textContent = r.ok ? 'Disconnected (tokens cleared, keys kept)' : 'Failed';
   if(r.ok) loadGoogleStatus();
 });
+// --- Auto-Detect Sheet & Columns ---
+let lastDetectData = null;
+async function detectGoogleSheet(){
+  const wrap=$('#google-detect-wrap');
+  const out=$('#google-detect-result');
+  const btn=$('#btn-detect-google');
+  const info=$('#google-columns-info');
+  const preview=$('#google-headers-preview');
+  const missingWrap=$('#google-missing-wrap');
+  const picker=$('#google-sheet-picker');
+  const custom=$('#google-sheet-picker-custom');
+  const titleEl=$('#google-detect-title');
+  if(btn){ btn.disabled=true; btn.textContent='Detecting...'; }
+  if(wrap) wrap.style.display='block';
+  if(info) info.textContent='Detecting Google Sheet — listing sheets & reading header row...';
+  if(preview) preview.innerHTML='';
+  if(missingWrap) missingWrap.innerHTML='';
+  try{
+    // Use current input Doc ID if typed but not saved yet? Prefer saved, but allow override
+    const typedDoc = $('#int-google-doc-id')?.value?.trim();
+    const typedSheet = $('#int-google-sheet-name')?.value?.trim() || $('#google-sheet-picker-custom')?.value?.trim();
+    let qs = '';
+    if(typedDoc) qs += `docId=${encodeURIComponent(typedDoc)}&`;
+    if(typedSheet) qs += `sheetName=${encodeURIComponent(typedSheet)}&`;
+    const r=await fetch('/api/admin/google/inspect?'+qs, {headers: authHeaders()});
+    const j=await r.json();
+    if(!r.ok) throw new Error(j.error||'Detect failed');
+    lastDetectData = j;
+    if(titleEl) titleEl.textContent = `${j.spreadsheetTitle||''} • Doc: ${j.docId.slice(0,12)}... • Sheets: ${j.sheets.length} • Rows: ${j.rowCount}`;
+    // Fill picker
+    if(picker){
+      picker.innerHTML='';
+      j.sheets.forEach(s=>{
+        const opt=document.createElement('option');
+        opt.value=s.title; opt.textContent=`${s.title} (${s.gridRows} rows)`;
+        if(s.title===j.currentSheet) opt.selected=true;
+        picker.appendChild(opt);
+      });
+      picker.onchange = ()=> {
+        if(custom) custom.value = picker.value;
+        // re-detect with new sheet
+        detectGoogleSheetWithSheet(picker.value);
+      };
+    }
+    if(custom) custom.value = j.currentSheet;
+    // Show headers
+    if(preview){
+      if(j.isEmpty){
+        preview.innerHTML=`<div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:8px;color:#991B1B;font-size:11px">Sheet <b>${j.currentSheet}</b> has <b>no header row</b> (empty). Click <b>Create / Overwrite Headers</b> to create the 22 columns.</div>`;
+      } else {
+        let html = `<div style="font-size:11px;color:#94A3B8;margin-bottom:4px">Headers in <b>${j.currentSheet}</b> — row 1 (${j.headers.length} cols):</div><div style="display:flex;gap:4px;flex-wrap:wrap">`;
+        j.headers.forEach((h,idx)=>{
+          const isExpected = j.expectedHeaders.map(x=>x.toLowerCase().replace(/\s/g,'')).includes(h.toLowerCase().replace(/\s/g,''));
+          const mapped = j.mapping && Object.values(j.mapping).includes(idx);
+          html += `<span style="background:${isExpected?'#10B981':'#334155'};color:#fff;padding:4px 8px;border-radius:999px;font-size:11px">${idx+1}. ${h||'<empty>'}</span>`;
+        });
+        html += `</div>`;
+        if(j.extraColumns.length) html += `<div style="margin-top:6px;font-size:11px;color:#F59E0B">Extra (not in expected): ${j.extraColumns.join(', ')}</div>`;
+        preview.innerHTML = html;
+      }
+    }
+    // Show missing / columns to create
+    if(missingWrap){
+      if(j.missingColumns && j.missingColumns.length){
+        let html = `<div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;padding:10px">`;
+        html += `<div style="font-size:12px;font-weight:700;color:#92400E">Columns to Create (${j.missingColumns.length} missing):</div>`;
+        html += `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px">`;
+        j.missingColumns.forEach(c=> html+=`<span style="background:#F59E0B;color:#fff;padding:4px 8px;border-radius:999px;font-size:11px">${c}</span>`);
+        html += `</div>`;
+        html += `<div style="font-size:11px;color:#92400E;margin-top:6px">These will be created by <b>Create / Overwrite Headers</b> (22 cols) or <b>Append Missing</b> (keeps existing + adds missing).</div>`;
+        html += `</div>`;
+        missingWrap.innerHTML = html;
+      } else if(j.isEmpty){
+        missingWrap.innerHTML = `<div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:10px;font-size:12px;color:#991B1B">Sheet empty — <b>22 columns</b> will be created: ${j.expectedHeaders.join(', ')}</div>`;
+      } else {
+        missingWrap.innerHTML = `<div style="background:#ECFDF5;border:1px solid #A7F3D0;border-radius:10px;padding:10px;font-size:12px;color:#065F46">✓ All 22 expected columns present — sheet is correctly configured. Test Append will map to these headers.</div>`;
+      }
+    }
+    if(info){
+      if(j.isEmpty) info.innerHTML=`<span style="color:#F87171">Sheet empty — no headers found.</span> <span style="color:#94A3B8">Row count: ${j.rowCount}. Use Create Headers below.</span>`;
+      else if(j.missingColumns.length) info.innerHTML=`<span style="color:#F59E0B">${j.missingColumns.length} columns missing</span> • ${j.headers.length} present • Row count: ${j.rowCount} — see columns to create below`;
+      else info.innerHTML=`<span style="color:#10B981">✓ All columns matched</span> • ${j.headers.length} headers • ${j.rowCount} rows • Mapping will align lead fields to these positions automatically`;
+    }
+    if(out){ out.style.display='block'; out.textContent = JSON.stringify(j, null, 2); }
+    $('#google-msg').textContent = j.isEmpty ? 'Detected: sheet empty — create headers' : (j.missingColumns.length ? `Detected: ${j.missingColumns.length} columns to create` : 'Detected: sheet ready ✓');
+  }catch(e){
+    if(info) info.innerHTML=`<span style="color:#F87171">Detect failed: ${e.message}</span>`;
+    if(out){ out.style.display='block'; out.textContent='Error: '+e.message; }
+    $('#google-msg').textContent='Detect failed: '+e.message;
+  } finally{ if(btn){ btn.disabled=false; btn.textContent='Auto-Detect Sheet & Columns →'; } }
+}
+async function detectGoogleSheetWithSheet(sheetName){
+  const typedDoc = $('#int-google-doc-id')?.value?.trim();
+  let qs = `sheetName=${encodeURIComponent(sheetName)}&`;
+  if(typedDoc) qs += `docId=${encodeURIComponent(typedDoc)}&`;
+  const r=await fetch('/api/admin/google/inspect?'+qs, {headers: authHeaders()});
+  const j=await r.json();
+  if(r.ok) {
+    // re-render quickly without full detect
+    lastDetectData = j;
+    // update info
+    $('#google-columns-info').innerHTML = j.isEmpty ? 'Empty sheet' : (j.missingColumns.length ? `${j.missingColumns.length} missing` : 'All columns present');
+    $('#google-headers-preview').innerHTML = j.headers.length ? j.headers.map((h,i)=> `<span style="background:#334155;color:#fff;padding:3px 6px;border-radius:999px;font-size:10px">${i+1}.${h}</span>`).join(' ') : 'Empty';
+    // update missing
+    const miss=$('#google-missing-wrap');
+    if(miss) miss.innerHTML = j.missingColumns.length ? `Missing: ${j.missingColumns.join(', ')}` : 'All good';
+    $('#google-detect-result').textContent = JSON.stringify(j,null,2);
+  }
+}
+$('#btn-detect-google')?.addEventListener('click', detectGoogleSheet);
+$('#btn-refresh-detect')?.addEventListener('click', detectGoogleSheet);
+$('#google-sheet-picker-custom')?.addEventListener('change', (e)=>{
+  const v=e.target.value.trim();
+  if(v && lastDetectData && v!==lastDetectData.currentSheet){
+    // save sheet name permanently
+    fetch('/api/admin/google/sheets',{method:'PUT',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify({sheetName:v})}).then(()=> loadGoogleStatus());
+  }
+});
+async function setupHeaders(mode){
+  const sheetName = $('#google-sheet-picker-custom')?.value?.trim() || $('#google-sheet-picker')?.value || lastDetectData?.currentSheet || $('#int-google-sheet-name')?.value?.trim() || 'Sheet1';
+  const docId = $('#int-google-doc-id')?.value?.trim() || lastDetectData?.docId || '';
+  const btnId = mode==='append-missing' ? 'btn-append-missing' : 'btn-create-headers';
+  const btn=$(`#${btnId}`);
+  if(btn){ btn.disabled=true; btn.textContent='Working...'; }
+  try{
+    const r=await fetch('/api/admin/google/setup-headers',{method:'POST',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify({docId, sheetName, mode})});
+    const j=await r.json();
+    if(!r.ok) throw new Error(j.error||'Setup failed');
+    $('#google-msg').textContent = `Headers ${mode==='append-missing' ? 'appended' : 'created'} ✓ Sheet: ${sheetName} — ${j.headers.length} cols`;
+    $('#google-detect-result').style.display='block';
+    $('#google-detect-result').textContent = JSON.stringify(j,null,2);
+    // auto re-detect
+    setTimeout(detectGoogleSheet, 800);
+  }catch(e){
+    $('#google-msg').textContent='Setup failed: '+e.message;
+    $('#google-detect-result').style.display='block';
+    $('#google-detect-result').textContent='Error: '+e.message;
+  } finally{ if(btn){ btn.disabled=false; btn.textContent = mode==='append-missing' ? 'Append Missing Columns Only' : 'Create / Overwrite Headers (22 cols) →'; } }
+}
+$('#btn-create-headers')?.addEventListener('click', ()=> setupHeaders('overwrite'));
+$('#btn-append-missing')?.addEventListener('click', ()=> setupHeaders('append-missing'));
+loadGoogleStatus();
+
+// ========== Campaigns & Gmail CRM — HubSpot-like via same Console Creds ==========
+let CAMPAIGNS=[], TEMPLATES=[], SELECTED_CAMP=null, PERSONAL_LEAD=null;
+async function loadGmailStatus(){
+  try{
+    const r=await fetch('/api/admin/gmail/status',{headers: authHeaders()});
+    const j=await r.json();
+    const el=$('#gmail-status');
+    if(el){
+      if(j.hasGmailAuth && j.verified) el.textContent=`Gmail: ${j.email} ✓`;
+      else if(j.hasGmailAuth) el.textContent=`Gmail: ${j.email||'connected'} (verify...)`;
+      else if(j.needsReauth) el.textContent=`Re-connect needed — Gmail scope missing`;
+      else if(j.hasClient && !j.hasGmailAuth) el.textContent=`Gmail not connected — click Connect`;
+      else el.textContent=`Set Google Client ID/Secret first`;
+      el.style.color = j.verified ? '#10B981' : '#94A3B8';
+      el.style.borderColor = j.verified ? 'rgba(16,185,129,.3)' : '#E2E8F0';
+    }
+    const nameEl=$('#camp-from-name'); if(nameEl && j.senderName && !nameEl.value) nameEl.value=j.senderName;
+    const emailEl=$('#camp-from-email'); if(emailEl && j.email && !emailEl.value) emailEl.placeholder=j.email;
+    const msgEl=$('#gmail-msg');
+    if(msgEl){
+      if(j.verified) msgEl.innerHTML=`<span style="color:#10B981">✓ Gmail ready via <b>same Client ID</b> (${j.clientMasked}) — send bulk & personal now</span>`;
+      else if(!j.hasClient) msgEl.textContent='Set Client ID/Secret in Integrations → Google Sheets (reused for Campaigns).';
+      else if(!j.hasGmailAuth) msgEl.innerHTML=`<span style="color:#F59E0B">Gmail not yet authorized — click <b>Connect Gmail (same Client ID)</b> to grant gmail.send scope (one-time). Shares same refresh token as Sheets.</span>`;
+      else msgEl.textContent=j.lastError ? 'Gmail check: '+j.lastError : '';
+    }
+  }catch(e){ const el=$('#gmail-status'); if(el) el.textContent='Gmail status error'; }
+}
+$('#btn-gmail-connect')?.addEventListener('click', async()=>{
+  const r=await fetch('/api/admin/google/auth-url',{headers: authHeaders()});
+  const j=await r.json();
+  if(!r.ok){ $('#gmail-msg').textContent=j.error||'Connect failed'; return; }
+  window.open(j.url,'_blank','width=600,height=700');
+  $('#gmail-msg').textContent='Opened Google consent (Sheets + Gmail) — approve, then refresh Gmail status';
+});
+$('#btn-gmail-test')?.addEventListener('click', async()=>{
+  const btn=$('#btn-gmail-test'); if(btn) btn.disabled=true;
+  $('#gmail-msg').textContent='Sending test email via Gmail...';
+  try{
+    const r=await fetch('/api/admin/gmail/test',{method:'POST', headers:{'Content-Type':'application/json', ...authHeaders()}, body: JSON.stringify({})});
+    const j=await r.json();
+    $('#gmail-msg').textContent = r.ok ? `Test sent ✓ to ${j.to} via ${j.from} — check inbox` : (j.error||'Test failed — reconnect Gmail');
+  }catch(e){ $('#gmail-msg').textContent='Error: '+e.message; }
+  finally{ if(btn) btn.disabled=false; loadGmailStatus(); }
+});
+$('#btn-save-gmail-sender')?.addEventListener('click', async()=>{
+  const name=$('#camp-from-name')?.value||'';
+  const email=$('#camp-from-email')?.value||'';
+  const reply=$('#camp-reply-to')?.value||'';
+  const r=await fetch('/api/admin/gmail/sender',{method:'PUT',headers:{'Content-Type':'application/json',...authHeaders()}, body: JSON.stringify({name, email})});
+  const j=await r.json();
+  $('#gmail-msg').textContent = r.ok ? 'Sender saved — will be used for campaigns' : (j.error||'Save failed');
+  // also store reply_to in a campaign? just keep for next sends
+  if(reply) localStorage.setItem('nexatech_reply_to', reply);
+});
+async function loadCampaigns(){
+  const r=await fetch('/api/admin/campaigns',{headers: authHeaders()});
+  if(!r.ok) return;
+  CAMPAIGNS=await r.json();
+  renderCampaigns();
+}
+function renderCampaigns(){
+  const wrap=$('#campaigns-list'); if(!wrap) return;
+  wrap.innerHTML='';
+  if(!CAMPAIGNS.length){ wrap.innerHTML='<div style="font-size:12px;color:#94A3B8;padding:8px;border:1px dashed #E2E8F0;border-radius:10px">No campaigns yet — click + New Campaign (HubSpot-style).</div>'; return; }
+  CAMPAIGNS.forEach(c=>{
+    const div=document.createElement('div');
+    const isSel = SELECTED_CAMP && SELECTED_CAMP.id===c.id;
+    div.style.cssText=`border:1px solid ${isSel?'#7C3AED':'#E2E8F0'};border-radius:10px;padding:10px;background:${isSel?'rgba(124,58,237,.06)':'#fff'};cursor:pointer`;
+    const statusColor = c.status==='sent'?'#10B981':c.status==='sending'?'#F59E0B':c.status==='failed'?'#F87171':'#64748B';
+    div.innerHTML=`<div style="display:flex;gap:8px;align-items:center;justify-content:space-between"><b style="font-size:13px">${c.name}</b><span style="font-size:10px;background:${statusColor};color:#fff;padding:2px 6px;border-radius:999px">${c.status}</span></div><div style="font-size:11px;color:#64748B;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.subject}</div><div style="font-size:11px;color:#94A3B8;margin-top:4px">${c.sent||0}/${c.total||c.total_recipients||0} sent ${c.failed?' • '+c.failed+' failed':''} • ${String(c.created_at||'').slice(0,10)}</div>`;
+    div.addEventListener('click', ()=> selectCampaign(c.id));
+    wrap.appendChild(div);
+  });
+}
+async function selectCampaign(id){
+  const r=await fetch('/api/admin/campaigns/'+id,{headers: authHeaders()});
+  if(!r.ok) return;
+  const j=await r.json();
+  SELECTED_CAMP=j.campaign;
+  $('#campaign-detail').style.display='block';
+  $('#campaign-empty').style.display='none';
+  $('#camp-detail-title').textContent=j.campaign.name;
+  $('#camp-name').value=j.campaign.name||'';
+  $('#camp-subject').value=j.campaign.subject||'';
+  $('#camp-html').value=j.campaign.body_html||'';
+  $('#camp-text').value=j.campaign.body_text||'';
+  // load sends
+  renderSends(j.sends||[]);
+  loadGmailStatus();
+}
+function renderSends(list){
+  const wrap=$('#camp-sends'); if(!wrap) return;
+  if(!list.length){ wrap.innerHTML='<div style="font-size:11px;color:#94A3B8">No sends yet — preview audience and send bulk.</div>'; return; }
+  wrap.innerHTML='';
+  list.forEach(s=>{
+    const div=document.createElement('div');
+    const col = s.status==='sent'?'#10B981': s.status==='failed'?'#F87171':'#94A3B8';
+    div.style.cssText='display:flex;gap:8px;align-items:center;justify-content:space-between;border:1px solid #E2E8F0;border-radius:8px;padding:8px;background:#fff';
+    div.innerHTML=`<div><b style="font-size:12px">${s.email}</b> <span style="font-size:11px;color:#64748B">${s.name||''}</span><div style="font-size:10px;color:#94A3B8">${String(s.sent_at||'').slice(0,16)} • ${s.status}</div></div><div style="display:flex;gap:6px;align-items:center"><span style="font-size:10px;background:${col};color:#fff;padding:2px 6px;border-radius:999px">${s.status}</span>${s.error?`<span style="font-size:10px;color:#F87171" title="${s.error}">${s.error.slice(0,30)}</span>`:''}</div>`;
+    wrap.appendChild(div);
+  });
+}
+$('#btn-new-campaign')?.addEventListener('click', async()=>{
+  const name=prompt('Campaign name (e.g. Welcome Sequence):');
+  if(!name) return;
+  const subject=prompt('Email subject (supports {{name}}, {{storeName}}):','Welcome {{name}}! Your {{storeName}} store');
+  if(!subject) return;
+  const r=await fetch('/api/admin/campaigns',{method:'POST',headers:{'Content-Type':'application/json',...authHeaders()}, body: JSON.stringify({name, subject, body_html:'<p>Hi {{name}},</p><p>Welcome to Nexatech — your {{storeName}} ({{preferredNiche}}) application is received. We will contact you on WhatsApp {{whatsapp}} within 24h.</p><p>— Nexatech</p>'})});
+  const j=await r.json();
+  if(r.ok){ await loadCampaigns(); if(j.id) selectCampaign(j.id); } else alert(j.error||'Create failed');
+});
+$('#btn-save-camp')?.addEventListener('click', async()=>{
+  if(!SELECTED_CAMP) return;
+  const body={ name: $('#camp-name').value, subject: $('#camp-subject').value, body_html: $('#camp-html').value, body_text: $('#camp-text').value,
+    from_name: $('#camp-from-name').value, from_email: $('#camp-from-email').value, reply_to: $('#camp-reply-to').value||localStorage.getItem('nexatech_reply_to')||'' };
+  const r=await fetch('/api/admin/campaigns/'+SELECTED_CAMP.id,{method:'PUT',headers:{'Content-Type':'application/json',...authHeaders()}, body: JSON.stringify(body)});
+  const j=await r.json();
+  if(r.ok){ $('#gmail-msg').textContent='Campaign saved ✓'; loadCampaigns(); SELECTED_CAMP=j; } else alert(j.error||'Save failed');
+});
+$('#btn-camp-test')?.addEventListener('click', async()=>{
+  if(!SELECTED_CAMP) return;
+  const btn=$('#btn-camp-test'); if(btn) btn.disabled=true;
+  try{
+    const r=await fetch('/api/admin/campaigns/'+SELECTED_CAMP.id+'/test',{method:'POST',headers:{'Content-Type':'application/json',...authHeaders()}, body: JSON.stringify({})});
+    const j=await r.json();
+    alert(r.ok ? `Test sent to ${j.to}` : j.error||'Test failed — check Gmail connection');
+  }finally{ if(btn) btn.disabled=false; }
+});
+$('#btn-camp-delete')?.addEventListener('click', async()=>{
+  if(!SELECTED_CAMP || !confirm('Delete campaign '+SELECTED_CAMP.name+'?')) return;
+  await fetch('/api/admin/campaigns/'+SELECTED_CAMP.id,{method:'DELETE',headers: authHeaders()});
+  SELECTED_CAMP=null; $('#campaign-detail').style.display='none'; $('#campaign-empty').style.display='flex'; loadCampaigns();
+});
+$('#btn-camp-preview-audience')?.addEventListener('click', async()=>{
+  if(!SELECTED_CAMP) return alert('Select a campaign first');
+  const stage=$('#camp-filter-stage').value;
+  const search=$('#camp-filter-search').value;
+  const scammed=$('#camp-filter-scam').checked?'yes':'';
+  const limit=$('#camp-limit').value||'20';
+  const q=new URLSearchParams(); if(stage) q.set('stage',stage); if(search) q.set('search',search); if(scammed) q.set('scammed',scammed);
+  q.set('limit',limit);
+  // use dryRun via send endpoint preview
+  const r=await fetch('/api/admin/campaigns/'+SELECTED_CAMP.id+'/send',{method:'POST',headers:{'Content-Type':'application/json',...authHeaders()}, body: JSON.stringify({ stage, search, scammed, limit: parseInt(limit,10), dryRun:true })});
+  const j=await r.json();
+  const wrap=$('#camp-audience-preview');
+  if(!r.ok){ wrap.innerHTML=`<span style="color:#F87171">${j.error||'Preview failed'}</span>`; return; }
+  wrap.innerHTML=`<b>${j.wouldSend} recipients</b> would receive this campaign (limit ${limit}). <div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">${(j.emails||[]).map(e=>`<span style="background:#F1F5F9;border:1px solid #E2E8F0;padding:2px 6px;border-radius:999px;font-size:11px">${e}</span>`).join('')}</div>`;
+});
+$('#btn-camp-send')?.addEventListener('click', async()=>{
+  if(!SELECTED_CAMP) return;
+  if(!confirm(`Send campaign "${SELECTED_CAMP.name}" now? This will send via Gmail (same Client ID) — bulk with personalization like HubSpot.`)) return;
+  const stage=$('#camp-filter-stage').value;
+  const search=$('#camp-filter-search').value;
+  const scammed=$('#camp-filter-scam').checked?'yes':'';
+  const limit=$('#camp-limit').value||'100';
+  const dryRun=$('#camp-dryrun').checked;
+  const btn=$('#btn-camp-send'); if(btn) btn.disabled=true;
+  $('#camp-send-result').innerHTML='Sending — please wait (throttled 400ms each)...';
+  try{
+    const r=await fetch('/api/admin/campaigns/'+SELECTED_CAMP.id+'/send',{method:'POST',headers:{'Content-Type':'application/json',...authHeaders()}, body: JSON.stringify({ stage, search, scammed, limit: parseInt(limit,10), dryRun })});
+    const j=await r.json();
+    if(!r.ok) $('#camp-send-result').innerHTML=`<span style="color:#F87171">${j.error||'Send failed — check Gmail connected (same Client ID) and Sheets+Gmail scopes'}</span>`;
+    else {
+      if(j.dryRun) $('#camp-send-result').innerHTML=`Dry run: ${j.wouldSend} would be sent`;
+      else {
+        $('#camp-send-result').innerHTML=`<span style="color:#10B981">Sent ${j.sent}/${j.total} ✓ ${j.failed?' • '+j.failed+' failed':''}</span>`;
+        selectCampaign(SELECTED_CAMP.id); loadOutbox();
+      }
+    }
+  }catch(e){ $('#camp-send-result').textContent='Error: '+e.message; }
+  finally{ if(btn) btn.disabled=false; }
+});
+// Templates
+async function loadTemplates(){
+  const r=await fetch('/api/admin/templates',{headers: authHeaders()});
+  if(!r.ok) return;
+  TEMPLATES=await r.json();
+  const wrap=$('#templates-list'); if(!wrap) return;
+  wrap.innerHTML='';
+  if(!TEMPLATES.length){ wrap.innerHTML='<div style="font-size:11px;color:#94A3B8">No templates — create one.</div>'; return; }
+  TEMPLATES.forEach(t=>{
+    const div=document.createElement('div');
+    div.style.cssText='border:1px solid #E2E8F0;border-radius:8px;padding:8px;display:flex;gap:8px;align-items:center;justify-content:space-between;background:#F8FAFC';
+    div.innerHTML=`<div><b style="font-size:12px">${t.name}</b> <small style="color:#94A3B8">${t.category}</small><div style="font-size:11px;color:#64748B;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px">${t.subject}</div></div><div style="display:flex;gap:4px"><button class="btn btn-ghost" data-tpl-use="${t.id}" style="padding:4px 8px;font-size:11px">Use</button><button class="btn btn-ghost" data-tpl-edit="${t.id}" style="padding:4px 8px;font-size:11px">Edit</button><button class="btn btn-ghost" data-tpl-del="${t.id}" style="padding:4px 8px;font-size:11px;color:#F87171">×</button></div>`;
+    wrap.appendChild(div);
+  });
+  wrap.querySelectorAll('[data-tpl-use]').forEach(b=> b.addEventListener('click', ()=>{
+    const t=TEMPLATES.find(x=> String(x.id)===b.dataset.tplUse);
+    if(t && SELECTED_CAMP){ $('#camp-subject').value=t.subject; $('#camp-html').value=t.body_html; $('#camp-text').value=t.body_text||''; $('#gmail-msg').textContent='Template loaded into campaign — Save Campaign to keep'; }
+    else alert('Select a campaign first, then Use template');
+  }));
+  wrap.querySelectorAll('[data-tpl-edit]').forEach(b=> b.addEventListener('click', ()=> openTemplateDialog(b.dataset.tplEdit)));
+  wrap.querySelectorAll('[data-tpl-del]').forEach(b=> b.addEventListener('click', async()=>{
+    if(!confirm('Delete template?')) return;
+    await fetch('/api/admin/templates/'+b.dataset.tplDel,{method:'DELETE',headers: authHeaders()});
+    loadTemplates();
+  }));
+  // also fill personal email template select
+  const sel=$('#personal-tpl'); if(sel){
+    sel.innerHTML='<option value="">— No template —</option>';
+    TEMPLATES.forEach(t=>{ const o=document.createElement('option'); o.value=t.id; o.textContent=t.name+' — '+t.subject.slice(0,40); sel.appendChild(o); });
+  }
+}
+let editingTplId=null;
+function openTemplateDialog(id){
+  const t=id ? TEMPLATES.find(x=> String(x.id)===String(id)) : null;
+  editingTplId=id||null;
+  $('#template-dialog-title').textContent = t ? 'Edit Template' : 'New Template';
+  $('#tpl-name').value = t?.name||'';
+  $('#tpl-cat').value = t?.category||'general';
+  $('#tpl-subject').value = t?.subject||'';
+  $('#tpl-html').value = t?.body_html||'';
+  $('#tpl-text').value = t?.body_text||'';
+  document.getElementById('template-dialog').showModal();
+}
+$('#btn-new-template')?.addEventListener('click', ()=> openTemplateDialog(null));
+$('#template-save')?.addEventListener('click', async e=>{
+  e.preventDefault();
+  const payload={ name: $('#tpl-name').value, category: $('#tpl-cat').value||'general', subject: $('#tpl-subject').value, body_html: $('#tpl-html').value, body_text: $('#tpl-text').value };
+  if(!payload.name||!payload.subject) return alert('Name and subject required');
+  let r;
+  if(editingTplId) r=await fetch('/api/admin/templates/'+editingTplId,{method:'PUT',headers:{'Content-Type':'application/json',...authHeaders()}, body: JSON.stringify(payload)});
+  else r=await fetch('/api/admin/templates',{method:'POST',headers:{'Content-Type':'application/json',...authHeaders()}, body: JSON.stringify(payload)});
+  if(r.ok){ document.getElementById('template-dialog').close(); loadTemplates(); } else alert('Save failed');
+});
+$('#personal-tpl')?.addEventListener('change', ()=>{
+  const t=TEMPLATES.find(x=> String(x.id)===$('#personal-tpl').value);
+  if(t){ $('#personal-subject').value=t.subject; $('#personal-html').value=t.body_html; $('#personal-text').value=t.body_text||''; }
+});
+// Outbox
+async function loadOutbox(){
+  const r=await fetch('/api/admin/outbox?limit=30',{headers: authHeaders()});
+  if(!r.ok) return;
+  const j=await r.json();
+  const wrap=$('#outbox-list'); if(!wrap) return;
+  $('#outbox-count').textContent = j.sends.length+' recent';
+  if(!j.sends.length){ wrap.innerHTML='<div style="font-size:11px;color:#94A3B8">No sends yet.</div>'; return; }
+  wrap.innerHTML='';
+  j.sends.forEach(s=>{
+    const div=document.createElement('div');
+    div.style.cssText='display:flex;gap:8px;align-items:center;justify-content:space-between;border:1px solid #E2E8F0;border-radius:8px;padding:8px;background:#fff';
+    const col=s.status==='sent'?'#10B981': s.status==='failed'?'#F87171':'#94A3B8';
+    div.innerHTML=`<div><b style="font-size:11px">${s.email}</b> <span style="font-size:11px;color:#64748B">${s.campaign_name||'1:1'}</span><div style="font-size:10px;color:#94A3B8">${s.campaign_subject||''} • ${String(s.sent_at||'').slice(0,16)}</div></div><span style="font-size:10px;background:${col};color:#fff;padding:2px 6px;border-radius:999px">${s.status}</span>`;
+    wrap.appendChild(div);
+  });
+}
+$('#btn-refresh-outbox')?.addEventListener('click', loadOutbox);
+// Personal email from Leads CRM — HubSpot 1:1
+function openPersonalEmail(lead){
+  PERSONAL_LEAD=lead;
+  $('#personal-email-to').textContent=`to ${lead.name} <${lead.email}>`;
+  $('#personal-subject').value=`Hi ${lead.name}, about your ${lead.storeName||'store'}`;
+  $('#personal-html').value=`<p>Hi ${lead.name},</p><p>Thanks for your interest in <b>${lead.storeName||'your store'}</b> (${lead.preferredNiche||''}). Saw you’re on <b>${lead.pipeline_stage||'new'}</b> stage — happy to help personally.</p><p>— Nexatech</p>`;
+  $('#personal-text').value=`Hi ${lead.name},\n\nThanks for your interest in ${lead.storeName||'your store'}.\n\n— Nexatech`;
+  if(TEMPLATES.length===0) loadTemplates();
+  document.getElementById('personal-email-dialog').showModal();
+}
+$('#personal-send')?.addEventListener('click', async e=>{
+  e.preventDefault();
+  if(!PERSONAL_LEAD) return;
+  const payload={ subject: $('#personal-subject').value, body_html: $('#personal-html').value, body_text: $('#personal-text').value };
+  const tplId=$('#personal-tpl').value;
+  if(tplId) payload.templateId=parseInt(tplId,10);
+  const r=await fetch(`/api/admin/leads/${PERSONAL_LEAD.id}/email`,{method:'POST',headers:{'Content-Type':'application/json',...authHeaders()}, body: JSON.stringify(payload)});
+  const j=await r.json();
+  if(r.ok){ alert('Sent via Gmail ✓ to '+j.to); document.getElementById('personal-email-dialog').close(); loadOutbox(); }
+  else alert(j.error||'Send failed — check Gmail connected (same Client ID)');
+});
+// Expose for leads rendering
+window.openPersonalEmail = openPersonalEmail;
 loadGoogleStatus();
 $('#btn-publish').addEventListener('click', ()=>{ alert('Changes are live instantly   no draft queue. (This button confirms publish.)'); window.open('/','_blank'); });
 $('#btn-revert').addEventListener('click', async()=>{
@@ -868,6 +1302,7 @@ function renderLeads(){
             ${stages.map(s=>`<option value="${s.key}" ${s.key===st.key?'selected':''}>${s.label}</option>`).join('')}
           </select>
           <button class="btn btn-ghost" data-resend="${lead.id}" style="padding:6px 8px;font-size:11px">Resend</button>
+          <button class="btn btn-ghost" data-email="${lead.id}" style="padding:6px 8px;font-size:11px;border-color:#7C3AED;color:#7C3AED" title="Send personal email via Gmail (same Client ID)">Email</button>
         </div>
       `;
       col.appendChild(card);
@@ -898,6 +1333,14 @@ function renderLeads(){
     alert(r.ok? 'Resent': (j.error||'Resend failed'));
     b.textContent='Resend'; b.disabled=false;
     loadLeads();
+  }));
+  kanban.querySelectorAll('[data-email]').forEach(b=> b.addEventListener('click', ()=>{
+    const lead = LEADS.find(l=> String(l.id)===b.dataset.email);
+    if(lead){
+      if(!lead.email) return alert('No email for this lead');
+      // ensure gmail status loaded
+      openPersonalEmail(lead);
+    }
   }));
 }
 $('#lead-search').addEventListener('input', debounce(loadLeads, 400));

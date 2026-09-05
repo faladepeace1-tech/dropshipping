@@ -606,6 +606,37 @@ async function callGemini(userMessage, history=[]){
 }
 
 // --- Helpers: Google Sheets (direct, no n8n) ---
+// Expected columns for leads sheet — used for auto-detect, setup, and append mapping
+const EXPECTED_SHEET_HEADERS = [
+  'Timestamp','Name','Store Name','Preferred Niche','Preferred Niche Other','Investment Range','Store Status','Was Scammed','Scam Details','WhatsApp','Email','Preferred Contact Time','Source','Traffic Plan','Page URL','Session ID','UTM Source','UTM Medium','UTM Campaign','Pipeline Stage','Webhook Status','Submitted At'
+];
+// Map normalized header -> lead field key (for flexible column order)
+const HEADER_TO_FIELD = {
+  'timestamp': 'timestamp', 'submitted at': 'submittedAt', 'submittedat': 'submittedAt', 'date': 'timestamp', 'time': 'timestamp',
+  'name': 'name', 'full name': 'name',
+  'store name': 'storeName', 'storename': 'storeName', 'store': 'storeName',
+  'preferred niche': 'preferredNiche', 'niche': 'preferredNiche', 'preferredniche': 'preferredNiche',
+  'preferred niche other': 'preferredNicheOther', 'niche other': 'preferredNicheOther',
+  'investment range': 'investmentRange', 'investment': 'investmentRange', 'budget': 'investmentRange',
+  'store status': 'storeStatus', 'status': 'storeStatus',
+  'was scammed': 'wasScammed', 'scammed': 'wasScammed', 'was_scammed': 'wasScammed',
+  'scam details': 'scamDetails', 'scamdetails': 'scamDetails',
+  'whatsapp': 'whatsapp', 'whats app': 'whatsapp', 'phone': 'whatsapp', 'whatsapp number': 'whatsapp',
+  'email': 'email', 'e-mail': 'email',
+  'preferred contact time': 'preferredContactTime', 'contact time': 'preferredContactTime',
+  'source': 'source', 'traffic source': 'source',
+  'traffic plan': 'trafficPlan', 'plan': 'trafficPlan',
+  'page url': 'pageUrl', 'page': 'pageUrl', 'url': 'pageUrl',
+  'session id': 'sessionId', 'session': 'sessionId',
+  'utm source': 'utm_source', 'utm_source': 'utm_source',
+  'utm medium': 'utm_medium', 'utm_medium': 'utm_medium',
+  'utm campaign': 'utm_campaign', 'utm_campaign': 'utm_campaign',
+  'pipeline stage': 'pipeline_stage', 'stage': 'pipeline_stage',
+  'webhook status': 'webhook_status', 'webhook': 'webhook_status'
+};
+function normalizeHeader(h){
+  return String(h||'').trim().toLowerCase().replace(/[_]+/g,' ').replace(/\s+/g,' ').trim();
+}
 async function getGoogleConfig(){
   const get = async (k) => (await db.prepare('SELECT value FROM content WHERE key=?').get(k))?.value?.trim() || '';
   return {
@@ -615,35 +646,208 @@ async function getGoogleConfig(){
     sheetName: await get('google_sheets_sheet_name') || 'Sheet1',
     refreshToken: await get('google_refresh_token'),
     accessToken: await get('google_access_token'),
+    gmailConnectedEmail: await get('gmail_connected_email'),
+    gmailSenderName: await get('gmail_sender_name'),
   };
 }
+// Google OAuth scopes — same console Client ID/Secret reused for Sheets + Campaign/Gmail (HubSpot-like CRM)
+const GOOGLE_SCOPES = [
+  'https://www.googleapis.com/auth/spreadsheets',
+  'https://www.googleapis.com/auth/gmail.send',
+  'https://www.googleapis.com/auth/gmail.readonly',
+  'https://www.googleapis.com/auth/userinfo.email',
+  'openid','email','profile'
+];
 function getGoogleOAuthClient(config, redirectUri){
   const { clientId, clientSecret } = config;
   const redirect = redirectUri || `${process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`}/auth/google/callback`;
   return new google.auth.OAuth2(clientId, clientSecret, redirect);
 }
+async function refreshGoogleTokens(oauth2){
+  try{
+    const { credentials } = await oauth2.refreshAccessToken().catch(()=>({credentials:{}}));
+    if(credentials?.access_token){
+      await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('google_access_token', credentials.access_token, 'text');
+      if(credentials.expiry_date) await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('google_token_expiry', String(credentials.expiry_date), 'text');
+      oauth2.setCredentials(credentials);
+      return credentials;
+    }
+  }catch{}
+  return null;
+}
+async function getAuthenticatedSheets(){
+  const cfg = await getGoogleConfig();
+  if(!cfg.clientId || !cfg.clientSecret) throw new Error('Google Client ID/Secret not configured');
+  if(!cfg.docId) throw new Error('Google Sheets Document ID not configured');
+  if(!cfg.refreshToken) throw new Error('Google not connected — click Connect Google (Sheets + Gmail) to authorize');
+  const oauth2 = getGoogleOAuthClient(cfg);
+  oauth2.setCredentials({ refresh_token: cfg.refreshToken, access_token: cfg.accessToken || undefined });
+  await refreshGoogleTokens(oauth2);
+  const sheets = google.sheets({ version:'v4', auth: oauth2 });
+  return { sheets, cfg, oauth2 };
+}
+async function getAuthenticatedGmail(){
+  const cfg = await getGoogleConfig();
+  if(!cfg.clientId || !cfg.clientSecret) throw new Error('Google Client ID/Secret not configured — set in Integrations → Google Sheets (same console creds reused for Campaigns)');
+  if(!cfg.refreshToken) throw new Error('Gmail not connected — click Connect Google (same Client ID/Secret) to grant Gmail permission');
+  const oauth2 = getGoogleOAuthClient(cfg);
+  oauth2.setCredentials({ refresh_token: cfg.refreshToken, access_token: cfg.accessToken || undefined });
+  await refreshGoogleTokens(oauth2);
+  const gmail = google.gmail({ version:'v1', auth: oauth2 });
+  // also fetch user email if not stored
+  let senderEmail = cfg.gmailConnectedEmail;
+  if(!senderEmail){
+    try{
+      const profile = await gmail.users.getProfile({ userId:'me' });
+      senderEmail = profile.data.emailAddress || '';
+      if(senderEmail) await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('gmail_connected_email', senderEmail, 'text');
+    }catch{}
+  }
+  return { gmail, oauth2, cfg, senderEmail };
+}
+// Helper: render template with lead variables {{name}}, {{storeName}}, etc. — HubSpot-like personalization
+function renderTemplate(str, lead={}){
+  if(!str) return '';
+  const map = {
+    name: lead.name||'',
+    storename: lead.storeName||'',
+    'store name': lead.storeName||'',
+    storename_other: lead.preferredNicheOther||'',
+    preferredniche: lead.preferredNiche||'',
+    'preferred niche': lead.preferredNiche||'',
+    preferrednicheother: lead.preferredNicheOther||'',
+    investmentrange: lead.investmentRange||'',
+    'investment range': lead.investmentRange||'',
+    storestatus: lead.storeStatus||'',
+    wasscammed: lead.wasScammed||'',
+    scamdetails: lead.scamDetails||'',
+    whatsapp: lead.whatsapp||'',
+    email: lead.email||'',
+    preferredcontacttime: lead.preferredContactTime||'',
+    source: lead.source||'',
+    trafficplan: lead.trafficPlan||'',
+    pageurl: lead.pageUrl||'',
+    sessionid: lead.sessionId||'',
+    utm_source: lead.utm_source||'',
+    utm_medium: lead.utm_medium||'',
+    utm_campaign: lead.utm_campaign||'',
+    pipeline_stage: lead.pipeline_stage||'',
+  };
+  return String(str).replace(/\{\{\s*([^}]+?)\s*\}\}/g, (m,k)=>{
+    const key = k.trim().toLowerCase().replace(/\s+/g,'').replace(/_/g,'');
+    // try exact lower, then normalized
+    if(map[k.trim().toLowerCase()] !== undefined) return map[k.trim().toLowerCase()];
+    if(map[key] !== undefined) return map[key];
+    // try camel
+    const camel = k.trim();
+    if(lead[camel] !== undefined) return String(lead[camel]);
+    return '';
+  });
+}
+async function sendGmailRaw({ to, subject, html, text, fromName, fromEmail, replyTo }){
+  const { gmail, senderEmail } = await getAuthenticatedGmail();
+  const from = fromEmail || senderEmail || (await getGoogleConfig()).gmailConnectedEmail;
+  if(!from) throw new Error('No sender Gmail — connect Google and ensure Gmail API enabled');
+  const fromHeader = fromName ? `${fromName} <${from}>` : from;
+  // Build MIME
+  const boundary = 'nexatech_'+Date.now();
+  const htmlPart = html || `<div>${(text||'').replace(/\n/g,'<br>')}</div>`;
+  const textPart = text || html?.replace(/<[^>]+>/g,'') || '';
+  let raw = '';
+  raw += `From: ${fromHeader}\r\n`;
+  raw += `To: ${to}\r\n`;
+  raw += `Subject: ${subject}\r\n`;
+  if(replyTo) raw += `Reply-To: ${replyTo}\r\n`;
+  raw += `MIME-Version: 1.0\r\n`;
+  raw += `Content-Type: multipart/alternative; boundary="${boundary}"\r\n\r\n`;
+  raw += `--${boundary}\r\nContent-Type: text/plain; charset="UTF-8"\r\n\r\n${textPart}\r\n\r\n`;
+  raw += `--${boundary}\r\nContent-Type: text/html; charset="UTF-8"\r\n\r\n${htmlPart}\r\n\r\n`;
+  raw += `--${boundary}--`;
+  const encoded = Buffer.from(raw).toString('base64url');
+  const res = await gmail.users.messages.send({ userId:'me', requestBody:{ raw: encoded }});
+  return { messageId: res.data.id, threadId: res.data.threadId, from };
+}
+function buildLeadRowForHeaders(lead, headers){
+  // If sheet has custom headers, map lead fields to header positions; otherwise use EXPECTED order
+  const ts = lead.submittedAt || new Date().toISOString();
+  const fieldValues = {
+    timestamp: ts,
+    submittedAt: lead.submittedAt || ts,
+    name: lead.name||'',
+    storeName: lead.storeName||'',
+    preferredNiche: lead.preferredNiche||'',
+    preferredNicheOther: lead.preferredNicheOther||'',
+    investmentRange: lead.investmentRange||'',
+    storeStatus: lead.storeStatus||'',
+    wasScammed: lead.wasScammed||'',
+    scamDetails: lead.scamDetails||'',
+    whatsapp: lead.whatsapp||'',
+    email: lead.email||'',
+    preferredContactTime: lead.preferredContactTime||'',
+    source: lead.source||'',
+    trafficPlan: lead.trafficPlan||'',
+    pageUrl: lead.pageUrl||'',
+    sessionId: lead.sessionId||'',
+    utm_source: lead.utm_source||'',
+    utm_medium: lead.utm_medium||'',
+    utm_campaign: lead.utm_campaign||'',
+    pipeline_stage: lead.pipeline_stage||'new',
+    webhook_status: lead.webhook_status||'',
+  };
+  if(!headers || !headers.length){
+    return EXPECTED_SHEET_HEADERS.map(h=>{
+      const f = HEADER_TO_FIELD[normalizeHeader(h)] || normalizeHeader(h);
+      return fieldValues[f] ?? '';
+    });
+  }
+  // Build row matching supplied headers order
+  return headers.map(h=>{
+    const key = HEADER_TO_FIELD[normalizeHeader(h)];
+    if(key && fieldValues[key] !== undefined) return fieldValues[key];
+    // try direct normalized expected match
+    const expIdx = EXPECTED_SHEET_HEADERS.findIndex(e=> normalizeHeader(e)===normalizeHeader(h));
+    if(expIdx !== -1){
+      const expKey = HEADER_TO_FIELD[normalizeHeader(EXPECTED_SHEET_HEADERS[expIdx])];
+      return expKey ? (fieldValues[expKey]||'') : '';
+    }
+    return '';
+  });
+}
 async function appendToGoogleSheet(lead){
   const cfg = await getGoogleConfig();
   if(!cfg.clientId || !cfg.clientSecret || !cfg.docId || !cfg.refreshToken) return { ok:false, error:'Google Sheets not fully configured (need Client ID/Secret, Doc ID, and OAuth connect)' };
   try{
-    const oauth2 = getGoogleOAuthClient(cfg);
-    oauth2.setCredentials({ refresh_token: cfg.refreshToken, access_token: cfg.accessToken || undefined });
-    // Refresh if needed — googleapis will auto-refresh, but we save new tokens
-    try{ const { credentials } = await oauth2.refreshAccessToken().catch(()=>({credentials:{}})); if(credentials?.access_token) { await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('google_access_token', credentials.access_token, 'text'); if(credentials.expiry_date) await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('google_token_expiry', String(credentials.expiry_date), 'text'); oauth2.setCredentials(credentials); } }catch{}
-    const sheets = google.sheets({ version:'v4', auth: oauth2 });
-    const row = [
-      new Date().toISOString(),
-      lead.name||'', lead.storeName||'', lead.preferredNiche||'', lead.preferredNicheOther||'', lead.investmentRange||'', lead.storeStatus||'', lead.wasScammed||'', lead.scamDetails||'', lead.whatsapp||'', lead.email||'', lead.preferredContactTime||'', lead.source||'', lead.trafficPlan||'', lead.pageUrl||'', lead.sessionId||'', lead.utm_source||'', lead.utm_medium||'', lead.utm_campaign||'', lead.pipeline_stage||'new', lead.webhook_status||''
-    ];
+    const { sheets, cfg: curCfg } = await getAuthenticatedSheets();
+    // Try to detect current headers to map columns correctly; fallback to EXPECTED if sheet empty
+    let headers = EXPECTED_SHEET_HEADERS;
+    try{
+      const hdrRes = await sheets.spreadsheets.values.get({ spreadsheetId: curCfg.docId, range: `${curCfg.sheetName}!1:1` });
+      const vals = hdrRes.data.values;
+      if(vals && vals[0] && vals[0].length) headers = vals[0];
+      else {
+        // Sheet empty — create headers first time automatically
+        try{
+          await sheets.spreadsheets.values.update({
+            spreadsheetId: curCfg.docId,
+            range: `${curCfg.sheetName}!A1`,
+            valueInputOption: 'USER_ENTERED',
+            requestBody: { values: [EXPECTED_SHEET_HEADERS] }
+          });
+          headers = EXPECTED_SHEET_HEADERS;
+        }catch{}
+      }
+    }catch{}
+    const row = buildLeadRowForHeaders(lead, headers);
     await sheets.spreadsheets.values.append({
-      spreadsheetId: cfg.docId,
-      range: `${cfg.sheetName}!A:Z`,
+      spreadsheetId: curCfg.docId,
+      range: `${curCfg.sheetName}!A:Z`,
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [row] }
     });
     return { ok:true };
   }catch(e){
     console.error('Google Sheets append failed', e.message);
+    // If sheet not found, try to create header in Sheet1 fallback
     return { ok:false, error: e.message };
   }
 }
@@ -834,13 +1038,13 @@ app.get('/api/admin/gemini-key', requireAuth, async (req, res) => {
 });
 app.put('/api/admin/gemini-key', requireAuth, async (req, res) => {
   const { key, model } = req.body;
-  if(key !== undefined){
-    const val = (key||'').trim();
-    // store in DB (filtered from public /api/content)
+  // Permanent save: only overwrite if non-empty — prevents accidental wipe
+  if(key !== undefined && String(key).trim() !== ''){
+    const val = String(key).trim();
     await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, type=excluded.type").run('gemini_api_key', val, 'text');
   }
-  if(model){
-    await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('gemini_model', model, 'text');
+  if(model !== undefined && String(model).trim() !== ''){
+    await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('gemini_model', String(model).trim(), 'text');
   }
   res.json({ ok: true });
 });
@@ -853,21 +1057,24 @@ app.post('/api/admin/gemini-test', requireAuth, async (req, res) => {
 });
 
 // Google Sheets direct (append row) — matches n8n node: operation append, documentId, sheetName
+// Also reuses same console Client ID/Secret for Campaigns/Gmail — HubSpot-like CRM via Gmail
 app.get('/api/admin/google/status', requireAuth, async (req, res) => {
   const cfg = await getGoogleConfig();
   const hasClient = !!(cfg.clientId && cfg.clientSecret);
   const hasSheet = !!(cfg.docId);
   const hasAuth = !!cfg.refreshToken;
-  res.json({ hasClient, hasSheet, hasAuth, docId: cfg.docId||'', sheetName: cfg.sheetName||'Sheet1', clientIdMasked: cfg.clientId ? cfg.clientId.slice(0,8)+'...' : '' });
+  const hasGmail = !!cfg.gmailConnectedEmail;
+  const gmailEmail = cfg.gmailConnectedEmail || '';
+  // also check gmail scope via token info? best-effort: try get profile if hasAuth but no email
+  res.json({ hasClient, hasSheet, hasAuth, hasGmail, gmailEmail, gmailSenderName: cfg.gmailSenderName||'', docId: cfg.docId||'', sheetName: cfg.sheetName||'Sheet1', clientIdMasked: cfg.clientId ? cfg.clientId.slice(0,8)+'...' : '' });
 });
 app.get('/api/admin/google/auth-url', requireAuth, async (req, res) => {
   const cfg = await getGoogleConfig();
-  if(!cfg.clientId || !cfg.clientSecret) return res.status(400).json({ error: 'Set Client ID and Client Secret first' });
+  if(!cfg.clientId || !cfg.clientSecret) return res.status(400).json({ error: 'Set Client ID and Client Secret first (same console creds reused for Campaigns/Gmail)' });
   const redirect = `${req.protocol}://${req.get('host')}/auth/google/callback`;
-  // Also support RENDER_EXTERNAL_URL if behind proxy
   const oauth2 = getGoogleOAuthClient(cfg, redirect);
-  const url = oauth2.generateAuthUrl({ access_type: 'offline', prompt: 'consent', scope: ['https://www.googleapis.com/auth/spreadsheets'] });
-  res.json({ url, redirect });
+  const url = oauth2.generateAuthUrl({ access_type: 'offline', prompt: 'consent', scope: GOOGLE_SCOPES });
+  res.json({ url, redirect, scopes: GOOGLE_SCOPES });
 });
 app.get('/auth/google/callback', async (req, res) => {
   const { code } = req.query;
@@ -880,7 +1087,24 @@ app.get('/auth/google/callback', async (req, res) => {
     if(tokens.refresh_token) await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('google_refresh_token', tokens.refresh_token, 'text');
     if(tokens.access_token) await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('google_access_token', tokens.access_token, 'text');
     if(tokens.expiry_date) await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('google_token_expiry', String(tokens.expiry_date), 'text');
-    res.send(`<html><body style="font-family:Inter,system-ui;padding:24px"><h2>Google Sheets Connected ✓</h2><p>Refresh token saved. You can close this window and return to Admin → Integrations → Google Sheets.</p><script>setTimeout(()=>window.close(),3000)</script></body></html>`);
+    // Try to fetch connected Gmail email (for Campaigns sender) — same console creds
+    try{
+      oauth2.setCredentials(tokens);
+      const gmail = google.gmail({ version:'v1', auth: oauth2 });
+      const profile = await gmail.users.getProfile({ userId:'me' });
+      if(profile?.data?.emailAddress){
+        await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('gmail_connected_email', profile.data.emailAddress, 'text');
+        // also store sender name via userinfo if available
+        try{
+          const oauth2info = google.oauth2({ version:'v2', auth: oauth2 });
+          const u = await oauth2info.userinfo.get();
+          if(u?.data?.name) await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('gmail_sender_name', u.data.name, 'text');
+        }catch{}
+      }
+    }catch(e){ console.log('gmail profile fetch after OAuth:', e.message); }
+    const afterCfg = await getGoogleConfig();
+    const gmailEmail = afterCfg.gmailConnectedEmail || 'your Gmail';
+    res.send(`<html><body style="font-family:Inter,system-ui;padding:24px;max-width:640px;margin:auto"><h2>Google Connected ✓</h2><p><b>Sheets + Gmail</b> authorized via same Console Client ID. Refresh token saved permanently.</p><p>Connected Gmail: <b>${escapeHtml(gmailEmail)}</b></p><p>Sheets: ${afterCfg.docId ? 'Doc '+afterCfg.docId.slice(0,12)+'...' : 'not set yet — set Doc ID in Integrations'} | Sheet: ${afterCfg.sheetName}</p><p>Next: return to <b>Admin → Integrations → Google Sheets</b> (keys saved permanently) and <b>Campaigns</b> to send bulk/personal emails via Gmail — no separate credentials needed.</p><script>setTimeout(()=>window.close(),4000)</script></body></html>`);
   }catch(e){
     console.error('Google OAuth callback failed', e.message);
     res.status(500).send('OAuth failed: '+e.message);
@@ -888,11 +1112,33 @@ app.get('/auth/google/callback', async (req, res) => {
 });
 app.put('/api/admin/google/sheets', requireAuth, async (req, res) => {
   const { clientId, clientSecret, docId, sheetName } = req.body;
-  if(clientId !== undefined) await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('google_client_id', (clientId||'').trim(), 'text');
-  if(clientSecret !== undefined) await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('google_client_secret', (clientSecret||'').trim(), 'text');
-  if(docId !== undefined) await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('google_sheets_doc_id', (docId||'').trim(), 'text');
-  if(sheetName !== undefined) await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('google_sheets_sheet_name', (sheetName||'Sheet1').trim()||'Sheet1', 'text');
-  res.json({ ok:true });
+  // Permanent save: only overwrite if non-empty trimmed value provided — never wipe on empty/undefined accidentally.
+  // If user explicitly wants to clear, they must send {clear: true} or use dedicated clear (not done here).
+  let updated = {};
+  if(clientId !== undefined && String(clientId).trim() !== ''){
+    await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('google_client_id', String(clientId).trim(), 'text');
+    updated.clientId = true;
+  }
+  if(clientSecret !== undefined && String(clientSecret).trim() !== ''){
+    await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('google_client_secret', String(clientSecret).trim(), 'text');
+    updated.clientSecret = true;
+  }
+  if(docId !== undefined && String(docId).trim() !== ''){
+    // docId can be full URL — extract ID if needed
+    let cleanDocId = String(docId).trim();
+    // Extract ID from https://docs.google.com/spreadsheets/d/<ID>/...
+    const m = cleanDocId.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+    if(m) cleanDocId = m[1];
+    await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('google_sheets_doc_id', cleanDocId, 'text');
+    updated.docId = cleanDocId;
+  }
+  if(sheetName !== undefined && String(sheetName).trim() !== ''){
+    await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('google_sheets_sheet_name', String(sheetName).trim(), 'text');
+    updated.sheetName = String(sheetName).trim();
+  }
+  // Return current saved config (to confirm permanence)
+  const cfg = await getGoogleConfig();
+  res.json({ ok:true, updated, saved: { docId: cfg.docId, sheetName: cfg.sheetName, hasClientId: !!cfg.clientId, hasClientSecret: !!cfg.clientSecret } });
 });
 app.post('/api/admin/google/test', requireAuth, async (req, res) => {
   const testLead = { name:'Test User', storeName:'Test Store', preferredNiche:'Fashion', preferredNicheOther:'', investmentRange:'Starter', storeStatus:'brand_new', wasScammed:'no', scamDetails:'', whatsapp:'+19283825389', email:'test@example.com', preferredContactTime:'', source:'google_test', trafficPlan:'', pageUrl:'https://dropshippingstore.dpdns.org', sessionId:'test-'+Date.now(), utm_source:'test', utm_medium:'admin', utm_campaign:'sheets_test', pipeline_stage:'new', webhook_status:'test', submittedAt: new Date().toISOString() };
@@ -902,6 +1148,440 @@ app.post('/api/admin/google/test', requireAuth, async (req, res) => {
 app.post('/api/admin/google/disconnect', requireAuth, async (req, res) => {
   await db.prepare("DELETE FROM content WHERE key IN ('google_refresh_token','google_access_token','google_token_expiry')").run();
   res.json({ ok:true });
+});
+
+// --- Google Sheets Auto-detect: list sheets, detect headers/columns ---
+// GET /api/admin/google/inspect?docId=...&sheetName=...
+// Auto-detects spreadsheet title, sheet list, current headers, missing columns, and gives columns to create
+app.get('/api/admin/google/inspect', requireAuth, async (req, res) => {
+  try{
+    const { sheets, cfg } = await getAuthenticatedSheets();
+    // Allow docId override via query (also supports full URL)
+    let docId = req.query.docId ? String(req.query.docId).trim() : cfg.docId;
+    if(docId.includes('/spreadsheets/d/')){
+      const m = docId.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+      if(m) docId = m[1];
+    }
+    if(!docId) return res.status(400).json({ error: 'No Document ID — save Doc ID first or pass ?docId=' });
+    // Fetch spreadsheet metadata
+    let meta;
+    try{
+      const metaRes = await sheets.spreadsheets.get({ spreadsheetId: docId });
+      meta = metaRes.data;
+    }catch(e){
+      return res.status(400).json({ error: 'Failed to fetch spreadsheet — check Doc ID and that Sheet is shared with your OAuth client / service account. ' + e.message, docId });
+    }
+    const sheetsList = (meta.sheets||[]).map(s=> ({
+      title: s.properties?.title || '',
+      sheetId: s.properties?.sheetId,
+      index: s.properties?.index,
+      gridRows: s.properties?.gridProperties?.rowCount,
+      gridCols: s.properties?.gridProperties?.columnCount
+    }));
+    const spreadsheetTitle = meta.properties?.title || '';
+    // Determine target sheet: query > saved > first
+    let targetSheet = req.query.sheetName ? String(req.query.sheetName).trim() : (cfg.sheetName || (sheetsList[0]?.title || 'Sheet1'));
+    if(!sheetsList.some(s=> s.title===targetSheet)){
+      // fallback to first sheet if saved name not found
+      if(sheetsList.length) targetSheet = sheetsList[0].title;
+    }
+    // Fetch header row for target sheet
+    let headers = [];
+    let headerError = null;
+    try{
+      const hdrRes = await sheets.spreadsheets.values.get({ spreadsheetId: docId, range: `${targetSheet}!1:1` });
+      headers = (hdrRes.data.values && hdrRes.data.values[0]) ? hdrRes.data.values[0].map(v=> String(v).trim()) : [];
+    }catch(e){ headerError = e.message; headers = []; }
+    // Persist auto-detected sheetName if it was empty or target was fallback
+    if(!cfg.sheetName || cfg.sheetName !== targetSheet){
+      // Only auto-save if we detected a real sheet and saved was different/empty — keeps permanence but auto-fills
+      try{
+        if(!cfg.sheetName || !sheetsList.some(s=> s.title===cfg.sheetName)){
+          await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('google_sheets_sheet_name', targetSheet, 'text');
+        }
+      }catch{}
+    }
+    // Analyze columns
+    const normalizedHeaders = headers.map(normalizeHeader);
+    const normalizedExpected = EXPECTED_SHEET_HEADERS.map(normalizeHeader);
+    const missingColumns = EXPECTED_SHEET_HEADERS.filter((h,i)=> !normalizedHeaders.includes(normalizedExpected[i]));
+    const extraColumns = headers.filter(h=> !normalizedExpected.includes(normalizeHeader(h)));
+    // Build mapping: expected header -> index in sheet (-1 if missing) and sheet header -> field
+    const mapping = {};
+    EXPECTED_SHEET_HEADERS.forEach(h=>{
+      const idx = normalizedHeaders.indexOf(normalizeHeader(h));
+      mapping[h] = idx; // -1 if missing
+    });
+    const columnToCreate = missingColumns; // alias for UI
+    const hasHeaders = headers.length>0;
+    const isEmpty = headers.length===0;
+    // Also fetch row count for info
+    let rowCount = 0;
+    try{
+      const allRes = await sheets.spreadsheets.values.get({ spreadsheetId: docId, range: `${targetSheet}!A:A` });
+      rowCount = allRes.data.values ? allRes.data.values.length : 0;
+    }catch{}
+    res.json({
+      ok: true,
+      docId,
+      spreadsheetTitle,
+      sheets: sheetsList,
+      currentSheet: targetSheet,
+      savedSheet: cfg.sheetName,
+      headers,
+      hasHeaders,
+      isEmpty,
+      headerError,
+      rowCount,
+      expectedHeaders: EXPECTED_SHEET_HEADERS,
+      missingColumns,
+      columnToCreate, // same as missing — columns user needs to create (or we can auto-create)
+      extraColumns,
+      mapping,
+      // For auto-create, frontend can call setup
+      autoFixAvailable: missingColumns.length>0 || isEmpty
+    });
+  }catch(e){
+    console.error('inspect failed', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+// GET column list helper (returns expected columns to create)
+app.get('/api/admin/google/columns', requireAuth, async (req,res)=>{
+  res.json({ expectedHeaders: EXPECTED_SHEET_HEADERS, headerToField: HEADER_TO_FIELD });
+});
+// POST setup headers — creates or fixes header row to match expected
+app.post('/api/admin/google/setup-headers', requireAuth, async (req,res)=>{
+  try{
+    const { sheets, cfg } = await getAuthenticatedSheets();
+    let docId = req.body.docId ? String(req.body.docId).trim() : cfg.docId;
+    if(docId && docId.includes('/spreadsheets/d/')){
+      const m = docId.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+      if(m) docId = m[1];
+    }
+    let sheetName = req.body.sheetName ? String(req.body.sheetName).trim() : (req.body.sheet || cfg.sheetName || 'Sheet1');
+    const mode = req.body.mode || 'overwrite'; // overwrite | append-missing | create-only-if-empty
+    if(!docId) return res.status(400).json({ error: 'docId required' });
+    // Fetch current headers
+    let currentHeaders = [];
+    try{
+      const hdrRes = await sheets.spreadsheets.values.get({ spreadsheetId: docId, range: `${sheetName}!1:1` });
+      currentHeaders = (hdrRes.data.values && hdrRes.data.values[0]) ? hdrRes.data.values[0].map(v=> String(v).trim()) : [];
+    }catch{}
+    let newHeaders;
+    if(mode === 'append-missing' && currentHeaders.length){
+      const normCur = currentHeaders.map(normalizeHeader);
+      const missing = EXPECTED_SHEET_HEADERS.filter(h=> !normCur.includes(normalizeHeader(h)));
+      if(!missing.length) return res.json({ ok:true, message: 'All expected columns already exist', headers: currentHeaders, missing: [] });
+      newHeaders = [...currentHeaders, ...missing];
+    } else if(mode === 'create-only-if-empty' && currentHeaders.length){
+      return res.json({ ok:false, error: 'Sheet already has headers — use overwrite or append-missing', headers: currentHeaders });
+    } else {
+      // overwrite / create
+      newHeaders = EXPECTED_SHEET_HEADERS;
+    }
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: docId,
+      range: `${sheetName}!A1`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [newHeaders] }
+    });
+    // Also style header row bold via batchUpdate (optional, best-effort)
+    try{
+      const metaRes = await sheets.spreadsheets.get({ spreadsheetId: docId });
+      const sh = (metaRes.data.sheets||[]).find(s=> s.properties?.title===sheetName);
+      const sheetId = sh?.properties?.sheetId;
+      if(sheetId !== undefined){
+        await sheets.spreadsheets.batchUpdate({
+          spreadsheetId: docId,
+          requestBody: {
+            requests: [{
+              repeatCell: {
+                range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: newHeaders.length },
+                cell: { userEnteredFormat: { backgroundColor: { red: 0.04, green: 0.07, blue: 0.12 }, textFormat: { foregroundColor: { red: 1, green: 1, blue: 1 }, bold: true } } },
+                fields: 'userEnteredFormat(backgroundColor,textFormat)'
+              }
+            }]
+          }
+        });
+      }
+    }catch{}
+    // Save mapping info for future appends (optional)
+    try{ await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('google_column_mapping', JSON.stringify({ headers: newHeaders, updatedAt: new Date().toISOString() }), 'json'); }catch{}
+    // Ensure saved sheetName matches
+    try{ await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('google_sheets_sheet_name', sheetName, 'text'); }catch{}
+    res.json({ ok:true, headers: newHeaders, previousHeaders: currentHeaders, sheetName, docId });
+  }catch(e){
+    console.error('setup-headers failed', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+// Optional: save custom column mapping
+app.put('/api/admin/google/column-mapping', requireAuth, async (req,res)=>{
+  const { mapping } = req.body; // expected { sheetHeader: fieldKey } or array
+  if(!mapping) return res.status(400).json({ error: 'mapping required' });
+  await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('google_column_mapping', JSON.stringify(mapping), 'json');
+  res.json({ ok:true });
+});
+app.get('/api/admin/google/column-mapping', requireAuth, async (req,res)=>{
+  const row = await db.prepare('SELECT value FROM content WHERE key=?').get('google_column_mapping');
+  let mapping = null;
+  if(row?.value) try{ mapping = JSON.parse(row.value); }catch{ mapping = row.value; }
+  res.json({ mapping, expectedHeaders: EXPECTED_SHEET_HEADERS });
+});
+
+// ==================== Campaign & Messaging Platform — HubSpot-like CRM via Gmail (same Console Client ID/Secret) ====================
+// Gmail status (reuses same google_client_id/secret — no separate credentials)
+app.get('/api/admin/gmail/status', requireAuth, async (req,res)=>{
+  const cfg = await getGoogleConfig();
+  const hasGmailAuth = !!(cfg.refreshToken && cfg.gmailConnectedEmail);
+  const needsReauth = !!(cfg.refreshToken && !cfg.gmailConnectedEmail);
+  // try to verify gmail scope by attempting profile fetch if hasAuth but no email
+  let verified = false, email = cfg.gmailConnectedEmail||'', senderName = cfg.gmailSenderName||'';
+  let lastError = null;
+  if(cfg.refreshToken){
+    try{
+      const { gmail } = await getAuthenticatedGmail();
+      const p = await gmail.users.getProfile({ userId:'me' });
+      email = p.data.emailAddress || email;
+      verified = !!email;
+      if(email && email!==cfg.gmailConnectedEmail){
+        await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('gmail_connected_email', email, 'text');
+      }
+    }catch(e){ lastError = e.message; }
+  }
+  res.json({
+    hasClient: !!(cfg.clientId && cfg.clientSecret),
+    hasGmailAuth,
+    needsReauth,
+    verified,
+    email,
+    senderName,
+    docId: cfg.docId,
+    clientMasked: cfg.clientId ? cfg.clientId.slice(0,8)+'...' : '',
+    lastError,
+    scopes: GOOGLE_SCOPES,
+    // same creds reused — show that campaign platform shares Sheets credentials
+    reusedCredentials: true
+  });
+});
+app.post('/api/admin/gmail/test', requireAuth, async (req,res)=>{
+  const { to } = req.body;
+  const cfg = await getGoogleConfig();
+  const target = (to||cfg.gmailConnectedEmail||'').trim();
+  if(!target) return res.status(400).json({ error: 'Provide to email or connect Gmail first' });
+  try{
+    const info = await sendGmailRaw({ to: target, subject: 'Nexatech Gmail Test — '+new Date().toLocaleString(), html: '<div style="font-family:Inter,sans-serif;padding:16px;border:1px solid #E2E8F0;border-radius:12px"><h2>✓ Gmail Connected</h2><p>Your campaign platform is ready. This email was sent via <b>Gmail API</b> using the <b>same Google Console Client ID/Secret</b> you use for Sheets.</p><p>From: '+(cfg.gmailConnectedEmail||'your Gmail')+'</p></div>', text: 'Gmail Connected — your campaign platform is ready via same console credentials.' });
+    res.json({ ok:true, messageId: info.messageId, to: target, from: info.from });
+  }catch(e){ res.status(500).json({ error: e.message }); }
+});
+
+// Email Templates — HubSpot-like library
+app.get('/api/admin/templates', requireAuth, async (req,res)=>{
+  const rows = await db.prepare('SELECT * FROM email_templates ORDER BY created_at DESC').all();
+  res.json(rows);
+});
+app.post('/api/admin/templates', requireAuth, async (req,res)=>{
+  const { name, subject, body_html, body_text, category } = req.body;
+  if(!name || !subject) return res.status(400).json({ error: 'name and subject required' });
+  const info = await db.prepare('INSERT INTO email_templates (name,subject,body_html,body_text,category) VALUES (?,?,?,?,?)').run(name, subject, body_html||'', body_text||'', category||'general');
+  const row = await db.prepare('SELECT * FROM email_templates WHERE id=?').get(info.lastInsertRowid);
+  res.json(row);
+});
+app.put('/api/admin/templates/:id', requireAuth, async (req,res)=>{
+  const ex = await db.prepare('SELECT * FROM email_templates WHERE id=?').get(req.params.id);
+  if(!ex) return res.status(404).json({ error: 'not found' });
+  const { name, subject, body_html, body_text, category } = req.body;
+  await db.prepare('UPDATE email_templates SET name=COALESCE(?,name), subject=COALESCE(?,subject), body_html=COALESCE(?,body_html), body_text=COALESCE(?,body_text), category=COALESCE(?,category) WHERE id=?')
+    .run(name??null, subject??null, body_html??null, body_text??null, category??null, req.params.id);
+  res.json(await db.prepare('SELECT * FROM email_templates WHERE id=?').get(req.params.id));
+});
+app.delete('/api/admin/templates/:id', requireAuth, async (req,res)=>{
+  await db.prepare('DELETE FROM email_templates WHERE id=?').run(req.params.id);
+  res.json({ ok:true });
+});
+
+// Campaigns — HubSpot-like: create → select leads → bulk + personal
+app.get('/api/admin/campaigns', requireAuth, async (req,res)=>{
+  const rows = await db.prepare('SELECT * FROM campaigns ORDER BY created_at DESC').all();
+  // enrich with counts
+  for(const c of rows){
+    try{
+      const s = await db.prepare('SELECT COUNT(*) as total, SUM(CASE WHEN status=? THEN 1 ELSE 0 END) as sent, SUM(CASE WHEN status=? THEN 1 ELSE 0 END) as failed FROM campaign_sends WHERE campaign_id=?').get('sent','failed',c.id);
+      c.total = parseInt(s?.total||c.total_recipients||0,10);
+      c.sent = parseInt(s?.sent||c.sent_count||0,10);
+      c.failed = parseInt(s?.failed||c.failed_count||0,10);
+    }catch{}
+  }
+  res.json(rows);
+});
+app.post('/api/admin/campaigns', requireAuth, async (req,res)=>{
+  const { name, subject, body_html, body_text, from_name, from_email, reply_to, templateId } = req.body;
+  if(!name || !subject) return res.status(400).json({ error: 'name and subject required' });
+  let html = body_html||'', text = body_text||'';
+  if(templateId){
+    const t = await db.prepare('SELECT * FROM email_templates WHERE id=?').get(templateId);
+    if(t){ html = html || t.body_html; text = text || t.body_text; }
+  }
+  const cfg = await getGoogleConfig();
+  const fromN = from_name || cfg.gmailSenderName || 'Nexatech';
+  const fromE = from_email || cfg.gmailConnectedEmail || '';
+  const info = await db.prepare('INSERT INTO campaigns (name,subject,body_html,body_text,from_name,from_email,reply_to,status) VALUES (?,?,?,?,?,?,?,?)')
+    .run(name, subject, html, text, fromN, fromE, reply_to||'', 'draft');
+  const row = await db.prepare('SELECT * FROM campaigns WHERE id=?').get(info.lastInsertRowid);
+  res.json(row);
+});
+app.get('/api/admin/campaigns/:id', requireAuth, async (req,res)=>{
+  const c = await db.prepare('SELECT * FROM campaigns WHERE id=?').get(req.params.id);
+  if(!c) return res.status(404).json({ error: 'not found' });
+  const sends = await db.prepare('SELECT * FROM campaign_sends WHERE campaign_id=? ORDER BY sent_at DESC LIMIT 100').all(c.id);
+  res.json({ campaign: c, sends });
+});
+app.put('/api/admin/campaigns/:id', requireAuth, async (req,res)=>{
+  const ex = await db.prepare('SELECT * FROM campaigns WHERE id=?').get(req.params.id);
+  if(!ex) return res.status(404).json({ error: 'not found' });
+  if(ex.status==='sent' && !req.body.force) return res.status(400).json({ error: 'Already sent — create a new campaign or set force:true to edit' });
+  const { name, subject, body_html, body_text, from_name, from_email, reply_to, status } = req.body;
+  await db.prepare('UPDATE campaigns SET name=COALESCE(?,name), subject=COALESCE(?,subject), body_html=COALESCE(?,body_html), body_text=COALESCE(?,body_text), from_name=COALESCE(?,from_name), from_email=COALESCE(?,from_email), reply_to=COALESCE(?,reply_to), status=COALESCE(?,status) WHERE id=?')
+    .run(name??null, subject??null, body_html??null, body_text??null, from_name??null, from_email??null, reply_to??null, status??null, req.params.id);
+  res.json(await db.prepare('SELECT * FROM campaigns WHERE id=?').get(req.params.id));
+});
+app.delete('/api/admin/campaigns/:id', requireAuth, async (req,res)=>{
+  await db.prepare('DELETE FROM campaigns WHERE id=?').run(req.params.id);
+  // cascade deletes sends via FK if PG, manual for SQLite
+  try{ await db.prepare('DELETE FROM campaign_sends WHERE campaign_id=?').run(req.params.id); }catch{}
+  res.json({ ok:true });
+});
+app.post('/api/admin/campaigns/:id/test', requireAuth, async (req,res)=>{
+  const c = await db.prepare('SELECT * FROM campaigns WHERE id=?').get(req.params.id);
+  if(!c) return res.status(404).json({ error: 'campaign not found' });
+  const { to } = req.body;
+  const cfg = await getGoogleConfig();
+  const target = (to||cfg.gmailConnectedEmail||'').trim();
+  if(!target) return res.status(400).json({ error: 'Provide to email or connect Gmail first' });
+  // render with sample lead
+  const sampleLead = (await db.prepare('SELECT * FROM leads ORDER BY created_at DESC LIMIT 1').get()) || { name:'Test Founder', storeName:'Test Store', preferredNiche:'Fashion', whatsapp:'+19283825389', email: target };
+  const subject = renderTemplate(c.subject, sampleLead);
+  const html = renderTemplate(c.body_html, sampleLead);
+  const text = renderTemplate(c.body_text, sampleLead);
+  try{
+    const info = await sendGmailRaw({ to: target, subject, html, text, fromName: c.from_name, fromEmail: c.from_email, replyTo: c.reply_to });
+    res.json({ ok:true, to: target, messageId: info.messageId });
+  }catch(e){ res.status(500).json({ error: e.message }); }
+});
+// Send campaign — bulk or filtered (HubSpot-like bulk)
+app.post('/api/admin/campaigns/:id/send', requireAuth, async (req,res)=>{
+  const c = await db.prepare('SELECT * FROM campaigns WHERE id=?').get(req.params.id);
+  if(!c) return res.status(404).json({ error: 'campaign not found' });
+  let { leadIds, stage, search, scammed, limit, dryRun } = req.body;
+  // Resolve recipients
+  let leads = [];
+  if(Array.isArray(leadIds) && leadIds.length){
+    const placeholders = leadIds.map(()=> '?').join(',');
+    leads = await db.prepare(`SELECT * FROM leads WHERE id IN (${placeholders})`).all(...leadIds);
+  } else {
+    let sql='SELECT * FROM leads WHERE 1=1';
+    const params=[];
+    if(stage){ sql+=' AND pipeline_stage=?'; params.push(stage); }
+    if(scammed==='yes'){ sql+=' AND wasScammed=?'; params.push('yes'); }
+    if(search){ sql+=' AND (name LIKE ? OR email LIKE ? OR whatsapp LIKE ?)'; const s=`%${search}%`; params.push(s,s,s); }
+    sql+=' ORDER BY created_at DESC';
+    if(limit) sql+=` LIMIT ${parseInt(limit,10)||100}`;
+    leads = await db.prepare(sql).all(...params);
+  }
+  // Filter to those with email
+  const withEmail = leads.filter(l=> l.email && l.email.includes('@'));
+  if(!withEmail.length) return res.status(400).json({ error: 'No recipients with email found for filter' });
+  if(dryRun) return res.json({ ok:true, dryRun:true, wouldSend: withEmail.length, emails: withEmail.map(l=> l.email).slice(0,20) });
+
+  // Check Gmail connected
+  try{ await getAuthenticatedGmail(); }catch(e){ return res.status(400).json({ error: e.message + ' — reconnect with Gmail scopes (same Client ID/Secret, click Connect Google)' }); }
+
+  // Create sends records and send sequentially with throttling (Gmail 500/day, ~1 per second safe)
+  let sent=0, failed=0;
+  const batch = withEmail.slice(0, parseInt(limit||500,10)); // cap
+  // Update campaign total
+  await db.prepare('UPDATE campaigns SET total_recipients=?, status=? WHERE id=?').run(batch.length, 'sending', c.id);
+  for(const lead of batch){
+    const subj = renderTemplate(c.subject, lead);
+    const html = renderTemplate(c.body_html, lead);
+    const text = renderTemplate(c.body_text, lead);
+    let status='pending', err='', msgId='';
+    try{
+      const info = await sendGmailRaw({ to: lead.email, subject: subj, html, text, fromName: c.from_name, fromEmail: c.from_email, replyTo: c.reply_to });
+      status='sent'; msgId=info.messageId||''; sent++;
+    }catch(e){ status='failed'; err=String(e.message).slice(0,500); failed++; }
+    try{
+      await db.prepare('INSERT INTO campaign_sends (campaign_id, lead_id, email, name, status, error, message_id, sent_at) VALUES (?,?,?,?,?,?,?,datetime(\'now\'))')
+        .run(c.id, lead.id, lead.email, lead.name||'', status, err, msgId);
+    }catch(e2){ console.error('campaign_sends insert', e2.message); }
+    // throttle 400ms to avoid Gmail rate limit
+    await new Promise(r=> setTimeout(r, 400));
+  }
+  await db.prepare('UPDATE campaigns SET sent_count=?, failed_count=?, status=?, sent_at=datetime(\'now\') WHERE id=?').run(sent, failed, failed && !sent ? 'failed' : 'sent', c.id);
+  res.json({ ok:true, total: batch.length, sent, failed, campaignId: c.id });
+});
+app.get('/api/admin/campaigns/:id/sends', requireAuth, async (req,res)=>{
+  const { limit=100, offset=0, status } = req.query;
+  const c = await db.prepare('SELECT * FROM campaigns WHERE id=?').get(req.params.id);
+  if(!c) return res.status(404).json({ error: 'not found' });
+  let sql='SELECT cs.*, l.storeName, l.preferredNiche FROM campaign_sends cs LEFT JOIN leads l ON l.id=cs.lead_id WHERE cs.campaign_id=?';
+  const params=[c.id];
+  if(status){ sql+=' AND cs.status=?'; params.push(status); }
+  sql+=' ORDER BY cs.sent_at DESC LIMIT ? OFFSET ?';
+  params.push(parseInt(limit,10)||100, parseInt(offset,10)||0);
+  const rows = await db.prepare(sql).all(...params);
+  res.json({ campaign: c, sends: rows });
+});
+
+// Personal 1:1 email to a lead — looks like HubSpot conversation
+app.post('/api/admin/leads/:id/email', requireAuth, async (req,res)=>{
+  const lead = await db.prepare('SELECT * FROM leads WHERE id=?').get(req.params.id);
+  if(!lead) return res.status(404).json({ error: 'lead not found' });
+  if(!lead.email) return res.status(400).json({ error: 'lead has no email' });
+  const { subject, body_html, body_text, templateId, from_name, from_email, reply_to } = req.body;
+  let subj = subject||'', html = body_html||'', text = body_text||'';
+  if(templateId){
+    const t = await db.prepare('SELECT * FROM email_templates WHERE id=?').get(templateId);
+    if(t){ subj = subj || t.subject; html = html || t.body_html; text = text || t.body_text; }
+  }
+  if(!subj) return res.status(400).json({ error: 'subject required (or templateId)' });
+  // render personalization
+  subj = renderTemplate(subj, lead);
+  html = renderTemplate(html, lead);
+  text = renderTemplate(text, lead);
+  try{
+    await getAuthenticatedGmail();
+  }catch(e){ return res.status(400).json({ error: e.message }); }
+  try{
+    const info = await sendGmailRaw({ to: lead.email, subject: subj, html, text, fromName: from_name, fromEmail: from_email, replyTo: reply_to });
+    // also log as campaign_sends with campaign_id null? use 0
+    try{
+      await db.prepare('INSERT INTO campaign_sends (campaign_id, lead_id, email, name, status, message_id, sent_at) VALUES (?,?,?,?,?,?,datetime(\'now\'))')
+        .run(0, lead.id, lead.email, lead.name||'', 'sent', info.messageId||'');
+    }catch{}
+    // append to events for CRM timeline
+    try{ await db.prepare('INSERT INTO events (event_type,element_id,session_id,page_url,metadata) VALUES (?,?,?,?,?)').run('email_sent', String(lead.id), '', '', JSON.stringify({ to: lead.email, subject: subj, messageId: info.messageId })); }catch{}
+    res.json({ ok:true, to: lead.email, messageId: info.messageId, from: info.from });
+  }catch(e){ res.status(500).json({ error: e.message }); }
+});
+app.get('/api/admin/outbox', requireAuth, async (req,res)=>{
+  const { limit=50 } = req.query;
+  const rows = await db.prepare('SELECT cs.*, c.name as campaign_name, c.subject as campaign_subject FROM campaign_sends cs LEFT JOIN campaigns c ON c.id=cs.campaign_id ORDER BY cs.sent_at DESC LIMIT ?').all(parseInt(limit,10)||50);
+  // also gmail status
+  const cfg = await getGoogleConfig();
+  res.json({ sends: rows, gmail: { connected: !!cfg.gmailConnectedEmail, email: cfg.gmailConnectedEmail||'' } });
+});
+// Update gmail sender name (persisted)
+app.put('/api/admin/gmail/sender', requireAuth, async (req,res)=>{
+  const { name, email } = req.body;
+  if(name !== undefined) await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('gmail_sender_name', String(name).trim(), 'text');
+  if(email !== undefined && String(email).trim()){
+    // allow overriding connected email for From (but keep verified Gmail as fallback)
+    await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('gmail_connected_email', String(email).trim(), 'text');
+  }
+  const cfg = await getGoogleConfig();
+  res.json({ ok:true, senderName: cfg.gmailSenderName||'', email: cfg.gmailConnectedEmail||'' });
 });
 
 // Scheduled jobs

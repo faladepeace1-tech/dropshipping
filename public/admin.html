@@ -28,6 +28,7 @@
       <button data-tab="team">Experts (Team)</button>
       <button data-tab="sections">Sections & Layout</button>
       <button data-tab="leads">Leads / CRM</button>
+      <button data-tab="campaigns">Campaigns / Email</button>
       <button data-tab="analytics">Analytics</button>
       <button data-tab="settings">Integrations</button>
     </nav>
@@ -187,6 +188,103 @@
         </div>
       </section>
 
+      <!-- Campaigns — HubSpot-like bulk + personal email via same Google OAuth -->
+      <section data-panel="campaigns" class="hidden">
+        <div class="card" style="border-color:rgba(124,58,237,.25)">
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between">
+            <h3 style="margin:0">Campaigns & Email CRM <small style="font-weight:500;color:#64748B"> — bulk + personal via same Google Client ID/Secret (Gmail)</small></h3>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+              <span id="gmail-status" style="font-size:11px;color:#94A3B8;border:1px solid #E2E8F0;border-radius:999px;padding:4px 8px">Checking Gmail...</span>
+              <button class="btn btn-ghost" id="btn-gmail-connect" style="padding:6px 10px;font-size:12px;border-color:#10B981;color:#10B981">Connect Gmail (same Client ID)</button>
+              <button class="btn btn-ghost" id="btn-gmail-test" style="padding:6px 10px;font-size:12px">Send Test Email</button>
+            </div>
+          </div>
+          <div style="font-size:11px;color:#94A3B8;margin-top:6px">Uses <b>same Console Client ID / Secret</b> you saved in <b>Integrations → Google Sheets</b>. One OAuth grant gives <b>Sheets + Gmail</b> — no duplicate credentials. Re-connect after adding scopes to enable sending. Gmail daily limit ~500/day (enforced with 400ms throttle).</div>
+          <div id="gmail-msg" style="font-size:12px;margin-top:8px;color:#64748B"></div>
+          <!-- sender config -->
+          <details style="margin-top:10px;border:1px solid #E2E8F0;border-radius:10px;padding:10px">
+            <summary style="cursor:pointer;font-size:12px;color:#0B1220">Sender settings (From name / email) — defaults to connected Gmail</summary>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
+              <label style="flex:1">From Name<input id="camp-from-name" placeholder="Nexatech"></label>
+              <label style="flex:1">From Email (leave blank = Gmail)<input id="camp-from-email" placeholder="connected Gmail"></label>
+              <label style="flex:1">Reply-To<input id="camp-reply-to" placeholder="saheednexatech@gmail.com"></label>
+              <button class="btn btn-ghost" id="btn-save-gmail-sender" style="align-self:end;padding:8px 12px">Save Sender</button>
+            </div>
+          </details>
+        </div>
+
+        <div class="grid2" style="align-items:start">
+          <!-- Left: Campaigns list + create -->
+          <div class="card">
+            <div style="display:flex;gap:8px;align-items:center;justify-content:space-between">
+              <h3 style="margin:0">Campaigns</h3>
+              <button class="btn btn-primary" id="btn-new-campaign" style="padding:6px 10px;font-size:12px">+ New Campaign</button>
+            </div>
+            <div id="campaigns-list" style="display:grid;gap:8px;margin-top:10px"></div>
+            <div style="margin-top:12px;border-top:1px solid #E2E8F0;padding-top:10px">
+              <h4 style="margin:0 0 6px;font-size:13px">Email Templates (HubSpot-like)</h4>
+              <div id="templates-list" style="display:grid;gap:6px"></div>
+              <button class="btn btn-ghost" id="btn-new-template" style="margin-top:8px;padding:6px 10px;font-size:12px">+ New Template</button>
+            </div>
+          </div>
+          <!-- Right: Compose / detail / bulk -->
+          <div class="card" id="campaign-detail" style="display:none">
+            <div style="display:flex;gap:8px;align-items:center;justify-content:space-between">
+              <h3 id="camp-detail-title" style="margin:0">Campaign</h3>
+              <div style="display:flex;gap:6px">
+                <button class="btn btn-ghost" id="btn-camp-test" style="padding:6px 10px;font-size:11px">Send Test to Me</button>
+                <button class="btn btn-ghost" id="btn-camp-delete" style="padding:6px 10px;font-size:11px;color:#F87171">Delete</button>
+              </div>
+            </div>
+            <div style="display:grid;gap:8px;margin-top:10px">
+              <label>Campaign Name<input id="camp-name"></label>
+              <label>Subject (supports {{name}}, {{storeName}}, {{preferredNiche}}, {{email}}, {{whatsapp}} etc)<input id="camp-subject" placeholder="Welcome {{name}}!"></label>
+              <label>HTML Body<textarea id="camp-html" rows="8" placeholder="<p>Hi {{name}},</p>..."></textarea></label>
+              <label>Text fallback<textarea id="camp-text" rows="3" placeholder="Hi {{name}}, ..."></textarea></label>
+              <div style="font-size:11px;color:#94A3B8">Personalization tags: <code>{{name}}</code> <code>{{storeName}}</code> <code>{{preferredNiche}}</code> <code>{{investmentRange}}</code> <code>{{email}}</code> <code>{{whatsapp}}</code> — like HubSpot tokens.</div>
+              <button class="btn btn-primary" id="btn-save-camp">Save Campaign</button>
+            </div>
+            <!-- Bulk send -->
+            <div style="margin-top:14px;border:1px solid #E2E8F0;border-radius:12px;padding:10px;background:#F8FAFC">
+              <h4 style="margin:0 0 6px">Bulk Send — select audience</h4>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+                <select id="camp-filter-stage" style="padding:6px 8px;border-radius:8px;border:1px solid #E2E8F0"><option value="">All stages</option><option value="new">New</option><option value="contacted">Contacted</option><option value="scheduled">Scheduled</option><option value="closed">Closed</option></select>
+                <input id="camp-filter-search" placeholder="Search name/email/niche" style="padding:6px 8px;border:1px solid #E2E8F0;border-radius:8px;flex:1">
+                <label style="display:flex;gap:6px;align-items:center;font-size:11px"><input type="checkbox" id="camp-filter-scam"> Scammed only</label>
+                <input id="camp-limit" type="number" placeholder="Limit 500" value="100" style="width:90px;padding:6px 8px;border-radius:8px;border:1px solid #E2E8F0">
+              </div>
+              <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+                <button class="btn btn-ghost" id="btn-camp-preview-audience" style="padding:6px 10px;font-size:11px">Preview Audience</button>
+                <button class="btn btn-primary" id="btn-camp-send" style="background:#7C3AED;border-color:#7C3AED">Send Bulk Campaign →</button>
+                <label style="display:flex;gap:6px;align-items:center;font-size:11px"><input type="checkbox" id="camp-dryrun"> Dry run (no send)</label>
+              </div>
+              <div id="camp-audience-preview" style="margin-top:8px;font-size:12px;max-height:160px;overflow:auto"></div>
+              <div id="camp-send-result" style="margin-top:8px;font-size:12px"></div>
+            </div>
+            <!-- Sends log -->
+            <div style="margin-top:12px">
+              <h4 style="margin:0 0 6px">Sends log <small style="color:#94A3B8">(latest 50)</small></h4>
+              <div id="camp-sends" style="display:grid;gap:6px;max-height:300px;overflow:auto"></div>
+            </div>
+          </div>
+          <!-- Empty state -->
+          <div class="card" id="campaign-empty" style="display:flex;align-items:center;justify-content:center;min-height:260px;color:#94A3B8;text-align:center">
+            <div><div style="font-size:22px;margin-bottom:6px">📧</div>Select or create a campaign to compose, preview audience and send bulk/personal emails via Gmail. <br><small>HubSpot-style CRM — same OAuth, no extra API keys.</small></div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <h3>Outbox — Recent sends (personal + bulk)</h3>
+          <div style="display:flex;gap:8px;margin-bottom:8px">
+            <button class="btn btn-ghost" id="btn-refresh-outbox" style="padding:6px 10px;font-size:11px">Refresh Outbox</button>
+            <span id="outbox-count" style="font-size:12px;color:#64748B;align-self:center"></span>
+          </div>
+          <div id="outbox-list" style="display:grid;gap:6px"></div>
+        </div>
+
+        <!-- Personal email modal trigger from Leads kanban handled via global dialog -->
+      </section>
+
       <!-- Analytics -->
       <section data-panel="analytics" class="hidden">
         <div class="cards">
@@ -220,17 +318,38 @@
           <label>Google Cloud Client ID <input id="int-google-client-id" placeholder="123456789012-...apps.googleusercontent.com"></label>
           <label>Google Cloud Client Secret <input id="int-google-client-secret" type="password" placeholder="GOCSPX-..."></label>
           <div style="display:flex;gap:8px;align-items:center"><span id="google-client-status" style="font-size:11px;color:#94A3B8">Checking...</span><button class="btn btn-ghost" id="btn-show-google-secret" style="padding:6px 10px;font-size:11px">Show</button></div>
-          <label>Google Sheets Document ID <input id="int-google-doc-id" placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms (from sheet URL)"></label>
-          <label>Sheet Name <input id="int-google-sheet-name" placeholder="Sheet1"></label>
+          <label>Google Sheets Document ID <input id="int-google-doc-id" placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms (from sheet URL) — paste full URL or ID, it auto-extracts"></label>
+          <label>Sheet Name <input id="int-google-sheet-name" placeholder="Sheet1 — auto-detected if leave blank, use Detect below"></label>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
             <button class="btn btn-primary" id="btn-save-google-sheets">Save Google Sheets</button>
             <button class="btn btn-ghost" id="btn-connect-google" style="border-color:#10B981;color:#10B981">Connect Google Sheets →</button>
+            <button class="btn btn-ghost" id="btn-detect-google" style="border-color:#F59E0B;color:#F59E0B">Auto-Detect Sheet & Columns →</button>
             <button class="btn btn-ghost" id="btn-test-google-sheets" style="border-color:#00D1FF;color:#00D1FF">Test Append Row →</button>
             <button class="btn btn-ghost" id="btn-disconnect-google" style="color:#F87171">Disconnect</button>
           </div>
           <div id="google-msg" style="font-size:13px;margin-top:8px"></div>
           <pre id="google-test-result" style="display:none;background:#0B1220;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px;font-size:11px;color:#94A3B8;overflow:auto;max-height:240px;white-space:pre-wrap;word-break:break-all"></pre>
-          <div style="font-size:11px;color:#94A3B8;margin-top:8px">Backend payload matches <code>{ "operation": "append", "documentId": {"__rl":true,"mode":"list","value": "..."}, "sheetName": {"__rl":true,"mode":"list","value": "..."} }</code> — we store as plain text and append via Sheets API v4 on each lead.</div>
+          <!-- Auto-detect result -->
+          <div id="google-detect-wrap" style="display:none;margin-top:12px;border:1px solid rgba(16,185,129,.25);border-radius:12px;padding:12px;background:rgba(16,185,129,.05)">
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:space-between">
+              <b style="font-size:13px">Auto-Detected Sheet</b>
+              <span id="google-detect-title" style="font-size:11px;color:#94A3B8"></span>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
+              <label style="flex:1;min-width:180px">Detected Sheets<select id="google-sheet-picker" style="width:100%;margin-top:4px;padding:8px;border-radius:8px;background:#0B1220;color:#F1F5F9;border:1px solid rgba(255,255,255,.08)"></select></label>
+              <label style="flex:1;min-width:140px">Sheet Name (editable)<input id="google-sheet-picker-custom" placeholder="Sheet1" style="width:100%;margin-top:4px"></label>
+            </div>
+            <div id="google-columns-info" style="margin-top:10px;font-size:12px"></div>
+            <div id="google-headers-preview" style="margin-top:8px;overflow:auto"></div>
+            <div id="google-missing-wrap" style="margin-top:10px"></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+              <button class="btn btn-primary" id="btn-create-headers" style="background:#10B981;border-color:#10B981">Create / Overwrite Headers (22 cols) →</button>
+              <button class="btn btn-ghost" id="btn-append-missing" style="border-color:#F59E0B;color:#F59E0B">Append Missing Columns Only</button>
+              <button class="btn btn-ghost" id="btn-refresh-detect" style="padding:6px 10px;font-size:11px">Refresh Detect</button>
+            </div>
+            <pre id="google-detect-result" style="display:none;background:#0B1220;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px;font-size:11px;color:#94A3B8;overflow:auto;max-height:200px;white-space:pre-wrap;word-break:break-all;margin-top:8px"></pre>
+          </div>
+          <div style="font-size:11px;color:#94A3B8;margin-top:8px">Keys are saved <b>permanently</b> in DB (content table: google_client_id / google_client_secret / google_sheets_doc_id / google_sheets_sheet_name / tokens). They persist across deploys and only change when you edit & Save again. Use <b>Auto-Detect</b> to list sheets inside the spreadsheet, see current header row, highlight missing columns, and auto-create the 22 lead columns: <code>Timestamp, Name, Store Name, Preferred Niche, Preferred Niche Other, Investment Range, Store Status, Was Scammed, Scam Details, WhatsApp, Email, Preferred Contact Time, Source, Traffic Plan, Page URL, Session ID, UTM Source, UTM Medium, UTM Campaign, Pipeline Stage, Webhook Status, Submitted At</code>.</div>
         </div>
         <div class="card" style="border-color:rgba(124,58,237,.3)">
           <h3>Chatbot — Gemini Direct (replaces n8n webhook for chat)</h3>
@@ -274,6 +393,34 @@
     <div style="padding:16px;border-bottom:1px solid #E2E8F0;display:flex;justify-content:space-between;align-items:center"><b>Edit Expert</b><button value="cancel" style="border:none;background:#F1F5F9;border-radius:999px;width:32px;height:32px;cursor:pointer">✕</button></div>
     <div style="padding:16px;display:grid;gap:10px" id="edit-team-body"></div>
     <div style="padding:12px 16px;background:#F8FAFC;display:flex;gap:8px;justify-content:flex-end"><button value="cancel" class="btn btn-ghost">Cancel</button><button id="edit-team-save" value="default" class="btn btn-primary">Save</button></div>
+  </form>
+</dialog>
+<!-- Campaign: Personal Email (HubSpot 1:1) -->
+<dialog id="personal-email-dialog" style="border:none;border-radius:16px;max-width:620px;width:94vw;padding:0;overflow:hidden">
+  <form method="dialog" style="display:grid;gap:0">
+    <div style="padding:16px;border-bottom:1px solid #E2E8F0;display:flex;justify-content:space-between;align-items:center"><b>Send Personal Email <small style="font-weight:500;color:#64748B" id="personal-email-to"></small></b><button value="cancel" style="border:none;background:#F1F5F9;border-radius:999px;width:32px;height:32px;cursor:pointer">✕</button></div>
+    <div style="padding:16px;display:grid;gap:10px">
+      <label>Template<select id="personal-tpl"><option value="">— No template —</option></select></label>
+      <label>Subject<input id="personal-subject" placeholder="Hi {{name}}!"></label>
+      <label>HTML Body<textarea id="personal-html" rows="8" placeholder="<p>Hi {{name}},</p>..."></textarea></label>
+      <label>Text fallback<textarea id="personal-text" rows="3"></textarea></label>
+      <div style="font-size:11px;color:#94A3B8">Tags: {{name}} {{storeName}} {{preferredNiche}} {{email}} {{whatsapp}} — rendered per lead.</div>
+    </div>
+    <div style="padding:12px 16px;background:#F8FAFC;display:flex;gap:8px;justify-content:flex-end"><button value="cancel" class="btn btn-ghost">Cancel</button><button id="personal-send" value="default" class="btn btn-primary">Send via Gmail →</button></div>
+  </form>
+</dialog>
+<!-- Template editor -->
+<dialog id="template-dialog" style="border:none;border-radius:16px;max-width:600px;width:94vw;padding:0;overflow:hidden">
+  <form method="dialog" style="display:grid;gap:0">
+    <div style="padding:16px;border-bottom:1px solid #E2E8F0;display:flex;justify-content:space-between;align-items:center"><b id="template-dialog-title">New Template</b><button value="cancel" style="border:none;background:#F1F5F9;border-radius:999px;width:32px;height:32px;cursor:pointer">✕</button></div>
+    <div style="padding:16px;display:grid;gap:10px">
+      <label>Template Name<input id="tpl-name" placeholder="Welcome — New Lead"></label>
+      <label>Category<input id="tpl-cat" placeholder="general / followup / nurture"></label>
+      <label>Subject<input id="tpl-subject" placeholder="Welcome {{name}}!"></label>
+      <label>HTML Body<textarea id="tpl-html" rows="8" placeholder="<p>Hi {{name}},</p>"></textarea></label>
+      <label>Text Body<textarea id="tpl-text" rows="3"></textarea></label>
+    </div>
+    <div style="padding:12px 16px;background:#F8FAFC;display:flex;gap:8px;justify-content:flex-end"><button value="cancel" class="btn btn-ghost">Cancel</button><button id="template-save" value="default" class="btn btn-primary">Save Template</button></div>
   </form>
 </dialog>
 
