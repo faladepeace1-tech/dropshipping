@@ -449,12 +449,12 @@ function parseJSON(v, fallback){
   return fallback;
 }
 
-// Lead Form multi-step
+// Lead Form multi-step — FIX: scope to #lead-form so How It Works 4 steps never vanish
 let currentStep=1;
 const totalSteps=3;
 function showStep(n){
   currentStep=n;
-  $$('[data-step]').forEach(el=>{
+  $$('#lead-form [data-step]').forEach(el=>{
     const s=parseInt(el.dataset.step,10);
     el.classList.toggle('hidden', s!==n);
   });
@@ -469,7 +469,7 @@ function showStep(n){
 }
 function validateStep(n){
   let ok=true;
-  const container=document.querySelector(`[data-step="${n}"]`);
+  const container=document.querySelector(`#lead-form [data-step="${n}"]`);
   if(!container) return true;
   const fields=container.querySelectorAll('[required]');
   fields.forEach(inp=>{
