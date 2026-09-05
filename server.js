@@ -922,6 +922,33 @@ app.post('/api/admin/logout', async (req, res) => {
 app.get('/api/admin/me', requireAuth, async (req, res) => {
   res.json({ user: req.user });
 });
+app.post('/api/admin/change-password', requireAuth, async (req, res) => {
+  const { currentPassword, newPassword, confirmPassword } = req.body;
+  if(!currentPassword || !newPassword) return res.status(400).json({ error: 'currentPassword and newPassword required' });
+  if(newPassword !== confirmPassword) return res.status(400).json({ error: 'New passwords do not match' });
+  if(String(newPassword).length < 6) return res.status(400).json({ error: 'New password must be at least 6 characters' });
+  const username = req.user?.username || 'admin';
+  const userRow = await db.prepare('SELECT * FROM admin_users WHERE username=?').get(username);
+  let target = userRow;
+  if(!target && username==='admin') target = await db.prepare('SELECT * FROM admin_users WHERE username=?').get('admin_alt');
+  if(!target) return res.status(404).json({ error: 'User not found' });
+  const ok = bcrypt.compareSync(currentPassword, target.password_hash);
+  if(!ok) return res.status(401).json({ error: 'Current password is incorrect' });
+  const newHash = bcrypt.hashSync(newPassword, 10);
+  await db.prepare('UPDATE admin_users SET password_hash=? WHERE id=?').run(newHash, target.id);
+  // also keep admin and admin_alt in sync if main admin
+  try{
+    if(target.username==='admin'){
+      const alt = await db.prepare('SELECT * FROM admin_users WHERE username=?').get('admin_alt');
+      if(alt) await db.prepare('UPDATE admin_users SET password_hash=? WHERE id=?').run(newHash, alt.id);
+    }
+    if(target.username==='admin_alt'){
+      const main = await db.prepare('SELECT * FROM admin_users WHERE username=?').get('admin');
+      if(main) await db.prepare('UPDATE admin_users SET password_hash=? WHERE id=?').run(newHash, main.id);
+    }
+  }catch{}
+  res.json({ ok:true, message: 'Password changed successfully' });
+});
 
 // Admin stats cache refresh (nightly job endpoint also)
 app.post('/api/admin/refresh-stats', requireAuth, async (req, res) => {

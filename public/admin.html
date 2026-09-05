@@ -340,7 +340,22 @@
 
       <!-- Settings — collapsible, backend only: save & close, closed until you click Edit -->
       <section data-panel="settings" class="hidden">
-        <p style="font-size:12px;color:#64748B;margin:0 0 10px">Integrations are <b>collapsed by default</b> — click <b>Edit</b> to open a section. After <b>Save</b> it auto-closes and is saved <b>permanently in backend</b> (content table). Only one section opens at a time.</p>
+        <p style="font-size:12px;color:#64748B;margin:0 0 10px">Integrations are <b>collapsed by default</b> — click <b>Edit</b> to open a section. After <b>Save</b> it auto-closes and is saved <b>permanently in backend</b>. Only one section opens at a time. Change your admin password below.</p>
+
+        <details class="card" id="details-password" style="border-color:rgba(239,68,68,.35);background:rgba(239,68,68,.04)">
+          <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:10px"><div><h3 style="margin:0">🔒 Change Password</h3><small style="color:#94A3B8">Admin security — <span id="password-user" style="color:#0B1220">admin</span> • <span id="password-summary-status" style="color:#64748B">not changed</span></small></div><span style="font-size:12px;color:#DC2626;border:1px solid #FECACA;border-radius:999px;padding:4px 10px;background:#FFF">Edit ▾</span></summary>
+          <div style="display:grid;gap:10px;margin-top:12px">
+            <div style="font-size:11px;color:#64748B;background:#FFF;border:1px solid #FECACA;border-radius:8px;padding:8px">Logged in as <b id="password-current-user">admin</b> • This changes your backend login password. Use a strong password and keep it safe.</div>
+            <label>Current Password <input id="pwd-current" type="password" placeholder="••••••••" autocomplete="current-password"></label>
+            <label>New Password <input id="pwd-new" type="password" placeholder="At least 6 characters" autocomplete="new-password"></label>
+            <label>Confirm New Password <input id="pwd-confirm" type="password" placeholder="Repeat new password" autocomplete="new-password"></label>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+              <button class="btn btn-primary" id="btn-change-password" style="background:#DC2626;border-color:#DC2626">Change Password</button>
+              <button class="btn btn-ghost" id="btn-show-pwd" type="button" style="padding:6px 10px;font-size:11px">Show</button>
+            </div>
+            <div id="pwd-msg" style="font-size:13px;margin-top:4px;min-height:18px"></div>
+          </div>
+        </details>
 
         <details class="card" id="details-contact" style="border-color:#E2E8F0">
           <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:10px"><div><h3 style="margin:0">Contact & Booking</h3><small style="color:#94A3B8">WhatsApp, email, phone, Calendly</small></div><span style="font-size:12px;color:#7C3AED;border:1px solid #E2E8F0;border-radius:999px;padding:4px 10px;background:#F8FAFC">Edit ▾</span></summary>

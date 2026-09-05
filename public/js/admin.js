@@ -412,7 +412,7 @@ async function loadGeminiStatus(){
 }
 // Integrations accordion — only one open at a time, closed by default (backend only, save & close)
 (function(){
-  const ids=['details-contact','details-google','details-gemini','details-theme'];
+  const ids=['details-password','details-contact','details-google','details-gemini','details-theme'];
   function closeAll(except){
     ids.forEach(id=>{
       const d=document.getElementById(id);
@@ -429,6 +429,25 @@ async function loadGeminiStatus(){
   // start closed
   ids.forEach(id=>{ const d=document.getElementById(id); if(d) d.open=false; });
 })();
+// Password helpers — show current user in settings
+async function refreshPasswordUser(){
+  try{
+    const r=await fetch('/api/admin/me',{headers:authHeaders()});
+    if(r.ok){
+      const j=await r.json();
+      const u=j.user?.username||'admin';
+      const a=$('#password-user'); if(a) a.textContent=u;
+      const b=$('#password-current-user'); if(b) b.textContent=u;
+    }
+  }catch{}
+}
+// hook into checkAuth success
+const _origCheckAuth = checkAuth;
+checkAuth = async function(){
+  const ok = await _origCheckAuth();
+  if(ok) refreshPasswordUser();
+  return ok;
+};
 $('#btn-show-gemini-key')?.addEventListener('click', ()=>{
   const inp=$('#int-gemini-key');
   if(inp) inp.type = inp.type==='password' ? 'text' : 'password';
@@ -469,6 +488,42 @@ $('#btn-test-gemini')?.addEventListener('click', async()=>{
   finally{ if(btn){ btn.disabled=false; btn.textContent='Test Gemini →'; } }
 });
 loadGeminiStatus();
+// Change Password — backend only, collapsed until Edit
+$('#btn-show-pwd')?.addEventListener('click', ()=>{
+  const a=$('#pwd-current'), b=$('#pwd-new'), c=$('#pwd-confirm');
+  const t = a.type==='password' ? 'text' : 'password';
+  [a,b,c].forEach(i=>{ if(i) i.type=t; });
+  const btn=$('#btn-show-pwd'); if(btn) btn.textContent = t==='text' ? 'Hide' : 'Show';
+});
+$('#btn-change-password')?.addEventListener('click', async()=>{
+  const cur=$('#pwd-current')?.value||'';
+  const nw=$('#pwd-new')?.value||'';
+  const cf=$('#pwd-confirm')?.value||'';
+  const msg=$('#pwd-msg');
+  const sum=$('#password-summary-status');
+  if(!cur || !nw || !cf){ if(msg) msg.innerHTML='<span style="color:#F87171">All fields required</span>'; return; }
+  if(nw !== cf){ if(msg) msg.innerHTML='<span style="color:#F87171">New passwords do not match</span>'; return; }
+  if(nw.length < 6){ if(msg) msg.innerHTML='<span style="color:#F87171">New password must be at least 6 characters</span>'; return; }
+  const btn=$('#btn-change-password'); if(btn) btn.disabled=true;
+  if(msg) msg.textContent='Changing...';
+  try{
+    const r=await fetch('/api/admin/change-password',{method:'POST',headers:{'Content-Type':'application/json',...authHeaders()},body:JSON.stringify({currentPassword:cur, newPassword:nw, confirmPassword:cf})});
+    const j=await r.json();
+    if(r.ok){
+      if(msg) msg.innerHTML='<span style="color:#10B981">✓ Password changed successfully — saved permanently. Use new password next login. Closing...</span>';
+      if(sum) { sum.textContent='changed ✓'; sum.style.color='#10B981'; }
+      $('#pwd-current').value=''; $('#pwd-new').value=''; $('#pwd-confirm').value='';
+      // auto-close details — stays closed until Edit
+      setTimeout(()=>{ const d=document.getElementById('details-password'); if(d) d.open=false; if(msg) msg.textContent=''; }, 1200);
+    } else {
+      if(msg) msg.innerHTML=`<span style="color:#F87171">${j.error||'Failed'}</span>`;
+      if(sum) { sum.textContent='error'; sum.style.color='#F87171'; }
+    }
+  }catch(e){ if(msg) msg.textContent='Error: '+e.message; }
+  finally{ if(btn) btn.disabled=false; }
+});
+// refresh user on load
+refreshPasswordUser();
 // Google Sheets direct — permanent save + auto-detect
 async function loadGoogleStatus(){
   try{
