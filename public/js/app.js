@@ -803,8 +803,35 @@ function initChat(){
   $$('.quick button').forEach(b=> b.addEventListener('click', ()=>{
     input.value=b.dataset.q; sendMsg();
   }));
+  // Helper: create WhatsApp button that stays inside chat frame
+  function createWhatsAppButton(userText){
+    const waNum = CONTENT.whatsapp_number || '19283825389';
+    // Use exactly what client asked as custom prefill — e.g. "how do i get started"
+    const customMsg = `Hi Nexatech 👋, ${userText}`.slice(0,800);
+    const url = whatsappLink(waNum, customMsg);
+    const a=document.createElement('a');
+    a.href=url; a.target='_blank'; a.rel='noopener';
+    a.className='chat-wa-btn';
+    a.textContent='Continue on WhatsApp →';
+    a.setAttribute('aria-label','Continue on WhatsApp');
+    // Inline ensure no overflow (also in CSS)
+    a.style.cssText='display:inline-flex;align-items:center;justify-content:center;max-width:100%;box-sizing:border-box;word-break:break-word;white-space:normal;overflow-wrap:anywhere;margin-top:8px;padding:10px 14px;border-radius:999px;background:var(--primary);color:#fff;font-weight:700;font-size:13px;text-decoration:none;box-shadow:0 6px 14px rgba(11,18,32,.12);';
+    return a;
+  }
+  function shouldShowWhatsAppButton(replyText, userText, apiJson){
+    if(apiJson && apiJson.fallback) return true;
+    const combined = (replyText||'') + ' ' + (userText||'');
+    // If backend still accidentally returned raw wa.me link, we will show button anyway and strip link
+    if(/wa\.me/i.test(replyText||'') || /https?:\/\/wa\.me/i.test(apiJson?.reply||'')) return true;
+    // Handoff phrases from prompt
+    if(/continue on whatsapp|tap the button below|whatsapp with saheed/i.test(replyText||'')) return true;
+    // User intent handoff
+    if(/how (do|to) (i )?(get )?started|how much|want.*mentorship|hire|get started|how do we begin/i.test(userText||'')) return true;
+    return false;
+  }
   async function sendMsg(){
     const text=input.value.trim(); if(!text) return;
+    const userQuestion = text; // keep for WhatsApp custom prefill
     // Build history from existing msgs BEFORE appending new user msg (so bot reads previous messages before reply)
     const history = [...body.querySelectorAll('.msg')].slice(-12).map(el=>{
       const isUser = el.classList.contains('user');
@@ -822,12 +849,29 @@ function initChat(){
       const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text, sessionId, history})});
       const j=await r.json();
       const bot=document.createElement('div'); bot.className='msg bot';
-      bot.textContent= j.reply || j.error || 'Not available right now';
-      if(j.fallback) { const a=document.createElement('a'); a.href=whatsappLink(CONTENT.whatsapp_number, text); a.target='_blank'; a.textContent=' Chat on WhatsApp →'; a.style.color='var(--accent-2)'; a.style.fontWeight='700'; bot.appendChild(a); }
+      let replyText = j.reply || j.error || 'Not available right now';
+      // Strip any raw wa.me URLs Gemini might still emit — we render as button instead so link never overflows frame
+      replyText = replyText.replace(/https?:\/\/wa\.me[^\s"'\)]+/gi, '').replace(/https?:\/\/wa\.me[^\s]*/gi, '').replace(/\[WHATSAPP[^\]]*\]/gi, '').trim();
+      // Collapse double spaces left by stripping
+      replyText = replyText.replace(/\s{2,}/g,' ').trim();
+      bot.textContent = replyText || 'Not available right now';
+      if(shouldShowWhatsAppButton(replyText, userQuestion, j)){
+        const btn = createWhatsAppButton(userQuestion);
+        bot.appendChild(document.createElement('br'));
+        bot.appendChild(btn);
+      } else if(j.fallback){
+        // Fallback also uses custom user text, not static plan
+        const btn = createWhatsAppButton(userQuestion);
+        bot.appendChild(document.createElement('br'));
+        bot.appendChild(btn);
+      }
       body.appendChild(bot);
     }catch{
-      const bot=document.createElement('div'); bot.className='msg bot'; bot.textContent='Not available right now please chat on WhatsApp.';
-      const a=document.createElement('a'); a.href=whatsappLink(CONTENT.whatsapp_number, text); a.target='_blank'; a.textContent=' Open WhatsApp →'; a.style.color='var(--accent-2)'; bot.appendChild(a); body.appendChild(bot);
+      const bot=document.createElement('div'); bot.className='msg bot'; bot.textContent='Not available right now — tap below to chat on WhatsApp.';
+      const btn = createWhatsAppButton(userQuestion);
+      bot.appendChild(document.createElement('br'));
+      bot.appendChild(btn);
+      body.appendChild(bot);
     }
     body.scrollTop=body.scrollHeight;
     saveHistory();

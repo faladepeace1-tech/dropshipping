@@ -250,6 +250,12 @@ button{font:inherit}
 .chat-input input{flex:1;padding:10px 12px;border:1px solid var(--border);border-radius:999px;outline:none}
 .quick{display:flex;gap:6px;flex-wrap:wrap}
 .quick button{padding:6px 10px;border-radius:999px;border:1px solid var(--border);background:#fff;font-size:12px;cursor:pointer}
+/* WhatsApp button inside chat — must not overflow frame, custom msg = what client asked */
+.chat-wa-btn{display:inline-flex;align-items:center;justify-content:center;max-width:100%;box-sizing:border-box;word-break:break-word;white-space:normal;overflow-wrap:anywhere;overflow:hidden;text-overflow:ellipsis;padding:10px 14px;border-radius:999px;background:var(--primary);color:#fff!important;font-weight:700;font-size:13px;text-decoration:none;box-shadow:0 6px 14px rgba(11,18,32,.12);border:none;cursor:pointer;transition:transform .15s,box-shadow .2s}
+.chat-wa-btn:hover{transform:translateY(-1px);box-shadow:0 10px 20px rgba(11,18,32,.18)}
+.chat-body .msg.bot{overflow-wrap:anywhere;word-break:break-word}
+.chat-win{max-width:min(360px,92vw);overflow:hidden}
+.chat-body{overflow-wrap:anywhere;word-break:break-word}
 
 /* Reviews Wall — uniform 2550×1650 landscape */
 .reviews-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}
