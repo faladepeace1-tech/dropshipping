@@ -729,7 +729,7 @@ export async function initDb() {
     const tmplCount = await getCount('email_templates');
     if(tmplCount===0){
       const tmplDefaults = [
-        ['Welcome — New Lead','Welcome {{name}}! Your {{storeName}} journey starts','<div style="font-family:Inter,sans-serif;line-height:1.6;color:#0B1220"><p>Hi {{name}},</p><p>Thanks for applying for your <b>{{storeName}}</b> store in the <b>{{preferredNiche}}</b> niche. Our team at <b>Nexatech</b> will review your application and reach out on WhatsApp <b>{{whatsapp}}</b> within 24h.</p><p>While you wait, explore our portfolio and packages on the site.</p><p style="margin-top:16px">— <b>Saheed (Akinyemmi Ifeoluwa)</b><br>NEXATECH Dropshipping Store<br><a href="https://wa.me/19283825389">WhatsApp</a> • saheednexatech@gmail.com</p></div>','general'],
+        ['Welcome — New Lead','Welcome {{name}}! Your {{storeName}} journey starts','<div style="font-family:Inter,sans-serif;line-height:1.6;color:#0B1220"><p>Hi {{name}},</p><p>Thanks for applying for your <b>{{storeName}}</b> store in the <b>{{preferredNiche}}</b> niche. Our team at <b>Nexatech</b> will review your application and reach out on WhatsApp <b>{{whatsapp}}</b> within 24h.</p><p>While you wait, explore our portfolio and packages on the site.</p><p style="margin-top:16px">— <b>Ifeoluwa (Akinyemmi Ifeoluwa)</b><br>NEXATECH Dropshipping Store<br><a href="https://wa.me/19283825389">WhatsApp</a> • saheednexatech@gmail.com</p></div>','general'],
         ['Follow-up — 48h After Application','Quick check-in, {{name}}','<div style="font-family:Inter,sans-serif;line-height:1.6;color:#0B1220"><p>Hi {{name}},</p><p>Just checking in — did you get our WhatsApp message about your <b>{{storeName}}</b> project?</p><p>We have <b>{{investmentRange}}</b> options and can start your store in 7–14 days. Reply to this email or ping us on WhatsApp to lock your slot.</p><p>— Nexatech</p></div>','followup'],
         ['Nurture — Why Nexatech','Why founders choose Nexatech, {{name}}','<div style="font-family:Inter,sans-serif;line-height:1.6;color:#0B1220"><p>Hi {{name}},</p><p>Many founders come to us after being scammed. Here’s how we’re different:</p><ul><li>100% ownership — we build in <i>your</i> Shopify account</li><li>Video proof + live store walkthroughs</li><li>Winning product research + supplier automation</li><li>30-day scaling roadmap</li></ul><p>Want the mentorship (results BEFORE payment)? Let us know.</p><p>— Nexatech</p></div>','nurture'],
       ];
@@ -737,6 +737,9 @@ export async function initDb() {
       console.log(`Seeded ${tmplDefaults.length} email templates`);
     }
   }catch(e){ console.error('templates seed error', e.message); }
+  // Fix existing templates that still say Saheed — update to Ifeoluwa (owner request: name is Ifeoluwa not Saheed)
+  try{ await db.prepare("UPDATE email_templates SET body_html = REPLACE(body_html, 'Saheed (Akinyemmi Ifeoluwa)', 'Ifeoluwa (Akinyemmi Ifeoluwa)') WHERE body_html LIKE '%Saheed%'").run(); }catch{}
+  try{ await db.prepare("UPDATE email_templates SET body_html = REPLACE(body_html, 'Saheed', 'Ifeoluwa') WHERE body_html LIKE '%Saheed%'").run(); }catch{}
 
   // Migrations
   try {

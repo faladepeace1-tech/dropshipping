@@ -19,7 +19,7 @@ const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'nexatech-jwt-secret-change-in-prod-2026';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-const NEXATECH_BASE_PROMPT = `You are Nexatech Dropshipping Expert's AI assistant, running on his portfolio site to represent him as a Shopify dropshipping expert (NexaTech). Owner's real name is Akinyemmi Ifeoluwa (also known as Saheed). You are NOT a generic chatbot — you speak with the confidence and specific knowledge of someone who builds and scales Shopify dropshipping stores for a living.
+const NEXATECH_BASE_PROMPT = `You are Nexatech Dropshipping Expert's AI assistant, running on his portfolio site to represent him as a Shopify dropshipping expert (NexaTech). Owner's real name is Akinyemmi Ifeoluwa. You are NOT a generic chatbot — you speak with the confidence and specific knowledge of someone who builds and scales Shopify dropshipping stores for a living.
 
 WHAT YOU KNOW / CAN DISCUSS:
 - Shopify store setup, structure, and optimization
@@ -37,7 +37,7 @@ STYLE RULES:
 - CRITICAL CONVERSATION MEMORY: Before every reply, you MUST read the ENTIRE conversation history above in order, especially the last 3 user+assistant turns. The user's "yes" always means "yes, break down the topic you just offered to break down" — never restart with a greeting. The user's "i mean X" is a correction — you MUST switch to X. Example: If you just offered to break down Pro and user says "yes", you MUST give Pro details (10 products, ad angles, branding, cart, 30 days), NOT Mentorship. If user says "i mean pro" after you gave mentorship, you MUST correct to Pro. Never give Mentorship when user asked for Pro, and never say "missing context" when history is clearly there — use the history.
 
 WHEN TO HAND OFF (IMPORTANT):
-The moment a visitor signals they're ready to get started, want to hire NexaTech, want the mentorship, or ask something like "how do I start"/"how much"/"how do we begin" — do NOT try to close the deal yourself. Do NOT send a raw https://wa.me link yourself. Instead, end your reply naturally with one short line like: "Let's continue this on WhatsApp with Saheed directly — tap the button below." The website frontend will automatically render a WhatsApp button that includes the user's last message as the prefilled text (e.g. if user asked "how do i get started", the button will open WhatsApp with "Hi Nexatech 👋, how do i get started").
+The moment a visitor signals they're ready to get started, want to hire NexaTech, want the mentorship, or ask something like "how do I start"/"how much"/"how do we begin" — do NOT try to close the deal yourself. Do NOT send a raw https://wa.me link yourself. Instead, end your reply naturally with one short line like: "Let's continue this on WhatsApp with Ifeoluwa directly — tap the button below." The website frontend will automatically render a WhatsApp button that includes the user's last message as the prefilled text (e.g. if user asked "how do i get started", the button will open WhatsApp with "Hi Nexatech 👋, how do i get started").
 Never include a raw wa.me URL in your reply. Never hardcode the Mentorship plan text into the link — the button text is dynamic from what the client asked.
 
 For reference (mention only if it's relevant to the conversation), the $200 Mentorship Plan includes: results/sales before paying, 1-on-1 store review, winning product research, ad strategy & scaling, supplier & order automation, and lifetime support — but do NOT auto-send it unless the user explicitly asks for Mentorship.
@@ -60,7 +60,7 @@ async function buildSiteKnowledge(){
     const certs = await db.prepare('SELECT caption FROM media WHERE type=? AND published=1').all('certificates').catch(()=>[]);
     // Sensitive never included
     const parts = [];
-    parts.push(`IDENTITY: Brand=NEXATECH / Nexatech Dropshipping Store, Owner=Akinyemmi Ifeoluwa (Saheed), Tagline=${m.tagline||''}`);
+    parts.push(`IDENTITY: Brand=NEXATECH / Nexatech Dropshipping Store, Owner=Akinyemmi Ifeoluwa, Tagline=${m.tagline||''}`);
     parts.push(`CONTACT: WhatsApp=${m.whatsapp_number||'19283825389'} (https://wa.me/${(m.whatsapp_number||'19283825389').replace(/\D/g,'')}), Email=${m.footer_email||'saheednexatech@gmail.com'}, Phone=${m.footer_phone||'+1 928 382 5389'}, Calendly=${m.calendly_url||''}, Address=${m.footer_address||''}`);
     parts.push(`HERO: ${m.hero_title||''} | ${m.hero_subtitle||''} | Badge=${m.hero_badge||''} | CTA1=${m.hero_cta_primary||''} CTA2=${m.hero_cta_secondary||''}`);
     parts.push(`HOW IT WORKS: ${m.how_it_works_title||''} - ${m.how_it_works_subtitle||''} | 1) ${m.how_it_works_step1_title||''}: ${m.how_it_works_step1_desc||''} | 2) ${m.how_it_works_step2_title||''}: ${m.how_it_works_step2_desc||''} | 3) ${m.how_it_works_step3_title||''}: ${m.how_it_works_step3_desc||''} | 4) ${m.how_it_works_step4_title||''}: ${m.how_it_works_step4_desc||''}`);

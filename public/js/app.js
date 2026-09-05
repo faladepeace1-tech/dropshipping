@@ -656,47 +656,47 @@ function initHeader(){
   $('#drawer').addEventListener('click', e=>{ if(e.target.id==='drawer') e.currentTarget.classList.remove('open'); });
 }
 
-// Reveal observer — ensure all steps/process show everything (per owner request)
+// Reveal observer — ensure all steps/process show everything (per owner request) — FIX: steps never vanish
 function initReveal(){
-  const els=$$('.reveal, .proof-card, .testi, .team-card, .step');
+  // FIX: How It Works must always show all 4 steps — process bar at 100% immediately, never hide 2,3,4
+  const stepsEls = document.querySelectorAll('.step');
+  stepsEls.forEach(s=> s.classList.add('in'));
+  const plInit = $('#progress-line');
+  if(plInit){ plInit.style.transform='scaleX(1)'; plInit.classList.add('on'); }
+  // Ensure steps grid is visible
+  const stepsContainer = document.querySelector('.steps');
+  if(stepsContainer){ stepsContainer.style.opacity='1'; stepsContainer.style.visibility='visible'; }
+
+  const els=$$('.reveal, .proof-card, .testi, .team-card');
   if(window.matchMedia('(prefers-reduced-motion: reduce)').matches || document.body.classList.contains('reduced')){
     els.forEach(el=>el.classList.add('in'));
-    $('#progress-line')?.classList.add('on');
-    const pl = $('#progress-line'); if(pl) pl.style.transform='scaleX(1)';
     return;
   }
   const io=new IntersectionObserver(es=>{
     es.forEach(e=>{
       if(e.isIntersecting){
         e.target.classList.add('in');
-        // steps progress
-        if(e.target.closest('#how-it-works')){
-          const steps=[...document.querySelectorAll('.step')];
-          const visible=steps.filter(s=>s.classList.contains('in')).length;
-          const pct=visible/steps.length;
-          const pl = $('#progress-line');
-          if(pl) pl.style.transform=`scaleX(${pct})`;
-          if(pct===1 && pl) pl.classList.add('on');
-        }
       }
     });
   },{threshold:.18});
   els.forEach(el=>io.observe(el));
-  // also observe progress line trigger
-  const how=$('#how-it-works'); if(how) io.observe(how);
-  // Fallback: show everything after 1.2s even if not intersecting (fixes "only show 1" report)
+  // Fallback: show everything after 1.2s even if not intersecting
   setTimeout(()=>{
-    const steps = document.querySelectorAll('.step');
-    if([...steps].some(s=>!s.classList.contains('in'))){
-      steps.forEach(s=>s.classList.add('in'));
-      const pl = $('#progress-line');
-      if(pl){ pl.style.transform='scaleX(1)'; pl.classList.add('on'); }
-    }
-    // also ensure all reveal els eventually show
+    // Re-assert steps never vanish — even if observer failed
+    document.querySelectorAll('.step').forEach(s=>s.classList.add('in'));
+    const pl = $('#progress-line');
+    if(pl){ pl.style.transform='scaleX(1)'; pl.classList.add('on'); }
     $$('.reveal, .proof-card, .testi, .team-card').forEach(el=>{
       if(!el.classList.contains('in')) el.classList.add('in');
     });
   }, 1200);
+  // Safety: re-assert every 2s that all 4 remain visible (prevents 2,3,4 vanish on some browsers)
+  setInterval(()=>{
+    const s = document.querySelectorAll('.step');
+    let missing=false;
+    s.forEach(el=>{ if(!el.classList.contains('in')) missing=true; el.classList.add('in'); });
+    if(missing){ const p=$('#progress-line'); if(p){ p.style.transform='scaleX(1)'; p.classList.add('on'); } }
+  }, 2000);
 }
 
 // Chatbot — persists reload (sessionStorage), new tab fresh, with New/Recent/WhatsApp + reads history before reply
@@ -819,8 +819,8 @@ function initChat(){
     if(apiJson && apiJson.fallback) return true;
     // If backend still accidentally returned raw wa.me link, we will show button anyway and strip link
     if(/wa\.me/i.test(replyText||'') || /https?:\/\/wa\.me/i.test(apiJson?.reply||'')) return true;
-    // Handoff phrases from prompt
-    if(/continue on whatsapp|tap the button below|whatsapp with saheed|tap below/i.test(replyText||'')) return true;
+    // Handoff phrases from prompt — support both Ifeoluwa and legacy Saheed
+    if(/continue on whatsapp|tap the button below|whatsapp with (ifeoluwa|saheed)|tap below/i.test(replyText||'')) return true;
     // User intent handoff — always show button for these, even if reply doesn't mention WhatsApp yet
     if(/how (do|to) (i )?(get )?started|how much|want.*mentorship|hire|get started|how do we begin|want to start/i.test(userText||'')) return true;
     return false;
