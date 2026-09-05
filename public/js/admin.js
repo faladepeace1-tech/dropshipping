@@ -385,15 +385,23 @@ async function testWebhook(type){
   finally{ if(btn){ btn.disabled=false; btn.textContent='Test Form Webhook →'; } }
 }
 $('#btn-test-webhook-form')?.addEventListener('click', ()=> testWebhook('form'));
-// Gemini direct (replaces chatbot webhook)
+// Gemini direct — saved permanently in backend content table (PROTECTED_KEYS, never wiped)
 async function loadGeminiStatus(){
   try{
     const r=await fetch('/api/admin/gemini-key',{headers:authHeaders()});
     const j=await r.json();
     const el=$('#gemini-key-status');
-    if(el) el.textContent = j.dbHas||j.envHas ? `Key set (${j.masked||'env'} via ${j.source}, model: ${j.model})` : 'No key set — chatbot disabled, paste Gemini key above';
+    if(el){
+      if(j.dbHas) el.textContent = `Key set ✓ ${j.masked} via db (saved permanently), model: ${j.model}`;
+      else if(j.envHas) el.textContent = `Key set (${j.masked||'env'} via env, model: ${j.model}) — also save in DB to persist`;
+      else el.textContent = 'No key set — chatbot disabled, paste Gemini key above (AQ.Ab8... or AIza...)';
+      el.style.color = j.dbHas ? '#10B981' : (j.envHas ? '#64748B' : '#F87171');
+    }
     const modelEl=$('#int-gemini-model');
-    if(modelEl && j.model) modelEl.placeholder = j.model;
+    if(modelEl){
+      modelEl.placeholder = j.model || 'gemini-2.5-flash';
+      if(j.dbModel) modelEl.value = ''; // keep placeholder as saved value
+    }
   }catch{}
 }
 $('#btn-show-gemini-key')?.addEventListener('click', ()=>{
@@ -403,10 +411,22 @@ $('#btn-show-gemini-key')?.addEventListener('click', ()=>{
 $('#btn-save-gemini')?.addEventListener('click', async()=>{
   const key=$('#int-gemini-key')?.value || '';
   const model=$('#int-gemini-model')?.value || '';
-  const r=await fetch('/api/admin/gemini-key',{method:'PUT',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify({key, model})});
-  const j=await r.json();
-  $('#gemini-msg').textContent = r.ok ? 'Gemini key saved — chatbot will now use Gemini directly' : (j.error||'Save failed');
-  if(r.ok){ $('#int-gemini-key').value=''; loadGeminiStatus(); }
+  if(!key.trim() && !model.trim()){ $('#gemini-msg').textContent='Paste a key (AQ.Ab8... or AIza...) or model first'; return; }
+  const btn=$('#btn-save-gemini'); if(btn) btn.disabled=true;
+  $('#gemini-msg').textContent='Saving...';
+  try{
+    const r=await fetch('/api/admin/gemini-key',{method:'PUT',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify({key, model})});
+    const j=await r.json();
+    if(r.ok){
+      $('#gemini-msg').innerHTML = j.dbHas ? `<span style="color:#10B981">✓ Saved permanently in backend ✓ ${j.masked} — persists across deploys/reloads (content table)</span>` : (j.message||'Saved');
+      $('#int-gemini-key').value='';
+      if(model) $('#int-gemini-model').value='';
+      await loadGeminiStatus();
+    } else {
+      $('#gemini-msg').textContent = j.error||'Save failed';
+    }
+  }catch(e){ $('#gemini-msg').textContent='Error: '+e.message; }
+  finally{ if(btn) btn.disabled=false; }
 });
 $('#btn-test-gemini')?.addEventListener('click', async()=>{
   const out=$('#gemini-test-result');

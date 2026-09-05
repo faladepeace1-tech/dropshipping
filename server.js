@@ -1023,29 +1023,46 @@ app.post('/api/admin/webhook-test', requireAuth, async (req, res) => {
   res.json({ ok: true, results, timestamp: now });
 });
 
-// Gemini API key management (chatbot direct, not n8n) — owner pasted key AQ.Ab8RN6...
+// Gemini API key management (chatbot direct, not n8n) — owner pasted key AQ.Ab8RN6... — saved permanently in backend content table
 app.get('/api/admin/gemini-key', requireAuth, async (req, res) => {
   const envHas = !!(GEMINI_API_KEY && GEMINI_API_KEY.trim());
-  let dbHas = false, masked = '';
+  let dbHas = false, masked = '', dbModel='';
   try{
     const row = await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_api_key');
     const v = row?.value?.trim() || '';
     dbHas = !!v;
-    if(v) masked = v.slice(0,4) + '...' + v.slice(-4);
+    if(v) masked = v.slice(0,6) + '...' + v.slice(-4);
   }catch{}
-  res.json({ envHas, dbHas, masked, model: GEMINI_MODEL, source: envHas ? 'env' : (dbHas ? 'db' : 'none') });
+  try{
+    const mr = await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_model');
+    dbModel = mr?.value?.trim() || GEMINI_MODEL;
+  }catch{ dbModel=GEMINI_MODEL; }
+  const effectiveModel = dbModel || GEMINI_MODEL;
+  res.json({ envHas, dbHas, masked, model: effectiveModel, dbModel, envModel: GEMINI_MODEL, source: dbHas ? 'db' : (envHas ? 'env' : 'none'), savedPermanently: dbHas });
 });
 app.put('/api/admin/gemini-key', requireAuth, async (req, res) => {
   const { key, model } = req.body;
-  // Permanent save: only overwrite if non-empty — prevents accidental wipe
+  let savedKey=false, savedModel=false;
+  // Permanent save in backend content table — never wiped unless you edit again (PROTECTED_KEYS)
   if(key !== undefined && String(key).trim() !== ''){
     const val = String(key).trim();
     await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, type=excluded.type").run('gemini_api_key', val, 'text');
+    savedKey=true;
   }
   if(model !== undefined && String(model).trim() !== ''){
-    await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('gemini_model', String(model).trim(), 'text');
+    const mval = String(model).trim();
+    await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('gemini_model', mval, 'text');
+    savedModel=true;
   }
-  res.json({ ok: true });
+  // Return fresh status to confirm permanent save
+  let dbHas=false, masked='', dbModelOut=GEMINI_MODEL;
+  try{
+    const row = await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_api_key');
+    const v=row?.value?.trim()||''; dbHas=!!v; if(v) masked=v.slice(0,6)+'...'+v.slice(-4);
+    const mr=await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_model');
+    dbModelOut=mr?.value?.trim()||GEMINI_MODEL;
+  }catch{}
+  res.json({ ok: true, savedKey, savedModel, dbHas, masked, model: dbModelOut, savedPermanently: dbHas, message: dbHas ? 'Saved permanently in backend (content table, PROTECTED_KEYS)' : 'No key saved — paste a key and Save' });
 });
 app.post('/api/admin/gemini-test', requireAuth, async (req, res) => {
   const { message } = req.body;
