@@ -30,6 +30,7 @@
       <button data-tab="sections">Sections & Layout</button>
       <button data-tab="leads">Leads / CRM</button>
       <button data-tab="campaigns">Campaigns / Email</button>
+      <button data-tab="chats">Chatbot 💬</button>
       <button data-tab="analytics">Analytics</button>
       <button data-tab="settings">Integrations</button>
     </nav>
@@ -77,13 +78,13 @@
         </div>
       </section>
 
-      <!-- Brand / Logo — backend only, logo in logo-mark not logo-text, brand name at front -->
+      <!-- Brand / Logo — backend only, logo in logo-mark, logo first -->
       <section data-panel="brand" class="hidden">
         <div class="card" style="border-color:rgba(124,58,237,.25)">
           <h3>Brand — Logo & Favicon <small style="font-weight:500;color:#64748B">backend only</small></h3>
-          <p style="font-size:12px;color:#64748B;margin:6px 0 0">Logo is rendered in <code>&lt;span class="logo-mark"&gt;N&lt;/span&gt;</code> — the <b>N mark</b> — not in <code>#logo-text</code>. Brand name is editable and shown <b>at the front of the logo</b>. Upload here, saved permanently.</p>
+          <p style="font-size:12px;color:#64748B;margin:6px 0 0">Logo is rendered in <code>&lt;span class="logo-mark"&gt;N&lt;/span&gt;</code> — the <b>logo mark</b> — shown <b>before</b> the brand name as <b>(logo) NEXATECH</b>. Upload here, saved permanently.</p>
           <div style="display:grid;gap:14px;margin-top:14px">
-            <label>Brand Name (editable, front of logo) <input id="brand-name" placeholder="NEXATECH"></label>
+            <label>Brand Name (editable, after logo) <input id="brand-name" placeholder="NEXATECH"></label>
             <div style="display:grid;grid-template-columns:1fr 120px;gap:12px;align-items:start">
               <div style="display:grid;gap:10px">
                 <label>Logo Image — uploads to <code>logo-mark</code> (replaces N) <input type="file" id="brand-logo-file" accept="image/*"></label>
@@ -99,14 +100,14 @@
               </div>
               <div id="brand-favicon-preview" style="width:112px;height:56px;border:1px solid var(--border);border-radius:10px;display:grid;place-items:center;overflow:hidden;background:#F8FAFC;font-size:11px;color:#94A3B8">favicon</div>
             </div>
-            <label>Logo Position <select id="brand-position"><option value="brand_first">Brand name at front of logo (Brand + Logo Mark) — default</option><option value="logo_first">Logo mark first (Logo + Brand)</option></select></label>
+            <label>Logo Position <select id="brand-position"><option value="logo_first">Logo first (Logo + Brand) — default: (logo) NEXATECH</option><option value="brand_first">Brand first (Brand + Logo)</option></select></label>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
               <button class="btn btn-primary" id="btn-save-brand">Save Brand</button>
               <button class="btn btn-ghost" id="btn-preview-brand" type="button">Preview Header →</button>
             </div>
             <div id="brand-msg" style="font-size:13px;margin-top:4px"></div>
             <div style="display:flex;gap:10px;align-items:center;padding:10px;border:1px dashed var(--border);border-radius:12px;background:#F8FAFC">
-              <span style="font-size:11px;color:#64748B">Live header preview (brand front):</span>
+              <span style="font-size:11px;color:#64748B">Live header preview (logo first):</span>
               <span id="brand-live-preview" style="display:inline-flex;align-items:center;gap:8px;font-weight:900"><span class="logo-mark" style="width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#00D1FF,#7C3AED);display:grid;place-items:center;color:#fff">N</span> <span id="brand-live-text">NEXATECH</span></span>
             </div>
           </div>
@@ -322,6 +323,42 @@
         <!-- Personal email modal trigger from Leads kanban handled via global dialog -->
       </section>
 
+      <!-- Chatbot — how many used it + full conversations (clean UI) -->
+      <section data-panel="chats" class="hidden">
+        <div class="cards">
+          <div class="kpi"><small>Chat Users</small><strong id="chat-kpi-users">–</strong></div>
+          <div class="kpi"><small>Total Messages</small><strong id="chat-kpi-msgs">–</strong></div>
+          <div class="kpi"><small>Today's Chats</small><strong id="chat-kpi-today">–</strong></div>
+          <div class="kpi"><small>User / Bot</small><strong id="chat-kpi-split">–</strong></div>
+        </div>
+        <div class="card">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between">
+            <h3 style="margin:0">Chatbot Conversations <small style="font-weight:500;color:#64748B" id="chat-count"></small></h3>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+              <input id="chat-search" placeholder="Search session or message..." style="padding:8px 10px;border:1px solid #E2E8F0;border-radius:10px;min-width:220px">
+              <button class="btn btn-ghost" id="btn-refresh-chats" style="padding:8px 12px;font-size:12px">Refresh</button>
+              <a class="btn btn-ghost" href="/api/admin/chats/export.csv" target="_blank" style="padding:8px 12px;font-size:12px">Export CSV</a>
+            </div>
+          </div>
+          <div id="chat-summary-note" style="font-size:12px;color:#94A3B8;margin-top:6px"></div>
+        </div>
+        <div class="grid2" style="align-items:start">
+          <div class="card">
+            <h3 style="margin:0 0 8px">People <small style="color:#94A3B8;font-weight:500">click to view conversation</small></h3>
+            <div id="chats-list" style="display:grid;gap:8px;max-height:560px;overflow:auto"></div>
+          </div>
+          <div class="card">
+            <div style="display:flex;gap:8px;align-items:center;justify-content:space-between">
+              <h3 style="margin:0" id="chat-thread-title">Select a conversation →</h3>
+              <button class="btn btn-ghost" id="btn-delete-chat" style="display:none;padding:6px 10px;font-size:11px;color:#F87171">Delete</button>
+            </div>
+            <div id="chat-thread" style="display:grid;gap:8px;margin-top:10px;max-height:520px;overflow:auto;padding:4px">
+              <div style="font-size:12px;color:#94A3B8;border:1px dashed #E2E8F0;border-radius:10px;padding:16px;text-align:center">No conversation selected.<br>New chatbot messages appear here automatically after refresh.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- Analytics -->
       <section data-panel="analytics" class="hidden">
         <div class="cards">
@@ -338,104 +375,83 @@
         </div>
       </section>
 
-      <!-- Settings — collapsible, backend only: save & close, closed until you click Edit -->
+      <!-- Settings -->
       <section data-panel="settings" class="hidden">
-        <p style="font-size:12px;color:#64748B;margin:0 0 10px">Integrations are <b>collapsed by default</b> — click <b>Edit</b> to open a section. After <b>Save</b> it auto-closes and is saved <b>permanently in backend</b>. Only one section opens at a time. Change your admin password below.</p>
-
-        <details class="card" id="details-password" style="border-color:rgba(239,68,68,.35);background:rgba(239,68,68,.04)">
-          <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:10px"><div><h3 style="margin:0">🔒 Change Password</h3><small style="color:#94A3B8">Admin security — <span id="password-user" style="color:#0B1220">admin</span> • <span id="password-summary-status" style="color:#64748B">not changed</span></small></div><span style="font-size:12px;color:#DC2626;border:1px solid #FECACA;border-radius:999px;padding:4px 10px;background:#FFF">Edit ▾</span></summary>
-          <div style="display:grid;gap:10px;margin-top:12px">
-            <div style="font-size:11px;color:#64748B;background:#FFF;border:1px solid #FECACA;border-radius:8px;padding:8px">Logged in as <b id="password-current-user">admin</b> • This changes your backend login password. Use a strong password and keep it safe.</div>
-            <label>Current Password <input id="pwd-current" type="password" placeholder="••••••••" autocomplete="current-password"></label>
-            <label>New Password <input id="pwd-new" type="password" placeholder="At least 6 characters" autocomplete="new-password"></label>
-            <label>Confirm New Password <input id="pwd-confirm" type="password" placeholder="Repeat new password" autocomplete="new-password"></label>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
-              <button class="btn btn-primary" id="btn-change-password" style="background:#DC2626;border-color:#DC2626">Change Password</button>
-              <button class="btn btn-ghost" id="btn-show-pwd" type="button" style="padding:6px 10px;font-size:11px">Show</button>
-            </div>
-            <div id="pwd-msg" style="font-size:13px;margin-top:4px;min-height:18px"></div>
+        <div class="card">
+          <h3>Contact & Booking</h3>
+          <p style="font-size:12px;color:#64748B;margin:6px 0 0">Edit & Save — frontend <b>Book a Call</b> buttons (nav, hero, CTA, drawer) update instantly from <code>calendly_url</code>.</p>
+          <label>WhatsApp Number (digits, with country code, e.g. 19283825389)<input id="int-wa" placeholder="19283825389"></label>
+          <label>Contact Email (footer & privacy)<input id="int-email" placeholder="saheednexatech@gmail.com"></label>
+          <label>Contact Phone Display<input id="int-phone" placeholder="+1 928 382 5389"></label>
+          <label>Calendly / Booking URL (editable — all Book buttons use this)<input id="int-calendly" type="url" placeholder="https://calendly.com/nexatech/strategy-call"></label>
+          <small style="color:#94A3B8">Paste full URL with https:// — Save, then click Preview Site → Book a Call to verify it opens.</small>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+            <button class="btn btn-primary" id="btn-save-integrations">Save Contact & Booking</button>
+            <button class="btn btn-ghost" id="btn-preview-booking" type="button">Preview Site →</button>
           </div>
-        </details>
-
-        <details class="card" id="details-contact" style="border-color:#E2E8F0">
-          <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:10px"><div><h3 style="margin:0">Contact & Booking</h3><small style="color:#94A3B8">WhatsApp, email, phone, Calendly</small></div><span style="font-size:12px;color:#7C3AED;border:1px solid #E2E8F0;border-radius:999px;padding:4px 10px;background:#F8FAFC">Edit ▾</span></summary>
-          <div style="display:grid;gap:10px;margin-top:12px">
-            <label>WhatsApp Number (digits, with country code, e.g. 19283825389)<input id="int-wa"></label>
-            <label>Contact Email (footer & privacy)<input id="int-email" placeholder="saheednexatech@gmail.com"></label>
-            <label>Contact Phone Display<input id="int-phone" placeholder="+1 928 382 5389"></label>
-            <label>Calendly / Booking URL<input id="int-calendly" placeholder="https://calendly.com/..."></label>
-            <button class="btn btn-primary" id="btn-save-integrations" style="margin-top:4px">Save Contact & Booking</button>
-            <div id="int-msg" style="font-size:13px;margin-top:4px"></div>
+          <div id="int-msg" style="font-size:13px;margin-top:8px"></div>
+        </div>
+        <div class="card" style="border-color:rgba(16,185,129,.3)">
+          <h3>Google Sheets Direct (Append row) — matches n8n node</h3>
+          <p style="font-size:12px;color:#94A3B8">Backend will append each new lead as a row (like <code>n8n-nodes-base.googleSheets</code> operation <code>append</code> with <code>documentId</code> + <code>sheetName</code>). Add your <b>Google Cloud Console OAuth Client ID / Secret</b> (APIs & Services → Credentials → OAuth 2.0 Client ID), set <b>Redirect URI</b> to <code>https://dropshippingstore.dpdns.org/auth/google/callback</code> and <code>http://localhost:3000/auth/google/callback</code>, enable <b>Google Sheets API</b>, then Connect.</p>
+          <label>Google Cloud Client ID <input id="int-google-client-id" placeholder="123456789012-...apps.googleusercontent.com"></label>
+          <label>Google Cloud Client Secret <input id="int-google-client-secret" type="password" placeholder="GOCSPX-..."></label>
+          <div style="display:flex;gap:8px;align-items:center"><span id="google-client-status" style="font-size:11px;color:#94A3B8">Checking...</span><button class="btn btn-ghost" id="btn-show-google-secret" style="padding:6px 10px;font-size:11px">Show</button></div>
+          <label>Google Sheets Document ID <input id="int-google-doc-id" placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms (from sheet URL) — paste full URL or ID, it auto-extracts"></label>
+          <label>Sheet Name <input id="int-google-sheet-name" placeholder="Sheet1 — auto-detected if leave blank, use Detect below"></label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+            <button class="btn btn-primary" id="btn-save-google-sheets">Save Google Sheets</button>
+            <button class="btn btn-ghost" id="btn-connect-google" style="border-color:#10B981;color:#10B981">Connect Google Sheets →</button>
+            <button class="btn btn-ghost" id="btn-detect-google" style="border-color:#F59E0B;color:#F59E0B">Auto-Detect Sheet & Columns →</button>
+            <button class="btn btn-ghost" id="btn-test-google-sheets" style="border-color:#00D1FF;color:#00D1FF">Test Append Row →</button>
+            <button class="btn btn-ghost" id="btn-disconnect-google" style="color:#F87171">Disconnect</button>
           </div>
-        </details>
-
-        <details class="card" id="details-google" style="border-color:rgba(16,185,129,.3)">
-          <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:10px"><div><h3 style="margin:0">Google Sheets Direct (Append row)</h3><small style="color:#94A3B8">Client ID/Secret + Doc/Sheet — <span id="google-summary-status" style="color:#10B981">checking...</span></small></div><span style="font-size:12px;color:#7C3AED;border:1px solid #E2E8F0;border-radius:999px;padding:4px 10px;background:#F8FAFC">Edit ▾</span></summary>
-          <div style="display:grid;gap:10px;margin-top:12px">
-            <p style="font-size:12px;color:#94A3B8;margin:0">Backend will append each new lead as a row (like <code>n8n-nodes-base.googleSheets</code> operation <code>append</code> with <code>documentId</code> + <code>sheetName</code>). Add your <b>Google Cloud Console OAuth Client ID / Secret</b>, set <b>Redirect URI</b> to <code>https://dropshippingstore.dpdns.org/auth/google/callback</code> and <code>http://localhost:3000/auth/google/callback</code>, enable <b>Google Sheets API</b>, then Connect.</p>
-            <label>Google Cloud Client ID <input id="int-google-client-id" placeholder="123456789012-...apps.googleusercontent.com"></label>
-            <label>Google Cloud Client Secret <input id="int-google-client-secret" type="password" placeholder="GOCSPX-..."></label>
-            <div style="display:flex;gap:8px;align-items:center"><span id="google-client-status" style="font-size:11px;color:#94A3B8">Checking...</span><button class="btn btn-ghost" id="btn-show-google-secret" style="padding:6px 10px;font-size:11px">Show</button></div>
-            <label>Google Sheets Document ID <input id="int-google-doc-id" placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms (from sheet URL) — paste full URL or ID, it auto-extracts"></label>
-            <label>Sheet Name <input id="int-google-sheet-name" placeholder="Sheet1 — auto-detected if leave blank, use Detect below"></label>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
-              <button class="btn btn-primary" id="btn-save-google-sheets">Save Google Sheets</button>
-              <button class="btn btn-ghost" id="btn-connect-google" style="border-color:#10B981;color:#10B981">Connect Google Sheets →</button>
-              <button class="btn btn-ghost" id="btn-detect-google" style="border-color:#F59E0B;color:#F59E0B">Auto-Detect Sheet & Columns →</button>
-              <button class="btn btn-ghost" id="btn-test-google-sheets" style="border-color:#00D1FF;color:#00D1FF">Test Append Row →</button>
-              <button class="btn btn-ghost" id="btn-disconnect-google" style="color:#F87171">Disconnect</button>
+          <div id="google-msg" style="font-size:13px;margin-top:8px"></div>
+          <pre id="google-test-result" style="display:none;background:#0B1220;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px;font-size:11px;color:#94A3B8;overflow:auto;max-height:240px;white-space:pre-wrap;word-break:break-all"></pre>
+          <!-- Auto-detect result -->
+          <div id="google-detect-wrap" style="display:none;margin-top:12px;border:1px solid rgba(16,185,129,.25);border-radius:12px;padding:12px;background:rgba(16,185,129,.05)">
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:space-between">
+              <b style="font-size:13px">Auto-Detected Sheet</b>
+              <span id="google-detect-title" style="font-size:11px;color:#94A3B8"></span>
             </div>
-            <div id="google-msg" style="font-size:13px;margin-top:4px"></div>
-            <pre id="google-test-result" style="display:none;background:#0B1220;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px;font-size:11px;color:#94A3B8;overflow:auto;max-height:240px;white-space:pre-wrap;word-break:break-all"></pre>
-            <div id="google-detect-wrap" style="display:none;margin-top:10px;border:1px solid rgba(16,185,129,.25);border-radius:12px;padding:12px;background:rgba(16,185,129,.05)">
-              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:space-between">
-                <b style="font-size:13px">Auto-Detected Sheet</b>
-                <span id="google-detect-title" style="font-size:11px;color:#94A3B8"></span>
-              </div>
-              <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
-                <label style="flex:1;min-width:180px">Detected Sheets<select id="google-sheet-picker" style="width:100%;margin-top:4px;padding:8px;border-radius:8px;background:#0B1220;color:#F1F5F9;border:1px solid rgba(255,255,255,.08)"></select></label>
-                <label style="flex:1;min-width:140px">Sheet Name (editable)<input id="google-sheet-picker-custom" placeholder="Sheet1" style="width:100%;margin-top:4px"></label>
-              </div>
-              <div id="google-columns-info" style="margin-top:10px;font-size:12px"></div>
-              <div id="google-headers-preview" style="margin-top:8px;overflow:auto"></div>
-              <div id="google-missing-wrap" style="margin-top:10px"></div>
-              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-                <button class="btn btn-primary" id="btn-create-headers" style="background:#10B981;border-color:#10B981">Create / Overwrite Headers (22 cols) →</button>
-                <button class="btn btn-ghost" id="btn-append-missing" style="border-color:#F59E0B;color:#F59E0B">Append Missing Columns Only</button>
-                <button class="btn btn-ghost" id="btn-refresh-detect" style="padding:6px 10px;font-size:11px">Refresh Detect</button>
-              </div>
-              <pre id="google-detect-result" style="display:none;background:#0B1220;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px;font-size:11px;color:#94A3B8;overflow:auto;max-height:200px;white-space:pre-wrap;word-break:break-all;margin-top:8px"></pre>
+            <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
+              <label style="flex:1;min-width:180px">Detected Sheets<select id="google-sheet-picker" style="width:100%;margin-top:4px;padding:8px;border-radius:8px;background:#0B1220;color:#F1F5F9;border:1px solid rgba(255,255,255,.08)"></select></label>
+              <label style="flex:1;min-width:140px">Sheet Name (editable)<input id="google-sheet-picker-custom" placeholder="Sheet1" style="width:100%;margin-top:4px"></label>
             </div>
-            <div style="font-size:11px;color:#94A3B8;margin-top:6px">Keys are saved <b>permanently</b> in DB (content table). They persist across deploys and only change when you edit & Save again.</div>
+            <div id="google-columns-info" style="margin-top:10px;font-size:12px"></div>
+            <div id="google-headers-preview" style="margin-top:8px;overflow:auto"></div>
+            <div id="google-missing-wrap" style="margin-top:10px"></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+              <button class="btn btn-primary" id="btn-create-headers" style="background:#10B981;border-color:#10B981">Create / Overwrite Headers (22 cols) →</button>
+              <button class="btn btn-ghost" id="btn-append-missing" style="border-color:#F59E0B;color:#F59E0B">Append Missing Columns Only</button>
+              <button class="btn btn-ghost" id="btn-refresh-detect" style="padding:6px 10px;font-size:11px">Refresh Detect</button>
+            </div>
+            <pre id="google-detect-result" style="display:none;background:#0B1220;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px;font-size:11px;color:#94A3B8;overflow:auto;max-height:200px;white-space:pre-wrap;word-break:break-all;margin-top:8px"></pre>
           </div>
-        </details>
-
-        <details class="card" id="details-gemini" style="border-color:rgba(124,58,237,.3)">
-          <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:10px"><div><h3 style="margin:0">Chatbot — Gemini Direct</h3><small style="color:#94A3B8">API key/model — <span id="gemini-summary-status" style="color:#F87171">checking...</span></small></div><span style="font-size:12px;color:#7C3AED;border:1px solid #E2E8F0;border-radius:999px;padding:4px 10px;background:#F8FAFC">Edit ▾</span></summary>
-          <div style="display:grid;gap:10px;margin-top:12px">
-            <p style="font-size:12px;color:#94A3B8;margin:0">Paste your Gemini API key here to run the chatbot directly via Google Gemini. Form leads go directly to Google Sheets (above). Key is stored securely in DB and never shown publicly. <b>Saved permanently</b> — closed until you click Edit.</p>
-            <label>Gemini API Key <input id="int-gemini-key" type="password" placeholder="AQ.Ab8RN6... or AIza... (paste whole key)"></label>
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-              <span id="gemini-key-status" style="font-size:11px;color:#94A3B8">Checking...</span>
-              <button class="btn btn-ghost" id="btn-show-gemini-key" style="padding:6px 10px;font-size:11px">Show</button>
-            </div>
-            <label>Gemini Model <input id="int-gemini-model" placeholder="gemini-2.5-flash (default, free)"></label>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
-              <button class="btn btn-primary" id="btn-save-gemini">Save Gemini Key</button>
-              <button class="btn btn-ghost" id="btn-test-gemini" style="border-color:#7C3AED;color:#7C3AED">Test Gemini →</button>
-            </div>
-            <div id="gemini-msg" style="font-size:13px;margin-top:4px"></div>
-            <pre id="gemini-test-result" style="display:none;background:#0B1220;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px;font-size:11px;color:#94A3B8;overflow:auto;max-height:240px;white-space:pre-wrap;word-break:break-all"></pre>
+          <div style="font-size:11px;color:#94A3B8;margin-top:8px">Keys are saved <b>permanently</b> in DB (content table: google_client_id / google_client_secret / google_sheets_doc_id / google_sheets_sheet_name / tokens). They persist across deploys and only change when you edit & Save again. Use <b>Auto-Detect</b> to list sheets inside the spreadsheet, see current header row, highlight missing columns, and auto-create the 22 lead columns: <code>Timestamp, Name, Store Name, Preferred Niche, Preferred Niche Other, Investment Range, Store Status, Was Scammed, Scam Details, WhatsApp, Email, Preferred Contact Time, Source, Traffic Plan, Page URL, Session ID, UTM Source, UTM Medium, UTM Campaign, Pipeline Stage, Webhook Status, Submitted At</code>.</div>
+        </div>
+        <div class="card" style="border-color:rgba(124,58,237,.3)">
+          <h3>Chatbot — Gemini Direct (replaces n8n webhook for chat)</h3>
+          <p style="font-size:12px;color:#94A3B8">Paste your Gemini API key here to run the chatbot directly via Google Gemini. Form leads go directly to Google Sheets (above). Key is stored securely in DB and never shown publicly.</p>
+          <label>Gemini API Key <input id="int-gemini-key" type="password" placeholder="AQ.Ab8RN6... or AIza... (paste whole key)"></label>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <span id="gemini-key-status" style="font-size:11px;color:#94A3B8">Checking...</span>
+            <button class="btn btn-ghost" id="btn-show-gemini-key" style="padding:6px 10px;font-size:11px">Show</button>
           </div>
-        </details>
-
-        <details class="card" id="details-theme" style="border-color:#E2E8F0">
-          <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:10px"><div><h3 style="margin:0">Theme & Branding</h3><small style="color:#94A3B8">Colours, logo, favicon via Content → Branding</small></div><span style="font-size:12px;color:#7C3AED;border:1px solid #E2E8F0;border-radius:999px;padding:4px 10px;background:#F8FAFC">Edit ▾</span></summary>
-          <div style="margin-top:10px">
-            <p style="font-size:12px;color:#94A3B8;margin:0">All theme colours, logo and favicon are editable under <b>Content & Theme → Branding & Theme</b> tab. Changes apply instantly site-wide via CSS custom properties.</p>
-            <button class="btn btn-ghost" data-tab-jump="content" style="margin-top:8px">Go to Branding →</button>
+          <label>Gemini Model <input id="int-gemini-model" placeholder="gemini-2.5-flash (default, free)"></label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+            <button class="btn btn-primary" id="btn-save-gemini">Save Gemini Key</button>
+            <button class="btn btn-ghost" id="btn-test-gemini" style="border-color:#7C3AED;color:#7C3AED">Test Gemini →</button>
           </div>
-        </details>
+          <div id="gemini-msg" style="font-size:13px;margin-top:8px"></div>
+          <pre id="gemini-test-result" style="display:none;background:#0B1220;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px;font-size:11px;color:#94A3B8;overflow:auto;max-height:240px;white-space:pre-wrap;word-break:break-all"></pre>
+          <div style="font-size:11px;color:#94A3B8;margin-top:8px">Knowledge base is the NexaTech prompt (Shopify, product research, ads, suppliers). The model will auto-hand off to WhatsApp `https://wa.me/19283825389` when user wants mentorship. Form webhook is separate.</div>
+        </div>
+        <div class="card">
+          <h3>Theme & Branding</h3>
+          <p style="font-size:12px;color:#94A3B8">All theme colours, logo and favicon are editable under <b>Content & Theme → Branding & Theme</b> tab. Changes apply instantly site-wide via CSS custom properties.</p>
+          <button class="btn btn-ghost" data-tab-jump="content">Go to Branding →</button>
+        </div>
       </section>
 
     </div>

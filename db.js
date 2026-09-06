@@ -293,6 +293,15 @@ export async function initDb() {
         category TEXT DEFAULT 'general',
         created_at TIMESTAMP DEFAULT NOW()
       );
+      CREATE TABLE IF NOT EXISTS chat_messages (
+        id SERIAL PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        role TEXT NOT NULL,
+        text TEXT NOT NULL,
+        page_url TEXT DEFAULT '',
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_chat_session ON chat_messages(session_id);
     `);
   } else {
     db.exec(`
@@ -421,6 +430,15 @@ export async function initDb() {
       category TEXT DEFAULT 'general',
       created_at TEXT DEFAULT (datetime('now'))
     );
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id TEXT NOT NULL,
+      role TEXT NOT NULL,
+      text TEXT NOT NULL,
+      page_url TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_chat_session ON chat_messages(session_id);
   `);
   }
 
@@ -507,8 +525,8 @@ export async function initDb() {
       ['logo_text', 'NEXATECH', 'text'],
       ['logo_url', '', 'text'],
       ['favicon_url', '', 'text'],
-      ['logo_position', 'brand_first', 'text'],
-      ['brand_position', 'brand_first', 'text'],
+      ['logo_position', 'logo_first', 'text'],
+      ['brand_position', 'logo_first', 'text'],
       ['reduced_motion', 'false', 'boolean'],
       ['scarcity_slots_total', '10', 'number'],
       ['scarcity_label', 'Only {remaining} build slots left this month', 'text'],
@@ -761,8 +779,8 @@ export async function initDb() {
     await ensure('gmail_connected_email','','text');
     await ensure('gmail_sender_name','','text');
     await ensure('gmail_last_sync','','text');
-    await ensure('logo_position','brand_first','text');
-    await ensure('brand_position','brand_first','text');
+    await ensure('logo_position','logo_first','text');
+    await ensure('brand_position','logo_first','text');
     await ensure('privacy_title','Privacy Policy','text');
     await ensure('privacy_last_updated','September 3, 2026','text');
     await ensure('privacy_content', `<h2>Introduction</h2><p>At Nexatech...</p>`, 'html');
@@ -795,6 +813,8 @@ export async function initDb() {
     try { await db.prepare("UPDATE content SET value = REPLACE(value, '7 14 days', '7 to 14 days') WHERE value LIKE '%7 14 days%'").run(); } catch {}
     try { await db.prepare("UPDATE content SET value = REPLACE(value, '7 14 Day', '7 to 14 Day') WHERE value LIKE '%7 14 Day%'").run(); } catch {}
     try { await db.prepare("UPDATE content SET value = REPLACE(value, '(7 14 days)', '(7 to 14 days)') WHERE value LIKE '%(7 14 days)%'").run(); } catch {}
+    // Logo order migration: logo must be before brand name -> (logo) NEXATECH
+    try{ await db.prepare("UPDATE content SET value='logo_first' WHERE key IN ('logo_position','brand_position') AND value='brand_first'").run(); }catch{}
     const hasReviews = await db.prepare('SELECT key FROM sections WHERE key=?').get('reviews');
     if(!hasReviews){
       // get max order

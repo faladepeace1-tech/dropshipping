@@ -38,6 +38,7 @@ $('#btn-logout').addEventListener('click', async()=>{
   localStorage.removeItem('nexatech_admin_token'); token=''; showApp(false);
 });
 $('#btn-preview').addEventListener('click', ()=> window.open('/', '_blank'));
+$('#btn-preview-booking')?.addEventListener('click', ()=> window.open('/', '_blank'));
 
 
 // Tabs
@@ -51,6 +52,7 @@ $$('.side-nav button').forEach(b=> b.addEventListener('click', ()=>{
   if(tab==='leads') loadLeads();
   if(tab==='brand') loadBrand();
   if(tab==='campaigns'){ loadCampaigns(); loadTemplates(); loadGmailStatus(); loadOutbox(); }
+  if(tab==='chats') loadChats();
   if(tab==='overview') loadOverview();
 }));
 $$('[data-tab-jump]').forEach(b=> b.addEventListener('click', ()=>{
@@ -302,14 +304,15 @@ async function loadContent(){
   CONTENT=j.content;
   lastPublishedContent=JSON.parse(JSON.stringify(CONTENT));
   // scarcity
-  $('#scarcity-total').value=CONTENT.scarcity_slots_total||10;
-  $('#scarcity-label').value=CONTENT.scarcity_label||'Only {remaining} build slots left this month';
-  $('#int-wa').value=CONTENT.whatsapp_number||'';
+  const scTotal=$('#scarcity-total'); if(scTotal) scTotal.value=CONTENT.scarcity_slots_total||10;
+  const scLabel=$('#scarcity-label'); if(scLabel) scLabel.value=CONTENT.scarcity_label||'Only {remaining} build slots left this month';
+  const waEl=$('#int-wa'); if(waEl) waEl.value=CONTENT.whatsapp_number||'';
   const emailEl=$('#int-email'); if(emailEl) emailEl.value=CONTENT.footer_email||'';
   const phoneEl=$('#int-phone'); if(phoneEl) phoneEl.value=CONTENT.footer_phone||'';
-  $('#int-calendly').value=CONTENT.calendly_url||'';
-  $('#int-webhook').value=CONTENT.webhook_url||'';
-  $('#int-webhook-enabled').checked=String(CONTENT.webhook_enabled)==='true';
+  const calEl=$('#int-calendly'); if(calEl) calEl.value=CONTENT.calendly_url||'';
+  // Legacy webhook fields (optional — only if present in DOM)
+  const whEl=$('#int-webhook'); if(whEl) whEl.value=CONTENT.webhook_url||'';
+  const whEn=$('#int-webhook-enabled'); if(whEn) whEn.checked=String(CONTENT.webhook_enabled)==='true';
   const formEl=$('#int-webhook-form'); if(formEl) formEl.value=CONTENT.webhook_form_url||'';
   const formEn=$('#int-webhook-form-enabled'); if(formEn) formEn.checked=String(CONTENT.webhook_form_enabled)==='true';
   const botEl=$('#int-webhook-bot'); if(botEl) botEl.value=CONTENT.webhook_chatbot_url||'';
@@ -317,58 +320,86 @@ async function loadContent(){
   renderContentForms();
 }
 $('#btn-save-content').addEventListener('click', async()=>{
-  const inputs=$$('#content-forms [data-key]');
-  const payload={};
-  const listKeysSave = ['pricing_starter_features','pricing_pro_features','pricing_elite_features','mentorship_bullets'];
-  inputs.forEach(inp=>{
-    let v=inp.value;
-    // For list keys, convert text lines to JSON array string (text format per owner request) — also accepts raw JSON for backward compat
-    if(listKeysSave.includes(inp.dataset.key)){
-      let lines;
-      const trimmed = v.trim();
-      if(trimmed.startsWith('[')){
-        try{ const parsed = JSON.parse(trimmed); if(Array.isArray(parsed)) lines = parsed; else lines = trimmed.split('\n').map(s=>s.trim()).filter(Boolean); }catch{ lines = v.split('\n').map(s=>s.trim()).filter(Boolean); }
-      } else {
-        lines = v.split('\n').map(s=>s.trim()).filter(Boolean);
+  const btn=$('#btn-save-content'); const msg=$('#content-msg');
+  if(btn) { btn.disabled=true; btn.textContent='Saving...'; }
+  if(msg) msg.textContent='';
+  try{
+    const inputs=$$('#content-forms [data-key]');
+    const payload={};
+    const listKeysSave = ['pricing_starter_features','pricing_pro_features','pricing_elite_features','mentorship_bullets'];
+    inputs.forEach(inp=>{
+      let v=inp.value;
+      // For list keys, convert text lines to JSON array string (text format per owner request) — also accepts raw JSON for backward compat
+      if(listKeysSave.includes(inp.dataset.key)){
+        let lines;
+        const trimmed = v.trim();
+        if(trimmed.startsWith('[')){
+          try{ const parsed = JSON.parse(trimmed); if(Array.isArray(parsed)) lines = parsed; else lines = trimmed.split('\n').map(s=>s.trim()).filter(Boolean); }catch{ lines = v.split('\n').map(s=>s.trim()).filter(Boolean); }
+        } else {
+          lines = v.split('\n').map(s=>s.trim()).filter(Boolean);
+        }
+        v = JSON.stringify(lines);
+      } else if(inp.dataset.key.includes('features') || inp.dataset.key.includes('bullets') || inp.dataset.key==='faq_items'){
+        // keep as string; server will store as json if valid
+        try{ JSON.parse(v); }catch{ /* allow raw */ }
       }
-      v = JSON.stringify(lines);
-    } else if(inp.dataset.key.includes('features') || inp.dataset.key.includes('bullets') || inp.dataset.key==='faq_items'){
-      // keep as string; server will store as json if valid
-      try{ JSON.parse(v); }catch{ /* allow raw */ }
-    }
-    payload[inp.dataset.key]=v;
-  });
-  // also include color text inputs (secondary)
-  // find theme colors text values
-  $$('#content-forms input[type="text"]').forEach(()=>{});
-  const r=await fetch('/api/content',{method:'PUT',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify(payload)});
-  const j=await r.json();
-  $('#content-msg').textContent = r.ok ? 'Saved   preview updates instantly.' : (j.error||'Save failed');
-  if(r.ok) await loadContent();
+      payload[inp.dataset.key]=v;
+    });
+    if(!Object.keys(payload).length){ if(msg) msg.textContent='Nothing to save'; return; }
+    const r=await fetch('/api/content',{method:'PUT',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify(payload)});
+    const j=await r.json().catch(()=>({}));
+    if(msg) msg.textContent = r.ok ? 'Saved ✓ preview updates instantly.' : (j.error||'Save failed');
+    if(msg) msg.style.color = r.ok ? '#10B981' : '#F87171';
+    if(r.ok) await loadContent();
+  }catch(e){ if(msg){ msg.textContent='Error: '+e.message; msg.style.color='#F87171'; } }
+  finally{ if(btn){ btn.disabled=false; btn.textContent='Save Content'; } }
 });
 $('#btn-save-scarcity').addEventListener('click', async()=>{
-  const total=$('#scarcity-total').value;
-  const label=$('#scarcity-label').value;
-  const r=await fetch('/api/content',{method:'PUT',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify({scarcity_slots_total:total, scarcity_label:label})});
-  if(r.ok) alert('Scarcity saved');
+  const btn=$('#btn-save-scarcity');
+  if(btn){ btn.disabled=true; btn.textContent='Saving...'; }
+  try{
+    const total=$('#scarcity-total')?.value || '10';
+    const label=$('#scarcity-label')?.value || 'Only {remaining} build slots left this month';
+    const r=await fetch('/api/content',{method:'PUT',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify({scarcity_slots_total:total, scarcity_label:label})});
+    const j=await r.json().catch(()=>({}));
+    if(r.ok){ alert('Scarcity saved ✓'); await loadContent(); }
+    else alert(j.error||'Save failed');
+  }catch(e){ alert('Error: '+e.message); }
+  finally{ if(btn){ btn.disabled=false; btn.textContent='Save'; } }
 });
 $('#btn-save-integrations').addEventListener('click', async()=>{
-  const payload={
-    whatsapp_number: $('#int-wa').value,
-    footer_email: $('#int-email')?.value || CONTENT.footer_email,
-    footer_phone: $('#int-phone')?.value || CONTENT.footer_phone,
-    calendly_url: $('#int-calendly').value,
-    webhook_url: $('#int-webhook').value,
-    webhook_enabled: String($('#int-webhook-enabled').checked),
-    webhook_form_url: $('#int-webhook-form')?.value || '',
-    webhook_form_enabled: String($('#int-webhook-form-enabled')?.checked || false)
-  };
-  // sync whatsapp_link automatically
-  if(payload.whatsapp_number) payload.whatsapp_link = 'https://wa.me/' + payload.whatsapp_number.replace(/\D/g,'');
-  const r=await fetch('/api/content',{method:'PUT',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify(payload)});
-  const j=await r.json();
-  $('#int-msg').textContent=r.ok?'Saved ✓ closed until you click Edit again':(j.error||'Failed');
-  if(r.ok){ await loadContent(); const d=document.getElementById('details-contact'); if(d) d.open=false; }
+  const btn=$('#btn-save-integrations'); const msg=$('#int-msg');
+  if(btn){ btn.disabled=true; btn.textContent='Saving...'; }
+  if(msg){ msg.textContent='Saving...'; msg.style.color='#64748B'; }
+  try{
+    const waVal=$('#int-wa')?.value?.trim() || '';
+    const emailVal=$('#int-email')?.value?.trim() || '';
+    const phoneVal=$('#int-phone')?.value?.trim() || '';
+    let calVal=$('#int-calendly')?.value?.trim() || '';
+    // Normalize Calendly URL: prepend https:// if missing protocol (so frontend button always responds)
+    if(calVal && !/^https?:\/\//i.test(calVal) && !calVal.startsWith('/')) calVal='https://'+calVal;
+    const payload={
+      whatsapp_number: waVal,
+      footer_email: emailVal || CONTENT.footer_email || '',
+      footer_phone: phoneVal || CONTENT.footer_phone || '',
+      calendly_url: calVal,
+    };
+    // Optional legacy webhook fields — only include if inputs exist in DOM
+    if($('#int-webhook')) payload.webhook_url=$('#int-webhook').value?.trim()||'';
+    if($('#int-webhook-enabled')) payload.webhook_enabled=String($('#int-webhook-enabled').checked);
+    if($('#int-webhook-form')) payload.webhook_form_url=$('#int-webhook-form').value?.trim()||'';
+    if($('#int-webhook-form-enabled')) payload.webhook_form_enabled=String($('#int-webhook-form-enabled').checked||false);
+    if($('#int-webhook-bot')) payload.webhook_chatbot_url=$('#int-webhook-bot').value?.trim()||'';
+    if($('#int-webhook-bot-enabled')) payload.webhook_chatbot_enabled=String($('#int-webhook-bot-enabled').checked||false);
+    // sync whatsapp_link automatically
+    if(payload.whatsapp_number) payload.whatsapp_link = 'https://wa.me/' + payload.whatsapp_number.replace(/\D/g,'');
+    const r=await fetch('/api/content',{method:'PUT',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify(payload)});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||'Save failed');
+    if(msg){ msg.textContent='Saved ✓ — WhatsApp, Email, Phone & Calendly updated. Frontend Book buttons now use: '+(calVal||'(WhatsApp fallback)'); msg.style.color='#10B981'; }
+    await loadContent();
+  }catch(e){ if(msg){ msg.textContent='Error: '+e.message; msg.style.color='#F87171'; } }
+  finally{ if(btn){ btn.disabled=false; btn.textContent='Save Contact & Booking'; } }
 });
 // Webhook test — form only (chat now via Gemini, per owner request)
 async function testWebhook(type){
@@ -763,7 +794,7 @@ async function loadBrand(){
     const brandName = CONTENT.logo_text || CONTENT.brand_name || 'NEXATECH';
     const logoUrl = CONTENT.logo_url || '';
     const faviconUrl = CONTENT.favicon_url || '';
-    const pos = CONTENT.logo_position || CONTENT.brand_position || 'brand_first';
+    const pos = CONTENT.logo_position || CONTENT.brand_position || 'logo_first';
     const nameEl=$('#brand-name'); if(nameEl) nameEl.value=brandName;
     const logoUrlEl=$('#brand-logo-url'); if(logoUrlEl) logoUrlEl.value=logoUrl;
     const favEl=$('#brand-favicon-url'); if(favEl) favEl.value=faviconUrl;
@@ -786,32 +817,38 @@ async function loadBrand(){
       else liveMark.textContent='N';
     }
     if(liveText) liveText.textContent=brandName||'NEXATECH';
-    // live preview order — brand name at front of logo
+    // live preview order — logo first: (logo) NEXATECH (default)
     const liveWrap=$('#brand-live-preview');
     if(liveWrap){
-      // brand_first = Brand + Mark, logo_first = Mark + Brand
-      if(pos==='logo_first'){ liveWrap.style.flexDirection='row'; liveWrap.innerHTML=''; liveWrap.appendChild(liveMark); liveWrap.appendChild(document.createTextNode(' ')); liveWrap.appendChild(liveText); }
-      else { liveWrap.style.flexDirection='row'; liveWrap.innerHTML=''; liveWrap.appendChild(liveText); liveWrap.appendChild(document.createTextNode(' ')); liveWrap.appendChild(liveMark); }
+      // logo_first = Mark + Brand (default), brand_first = Brand + Mark (legacy)
+      if(pos==='brand_first'){ liveWrap.style.flexDirection='row'; liveWrap.innerHTML=''; liveWrap.appendChild(liveText); liveWrap.appendChild(document.createTextNode(' ')); liveWrap.appendChild(liveMark); }
+      else { liveWrap.style.flexDirection='row'; liveWrap.innerHTML=''; liveWrap.appendChild(liveMark); liveWrap.appendChild(document.createTextNode(' ')); liveWrap.appendChild(liveText); }
     }
     // also update admin sidebar brand preview if exists
   }catch(e){ console.error('loadBrand',e); }
 }
 async function saveBrand(){
-  const brandName=$('#brand-name')?.value?.trim() || '';
-  const logoUrl=$('#brand-logo-url')?.value?.trim() || '';
-  const faviconUrl=$('#brand-favicon-url')?.value?.trim() || '';
-  const pos=$('#brand-position')?.value || 'brand_first';
-  const payload={};
-  if(brandName) payload.logo_text=brandName;
-  if(logoUrl) payload.logo_url=logoUrl;
-  if(faviconUrl) payload.favicon_url=faviconUrl;
-  payload.logo_position=pos;
-  payload.brand_position=pos; // alias
-  const r=await fetch('/api/content',{method:'PUT',headers:{'Content-Type':'application/json',...authHeaders()},body:JSON.stringify(payload)});
-  const j=await r.json().catch(()=>({}));
-  const msgEl=$('#brand-msg');
-  if(r.ok){ if(msgEl) msgEl.innerHTML='<span style="color:#10B981">Brand saved ✓ — logo in logo-mark, brand name at front, favicon updated (backend only)</span>'; await loadContent(); await loadBrand(); }
-  else { if(msgEl) msgEl.textContent=j.error||'Save failed'; }
+  const btn=$('#btn-save-brand'); const msgEl=$('#brand-msg');
+  if(btn){ btn.disabled=true; btn.textContent='Saving...'; }
+  if(msgEl){ msgEl.textContent='Saving...'; msgEl.style.color='#64748B'; }
+  try{
+    const brandName=$('#brand-name')?.value?.trim() || '';
+    const logoUrl=$('#brand-logo-url')?.value?.trim() || '';
+    const faviconUrl=$('#brand-favicon-url')?.value?.trim() || '';
+    const pos=$('#brand-position')?.value || 'logo_first';
+    const payload={};
+    if(brandName) payload.logo_text=brandName;
+    if(logoUrl) payload.logo_url=logoUrl;
+    if(faviconUrl) payload.favicon_url=faviconUrl;
+    payload.logo_position=pos;
+    payload.brand_position=pos; // alias
+    const r=await fetch('/api/content',{method:'PUT',headers:{'Content-Type':'application/json',...authHeaders()},body:JSON.stringify(payload)});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||'Save failed');
+    if(msgEl){ msgEl.innerHTML='<span style="color:#10B981">Saved ✓ — (logo) NEXATECH, frontend header updates instantly. <a href="/" target="_blank" style="color:#00D1FF">Preview →</a></span>'; }
+    await loadContent(); await loadBrand();
+  }catch(e){ if(msgEl){ msgEl.textContent='Error: '+e.message; msgEl.style.color='#F87171'; } }
+  finally{ if(btn){ btn.disabled=false; btn.textContent='Save Brand'; } }
 }
 $('#btn-save-brand')?.addEventListener('click', saveBrand);
 $('#btn-preview-brand')?.addEventListener('click', ()=> window.open('/', '_blank'));
@@ -1586,6 +1623,102 @@ $('#lead-search').addEventListener('input', debounce(loadLeads, 400));
 $('#lead-stage-filter').addEventListener('change', loadLeads);
 $('#lead-scam-filter').addEventListener('change', loadLeads);
 function debounce(fn,ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a),ms); }; }
+
+// ========== Chatbot — how many used it + full conversations (clean UI) ==========
+let CHATS=[], SELECTED_CHAT=null;
+function escChat(s){ const d=document.createElement('div'); d.textContent=String(s||''); return d.innerHTML; }
+function fmtChatTime(s){ try{ const d=new Date(String(s).replace(' ','T')); return isNaN(d)? String(s).slice(0,16) : d.toLocaleString(); }catch{ return String(s||'').slice(0,16); } }
+async function loadChats(){
+  const searchEl=$('#chat-search');
+  const q=(searchEl?.value||'').trim();
+  try{
+    const sRes=await fetch('/api/admin/chats/summary',{headers:authHeaders()});
+    if(sRes.ok){
+      const s=await sRes.json();
+      const uEl=$('#chat-kpi-users'); if(uEl) uEl.textContent=s.totalSessions ?? 0;
+      const mEl=$('#chat-kpi-msgs'); if(mEl) mEl.textContent=s.totalMessages ?? 0;
+      const tEl=$('#chat-kpi-today'); if(tEl) tEl.textContent=(s.todaySessions ?? 0)+' users / '+(s.todayMessages ?? 0)+' msgs';
+      const spEl=$('#chat-kpi-split'); if(spEl) spEl.textContent=(s.userMessages ?? 0)+' / '+(s.botMessages ?? 0);
+      const note=$('#chat-summary-note');
+      if(note){
+        if((s.totalSessions||0)===0 && (s.legacySessions||0)>0) note.textContent=`${s.legacyMessages} chatbot clicks tracked via events before detailed logging — new conversations will appear here with full text.`;
+        else if((s.totalSessions||0)===0) note.textContent='No chatbot conversations yet — they appear here automatically when visitors chat.';
+        else note.textContent=`${s.totalSessions} people chatted • ${s.totalMessages} messages total • ${s.todaySessions} chatted today`;
+      }
+      const cnt=$('#chat-count'); if(cnt) cnt.textContent=`(${(s.totalSessions||0)} people)`;
+    }
+  }catch{}
+  try{
+    const qs=new URLSearchParams(); if(q) qs.set('search',q); qs.set('limit','100');
+    const r=await fetch('/api/admin/chats?'+qs.toString(),{headers:authHeaders()});
+    if(!r.ok) return;
+    const j=await r.json();
+    CHATS=j.sessions||[];
+    renderChats();
+  }catch(e){ console.error('loadChats',e); }
+}
+function renderChats(){
+  const wrap=$('#chats-list'); if(!wrap) return;
+  wrap.innerHTML='';
+  if(!CHATS.length){ wrap.innerHTML='<div style="font-size:12px;color:#94A3B8;border:1px dashed #E2E8F0;border-radius:10px;padding:16px;text-align:center">No conversations yet.<br>Ask something in the frontend chatbot, then Refresh.</div>'; return; }
+  CHATS.forEach(c=>{
+    const isSel=SELECTED_CHAT===c.session_id;
+    const div=document.createElement('div');
+    div.style.cssText=`border:1px solid ${isSel?'#7C3AED':'#E2E8F0'};border-radius:12px;padding:10px;background:${isSel?'rgba(124,58,237,.07)':'#fff'};cursor:pointer;display:grid;gap:4px`;
+    div.innerHTML=`
+      <div style="display:flex;gap:8px;align-items:center;justify-content:space-between">
+        <b style="font-size:12px;font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px" title="${escChat(c.session_id)}">👤 ${escChat(String(c.session_id).slice(0,18))}</b>
+        <span style="font-size:10px;background:#0B1220;color:#fff;padding:2px 8px;border-radius:999px">${c.message_count} msgs</span>
+      </div>
+      <div style="font-size:12px;color:#0B1220;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">“${escChat(c.preview||'(no preview)')}”</div>
+      <div style="font-size:11px;color:#64748B">${c.user_count||0} you • ${c.bot_count||0} bot • ${fmtChatTime(c.last_seen)}</div>
+      <div style="font-size:11px;color:#94A3B8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">↳ ${escChat(c.last_text||'')}</div>`;
+    div.addEventListener('click',()=>selectChat(c.session_id));
+    wrap.appendChild(div);
+  });
+}
+async function selectChat(sessionId){
+  SELECTED_CHAT=sessionId;
+  renderChats();
+  const title=$('#chat-thread-title'); const thread=$('#chat-thread'); const del=$('#btn-delete-chat');
+  if(title) title.textContent='👤 '+String(sessionId).slice(0,24)+'...';
+  if(thread) thread.innerHTML='<div style="font-size:12px;color:#94A3B8">Loading conversation...</div>';
+  if(del) del.style.display='none';
+  try{
+    const r=await fetch('/api/admin/chats/'+encodeURIComponent(sessionId),{headers:authHeaders()});
+    if(!r.ok) throw new Error('load failed');
+    const j=await r.json();
+    if(thread){
+      thread.innerHTML='';
+      if(!j.messages.length) thread.innerHTML='<div style="font-size:12px;color:#94A3B8">Empty conversation.</div>';
+      j.messages.forEach(m=>{
+        const isUser=m.role==='user';
+        const b=document.createElement('div');
+        b.style.cssText=`max-width:88%;padding:10px 12px;border-radius:14px;font-size:13px;line-height:1.5;white-space:pre-wrap;word-break:break-word;${isUser?'justify-self:end;background:#0B1220;color:#fff;border-bottom-right-radius:4px':'justify-self:start;background:#F1F5F9;color:#0B1220;border:1px solid #E2E8F0;border-bottom-left-radius:4px'}`;
+        b.textContent=m.text||'';
+        const meta=document.createElement('div');
+        meta.style.cssText=`font-size:10px;color:#94A3B8;margin-top:4px;${isUser?'text-align:right':''}`;
+        meta.textContent=(isUser?'You • ':'Bot • ')+fmtChatTime(m.created_at);
+        const w=document.createElement('div'); w.style.display='grid'; w.style.justifyItems=isUser?'end':'start';
+        w.appendChild(b); w.appendChild(meta);
+        thread.appendChild(w);
+      });
+      thread.scrollTop=thread.scrollHeight;
+    }
+    if(title) title.textContent=`👤 ${String(sessionId).slice(0,20)} • ${j.count} messages`;
+    if(del) del.style.display='inline-block';
+  }catch(e){ if(thread) thread.innerHTML='<div style="font-size:12px;color:#F87171">Failed to load conversation.</div>'; }
+}
+$('#chat-search')?.addEventListener('input', debounce(loadChats, 400));
+$('#btn-refresh-chats')?.addEventListener('click', loadChats);
+$('#btn-delete-chat')?.addEventListener('click', async()=>{
+  if(!SELECTED_CHAT || !confirm('Delete this conversation?')) return;
+  await fetch('/api/admin/chats/'+encodeURIComponent(SELECTED_CHAT),{method:'DELETE',headers:authHeaders()});
+  SELECTED_CHAT=null; $('#btn-delete-chat').style.display='none';
+  $('#chat-thread-title').textContent='Select a conversation →';
+  $('#chat-thread').innerHTML='<div style="font-size:12px;color:#94A3B8">Deleted. Select another conversation.</div>';
+  loadChats();
+});
 
 // Overview & Analytics
 async function loadOverview(){

@@ -865,23 +865,38 @@ async function appendToGoogleSheet(lead){
   }
 }
 
-// --- API: Chat ---
+// --- API: Chat (logged to chat_messages for Admin → Chatbot panel) ---
+async function logChatMessage(sessionId, role, text, pageUrl){
+  try{
+    const sid = String(sessionId || 'anon').slice(0,120);
+    const t = String(text || '').slice(0,4000);
+    if(!t) return;
+    await db.prepare('INSERT INTO chat_messages (session_id, role, text, page_url) VALUES (?,?,?,?)').run(sid, role, t, String(pageUrl||'').slice(0,500));
+  }catch(e){ console.error('chat log failed', e.message); }
+}
 app.post('/api/chat', async (req, res) => {
   const { message, sessionId } = req.body;
   if (!message) return res.status(400).json({ error: 'message required' });
+  const sid = String(sessionId || ('anon-'+Date.now())).slice(0,120);
+  const pageUrl = String(req.body.pageUrl || req.headers.referer || '').slice(0,500);
+  // Log user message immediately (so count works even if AI fails)
+  await logChatMessage(sid, 'user', message, pageUrl);
   // Gemini direct only for chatbot (webhook removed per owner request — chat uses Gemini, form uses webhook)
   const geminiKey = await getGeminiKey();
   if(!geminiKey){
+    await logChatMessage(sid, 'model', 'Chatbot not configured — set Gemini API key.', pageUrl);
     return res.status(503).json({ error: 'Chatbot not configured — set Gemini API key in Admin → Integrations → Gemini Direct', fallback: 'Please chat on WhatsApp instead.' });
   }
   const history = Array.isArray(req.body.history) ? req.body.history : [];
   const reply = await callGemini(message, history);
   if(reply){
+    await logChatMessage(sid, 'model', reply, pageUrl);
     // fetch model for response
     let model = GEMINI_MODEL;
     try{ const r = await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_model'); if(r?.value?.trim()) model = r.value.trim(); }catch{}
     return res.json({ reply, source: 'gemini', model });
   }
+  await logChatMessage(sid, 'model', 'Gemini failed — check API key/model.', pageUrl);
   return res.status(503).json({ error: 'Gemini failed — check API key/model', fallback: 'Please chat on WhatsApp instead.' });
 });
 
@@ -1669,6 +1684,102 @@ app.put('/api/admin/gmail/sender', requireAuth, async (req,res)=>{
   }
   const cfg = await getGoogleConfig();
   res.json({ ok:true, senderName: cfg.gmailSenderName||'', email: cfg.gmailConnectedEmail||'' });
+});
+
+// ==================== Chatbot analytics — how many used chatbot + full conversations (clean UI) ====================
+app.get('/api/admin/chats/summary', requireAuth, async (req,res)=>{
+  try{
+    const totalSessionsRow = await db.prepare('SELECT COUNT(DISTINCT session_id) as c FROM chat_messages').get();
+    const totalMessagesRow = await db.prepare('SELECT COUNT(*) as c FROM chat_messages').get();
+    const userMessagesRow = await db.prepare("SELECT COUNT(*) as c FROM chat_messages WHERE role='user'").get();
+    const botMessagesRow = await db.prepare("SELECT COUNT(*) as c FROM chat_messages WHERE role='model'").get();
+    // Fallback: also count legacy events chat_message (before chat_messages existed)
+    let legacySessions = 0, legacyMessages = 0;
+    try{
+      const lr = await db.prepare("SELECT COUNT(DISTINCT session_id) as c FROM events WHERE event_type='chat_message'").get();
+      legacySessions = parseInt(lr?.c||0,10)||0;
+      const lm = await db.prepare("SELECT COUNT(*) as c FROM events WHERE event_type='chat_message'").get();
+      legacyMessages = parseInt(lm?.c||0,10)||0;
+    }catch{}
+    const totalSessions = parseInt(totalSessionsRow?.c||0,10)||0;
+    const totalMessages = parseInt(totalMessagesRow?.c||0,10)||0;
+    // Today (SQLite datetime vs PG NOW() — wrapper converts, use date(created_at)=date('now'))
+    let todaySessions = 0, todayMessages = 0;
+    try{
+      const t1 = await db.prepare("SELECT COUNT(DISTINCT session_id) as c FROM chat_messages WHERE date(created_at)=date('now')").get();
+      todaySessions = parseInt(t1?.c||0,10)||0;
+      const t2 = await db.prepare("SELECT COUNT(*) as c FROM chat_messages WHERE date(created_at)=date('now')").get();
+      todayMessages = parseInt(t2?.c||0,10)||0;
+    }catch{}
+    // Last 7 days trend
+    let daily = [];
+    try{
+      daily = await db.prepare("SELECT date(created_at) as d, COUNT(DISTINCT session_id) as sessions, COUNT(*) as messages FROM chat_messages WHERE created_at >= date('now','-7 days') GROUP BY d ORDER BY d").all();
+    }catch{ daily = []; }
+    res.json({
+      totalSessions, totalMessages,
+      userMessages: parseInt(userMessagesRow?.c||0,10)||0,
+      botMessages: parseInt(botMessagesRow?.c||0,10)||0,
+      legacySessions, legacyMessages,
+      combinedSessions: totalSessions + (totalSessions===0 ? legacySessions : 0),
+      todaySessions, todayMessages, daily
+    });
+  }catch(e){ res.status(500).json({ error: e.message }); }
+});
+app.get('/api/admin/chats', requireAuth, async (req,res)=>{
+  try{
+    const { search='', limit='50', offset='0' } = req.query;
+    const lim = Math.min(parseInt(limit,10)||50, 200);
+    const off = parseInt(offset,10)||0;
+    // One row per session: counts, first/last, previews
+    let rows = await db.prepare(
+      `SELECT session_id, COUNT(*) as message_count,
+        SUM(CASE WHEN role='user' THEN 1 ELSE 0 END) as user_count,
+        SUM(CASE WHEN role='model' THEN 1 ELSE 0 END) as bot_count,
+        MIN(created_at) as first_seen, MAX(created_at) as last_seen
+       FROM chat_messages GROUP BY session_id ORDER BY last_seen DESC LIMIT ? OFFSET ?`
+    ).all(lim, off);
+    // Enrich with first user message + last message preview
+    for(const r of rows){
+      try{
+        const first = await db.prepare("SELECT text FROM chat_messages WHERE session_id=? AND role='user' ORDER BY created_at ASC LIMIT 1").get(r.session_id);
+        r.preview = first?.text ? String(first.text).slice(0,120) : '';
+        const last = await db.prepare("SELECT text, role FROM chat_messages WHERE session_id=? ORDER BY created_at DESC LIMIT 1").get(r.session_id);
+        r.last_text = last?.text ? String(last.text).slice(0,120) : '';
+        r.last_role = last?.role || '';
+      }catch{ r.preview=''; r.last_text=''; }
+    }
+    if(search){
+      const s = String(search).toLowerCase();
+      rows = rows.filter(r=> (r.session_id||'').toLowerCase().includes(s) || (r.preview||'').toLowerCase().includes(s) || (r.last_text||'').toLowerCase().includes(s));
+    }
+    const totalRow = await db.prepare('SELECT COUNT(DISTINCT session_id) as c FROM chat_messages').get();
+    res.json({ sessions: rows, total: parseInt(totalRow?.c||0,10)||0, limit: lim, offset: off });
+  }catch(e){ res.status(500).json({ error: e.message }); }
+});
+app.get('/api/admin/chats/export.csv', requireAuth, async (req,res)=>{
+  try{
+    const rows = await db.prepare('SELECT session_id, role, text, page_url, created_at FROM chat_messages ORDER BY created_at DESC LIMIT 2000').all();
+    const header = ['session_id','role','text','page_url','created_at'];
+    let csv = header.join(',')+'\n';
+    for(const r of rows) csv += header.map(h=>`"${String(r[h]??'').replace(/"/g,'""')}"`).join(',')+'\n';
+    res.setHeader('Content-Type','text/csv');
+    res.setHeader('Content-Disposition','attachment; filename="chats.csv"');
+    res.send(csv);
+  }catch(e){ res.status(500).json({ error: e.message }); }
+});
+app.get('/api/admin/chats/:sessionId', requireAuth, async (req,res)=>{
+  try{
+    const sid = String(req.params.sessionId||'').slice(0,120);
+    const msgs = await db.prepare('SELECT id, session_id, role, text, page_url, created_at FROM chat_messages WHERE session_id=? ORDER BY created_at ASC LIMIT 500').all(sid);
+    res.json({ session_id: sid, messages: msgs, count: msgs.length });
+  }catch(e){ res.status(500).json({ error: e.message }); }
+});
+app.delete('/api/admin/chats/:sessionId', requireAuth, async (req,res)=>{
+  try{
+    await db.prepare('DELETE FROM chat_messages WHERE session_id=?').run(String(req.params.sessionId||'').slice(0,120));
+    res.json({ ok:true });
+  }catch(e){ res.status(500).json({ error: e.message }); }
 });
 
 // Scheduled jobs

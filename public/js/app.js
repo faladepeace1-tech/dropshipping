@@ -30,17 +30,17 @@ function applyTheme(c){
   } else {
     if(mark && mark.querySelector('img')) mark.innerHTML='N';
   }
-  // Brand name at front of logo — order controlled by backend logo_position (brand_first = Brand + Mark)
+  // Brand order: logo mark FIRST then brand name -> (logo) NEXATECH (default logo_first)
   try{
     const logo = document.querySelector('.logo');
     const textEl = document.getElementById('logo-text');
     if(logo && mark && textEl){
-      const pos = (c.logo_position || c.brand_position || 'brand_first');
+      const pos = (c.logo_position || c.brand_position || 'logo_first');
       if(pos === 'brand_first'){
-        // Brand name front: [text][mark]
+        // Legacy option: Brand + Mark
         if(logo.firstElementChild !== textEl) logo.insertBefore(textEl, mark);
       } else {
-        // Mark first: [mark][text]
+        // Default: Logo + Brand -> (logo) NEXATECH
         if(logo.firstElementChild !== mark) logo.insertBefore(mark, textEl);
       }
     }
@@ -103,9 +103,11 @@ async function loadContent(){
   // scarcity badge
   const badgeText = SCARCITY.text || CONTENT.hero_badge || 'Only 5 build slots left this month';
   $('#hero-badge-text').textContent=badgeText;
-  // CTAs
+  // CTAs — Book buttons always respond: use saved Calendly URL, fallback to WhatsApp so click never dead-ends on '#'
   const waNum=CONTENT.whatsapp_number||'2348123456789';
-  const calendly=CONTENT.calendly_url||'#';
+  let calRaw=(CONTENT.calendly_url||'').trim();
+  if(calRaw && !/^https?:\/\//i.test(calRaw) && !calRaw.startsWith('/')) calRaw='https://'+calRaw;
+  const calendly=calRaw || whatsappLink(waNum, `Hi Nexatech! I'd like to book a free strategy call.`);
   const heroWA = CONTENT.hero_cta_secondary || 'Chat on WhatsApp';
   const heroBook = CONTENT.hero_cta_primary || 'Book a Free Strategy Call';
   $('#hero-wa').textContent=heroWA; $('#hero-wa').href=whatsappLink(waNum, `Hi Nexatech! I'm interested in a dropshipping store can we talk?`);
@@ -860,7 +862,7 @@ function initChat(){
     saveHistory();
     track('chat_message','chat', {text});
     try{
-      const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text, sessionId, history})});
+      const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text, sessionId, history, pageUrl: location.href})});
       const j=await r.json();
       const bot=document.createElement('div'); bot.className='msg bot';
       let replyText = j.reply || j.error || 'Not available right now';
