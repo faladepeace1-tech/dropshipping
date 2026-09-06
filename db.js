@@ -302,6 +302,19 @@ export async function initDb() {
         created_at TIMESTAMP DEFAULT NOW()
       );
       CREATE INDEX IF NOT EXISTS idx_chat_session ON chat_messages(session_id);
+      CREATE TABLE IF NOT EXISTS content_revisions (
+        id SERIAL PRIMARY KEY,
+        snapshot TEXT NOT NULL,
+        label TEXT DEFAULT '',
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS chat_sessions (
+        session_id TEXT PRIMARY KEY,
+        name TEXT DEFAULT '',
+        email TEXT DEFAULT '',
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
     `);
   } else {
     db.exec(`
@@ -439,6 +452,19 @@ export async function initDb() {
       created_at TEXT DEFAULT (datetime('now'))
     );
     CREATE INDEX IF NOT EXISTS idx_chat_session ON chat_messages(session_id);
+    CREATE TABLE IF NOT EXISTS content_revisions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      snapshot TEXT NOT NULL,
+      label TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS chat_sessions (
+      session_id TEXT PRIMARY KEY,
+      name TEXT DEFAULT '',
+      email TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
   `);
   }
 

@@ -784,23 +784,64 @@ function initChat(){
       recentList.appendChild(div);
     });
   }
+  // Identity gate — visitors must provide name + email before chatting (shown in Admin → Chatbot → People)
+  const IDENTITY_KEY = 'nexatech_chat_identity';
+  function getIdentity(){ try{ const o=JSON.parse(localStorage.getItem(IDENTITY_KEY)||'null'); if(o && o.name && o.email) return o; }catch{} return null; }
+  function setIdentity(name,email){ try{ localStorage.setItem(IDENTITY_KEY, JSON.stringify({name, email})); }catch{} }
+  function clearIdentity(){ try{ localStorage.removeItem(IDENTITY_KEY); }catch{} }
+  function escId(s){ const d=document.createElement('div'); d.textContent=String(s||''); return d.innerHTML; }
+  function setChatEnabled(on){
+    try{ input.disabled=!on; send.disabled=!on; }catch{}
+  }
+  function bindQuick(){
+    body.querySelectorAll('.quick button').forEach(b=> b.addEventListener('click', ()=>{ input.value=b.dataset.q; sendMsg(); }));
+  }
+  function showGreeting(){
+    const id=getIdentity();
+    const first=id ? escId(String(id.name).split(' ')[0]) : 'there';
+    body.innerHTML=`<div class="msg bot">Hi ${first}! I’m the Nexatech assistant. Ask me about packages, timelines, or proof or tap a quick question below.</div><div class="quick"><button data-q="What’s included in Pro?">What’s included in Pro?</button><button data-q="How long to launch?">How long to launch?</button><button data-q="Do I own the store?">Do I own the store?</button></div><div style="font-size:10px;color:#94A3B8;padding:2px 4px">Chatting as <b>${id?escId(id.name):''}</b>${id?' ('+escId(id.email)+')':''} <button id="chat-switch-id" style="border:none;background:none;color:#7C3AED;cursor:pointer;font-size:10px;text-decoration:underline">switch</button></div>`;
+    bindQuick();
+    body.querySelector('#chat-switch-id')?.addEventListener('click', ()=>{ clearIdentity(); showGate(); });
+    setChatEnabled(true);
+    saveHistory();
+  }
+  function showGate(){
+    setChatEnabled(false);
+    body.innerHTML=`<div class="msg bot">Hi! Before we start, please tell us your <b>name</b> and <b>email</b> so we can follow up.</div>
+    <div id="chat-gate" style="display:grid;gap:8px;background:#fff;border:1px solid var(--border);border-radius:14px;padding:12px">
+      <label style="display:grid;gap:4px;font-size:11px;font-weight:700;color:var(--text-muted)">YOUR NAME<input id="chat-gate-name" placeholder="Ada Lovelace" style="padding:10px 12px;border:1px solid var(--border);border-radius:10px;outline:none"></label>
+      <label style="display:grid;gap:4px;font-size:11px;font-weight:700;color:var(--text-muted)">EMAIL<input id="chat-gate-email" type="email" placeholder="you@example.com" style="padding:10px 12px;border:1px solid var(--border);border-radius:10px;outline:none"></label>
+      <div id="chat-gate-err" style="font-size:11px;color:#EF4444;min-height:14px"></div>
+      <button id="chat-gate-start" class="btn btn-primary" style="justify-content:center">Start Chat →</button>
+    </div>`;
+    const start=()=>{
+      const n=body.querySelector('#chat-gate-name')?.value?.trim()||'';
+      const e=body.querySelector('#chat-gate-email')?.value?.trim()||'';
+      const err=body.querySelector('#chat-gate-err');
+      if(n.length<2){ if(err) err.textContent='Please enter your name.'; return; }
+      if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)){ if(err) err.textContent='Please enter a valid email.'; return; }
+      setIdentity(n,e);
+      showGreeting();
+      try{ win.classList.add('open'); }catch{}
+    };
+    body.querySelector('#chat-gate-start')?.addEventListener('click', start);
+    body.querySelector('#chat-gate-email')?.addEventListener('keydown', ev=>{ if(ev.key==='Enter'){ ev.preventDefault(); start(); } });
+    body.querySelector('#chat-gate-name')?.addEventListener('keydown', ev=>{ if(ev.key==='Enter'){ ev.preventDefault(); body.querySelector('#chat-gate-email')?.focus(); } });
+    try{ setTimeout(()=> body.querySelector('#chat-gate-name')?.focus(), 100); }catch{}
+  }
   // Per owner request: +New Chat OR reload starts fresh (recent kept in localStorage, not current)
   sessionStorage.removeItem(CHAT_KEY);
   const hadHistory = false;
   // don't restore — always start fresh on load/reload; recent is via localStorage
-  body.innerHTML=`<div class="msg bot">Hi! I’m the Nexatech assistant. Ask me about packages, timelines, or proof or tap a quick question below.</div><div class="quick"><button data-q="What’s included in Pro?">What’s included in Pro?</button><button data-q="How long to launch?">How long to launch?</button><button data-q="Do I own the store?">Do I own the store?</button></div>`;
-  body.querySelectorAll('.quick button').forEach(b=> b.addEventListener('click', ()=>{ input.value=b.dataset.q; sendMsg(); }));
-  saveHistory();
+  // Gate: identity required before chat
+  if(getIdentity()) showGreeting(); else showGate();
   btn.addEventListener('click', ()=> win.classList.toggle('open'));
   close.addEventListener('click', ()=> win.classList.remove('open'));
-  // New Chat — archive current then reset
+  // New Chat — archive current then reset (identity kept, so no re-ask)
   newBtn?.addEventListener('click', ()=>{
     archiveCurrent();
     sessionStorage.removeItem(CHAT_KEY);
-    body.innerHTML=`<div class="msg bot">Hi! I’m the Nexatech assistant. Ask me about packages, timelines, or proof or tap a quick question below.</div><div class="quick"><button data-q="What’s included in Pro?">What’s included in Pro?</button><button data-q="How long to launch?">How long to launch?</button><button data-q="Do I own the store?">Do I own the store?</button></div>`;
-    // re-bind quick
-    body.querySelectorAll('.quick button').forEach(b=> b.addEventListener('click', ()=>{ input.value=b.dataset.q; sendMsg(); }));
-    saveHistory();
+    if(getIdentity()) showGreeting(); else showGate();
     body.scrollTop=0;
   });
   // Recent toggle
@@ -844,6 +885,8 @@ function initChat(){
   }
   let isSending=false;
   async function sendMsg(){
+    const id=getIdentity();
+    if(!id){ showGate(); return; }
     if(isSending) return;
     const text=input.value.trim(); if(!text) return;
     isSending=true; send.disabled=true; input.disabled=true;
@@ -862,7 +905,7 @@ function initChat(){
     saveHistory();
     track('chat_message','chat', {text});
     try{
-      const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text, sessionId, history, pageUrl: location.href})});
+      const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text, sessionId, history, pageUrl: location.href, name: id.name, email: id.email})});
       const j=await r.json();
       const bot=document.createElement('div'); bot.className='msg bot';
       let replyText = j.reply || j.error || 'Not available right now';

@@ -1191,12 +1191,46 @@ $('#personal-send')?.addEventListener('click', async e=>{
 // Expose for leads rendering
 window.openPersonalEmail = openPersonalEmail;
 loadGoogleStatus();
-$('#btn-publish').addEventListener('click', ()=>{ alert('Changes are live instantly   no draft queue. (This button confirms publish.)'); window.open('/','_blank'); });
+$('#btn-publish').addEventListener('click', ()=>{ alert('Changes are live instantly — no draft queue. (This button confirms publish.)'); window.open('/','_blank'); });
 $('#btn-revert').addEventListener('click', async()=>{
-  if(!lastPublishedContent) return alert('No snapshot');
-  if(!confirm('Revert to last published snapshot?')) return;
-  const r=await fetch('/api/content',{method:'PUT',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify(lastPublishedContent)});
-  if(r.ok){ alert('Reverted'); await loadContent(); } else alert('Revert failed');
+  const dlg=document.getElementById('revisions-dialog');
+  const list=$('#revisions-list');
+  if(list) list.innerHTML='<div style="font-size:12px;color:#94A3B8">Loading previous saves...</div>';
+  if(dlg && dlg.showModal) dlg.showModal(); else return alert('No backup dialog');
+  try{
+    const r=await fetch('/api/admin/content-revisions',{headers:authHeaders()});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||'Failed to load backups');
+    const revs=j.revisions||[];
+    if(!revs.length){ if(list) list.innerHTML='<div style="font-size:12px;color:#94A3B8;border:1px dashed #E2E8F0;border-radius:10px;padding:16px;text-align:center">No previous saves yet.<br>Every Save now auto-backs-up the old version here.</div>'; return; }
+    if(list){
+      list.innerHTML='';
+      revs.forEach((rev,idx)=>{
+        const row=document.createElement('div');
+        row.style.cssText='display:flex;gap:8px;align-items:center;justify-content:space-between;border:1px solid #E2E8F0;border-radius:10px;padding:10px;background:#fff';
+        const when=rev.created_at?String(rev.created_at).slice(0,16).replace('T',' '):'#'+rev.id;
+        row.innerHTML=`<div><b style="font-size:12px">${idx===0?'← Previous save (latest backup)':'Backup #'+rev.id}</b><div style="font-size:11px;color:#64748B">${when} • ${rev.label||'auto'} • ${(rev.size/1024).toFixed(1)} KB</div></div>`;
+        const btn=document.createElement('button');
+        btn.className='btn btn-primary'; btn.style.cssText='padding:6px 12px;font-size:12px';
+        btn.textContent='Restore';
+        btn.addEventListener('click', async (e)=>{
+          e.preventDefault(); e.stopPropagation();
+          if(!confirm('Restore this backup? Current version will be auto-backed-up first.')) return;
+          btn.disabled=true; btn.textContent='Restoring...';
+          try{
+            const rr=await fetch('/api/admin/content-revisions/'+rev.id+'/restore',{method:'POST',headers:authHeaders()});
+            const jj=await rr.json().catch(()=>({}));
+            if(!rr.ok) throw new Error(jj.error||'Restore failed');
+            alert('Restored ✓ ('+jj.keys+' keys) — preview updates instantly.');
+            if(dlg) dlg.close();
+            await loadContent();
+          }catch(err){ alert('Restore failed: '+err.message); btn.disabled=false; btn.textContent='Restore'; }
+        });
+        row.appendChild(btn);
+        list.appendChild(row);
+      });
+    }
+  }catch(e){ if(list) list.innerHTML='<div style="font-size:12px;color:#F87171">Error: '+e.message+'</div>'; }
 });
 
 // Media
@@ -1665,14 +1699,17 @@ function renderChats(){
     const isSel=SELECTED_CHAT===c.session_id;
     const div=document.createElement('div');
     div.style.cssText=`border:1px solid ${isSel?'#7C3AED':'#E2E8F0'};border-radius:12px;padding:10px;background:${isSel?'rgba(124,58,237,.07)':'#fff'};cursor:pointer;display:grid;gap:4px`;
+    const whoName=c.name||'Anonymous';
+    const whoEmail=c.email||'no email';
     div.innerHTML=`
       <div style="display:flex;gap:8px;align-items:center;justify-content:space-between">
-        <b style="font-size:12px;font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px" title="${escChat(c.session_id)}">👤 ${escChat(String(c.session_id).slice(0,18))}</b>
+        <b style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px">👤 ${escChat(whoName)}</b>
         <span style="font-size:10px;background:#0B1220;color:#fff;padding:2px 8px;border-radius:999px">${c.message_count} msgs</span>
       </div>
+      <div style="font-size:11px;color:#7C3AED;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">✉️ ${escChat(whoEmail)}</div>
       <div style="font-size:12px;color:#0B1220;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">“${escChat(c.preview||'(no preview)')}”</div>
       <div style="font-size:11px;color:#64748B">${c.user_count||0} you • ${c.bot_count||0} bot • ${fmtChatTime(c.last_seen)}</div>
-      <div style="font-size:11px;color:#94A3B8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">↳ ${escChat(c.last_text||'')}</div>`;
+      <div style="font-size:10px;color:#94A3B8;font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escChat(c.session_id)}">${escChat(String(c.session_id).slice(0,28))}</div>`;
     div.addEventListener('click',()=>selectChat(c.session_id));
     wrap.appendChild(div);
   });
@@ -1690,6 +1727,10 @@ async function selectChat(sessionId){
     const j=await r.json();
     if(thread){
       thread.innerHTML='';
+      const head=document.createElement('div');
+      head.style.cssText='background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:8px 10px;font-size:12px;color:#0B1220';
+      head.innerHTML=`<b>👤 ${escChat(j.name||'Anonymous')}</b> <span style="color:#7C3AED">✉️ ${escChat(j.email||'no email')}</span> <span style="color:#94A3B8;font-family:monospace">${escChat(String(sessionId).slice(0,20))}…</span>`;
+      thread.appendChild(head);
       if(!j.messages.length) thread.innerHTML='<div style="font-size:12px;color:#94A3B8">Empty conversation.</div>';
       j.messages.forEach(m=>{
         const isUser=m.role==='user';
@@ -1705,7 +1746,7 @@ async function selectChat(sessionId){
       });
       thread.scrollTop=thread.scrollHeight;
     }
-    if(title) title.textContent=`👤 ${String(sessionId).slice(0,20)} • ${j.count} messages`;
+    if(title) title.textContent=`👤 ${(j.name||'Anonymous').slice(0,20)} • ${j.count} messages`;
     if(del) del.style.display='inline-block';
   }catch(e){ if(thread) thread.innerHTML='<div style="font-size:12px;color:#F87171">Failed to load conversation.</div>'; }
 }

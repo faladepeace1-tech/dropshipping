@@ -335,7 +335,7 @@
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between">
             <h3 style="margin:0">Chatbot Conversations <small style="font-weight:500;color:#64748B" id="chat-count"></small></h3>
             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-              <input id="chat-search" placeholder="Search session or message..." style="padding:8px 10px;border:1px solid #E2E8F0;border-radius:10px;min-width:220px">
+              <input id="chat-search" placeholder="Search name, email, session or message..." style="padding:8px 10px;border:1px solid #E2E8F0;border-radius:10px;min-width:220px">
               <button class="btn btn-ghost" id="btn-refresh-chats" style="padding:8px 12px;font-size:12px">Refresh</button>
               <a class="btn btn-ghost" href="/api/admin/chats/export.csv" target="_blank" style="padding:8px 12px;font-size:12px">Export CSV</a>
             </div>
@@ -377,6 +377,23 @@
 
       <!-- Settings -->
       <section data-panel="settings" class="hidden">
+        <p style="font-size:12px;color:#64748B;margin:0 0 10px">Integrations are saved <b>permanently in backend</b>. Change your admin password below.</p>
+
+        <details class="card" id="details-password" style="border-color:rgba(239,68,68,.35);background:rgba(239,68,68,.04)">
+          <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:10px"><div><h3 style="margin:0">🔒 Change Password</h3><small style="color:#94A3B8">Admin security — <span id="password-user" style="color:#0B1220">admin</span> • <span id="password-summary-status" style="color:#64748B">not changed</span></small></div><span style="font-size:12px;color:#DC2626;border:1px solid #FECACA;border-radius:999px;padding:4px 10px;background:#FFF">Edit ▾</span></summary>
+          <div style="display:grid;gap:10px;margin-top:12px">
+            <div style="font-size:11px;color:#64748B;background:#FFF;border:1px solid #FECACA;border-radius:8px;padding:8px">Logged in as <b id="password-current-user">admin</b> • This changes your backend login password. Use a strong password and keep it safe.</div>
+            <label>Current Password <input id="pwd-current" type="password" placeholder="••••••••" autocomplete="current-password"></label>
+            <label>New Password <input id="pwd-new" type="password" placeholder="At least 6 characters" autocomplete="new-password"></label>
+            <label>Confirm New Password <input id="pwd-confirm" type="password" placeholder="Repeat new password" autocomplete="new-password"></label>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+              <button class="btn btn-primary" id="btn-change-password" style="background:#DC2626;border-color:#DC2626">Change Password</button>
+              <button class="btn btn-ghost" id="btn-show-pwd" type="button" style="padding:6px 10px;font-size:11px">Show</button>
+            </div>
+            <div id="pwd-msg" style="font-size:13px;margin-top:4px;min-height:18px"></div>
+          </div>
+        </details>
+
         <div class="card">
           <h3>Contact & Booking</h3>
           <p style="font-size:12px;color:#64748B;margin:6px 0 0">Edit & Save — frontend <b>Book a Call</b> buttons (nav, hero, CTA, drawer) update instantly from <code>calendly_url</code>.</p>
@@ -392,7 +409,7 @@
           <div id="int-msg" style="font-size:13px;margin-top:8px"></div>
         </div>
         <div class="card" style="border-color:rgba(16,185,129,.3)">
-          <h3>Google Sheets Direct (Append row) — matches n8n node</h3>
+          <h3>Google Sheets Direct (Append row) — matches n8n node <small style="font-weight:500;color:#64748B" id="google-summary-status">checking...</small></h3>
           <p style="font-size:12px;color:#94A3B8">Backend will append each new lead as a row (like <code>n8n-nodes-base.googleSheets</code> operation <code>append</code> with <code>documentId</code> + <code>sheetName</code>). Add your <b>Google Cloud Console OAuth Client ID / Secret</b> (APIs & Services → Credentials → OAuth 2.0 Client ID), set <b>Redirect URI</b> to <code>https://dropshippingstore.dpdns.org/auth/google/callback</code> and <code>http://localhost:3000/auth/google/callback</code>, enable <b>Google Sheets API</b>, then Connect.</p>
           <label>Google Cloud Client ID <input id="int-google-client-id" placeholder="123456789012-...apps.googleusercontent.com"></label>
           <label>Google Cloud Client Secret <input id="int-google-client-secret" type="password" placeholder="GOCSPX-..."></label>
@@ -431,7 +448,7 @@
           <div style="font-size:11px;color:#94A3B8;margin-top:8px">Keys are saved <b>permanently</b> in DB (content table: google_client_id / google_client_secret / google_sheets_doc_id / google_sheets_sheet_name / tokens). They persist across deploys and only change when you edit & Save again. Use <b>Auto-Detect</b> to list sheets inside the spreadsheet, see current header row, highlight missing columns, and auto-create the 22 lead columns: <code>Timestamp, Name, Store Name, Preferred Niche, Preferred Niche Other, Investment Range, Store Status, Was Scammed, Scam Details, WhatsApp, Email, Preferred Contact Time, Source, Traffic Plan, Page URL, Session ID, UTM Source, UTM Medium, UTM Campaign, Pipeline Stage, Webhook Status, Submitted At</code>.</div>
         </div>
         <div class="card" style="border-color:rgba(124,58,237,.3)">
-          <h3>Chatbot — Gemini Direct (replaces n8n webhook for chat)</h3>
+          <h3>Chatbot — Gemini Direct (replaces n8n webhook for chat) <small style="font-weight:500;color:#64748B" id="gemini-summary-status">checking...</small></h3>
           <p style="font-size:12px;color:#94A3B8">Paste your Gemini API key here to run the chatbot directly via Google Gemini. Form leads go directly to Google Sheets (above). Key is stored securely in DB and never shown publicly.</p>
           <label>Gemini API Key <input id="int-gemini-key" type="password" placeholder="AQ.Ab8RN6... or AIza... (paste whole key)"></label>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -457,6 +474,15 @@
     </div>
   </main>
 </div>
+
+<!-- Previous saves (auto-backup) -->
+<dialog id="revisions-dialog" style="border:none;border-radius:16px;max-width:560px;width:92vw;padding:0;overflow:hidden">
+  <form method="dialog" style="display:grid;gap:0">
+    <div style="padding:16px;border-bottom:1px solid #E2E8F0;display:flex;justify-content:space-between;align-items:center"><b>Previous saves <small style="font-weight:500;color:#64748B">auto-backup before every save</small></b><button value="cancel" style="border:none;background:#F1F5F9;border-radius:999px;width:32px;height:32px;cursor:pointer">✕</button></div>
+    <div style="padding:16px;display:grid;gap:8px;max-height:50vh;overflow:auto" id="revisions-list"></div>
+    <div style="padding:12px 16px;background:#F8FAFC;display:flex;gap:8px;justify-content:flex-end;align-items:center"><span style="font-size:11px;color:#94A3B8;margin-right:auto">Restoring auto-backs-up current first.</span><button value="cancel" class="btn btn-ghost">Close</button></div>
+  </form>
+</dialog>
 
 <!-- Edit modals -->
 <dialog id="edit-media-dialog" style="border:none;border-radius:16px;max-width:560px;width:92vw;padding:0;overflow:hidden">

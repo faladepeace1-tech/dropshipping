@@ -182,16 +182,37 @@ app.put('/api/content/:key', requireAuth, async (req, res) => {
   if (typeof value === 'object') { value = JSON.stringify(value); type = 'json'; }
   else value = String(value);
   type = type || 'text';
+  await autoBackupContent('single:'+key);
   const exists = await db.prepare('SELECT key FROM content WHERE key=?').get(key);
   if (!exists) await db.prepare("INSERT INTO content (key,value,type,updated_at) VALUES (?,?,?,datetime('now'))").run(key, value, type);
   else await db.prepare("UPDATE content SET value=?, type=?, updated_at=datetime('now') WHERE key=?").run(value, type, key);
   res.json({ ok: true, key, value });
 });
 
+// Auto-backup previous content before every save (so Revert actually works). Keeps last 20.
+async function autoBackupContent(label){
+  try{
+    const rows = await db.prepare('SELECT key,value,type FROM content').all();
+    const snap = JSON.stringify(rows);
+    const lbl = String(label||'auto').slice(0,120);
+    await db.prepare('INSERT INTO content_revisions (snapshot, label) VALUES (?,?)').run(snap, lbl);
+    // prune: keep last 20
+    const cnt = await db.prepare('SELECT COUNT(*) as c FROM content_revisions').get();
+    const n = parseInt(cnt?.c||0,10)||0;
+    if(n > 20){
+      const extra = n - 20;
+      // delete oldest (PG + SQLite compatible: ORDER BY id ASC LIMIT extra — PG needs ctid workaround, so fetch ids)
+      const olds = await db.prepare('SELECT id FROM content_revisions ORDER BY id ASC LIMIT ?').all(extra);
+      for(const o of olds){ try{ await db.prepare('DELETE FROM content_revisions WHERE id=?').run(o.id); }catch{} }
+    }
+  }catch(e){ console.error('autoBackup failed', e.message); }
+}
+
 // Batch update
 app.put('/api/content', requireAuth, async (req, res) => {
   const updates = req.body;
   if (!updates || typeof updates !== 'object') return res.status(400).json({ error: 'object required' });
+  await autoBackupContent('save:'+Object.keys(updates).slice(0,5).join(','));
   const stmt = await db.prepare("INSERT INTO content (key,value,type,updated_at) VALUES (?,?,?,datetime('now')) ON CONFLICT(key) DO UPDATE SET value=excluded.value, type=excluded.type, updated_at=datetime('now')");
   for (const [k, v] of Object.entries(updates)) {
     let val = v;
@@ -207,6 +228,26 @@ app.put('/api/content', requireAuth, async (req, res) => {
     await stmt.run(k, val, type);
   }
   res.json({ ok: true });
+});
+
+// --- API: Content revisions (auto-backup previous save) ---
+app.get('/api/admin/content-revisions', requireAuth, async (req, res) => {
+  try{
+    const rows = await db.prepare('SELECT id, label, created_at, LENGTH(snapshot) as size FROM content_revisions ORDER BY id DESC LIMIT 20').all();
+    res.json({ revisions: rows, count: rows.length });
+  }catch(e){ res.status(500).json({ error: e.message }); }
+});
+app.post('/api/admin/content-revisions/:id/restore', requireAuth, async (req, res) => {
+  try{
+    const rev = await db.prepare('SELECT * FROM content_revisions WHERE id=?').get(req.params.id);
+    if(!rev) return res.status(404).json({ error: 'revision not found' });
+    // backup current before restoring (so restore itself is reversible)
+    await autoBackupContent('pre-restore');
+    const rows = JSON.parse(rev.snapshot);
+    const stmt = await db.prepare("INSERT INTO content (key,value,type,updated_at) VALUES (?,?,?,datetime('now')) ON CONFLICT(key) DO UPDATE SET value=excluded.value, type=excluded.type, updated_at=datetime('now')");
+    for(const r of rows){ await stmt.run(r.key, r.value, r.type||'text'); }
+    res.json({ ok: true, restored: req.params.id, keys: rows.length });
+  }catch(e){ res.status(500).json({ error: e.message }); }
 });
 
 // --- API: Sections ---
@@ -877,8 +918,16 @@ async function logChatMessage(sessionId, role, text, pageUrl){
 app.post('/api/chat', async (req, res) => {
   const { message, sessionId } = req.body;
   if (!message) return res.status(400).json({ error: 'message required' });
+  const name = String(req.body.name || '').trim().slice(0,120);
+  const email = String(req.body.email || '').trim().slice(0,160);
+  if (name.length < 2) return res.status(400).json({ error: 'Please provide your name before chatting.' });
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Please provide a valid email before chatting.' });
   const sid = String(sessionId || ('anon-'+Date.now())).slice(0,120);
   const pageUrl = String(req.body.pageUrl || req.headers.referer || '').slice(0,500);
+  // Upsert visitor identity for Admin → Chatbot → People
+  try{
+    await db.prepare("INSERT INTO chat_sessions (session_id, name, email, updated_at) VALUES (?,?,?,datetime('now')) ON CONFLICT(session_id) DO UPDATE SET name=excluded.name, email=excluded.email, updated_at=datetime('now')").run(sid, name, email);
+  }catch(e){ console.error('chat session upsert failed', e.message); }
   // Log user message immediately (so count works even if AI fails)
   await logChatMessage(sid, 'user', message, pageUrl);
   // Gemini direct only for chatbot (webhook removed per owner request — chat uses Gemini, form uses webhook)
@@ -1731,13 +1780,14 @@ app.get('/api/admin/chats', requireAuth, async (req,res)=>{
     const { search='', limit='50', offset='0' } = req.query;
     const lim = Math.min(parseInt(limit,10)||50, 200);
     const off = parseInt(offset,10)||0;
-    // One row per session: counts, first/last, previews
+    // One row per session: counts, first/last, previews + visitor identity
     let rows = await db.prepare(
-      `SELECT session_id, COUNT(*) as message_count,
-        SUM(CASE WHEN role='user' THEN 1 ELSE 0 END) as user_count,
-        SUM(CASE WHEN role='model' THEN 1 ELSE 0 END) as bot_count,
-        MIN(created_at) as first_seen, MAX(created_at) as last_seen
-       FROM chat_messages GROUP BY session_id ORDER BY last_seen DESC LIMIT ? OFFSET ?`
+      `SELECT m.session_id, COUNT(*) as message_count,
+        SUM(CASE WHEN m.role='user' THEN 1 ELSE 0 END) as user_count,
+        SUM(CASE WHEN m.role='model' THEN 1 ELSE 0 END) as bot_count,
+        MIN(m.created_at) as first_seen, MAX(m.created_at) as last_seen,
+        MAX(s.name) as name, MAX(s.email) as email
+       FROM chat_messages m LEFT JOIN chat_sessions s ON s.session_id=m.session_id GROUP BY m.session_id ORDER BY last_seen DESC LIMIT ? OFFSET ?`
     ).all(lim, off);
     // Enrich with first user message + last message preview
     for(const r of rows){
@@ -1751,7 +1801,7 @@ app.get('/api/admin/chats', requireAuth, async (req,res)=>{
     }
     if(search){
       const s = String(search).toLowerCase();
-      rows = rows.filter(r=> (r.session_id||'').toLowerCase().includes(s) || (r.preview||'').toLowerCase().includes(s) || (r.last_text||'').toLowerCase().includes(s));
+      rows = rows.filter(r=> (r.session_id||'').toLowerCase().includes(s) || (r.preview||'').toLowerCase().includes(s) || (r.last_text||'').toLowerCase().includes(s) || (r.name||'').toLowerCase().includes(s) || (r.email||'').toLowerCase().includes(s));
     }
     const totalRow = await db.prepare('SELECT COUNT(DISTINCT session_id) as c FROM chat_messages').get();
     res.json({ sessions: rows, total: parseInt(totalRow?.c||0,10)||0, limit: lim, offset: off });
@@ -1759,8 +1809,8 @@ app.get('/api/admin/chats', requireAuth, async (req,res)=>{
 });
 app.get('/api/admin/chats/export.csv', requireAuth, async (req,res)=>{
   try{
-    const rows = await db.prepare('SELECT session_id, role, text, page_url, created_at FROM chat_messages ORDER BY created_at DESC LIMIT 2000').all();
-    const header = ['session_id','role','text','page_url','created_at'];
+    const rows = await db.prepare('SELECT m.session_id, s.name, s.email, m.role, m.text, m.page_url, m.created_at FROM chat_messages m LEFT JOIN chat_sessions s ON s.session_id=m.session_id ORDER BY m.created_at DESC LIMIT 2000').all();
+    const header = ['session_id','name','email','role','text','page_url','created_at'];
     let csv = header.join(',')+'\n';
     for(const r of rows) csv += header.map(h=>`"${String(r[h]??'').replace(/"/g,'""')}"`).join(',')+'\n';
     res.setHeader('Content-Type','text/csv');
@@ -1772,12 +1822,15 @@ app.get('/api/admin/chats/:sessionId', requireAuth, async (req,res)=>{
   try{
     const sid = String(req.params.sessionId||'').slice(0,120);
     const msgs = await db.prepare('SELECT id, session_id, role, text, page_url, created_at FROM chat_messages WHERE session_id=? ORDER BY created_at ASC LIMIT 500').all(sid);
-    res.json({ session_id: sid, messages: msgs, count: msgs.length });
+    let session = null;
+    try{ session = await db.prepare('SELECT session_id, name, email, created_at FROM chat_sessions WHERE session_id=?').get(sid); }catch{}
+    res.json({ session_id: sid, messages: msgs, count: msgs.length, name: session?.name||'', email: session?.email||'' });
   }catch(e){ res.status(500).json({ error: e.message }); }
 });
 app.delete('/api/admin/chats/:sessionId', requireAuth, async (req,res)=>{
   try{
     await db.prepare('DELETE FROM chat_messages WHERE session_id=?').run(String(req.params.sessionId||'').slice(0,120));
+    try{ await db.prepare('DELETE FROM chat_sessions WHERE session_id=?').run(String(req.params.sessionId||'').slice(0,120)); }catch{}
     res.json({ ok:true });
   }catch(e){ res.status(500).json({ error: e.message }); }
 });
