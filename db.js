@@ -5,7 +5,11 @@ import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const DB_PATH = path.join(__dirname, 'data.sqlite');
+// DATA_DIR lets Render disk persist SQLite + backups across deploys (render.yaml sets DATA_DIR=/opt/render/project/src/data).
+// Local dev: unset DATA_DIR → uses project dir as before.
+const DATA_DIR = process.env.DATA_DIR && process.env.DATA_DIR.trim() ? process.env.DATA_DIR.trim() : __dirname;
+try { if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true }); } catch {}
+const DB_PATH = path.join(DATA_DIR, 'data.sqlite');
 
 // Detect Postgres via env
 const PG_URL = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.PG_URI || process.env.AIVEN_POSTGRES_URI || '';
@@ -924,4 +928,4 @@ export async function reseedDefaults() {
 }
 
 export function getDb() { return db; }
-export { DB_PATH, usePg, pgPool };
+export { DB_PATH, DATA_DIR, usePg, pgPool };

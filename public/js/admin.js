@@ -1931,6 +1931,108 @@ $('#btn-reset-defaults')?.addEventListener('click', async()=>{
   else alert('Reset failed: '+(j.error||r.statusText));
 });
 
+// ========== Backup & Restore — prove server-side saves in ANY browser ==========
+async function loadBackupStatus(){
+  try{
+    const r = await fetch('/api/admin/backup/status', { headers: authHeaders() });
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error||'failed');
+    const pill = $('#backup-status-pill');
+    if(pill){
+      const total = Object.values(j.counts||{}).filter(v=>v>=0).reduce((a,b)=>a+b,0);
+      pill.textContent = `Backend OK • ${total} records • disk ${j.usePg?'postgres':'sqlite:'+(j.dataDir||'local')} • ${j.fileBackups?.length||0} snapshots`;
+      pill.style.color = '#10B981'; pill.style.borderColor = '#A7F3D0';
+    }
+    const wrap = $('#backup-saved-state');
+    if(wrap){
+      const c = j.counts||{}, s = j.secrets||{};
+      const row = (k,v,ok)=> `<div style="display:flex;gap:8px;align-items:center;border:1px solid #E2E8F0;border-radius:8px;padding:4px 8px;background:#fff"><span style="flex:1">${k}</span><b style="color:${ok===false?'#F87171':'#10B981'}">${v}</b></div>`;
+      let html = '';
+      html += row('Content keys', (c.content??'?')+' saved', true);
+      html += row('Leads (CRM)', (c.leads??'?')+' saved', true);
+      html += row('Chat messages', (c.chat_messages??'?')+' saved', true);
+      html += row('Follow-up emails sent', (c.followup_logs??'?')+' logged', true);
+      for(const [k,v] of Object.entries(s)){
+        const saved = String(v).includes('saved');
+        html += row(k, v, saved);
+      }
+      wrap.innerHTML = html;
+    }
+    // download link needs auth header — fetch as blob instead of plain href
+    const dl = $('#btn-backup-download');
+    if(dl && !dl.dataset.wired){
+      dl.dataset.wired = '1';
+      dl.addEventListener('click', async (e)=>{
+        e.preventDefault();
+        const msg = $('#backup-msg'); if(msg) msg.textContent = 'Preparing download...';
+        try{
+          const rr = await fetch('/api/admin/backup/export', { headers: authHeaders() });
+          if(!rr.ok) throw new Error('export failed');
+          const blob = await rr.blob();
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = 'nexatech-backup-' + new Date().toISOString().slice(0,10) + '.json';
+          a.click();
+          setTimeout(()=> URL.revokeObjectURL(a.href), 5000);
+          if(msg) msg.innerHTML = '<span style="color:#10B981">Downloaded ✓ — keep this file to restore later from any browser.</span>';
+        }catch(err){ if(msg) msg.textContent = 'Error: ' + err.message; }
+      });
+    }
+    loadBackupFiles();
+  }catch(e){ const p=$('#backup-status-pill'); if(p) p.textContent='Error: '+e.message; }
+}
+async function loadBackupFiles(){
+  try{
+    const r = await fetch('/api/admin/backup/files', { headers: authHeaders() });
+    const j = await r.json();
+    const wrap = $('#backup-files');
+    if(!wrap) return;
+    if(!j.files?.length){ wrap.innerHTML = '<small style="color:#94A3B8">No snapshots yet — click Save Snapshot Now. Nightly auto-snapshot at 03:30.</small>'; return; }
+    wrap.innerHTML = j.files.map(f=> `<div style="display:flex;gap:8px;align-items:center;font-size:11px;border:1px solid #E2E8F0;border-radius:8px;padding:6px 8px;background:#F8FAFC"><span style="flex:1"><b>${f.file}</b> <small style="color:#94A3B8">${(f.size/1024).toFixed(1)}kb • ${f.modified||''}</small></span><button data-restore="${f.file}" style="font-size:10px;border:1px solid #10B981;color:#10B981;border-radius:999px;padding:3px 8px;background:#fff;cursor:pointer">Restore</button><button data-delbackup="${f.file}" style="font-size:10px;border:none;background:transparent;color:#F87171;cursor:pointer">Delete</button></div>`).join('');
+    wrap.querySelectorAll('[data-restore]').forEach(b=> b.addEventListener('click', async()=>{
+      if(!confirm('Restore snapshot '+b.dataset.restore+'? Current content is auto-backed-up first (reversible).')) return;
+      const msg=$('#backup-msg'); if(msg) msg.textContent='Restoring...';
+      const rr = await fetch('/api/admin/backup/files/'+encodeURIComponent(b.dataset.restore)+'/restore', { method:'POST', headers: authHeaders() });
+      const jj = await rr.json().catch(()=>({}));
+      if(msg) msg.innerHTML = rr.ok ? '<span style="color:#10B981">Restored ✓ — refresh the site to see it.</span>' : ('Error: '+(jj.error||'failed'));
+      if(rr.ok){ await loadContent(); loadBackupStatus(); }
+    }));
+    wrap.querySelectorAll('[data-delbackup]').forEach(b=> b.addEventListener('click', async()=>{
+      if(!confirm('Delete snapshot '+b.dataset.delbackup+'?')) return;
+      await fetch('/api/admin/backup/files/'+encodeURIComponent(b.dataset.delbackup), { method:'DELETE', headers: authHeaders() });
+      loadBackupFiles();
+    }));
+  }catch{}
+}
+$('#btn-backup-snapshot')?.addEventListener('click', async()=>{
+  const msg=$('#backup-msg'); if(msg) msg.textContent='Saving snapshot...';
+  try{
+    const r = await fetch('/api/admin/backup/files', { method:'POST', headers:{'Content-Type':'application/json', ...authHeaders()}, body: JSON.stringify({}) });
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error||'failed');
+    if(msg) msg.innerHTML = `<span style="color:#10B981">Snapshot saved ✓ ${j.file} — visible in every browser.</span>`;
+    loadBackupFiles(); loadBackupStatus();
+  }catch(e){ if(msg) msg.textContent='Error: '+e.message; }
+});
+$('#btn-backup-refresh')?.addEventListener('click', ()=>{ loadBackupStatus(); });
+$('#backup-restore-file')?.addEventListener('change', async (e)=>{
+  const f = e.target.files[0]; if(!f) return;
+  if(!confirm('Restore from '+f.name+'? Current content is auto-backed-up first (reversible).')){ e.target.value=''; return; }
+  const msg=$('#backup-msg'); if(msg) msg.textContent='Uploading + restoring...';
+  try{
+    const text = await f.text();
+    const dump = JSON.parse(text);
+    const r = await fetch('/api/admin/backup/import', { method:'POST', headers:{'Content-Type':'application/json', ...authHeaders()}, body: JSON.stringify(dump) });
+    const j = await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||'restore failed');
+    if(msg) msg.innerHTML='<span style="color:#10B981">Restored ✓ — refresh the site to see it.</span>';
+    await loadContent(); loadBackupStatus();
+  }catch(err){ if(msg) msg.textContent='Error: '+err.message; }
+  e.target.value='';
+});
+// refresh backup state whenever Settings tab opens
+document.querySelector('.side-nav button[data-tab="settings"]')?.addEventListener('click', ()=>{ loadBackupStatus(); }, true);
+
 // Init
 (async()=>{
   if(await checkAuth()){

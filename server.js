@@ -2211,6 +2211,157 @@ app.post('/api/admin/followups/run-daily', requireAuth, async (req, res) => {
   }catch(e){ res.status(500).json({ error: e.message }); }
 });
 
+// ==================== Backup & Restore — server-side saves visible from ANY browser ====================
+// Why saves seemed missing in another browser:
+// 1) Render free tier wipes data.sqlite on every deploy (now fixed via disk + DATA_DIR in render.yaml).
+// 2) Secrets (Client Secret, API keys) are never sent back to the browser — new browser shows empty field + status pill.
+// This section adds: full JSON export/import, file snapshots on disk, daily auto-snapshot, and status APIs
+// so any browser can verify what is saved.
+const BACKUP_DIR = process.env.BACKUP_DIR && process.env.BACKUP_DIR.trim()
+  ? process.env.BACKUP_DIR.trim()
+  : path.join(process.env.DATA_DIR && process.env.DATA_DIR.trim() ? process.env.DATA_DIR.trim() : __dirname, 'backups');
+try { if (!fs.existsSync(BACKUP_DIR)) fs.mkdirSync(BACKUP_DIR, { recursive: true }); } catch(e){ console.error('backup dir', e.message); }
+const BACKUP_TABLES = ['content','sections','media','team','leads','events','stats_cache','campaigns','campaign_sends','email_templates','chat_messages','content_revisions','chat_sessions','followup_logs','email_unsubscribes'];
+async function collectBackup(){
+  const dump = { version: 1, exportedAt: new Date().toISOString(), tables: {} };
+  for(const t of BACKUP_TABLES){
+    try{ dump.tables[t] = await db.prepare(`SELECT * FROM ${t}`).all(); }
+    catch(e){ dump.tables[t] = { __error: e.message }; }
+  }
+  try{ dump.tables.admin_users = (await db.prepare('SELECT id, username, last_login FROM admin_users').all()); }catch{}
+  return dump;
+}
+async function restoreBackup(dump){
+  if(!dump || typeof dump !== 'object' || !dump.tables) throw new Error('Invalid backup file (missing tables)');
+  // Safety: auto-backup current content first (reversible)
+  try{ await autoBackupContent('pre-restore-backup'); }catch{}
+  try{
+    const snap = JSON.stringify({ tables: { content: dump.tables.content || [] } });
+    await db.prepare('INSERT INTO content_revisions (snapshot, label) VALUES (?,?)').run(snap.slice(0,500000), 'pre-full-restore');
+  }catch{}
+  // Restore content + sections (upsert, never delete protected secrets unless backup has non-empty value)
+  const PROTECTED_RESTORE = new Set(['google_client_id','google_client_secret','google_sheets_doc_id','google_sheets_sheet_name','google_refresh_token','google_access_token','google_token_expiry','google_column_mapping','gmail_connected_email','gmail_sender_name','gemini_api_key','gemini_model']);
+  if(Array.isArray(dump.tables.content)){
+    const stmt = await db.prepare("INSERT INTO content (key,value,type,updated_at) VALUES (?,?,?,datetime('now')) ON CONFLICT(key) DO UPDATE SET value=excluded.value, type=excluded.type, updated_at=datetime('now')");
+    for(const r of dump.tables.content){
+      if(!r || !r.key) continue;
+      if(PROTECTED_RESTORE.has(r.key) && (!r.value || !String(r.value).trim())){
+        // Never wipe a live secret with an empty backup value
+        try{ const cur = await db.prepare('SELECT value FROM content WHERE key=?').get(r.key); if(cur?.value?.trim()) continue; }catch{}
+      }
+      await stmt.run(r.key, String(r.value ?? ''), r.type || 'text');
+    }
+  }
+  if(Array.isArray(dump.tables.sections)){
+    for(const s of dump.tables.sections){
+      if(!s || !s.key) continue;
+      try{ await db.prepare("INSERT INTO sections (key,visible,display_order,animation_enabled) VALUES (?,?,?,?) ON CONFLICT(key) DO UPDATE SET visible=excluded.visible, display_order=excluded.display_order, animation_enabled=excluded.animation_enabled").run(s.key, s.visible?1:0, s.display_order??0, s.animation_enabled?1:0); }catch{}
+    }
+  }
+  // Append-only restores for operational tables (never wipe leads/chats): insert rows missing by id
+  const appendMissing = async (table, cols) => {
+    const rows = dump.tables[table];
+    if(!Array.isArray(rows)) return 0;
+    let n = 0;
+    for(const r of rows){
+      try{
+        const exists = r.id !== undefined && r.id !== null ? await db.prepare(`SELECT id FROM ${table} WHERE id=?`).get(r.id) : null;
+        if(exists) continue;
+        const vals = cols.map(c => r[c] ?? null);
+        const ph = cols.map(()=> '?').join(',');
+        await db.prepare(`INSERT INTO ${table} (${cols.join(',')}) VALUES (${ph})`).run(...vals);
+        n++;
+      }catch{}
+    }
+    return n;
+  };
+  const added = {};
+  added.media = await appendMissing('media', ['type','category','url','caption','alt_text','tags','result_stat','case_study_text','display_order','published']);
+  added.team = await appendMissing('team', ['name','role','credibility_note','photo_url','social_url','display_order','published']);
+  added.email_templates = await appendMissing('email_templates', ['name','subject','body_html','body_text','category']);
+  return { ok:true, added };
+}
+function backupFilePath(name){
+  const safe = String(name||'').replace(/[^a-zA-Z0-9-_]/g,'').slice(0,60) || ('backup-' + new Date().toISOString().slice(0,10));
+  return path.join(BACKUP_DIR, safe + '.json');
+}
+async function writeFileBackup(name){
+  const dump = await collectBackup();
+  const fp = backupFilePath(name || ('backup-' + new Date().toISOString().replace(/[:.]/g,'-').slice(0,19)));
+  fs.writeFileSync(fp, JSON.stringify(dump));
+  try{
+    const files = fs.readdirSync(BACKUP_DIR).filter(f=> f.endsWith('.json')).map(f=> ({ f, t: fs.statSync(path.join(BACKUP_DIR,f)).mtimeMs })).sort((a,b)=> b.t-a.t);
+    for(const extra of files.slice(20)){ try{ fs.unlinkSync(path.join(BACKUP_DIR, extra.f)); }catch{} }
+  }catch{}
+  return { file: path.basename(fp), exportedAt: dump.exportedAt };
+}
+// Export full backup (any browser can download + verify saves)
+app.get('/api/admin/backup/export', requireAuth, async (req, res) => {
+  try{
+    const dump = await collectBackup();
+    res.setHeader('Content-Type','application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="nexatech-backup-${new Date().toISOString().slice(0,10)}.json"`);
+    res.send(JSON.stringify(dump));
+  }catch(e){ res.status(500).json({ error: e.message }); }
+});
+// Import backup (merge; secrets never wiped by empty values)
+app.post('/api/admin/backup/import', requireAuth, async (req, res) => {
+  try{
+    const dump = req.body;
+    if(!dump || !dump.tables) return res.status(400).json({ error: 'Upload a backup JSON with {tables} (from Export)' });
+    const r = await restoreBackup(dump);
+    res.json({ ok:true, ...r });
+  }catch(e){ res.status(500).json({ error: e.message }); }
+});
+// File snapshots on server disk (survive restarts via Render disk)
+app.get('/api/admin/backup/files', requireAuth, async (req, res) => {
+  try{
+    let files = [];
+    try{
+      files = fs.readdirSync(BACKUP_DIR).filter(f=> f.endsWith('.json')).map(f=>{
+        const st = fs.statSync(path.join(BACKUP_DIR, f));
+        return { file: f, size: st.size, modified: st.mtime.toISOString() };
+      }).sort((a,b)=> b.modified.localeCompare(a.modified));
+    }catch{}
+    res.json({ dir: BACKUP_DIR, onDisk: fs.existsSync(BACKUP_DIR), files, dataDir: process.env.DATA_DIR || '(project dir)', usePg: !!process.env.DATABASE_URL });
+  }catch(e){ res.status(500).json({ error: e.message }); }
+});
+app.post('/api/admin/backup/files', requireAuth, async (req, res) => {
+  try{
+    const r = await writeFileBackup(req.body?.name || '');
+    res.json({ ok:true, ...r });
+  }catch(e){ res.status(500).json({ error: e.message }); }
+});
+app.post('/api/admin/backup/files/:file/restore', requireAuth, async (req, res) => {
+  try{
+    const fp = path.join(BACKUP_DIR, path.basename(req.params.file));
+    if(!fs.existsSync(fp)) return res.status(404).json({ error: 'backup file not found' });
+    const dump = JSON.parse(fs.readFileSync(fp, 'utf8'));
+    const r = await restoreBackup(dump);
+    res.json({ ok:true, file: path.basename(fp), ...r });
+  }catch(e){ res.status(500).json({ error: e.message }); }
+});
+app.delete('/api/admin/backup/files/:file', requireAuth, async (req, res) => {
+  try{ fs.unlinkSync(path.join(BACKUP_DIR, path.basename(req.params.file))); res.json({ ok:true }); }
+  catch(e){ res.status(500).json({ error: e.message }); }
+});
+// Saved-state summary — any browser can confirm what is stored WITHOUT seeing secrets
+app.get('/api/admin/backup/status', requireAuth, async (req, res) => {
+  try{
+    const counts = {};
+    for(const t of BACKUP_TABLES){ try{ counts[t] = parseInt((await db.prepare(`SELECT COUNT(*) as c FROM ${t}`).get())?.c||0,10)||0; }catch{ counts[t]=-1; } }
+    const secretKeys = ['google_client_id','google_client_secret','google_sheets_doc_id','google_refresh_token','gmail_connected_email','gemini_api_key'];
+    const secrets = {};
+    for(const k of secretKeys){
+      try{ const v = (await db.prepare('SELECT value FROM content WHERE key=?').get(k))?.value || ''; secrets[k] = v ? ('saved ✓ ' + String(v).slice(0,4) + '...' + String(v).slice(-3)) : 'not set'; }
+      catch{ secrets[k]='error'; }
+    }
+    let files = [];
+    try{ files = fs.readdirSync(BACKUP_DIR).filter(f=> f.endsWith('.json')).sort().slice(-5); }catch{}
+    res.json({ counts, secrets, fileBackups: files, dataDir: process.env.DATA_DIR || '(project dir)', usePg: !!process.env.DATABASE_URL, time: new Date().toISOString() });
+  }catch(e){ res.status(500).json({ error: e.message }); }
+});
+
 // Scheduled jobs
 async function refreshStats() {
   try {
@@ -2269,6 +2420,7 @@ cron.schedule('0 2 * * *', refreshStats);
 cron.schedule('*/5 * * * *', retryWebhooks);
 cron.schedule('*/5 * * * *', processIdleChatFollowups);
 cron.schedule('0 9 * * *', ()=> runDailyFollowups({}).catch(e=> console.error('daily followups cron', e.message)));
+cron.schedule('30 3 * * *', async ()=>{ try{ const r = await writeFileBackup('auto-'+new Date().toISOString().slice(0,10)); console.log('auto backup', r.file); }catch(e){ console.error('auto backup', e.message); } });
 
 // Idle chats: session updated > chatIdleMinutes ago, has email+messages, no chat_instant sent yet -> send instant AI follow-up
 async function processIdleChatFollowups(){

@@ -500,6 +500,22 @@
           <p style="font-size:12px;color:#94A3B8">All theme colours, logo and favicon are editable under <b>Content & Theme → Branding & Theme</b> tab. Changes apply instantly site-wide via CSS custom properties.</p>
           <button class="btn btn-ghost" data-tab-jump="content">Go to Branding →</button>
         </div>
+        <div class="card" style="border-color:rgba(16,185,129,.35)">
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between">
+            <h3 style="margin:0">💾 Backup & Restore <small style="font-weight:500;color:#64748B">server-side — same state in every browser</small></h3>
+            <span id="backup-status-pill" style="font-size:11px;color:#94A3B8;border:1px solid #E2E8F0;border-radius:999px;padding:4px 10px;background:#fff">Checking...</span>
+          </div>
+          <div style="font-size:11px;color:#64748B;margin-top:6px">All saves live in the <b>backend database</b>, not in your browser — any browser that logs in sees the same data. Secrets (Client Secret, API keys) are never shown back for security; the list below proves they are stored. Snapshots on server disk survive restarts (Render disk).</div>
+          <div id="backup-saved-state" style="display:grid;gap:4px;margin-top:10px;font-size:12px"></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+            <button class="btn btn-primary" id="btn-backup-snapshot" style="padding:8px 14px;font-size:12px">Save Snapshot Now</button>
+            <a class="btn btn-ghost" id="btn-backup-download" href="/api/admin/backup/export" target="_blank" style="padding:8px 12px;font-size:12px">Download Full Backup (JSON)</a>
+            <label class="btn btn-ghost" style="padding:8px 12px;font-size:12px;cursor:pointer">Restore from File<input type="file" id="backup-restore-file" accept="application/json" style="display:none"></label>
+            <button class="btn btn-ghost" id="btn-backup-refresh" style="padding:8px 12px;font-size:12px">Refresh</button>
+          </div>
+          <div id="backup-msg" style="font-size:12px;margin-top:8px;color:#64748B"></div>
+          <div id="backup-files" style="display:grid;gap:6px;margin-top:8px"></div>
+        </div>
       </section>
 
     </div>
