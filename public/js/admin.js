@@ -1779,6 +1779,7 @@ function renderLeads(){
           </select>
           <button class="btn btn-ghost" data-resend="${lead.id}" style="padding:6px 8px;font-size:11px">Resend</button>
           <button class="btn btn-ghost" data-email="${lead.id}" style="padding:6px 8px;font-size:11px;border-color:#7C3AED;color:#7C3AED" title="Send personal email via Gmail (same Client ID)">Email</button>
+          <button class="btn btn-ghost" data-dellead="${lead.id}" style="padding:6px 8px;font-size:11px;color:#F87171" title="Delete this lead everywhere">Delete</button>
         </div>
       `;
       col.appendChild(card);
@@ -1789,9 +1790,9 @@ function renderLeads(){
   const table=$('#leads-table');
   if(LEADS.length===0) table.innerHTML='<p style="color:#94A3B8">No leads found.</p>';
   else {
-    let html='<table><tr><th>Name</th><th>Store</th><th>Niche</th><th>WhatsApp</th><th>Email</th><th>Status</th><th>Webhook</th><th>Created</th></tr>';
+    let html='<table><tr><th>Name</th><th>Store</th><th>Niche</th><th>WhatsApp</th><th>Email</th><th>Status</th><th>Webhook</th><th>Created</th><th></th></tr>';
     LEADS.forEach(l=>{
-      html+=`<tr><td>${l.name||''} ${l.wasScammed==='yes'?'<span style="background:#F59E0B;color:#fff;padding:2px 6px;border-radius:999px;font-size:10px">High Empathy</span>':''}</td><td>${l.storeName||''}</td><td>${l.preferredNiche||''}</td><td>${l.whatsapp||''}</td><td>${l.email||''}</td><td>${l.pipeline_stage||''}</td><td>${l.webhook_status||''} (${l.webhook_attempts||0})</td><td>${(l.created_at||'').slice(0,16)}</td></tr>`;
+      html+=`<tr><td>${l.name||''} ${l.wasScammed==='yes'?'<span style="background:#F59E0B;color:#fff;padding:2px 6px;border-radius:999px;font-size:10px">High Empathy</span>':''}</td><td>${l.storeName||''}</td><td>${l.preferredNiche||''}</td><td>${l.whatsapp||''}</td><td>${l.email||''}</td><td>${l.pipeline_stage||''}</td><td>${l.webhook_status||''} (${l.webhook_attempts||0})</td><td>${(l.created_at||'').slice(0,16)}</td><td><button class="btn btn-ghost" data-dellead="${l.id}" style="padding:4px 8px;font-size:11px;color:#F87171">Delete</button></td></tr>`;
     });
     html+='</table>'; table.innerHTML=html;
   }
@@ -1818,6 +1819,20 @@ function renderLeads(){
       openPersonalEmail(lead);
     }
   }));
+  async function deleteLead(id, btn){
+    const lead = LEADS.find(l=> String(l.id)===String(id));
+    const who = lead ? (lead.name||lead.email||('#'+id)) : ('#'+id);
+    if(!confirm('Delete lead "'+who+'"? This removes it from the CRM everywhere (board, table, sends log). This cannot be undone.')) return;
+    if(btn){ btn.textContent='...'; btn.disabled=true; }
+    try{
+      const r=await fetch('/api/admin/leads/'+id,{method:'DELETE',headers:authHeaders()});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok) throw new Error(j.error||'Delete failed');
+    }catch(e){ alert('Delete failed: '+e.message); }
+    loadLeads();
+  }
+  kanban.querySelectorAll('[data-dellead]').forEach(b=> b.addEventListener('click', ()=> deleteLead(b.dataset.dellead, b)));
+  table.querySelectorAll('[data-dellead]').forEach(b=> b.addEventListener('click', ()=> deleteLead(b.dataset.dellead, b)));
 }
 $('#lead-search').addEventListener('input', debounce(loadLeads, 400));
 $('#lead-stage-filter').addEventListener('change', loadLeads);

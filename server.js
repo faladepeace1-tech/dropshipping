@@ -595,6 +595,16 @@ app.patch('/api/admin/leads/:id', requireAuth, async (req, res) => {
   res.json(await db.prepare('SELECT * FROM leads WHERE id=?').get(req.params.id));
 });
 
+// Delete a lead + its linked CRM rows (campaign sends, follow-up logs) so it disappears everywhere
+app.delete('/api/admin/leads/:id', requireAuth, async (req, res) => {
+  const ex = await db.prepare('SELECT * FROM leads WHERE id=?').get(req.params.id);
+  if (!ex) return res.status(404).json({ error: 'not found' });
+  try{ await db.prepare('DELETE FROM campaign_sends WHERE lead_id=?').run(req.params.id); }catch{}
+  try{ await db.prepare('DELETE FROM followup_logs WHERE lead_id=?').run(req.params.id); }catch{}
+  await db.prepare('DELETE FROM leads WHERE id=?').run(req.params.id);
+  res.json({ ok:true, deleted: req.params.id });
+});
+
 app.post('/api/admin/leads/:id/resend', requireAuth, async (req, res) => {
   const lead = await db.prepare('SELECT * FROM leads WHERE id=?').get(req.params.id);
   if (!lead) return res.status(404).json({ error: 'not found' });
