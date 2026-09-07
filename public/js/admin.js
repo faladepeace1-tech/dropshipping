@@ -104,6 +104,7 @@ const CONTENT_SCHEMA = {
     {key:'hero_cta_primary', label:'Hero CTA Primary'},
     {key:'hero_cta_secondary', label:'Hero CTA Secondary'},
     {key:'hero_badge', label:'Hero Badge (template with {remaining})'},
+    {key:'hero_image_url', label:'Hero Mockup Image (upload or URL)', type:'image_upload'},
     {key:'trust_1_bold', label:'Trust Badge 1 (bold part)'},
     {key:'trust_1_text', label:'Trust Badge 1 (rest)'},
     {key:'trust_2_bold', label:'Trust Badge 2 (bold part)'},
@@ -1316,11 +1317,27 @@ async function loadOutbox(){
     const div=document.createElement('div');
     div.style.cssText='display:flex;gap:8px;align-items:center;justify-content:space-between;border:1px solid #E2E8F0;border-radius:8px;padding:8px;background:#fff';
     const col=s.status==='sent'?'#10B981': s.status==='failed'?'#F87171':'#94A3B8';
-    div.innerHTML=`<div><b style="font-size:11px">${s.email}</b> <span style="font-size:11px;color:#64748B">${s.campaign_name||'1:1'}</span><div style="font-size:10px;color:#94A3B8">${s.campaign_subject||''} • ${String(s.sent_at||'').slice(0,16)}</div></div><span style="font-size:10px;background:${col};color:#fff;padding:2px 6px;border-radius:999px">${s.status}</span>`;
+    div.innerHTML=`<div><b style="font-size:11px">${s.email}</b> <span style="font-size:11px;color:#64748B">${s.campaign_name||'1:1'}</span><div style="font-size:10px;color:#94A3B8">${s.campaign_subject||''} • ${String(s.sent_at||'').slice(0,16)}</div></div><div style="display:flex;gap:6px;align-items:center"><span style="font-size:10px;background:${col};color:#fff;padding:2px 6px;border-radius:999px">${s.status}</span><button data-deloutbox="${s.id}" title="Delete from database" style="font-size:10px;border:none;background:transparent;color:#F87171;cursor:pointer">✕</button></div>`;
     wrap.appendChild(div);
   });
+  wrap.querySelectorAll('[data-deloutbox]').forEach(b=> b.addEventListener('click', async()=>{
+    if(!confirm('Delete this outbox record from the database?')) return;
+    try{
+      const r=await fetch('/api/admin/outbox/'+b.dataset.deloutbox,{method:'DELETE',headers:authHeaders()});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok) throw new Error(j.error||'Delete failed');
+    }catch(e){ alert('Delete failed: '+e.message); }
+    loadOutbox();
+  }));
 }
 $('#btn-refresh-outbox')?.addEventListener('click', loadOutbox);
+$('#btn-clear-outbox')?.addEventListener('click', async()=>{
+  if(!confirm('Clear the ENTIRE outbox? Every send record will be deleted from the database. This cannot be undone.')) return;
+  const r=await fetch('/api/admin/outbox',{method:'DELETE',headers:authHeaders()});
+  const j=await r.json().catch(()=>({}));
+  alert(r.ok ? ('Outbox cleared ('+j.cleared+' records deleted)') : ('Failed: '+(j.error||'error')));
+  loadOutbox();
+});
 // Personal email from Leads CRM — HubSpot 1:1
 function openPersonalEmail(lead){
   PERSONAL_LEAD=lead;
@@ -2027,7 +2044,17 @@ async function loadFollowupLogs(){
     if(cnt) cnt.textContent = `${j.logs?.length||0} shown • ${j.total||0} total`;
     if(wrap){
       if(!j.logs?.length){ wrap.innerHTML='<div style="font-size:12px;color:#94A3B8;border:1px dashed #E2E8F0;border-radius:10px;padding:12px;text-align:center">No follow-ups sent yet — submit a test lead or chat, then Refresh. Instant sends appear here + in Outbox.</div>'; }
-      else wrap.innerHTML = j.logs.map(l=> `<div style="border:1px solid #E2E8F0;border-radius:10px;padding:8px 10px;background:#fff;display:flex;gap:8px;justify-content:space-between;align-items:start;flex-wrap:wrap"><div style="flex:1;min-width:200px"><div style="font-size:12px;font-weight:700">${(l.subject||'(no subject)').slice(0,90)}</div><div style="font-size:11px;color:#64748B">to <b>${l.email}</b> • <span style="background:#F1F5F9;border-radius:999px;padding:1px 6px">${l.kind}${l.day_number?` d${l.day_number}`:''}</span> • <span style="color:${l.status==='sent'?'#10B981':(l.status==='skipped'?'#F59E0B':'#F87171')}">${l.status}</span> • ${l.sent_at||''}${l.message_id?` • <small>${String(l.message_id).slice(0,16)}</small>`:''}${l.error?` • <small style="color:#F87171">${String(l.error).slice(0,80)}</small>`:''}</div></div></div>`).join('');
+      else wrap.innerHTML = j.logs.map(l=> `<div style="border:1px solid #E2E8F0;border-radius:10px;padding:8px 10px;background:#fff;display:flex;gap:8px;justify-content:space-between;align-items:start;flex-wrap:wrap"><div style="flex:1;min-width:200px"><div style="font-size:12px;font-weight:700">${(l.subject||'(no subject)').slice(0,90)}</div><div style="font-size:11px;color:#64748B">to <b>${l.email}</b> • <span style="background:#F1F5F9;border-radius:999px;padding:1px 6px">${l.kind}${l.day_number?` d${l.day_number}`:''}</span> • <span style="color:${l.status==='sent'?'#10B981':(l.status==='skipped'?'#F59E0B':'#F87171')}">${l.status}</span> • ${l.sent_at||''}${l.message_id?` • <small>${String(l.message_id).slice(0,16)}</small>`:''}${l.error?` • <small style="color:#F87171">${String(l.error).slice(0,80)}</small>`:''}</div></div><button data-delfu="${l.id}" title="Delete from backend + database" style="font-size:10px;border:1px solid #FECACA;color:#F87171;border-radius:999px;padding:3px 8px;background:#fff;cursor:pointer;flex-shrink:0">Delete</button></div>`).join('');
+      wrap.querySelectorAll('[data-delfu]').forEach(b=> b.addEventListener('click', async()=>{
+        if(!confirm('Delete this follow-up record from the backend and database (also removes its outbox copy)?')) return;
+        b.textContent='...'; b.disabled=true;
+        try{
+          const r=await fetch('/api/admin/followups/logs/'+b.dataset.delfu,{method:'DELETE',headers:authHeaders()});
+          const jj=await r.json().catch(()=>({}));
+          if(!r.ok) throw new Error(jj.error||'Delete failed');
+        }catch(e){ alert('Delete failed: '+e.message); }
+        loadFollowupLogs(); loadFollowupStatus(); loadOutbox();
+      }));
     }
   }catch(e){ const w=$('#followup-list'); if(w) w.innerHTML='<div style="color:#F87171;font-size:12px">Error: '+e.message+'</div>'; }
 }
@@ -2093,6 +2120,17 @@ $('#btn-run-daily')?.addEventListener('click', async()=>{
   }catch(e){ if(msg) msg.textContent='Error: '+e.message; }
 });
 $('#btn-refresh-followup')?.addEventListener('click', ()=>{ loadFollowupStatus(); loadFollowupLogs(); });
+$('#btn-clear-followup')?.addEventListener('click', async()=>{
+  if(!confirm('Clear follow-up logs? This deletes the records (and their outbox copies) from the database. This cannot be undone.')) return;
+  const msg=$('#followup-msg'); if(msg) msg.textContent='Clearing...';
+  try{
+    const r=await fetch('/api/admin/followups/logs',{method:'DELETE',headers:authHeaders()});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||'Clear failed');
+    if(msg) msg.innerHTML='<span style="color:#10B981">Cleared '+j.cleared+' log(s), '+j.outboxUnlinked+' outbox cop(ies) removed.</span>';
+  }catch(e){ if(msg) msg.textContent='Error: '+e.message; }
+  loadFollowupStatus(); loadFollowupLogs(); loadOutbox();
+});
 $('#followup-search')?.addEventListener('input', ()=> loadFollowupLogs());
 $('#followup-kind')?.addEventListener('change', ()=> loadFollowupLogs());
 $('#btn-view-unsubs')?.addEventListener('click', loadUnsubs);

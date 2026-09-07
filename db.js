@@ -332,6 +332,7 @@ export async function initDb() {
         status TEXT DEFAULT 'pending',
         error TEXT DEFAULT '',
         message_id TEXT DEFAULT '',
+        send_id INTEGER DEFAULT 0,
         sent_at TIMESTAMP DEFAULT NOW()
       );
       CREATE INDEX IF NOT EXISTS idx_followup_email ON followup_logs(email);
@@ -517,6 +518,7 @@ export async function initDb() {
       status TEXT DEFAULT 'pending',
       error TEXT DEFAULT '',
       message_id TEXT DEFAULT '',
+      send_id INTEGER DEFAULT 0,
       sent_at TEXT DEFAULT (datetime('now'))
     );
     CREATE INDEX IF NOT EXISTS idx_followup_email ON followup_logs(email);
@@ -657,6 +659,7 @@ export async function initDb() {
       ['followup_max_days', '7', 'number'],
       ['followup_chat_idle_minutes', '10', 'number'],
       ['followup_from_name', 'Nexatech', 'text'],
+      ['hero_image_url', 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=900', 'text'],
       ['nav_link_portfolio', 'Portfolio', 'text'],
       ['nav_link_proof', 'Proof', 'text'],
       ['nav_link_pricing', 'Pricing', 'text'],

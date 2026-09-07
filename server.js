@@ -929,6 +929,8 @@ async function ensureFollowupTables(){
       );
     `);
   }catch(e){ console.error('ensureFollowupTables', e.message); }
+  // Migration for existing DBs: link column to the mirrored CRM send row
+  try{ await db.prepare('ALTER TABLE followup_logs ADD COLUMN send_id INTEGER DEFAULT 0').run(); }catch{}
 }
 async function getFollowupSettings(){
   const get = async (k, fb) => {
@@ -1069,18 +1071,27 @@ async function hasFollowupBeenSent({ email, kind, sessionId='', dayNumber=0 }){
 }
 async function logFollowup({ email, name='', leadId=null, sessionId='', kind='', dayNumber=0, subject='', body_html='', body_text='', status='sent', error='', messageId='' }){
   const em = String(email||'').toLowerCase().trim();
-  let logId = null;
-  try{
-    const info = await db.prepare('INSERT INTO followup_logs (email,lead_id,session_id,kind,day_number,subject,body_html,body_text,status,error,message_id,sent_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,datetime(\'now\'))')
-      .run(em, leadId, sessionId||'', kind, dayNumber||0, subject||'', body_html||'', body_text||'', status, String(error||'').slice(0,500), messageId||'');
-    logId = info.lastInsertRowid || null;
-  }catch(e){ console.error('followup log failed', e.message); }
-  // Mirror into CRM: campaign_sends (auto campaign) + events timeline so every send appears in backend CRM
+  // Mirror into CRM first so we can link the follow-up row to its outbox row
+  let sendId = 0;
   try{
     const campId = await ensureAutoCampaign();
-    await db.prepare('INSERT INTO campaign_sends (campaign_id, lead_id, email, name, status, error, message_id, sent_at) VALUES (?,?,?,?,?,?,?,datetime(\'now\'))')
+    const si = await db.prepare('INSERT INTO campaign_sends (campaign_id, lead_id, email, name, status, error, message_id, sent_at) VALUES (?,?,?,?,?,?,?,datetime(\'now\'))')
       .run(campId || 0, leadId, em, name||'', status, String(error||'').slice(0,500), messageId||'');
+    sendId = si.lastInsertRowid || 0;
   }catch(e){ console.error('followup campaign_sends mirror failed', e.message); }
+  let logId = null;
+  try{
+    const info = await db.prepare('INSERT INTO followup_logs (email,lead_id,session_id,kind,day_number,subject,body_html,body_text,status,error,message_id,send_id,sent_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,datetime(\'now\'))')
+      .run(em, leadId, sessionId||'', kind, dayNumber||0, subject||'', body_html||'', body_text||'', status, String(error||'').slice(0,500), messageId||'', sendId||0);
+    logId = info.lastInsertRowid || null;
+  }catch(e){
+    // Older DBs without send_id column (migration not yet applied) — retry without it
+    try{
+      const info2 = await db.prepare('INSERT INTO followup_logs (email,lead_id,session_id,kind,day_number,subject,body_html,body_text,status,error,message_id,sent_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,datetime(\'now\'))')
+        .run(em, leadId, sessionId||'', kind, dayNumber||0, subject||'', body_html||'', body_text||'', status, String(error||'').slice(0,500), messageId||'');
+      logId = info2.lastInsertRowid || null;
+    }catch(e2){ console.error('followup log failed', e2.message); }
+  }
   try{
     await db.prepare('INSERT INTO events (event_type,element_id,session_id,page_url,metadata) VALUES (?,?,?,?,?)')
       .run('email_sent', String(leadId||sessionId||em), sessionId||'', '', JSON.stringify({ kind, dayNumber, to: em, subject, messageId, logId }));
@@ -2251,6 +2262,60 @@ app.get('/api/admin/followups/unsubscribes', requireAuth, async (req, res) => {
 app.delete('/api/admin/followups/unsubscribes/:email', requireAuth, async (req, res) => {
   try{ await db.prepare('DELETE FROM email_unsubscribes WHERE email=?').run(String(req.params.email||'').toLowerCase().trim()); res.json({ ok:true }); }
   catch(e){ res.status(500).json({ error: e.message }); }
+});
+// Delete one follow-up log row + its mirrored outbox row (real delete from the database)
+app.delete('/api/admin/followups/logs/:id', requireAuth, async (req, res) => {
+  try{
+    await ensureFollowupTables();
+    const ex = await db.prepare('SELECT * FROM followup_logs WHERE id=?').get(req.params.id);
+    if(!ex) return res.status(404).json({ error: 'not found' });
+    try{
+      if(ex.send_id) await db.prepare('DELETE FROM campaign_sends WHERE id=?').run(ex.send_id);
+      else if(ex.message_id) await db.prepare('DELETE FROM campaign_sends WHERE message_id=? AND email=?').run(ex.message_id, ex.email);
+    }catch{}
+    await db.prepare('DELETE FROM followup_logs WHERE id=?').run(req.params.id);
+    res.json({ ok:true, deleted: req.params.id });
+  }catch(e){ res.status(500).json({ error: e.message }); }
+});
+// Clear follow-up logs (optional ?kind=form_instant|chat_instant|daily) + their mirrored outbox rows
+app.delete('/api/admin/followups/logs', requireAuth, async (req, res) => {
+  try{
+    await ensureFollowupTables();
+    const { kind='' } = req.query;
+    let logIds = [];
+    if(kind){
+      logIds = await db.prepare('SELECT id, send_id, message_id, email FROM followup_logs WHERE kind=?').all(kind);
+      await db.prepare('DELETE FROM followup_logs WHERE kind=?').run(kind);
+    } else {
+      logIds = await db.prepare('SELECT id, send_id, message_id, email FROM followup_logs').all();
+      await db.prepare('DELETE FROM followup_logs').run();
+    }
+    let unlinked = 0;
+    for(const l of (logIds||[])){
+      try{
+        if(l.send_id){ await db.prepare('DELETE FROM campaign_sends WHERE id=?').run(l.send_id); unlinked++; }
+        else if(l.message_id){ const d = await db.prepare('DELETE FROM campaign_sends WHERE message_id=?').run(l.message_id); if(d.changes) unlinked++; }
+      }catch{}
+    }
+    res.json({ ok:true, cleared: (logIds||[]).length, outboxUnlinked: unlinked });
+  }catch(e){ res.status(500).json({ error: e.message }); }
+});
+// Delete one outbox row (campaign_sends) from the database
+app.delete('/api/admin/outbox/:id', requireAuth, async (req, res) => {
+  try{
+    const ex = await db.prepare('SELECT * FROM campaign_sends WHERE id=?').get(req.params.id);
+    if(!ex) return res.status(404).json({ error: 'not found' });
+    await db.prepare('DELETE FROM campaign_sends WHERE id=?').run(req.params.id);
+    res.json({ ok:true, deleted: req.params.id });
+  }catch(e){ res.status(500).json({ error: e.message }); }
+});
+// Clear the whole outbox (all campaign_sends rows) from the database
+app.delete('/api/admin/outbox', requireAuth, async (req, res) => {
+  try{
+    const c = await db.prepare('SELECT COUNT(*) as c FROM campaign_sends').get();
+    await db.prepare('DELETE FROM campaign_sends').run();
+    res.json({ ok:true, cleared: parseInt(c?.c||0,10)||0 });
+  }catch(e){ res.status(500).json({ error: e.message }); }
 });
 app.post('/api/admin/followups/test', requireAuth, async (req, res) => {
   try{

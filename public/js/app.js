@@ -106,6 +106,9 @@ function applyTheme(c){
 // Every user-visible micro-string, editable in Admin backend. Falls back to current defaults.
 function setText(id, txt){ const el=document.getElementById(id); if(el) el.textContent=txt; }
 function applyMicroCopy(){
+  // Hero mockup image (editable in Admin backend)
+  const heroImg=document.getElementById('hero-mock-img');
+  if(heroImg && c.hero_image_url && String(c.hero_image_url).trim()) heroImg.src=String(c.hero_image_url).trim();
   // Navbar + drawer + footer links
   setText('nav-link-portfolio', T('nav_link_portfolio','Portfolio'));
   setText('nav-link-proof', T('nav_link_proof','Proof'));
