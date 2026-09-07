@@ -21,10 +21,10 @@
   <div class="container nav">
     <a class="logo" href="#"><span class="logo-mark">N</span> <span id="logo-text">NEXATECH</span></a>
     <nav class="nav-links" id="nav-links">
-      <a href="#portfolio">Portfolio</a>
-      <a href="#proof">Proof</a>
-      <a href="#pricing">Pricing</a>
-      <a href="#faq">FAQ</a>
+      <a href="#portfolio" id="nav-link-portfolio">Portfolio</a>
+      <a href="#proof" id="nav-link-proof">Proof</a>
+      <a href="#pricing" id="nav-link-pricing">Pricing</a>
+      <a href="#faq" id="nav-link-faq">FAQ</a>
     </nav>
     <div class="nav-cta">
       <a class="btn btn-ghost hide-mobile" id="nav-whatsapp" href="#" target="_blank" rel="noopener">WhatsApp Us</a>
@@ -36,10 +36,10 @@
 <div class="mobile-drawer" id="drawer">
   <div class="drawer">
     <button id="drawer-close" class="btn btn-ghost" style="align-self:flex-end">✕</button>
-    <a href="#portfolio">Portfolio</a>
-    <a href="#proof">Proof</a>
-    <a href="#pricing">Pricing</a>
-    <a href="#faq">FAQ</a>
+    <a href="#portfolio" id="drawer-link-portfolio">Portfolio</a>
+    <a href="#proof" id="drawer-link-proof">Proof</a>
+    <a href="#pricing" id="drawer-link-pricing">Pricing</a>
+    <a href="#faq" id="drawer-link-faq">FAQ</a>
     <a id="drawer-wa" href="#" target="_blank" class="btn btn-ghost">WhatsApp Us</a>
     <a id="drawer-book" href="#" target="_blank" class="btn btn-primary">Book a Call</a>
   </div>
@@ -62,18 +62,18 @@
         <a class="btn btn-ghost" id="hero-wa" href="#" target="_blank" rel="noopener">Chat on WhatsApp</a>
       </div>
       <div class="trust-row">
-        <span>✔ <b>7 to 14 Day</b> Delivery</span>
-        <span>✔ <b>100%</b> Ownership</span>
-        <span>✔ <b>Real Sales</b> Proof</span>
+        <span id="trust-1">✔ <b>7 to 14 Day</b> Delivery</span>
+        <span id="trust-2">✔ <b>100%</b> Ownership</span>
+        <span id="trust-3">✔ <b>Real Sales</b> Proof</span>
       </div>
     </div>
     <div class="hero-visual" id="hero-visual" aria-hidden="true">
-      <div class="browser-bar"><i style="background:#FF5F56"></i><i style="background:#FFBD2E"></i><i style="background:#27CA3F"></i><span style="margin-left:auto;font-size:12px;color:var(--text-muted);font-weight:700">nexatech.store</span></div>
+      <div class="browser-bar"><i style="background:#FF5F56"></i><i style="background:#FFBD2E"></i><i style="background:#27CA3F"></i><span id="hero-visual-domain" style="margin-left:auto;font-size:12px;color:var(--text-muted);font-weight:700">nexatech.store</span></div>
       <div class="mock-img">
         <img src="https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=900" alt="Store mockup" loading="eager">
-        <div class="chip" id="chip-1"><span style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#00D1FF,#7C3AED);display:grid;place-items:center;color:#fff">$</span><div><b>New Sale $450</b><br><small>Elégance Mode • just now</small></div></div>
-        <div class="chip" id="chip-2"><span style="width:36px;height:36px;border-radius:10px;background:#10B981;display:grid;place-items:center;color:#fff">✓</span><div><b>Order #1029 Shipped</b><br><small>GlowLab • 2m ago</small></div></div>
-        <div class="chip" id="chip-3"><span style="width:36px;height:36px;border-radius:10px;background:#0B1220;display:grid;place-items:center;color:#fff">◉</span><div><b>3.2% Conversion Rate</b><br><small>TechNest • today</small></div></div>
+        <div class="chip" id="chip-1"><span style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#00D1FF,#7C3AED);display:grid;place-items:center;color:#fff">$</span><div><b id="chip-1-t">New Sale $450</b><br><small id="chip-1-s">Elégance Mode • just now</small></div></div>
+        <div class="chip" id="chip-2"><span style="width:36px;height:36px;border-radius:10px;background:#10B981;display:grid;place-items:center;color:#fff">✓</span><div><b id="chip-2-t">Order #1029 Shipped</b><br><small id="chip-2-s">GlowLab • 2m ago</small></div></div>
+        <div class="chip" id="chip-3"><span style="width:36px;height:36px;border-radius:10px;background:#0B1220;display:grid;place-items:center;color:#fff">◉</span><div><b id="chip-3-t">3.2% Conversion Rate</b><br><small id="chip-3-s">TechNest • today</small></div></div>
       </div>
     </div>
   </div>
@@ -108,7 +108,7 @@
 <!-- Sales Proof -->
 <section class="section section-alt" id="proof" data-section="sales_proof">
   <div class="container">
-    <div class="eyebrow">Proof</div>
+    <div class="eyebrow" id="proof-eyebrow">Proof</div>
     <h2 class="h2" id="sales-proof-title">Revenue Wall Real Results</h2>
     <p class="sub" id="sales-proof-subtitle">Dashboard screenshots & payout proofs from stores we launched.</p>
     <div class="proof-grid" id="proof-grid"></div>
@@ -118,7 +118,7 @@
 <!-- Experts -->
 <section class="section" id="experts" data-section="experts">
   <div class="container">
-    <div class="eyebrow">Team</div>
+    <div class="eyebrow" id="experts-eyebrow">Team</div>
     <h2 class="h2" id="experts-title">Meet the Experts</h2>
     <p class="sub" id="experts-subtitle">The team that engineers your storefront.</p>
     <div class="team-grid" id="team-grid"></div>
@@ -129,7 +129,7 @@
 <!-- How It Works -->
 <section class="section section-alt" id="how-it-works" data-section="how_it_works">
   <div class="container">
-    <div class="eyebrow">Process</div>
+    <div class="eyebrow" id="how-eyebrow">Process</div>
     <h2 class="h2" id="how-title">How It Works 4 Step Launch Engine</h2>
     <p class="sub" id="how-subtitle">From niche to live store in under 2 weeks.</p>
     <div class="progress-line" id="progress-line"></div>
@@ -145,7 +145,7 @@
 <!-- Pricing -->
 <section class="section" id="pricing" data-section="pricing">
   <div class="container">
-    <div class="eyebrow">Pricing</div>
+    <div class="eyebrow" id="pricing-eyebrow">Pricing</div>
     <h2 class="h2" id="pricing-title">Packages</h2>
     <p class="sub" id="pricing-subtitle">Choose your launch tier. Every plan: you own the store 100%.</p>
     <div class="pricing" id="pricing-grid">
@@ -169,7 +169,7 @@
 <!-- Testimonials -->
 <section class="section section-alt" id="testimonials" data-section="testimonials">
   <div class="container">
-    <div class="eyebrow">Testimonials</div>
+    <div class="eyebrow" id="testimonials-eyebrow">Testimonials</div>
     <h2 class="h2" id="testimonials-title">What Clients Say</h2>
     <p class="sub" id="testimonials-subtitle">Honest feedback from store owners.</p>
     <div class="testi-grid" id="testi-grid"></div>
@@ -179,7 +179,7 @@
 <!-- Reviews Screenshot Wall 2550×1650 landscape uniform -->
 <section class="section" id="reviews" data-section="reviews">
   <div class="container">
-    <div class="eyebrow">Customer Reviews</div>
+    <div class="eyebrow" id="reviews-eyebrow">Customer Reviews</div>
     <h2 class="h2" id="reviews-title">Proof You Can See Reviews & Video Testimonials</h2>
     <p class="sub" id="reviews-subtitle">Real WhatsApp, Trustpilot and video review screenshots. Click any to view full screen.</p>
     <div class="reviews-grid" id="reviews-grid"></div>
@@ -190,7 +190,7 @@
 <!-- Certificates & Awards — image upload -->
 <section class="section section-alt" id="certificates" data-section="certificates">
   <div class="container">
-    <div class="eyebrow">Awards</div>
+    <div class="eyebrow" id="certs-eyebrow">Awards</div>
     <h2 class="h2" id="certificates-title">Certificates & Awards</h2>
     <p class="sub" id="certificates-subtitle">Verified credentials, partnerships and awards that prove credibility.</p>
     <div class="certs-grid" id="certs-grid"></div>
@@ -201,7 +201,7 @@
 <!-- FAQ -->
 <section class="section" id="faq" data-section="faq">
   <div class="container">
-    <div class="eyebrow">FAQ</div>
+    <div class="eyebrow" id="faq-eyebrow">FAQ</div>
     <h2 class="h2" id="faq-title">Questions? We’ve Got Honest Answers.</h2>
     <p class="sub" id="faq-subtitle">No hype. Just clear terms.</p>
     <div class="faq" id="faq-list"></div>
@@ -222,40 +222,40 @@
         <div class="honey"><label>Leave blank<input name="honeypot" autocomplete="off"></label></div>
         <!-- Step 1 -->
         <div data-step="1">
-          <div class="field"><label>Full Name *</label><input name="name" required placeholder="Ada Lovelace"><small>Required</small></div>
-          <div class="field"><label>Desired Brand / Niche Name *</label><input name="storeName" required placeholder="GlowLab"><small>Required</small></div>
-          <div class="field"><label>Preferred Niche *</label>
-            <select name="preferredNiche" required><option value="">Select</option><option>Fashion</option><option>Beauty</option><option>Electronics</option><option>Home</option><option>Health</option><option>Pets</option><option>Fitness</option><option>General</option><option>Other</option></select><small>Required</small>
+          <div class="field"><label id="f-label-name">Full Name *</label><input name="name" required placeholder="Ada Lovelace"><small id="f-req-1">Required</small></div>
+          <div class="field"><label id="f-label-store">Desired Brand / Niche Name *</label><input name="storeName" required placeholder="GlowLab"><small id="f-req-2">Required</small></div>
+          <div class="field"><label id="f-label-niche">Preferred Niche *</label>
+            <select name="preferredNiche" required><option value="">Select</option><option>Fashion</option><option>Beauty</option><option>Electronics</option><option>Home</option><option>Health</option><option>Pets</option><option>Fitness</option><option>General</option><option>Other</option></select><small id="f-req-3">Required</small>
           </div>
-          <div class="field hidden" id="other-niche-field"><label>Other niche tell us</label><input name="preferredNicheOther" placeholder="e.g. Eco-friendly baby products"></div>
-          <div class="field"><label>Investment Range *</label>
-            <select name="investmentRange" required><option value="">Select</option><option>Starter</option><option>Scale</option><option>Elite</option><option>Not sure yet</option></select><small>Required</small>
+          <div class="field hidden" id="other-niche-field"><label id="f-label-niche-other">Other niche tell us</label><input name="preferredNicheOther" placeholder="e.g. Eco-friendly baby products"></div>
+          <div class="field"><label id="f-label-investment">Investment Range *</label>
+            <select name="investmentRange" required><option value="">Select</option><option>Starter</option><option>Scale</option><option>Elite</option><option>Not sure yet</option></select><small id="f-req-4">Required</small>
           </div>
         </div>
         <!-- Step 2 -->
         <div data-step="2" class="hidden">
-          <div class="field"><label>Current Status *</label>
-            <select name="storeStatus" required><option value="">Select</option><option value="brand_new">Brand new no store yet</option><option value="existing_not_converting">Have a store that isn't converting</option></select><small>Required</small>
+          <div class="field"><label id="f-label-status">Current Status *</label>
+            <select name="storeStatus" required><option value="">Select</option><option value="brand_new">Brand new no store yet</option><option value="existing_not_converting">Have a store that isn't converting</option></select><small id="f-req-5">Required</small>
           </div>
-          <div class="field"><label>Previously lost money to a fake mentor/agency? *</label>
-            <select name="wasScammed" required><option value="">Select</option><option value="yes">Yes</option><option value="no">No</option></select><small>Required</small>
+          <div class="field"><label id="f-label-scammed">Previously lost money to a fake mentor/agency? *</label>
+            <select name="wasScammed" required><option value="">Select</option><option value="yes">Yes</option><option value="no">No</option></select><small id="f-req-6">Required</small>
           </div>
-          <div class="field hidden" id="scam-details-field"><label>What happened? (so we can help better)</label><textarea name="scamDetails" rows="3" placeholder="Briefly describe..."></textarea></div>
+          <div class="field hidden" id="scam-details-field"><label id="f-label-scam-details">What happened? (so we can help better)</label><textarea name="scamDetails" rows="3" placeholder="Briefly describe..."></textarea></div>
         </div>
         <!-- Step 3 -->
         <div data-step="3" class="hidden">
-          <div class="field"><label>WhatsApp number *</label>
-            <div style="display:flex;gap:8px"><select name="wa_code" style="max-width:120px"><option value="+234">🇳🇬 +234</option><option value="+1">🇺🇸 +1</option><option value="+44">🇬🇧 +44</option><option value="+27">🇿🇦 +27</option><option value="+971">🇦🇪 +971</option></select><input name="whatsapp" required placeholder="812 345 6789" style="flex:1"></div><small>Enter a valid WhatsApp number</small>
+          <div class="field"><label id="f-label-whatsapp">WhatsApp number *</label>
+            <div style="display:flex;gap:8px"><select name="wa_code" style="max-width:120px"><option value="+234">🇳🇬 +234</option><option value="+1">🇺🇸 +1</option><option value="+44">🇬🇧 +44</option><option value="+27">🇿🇦 +27</option><option value="+971">🇦🇪 +971</option></select><input name="whatsapp" required placeholder="812 345 6789" style="flex:1"></div><small id="f-wa-invalid">Enter a valid WhatsApp number</small>
           </div>
-          <div class="field"><label>Business Email *</label><input name="email" type="email" required placeholder="you@example.com"><small>Enter a valid email</small></div>
-          <div class="field"><label>Preferred contact time / timezone</label><input name="preferredContactTime" placeholder="e.g. Evenings WAT"></div>
-          <div class="field"><label>How did you hear about us?</label>
+          <div class="field"><label id="f-label-email">Business Email *</label><input name="email" type="email" required placeholder="you@example.com"><small id="f-email-invalid">Enter a valid email</small></div>
+          <div class="field"><label id="f-label-contact-time">Preferred contact time / timezone</label><input name="preferredContactTime" placeholder="e.g. Evenings WAT"></div>
+          <div class="field"><label id="f-label-source">How did you hear about us?</label>
             <select name="source"><option value="">Select</option><option>Instagram</option><option>WhatsApp status</option><option>TikTok</option><option>Referral</option><option>Google</option><option>Other</option></select>
           </div>
-          <div class="field"><label>Traffic-source plan</label>
+          <div class="field"><label id="f-label-traffic">Traffic-source plan</label>
             <select name="trafficPlan"><option value="">Select</option><option>TikTok Ads</option><option>Meta Ads</option><option>Google SEO</option><option>Influencers</option><option>Undecided</option></select>
           </div>
-          <div class="field"><label style="text-transform:none;letter-spacing:0;font-weight:600"><input type="checkbox" name="consent" required> I agree to be contacted via WhatsApp/Email about my application. *</label><small>Consent required</small></div>
+          <div class="field"><label id="f-label-consent" style="text-transform:none;letter-spacing:0;font-weight:600"><input type="checkbox" name="consent" required> <span id="f-consent-text">I agree to be contacted via WhatsApp/Email about my application. *</span></label><small id="f-consent-required">Consent required</small></div>
         </div>
         <div class="form-actions">
           <button type="button" class="btn btn-ghost hidden" id="btn-prev">← Back</button>
@@ -292,17 +292,17 @@
         <div class="foot-logo" id="footer-logo">NEXATECH</div>
         <p style="color:#94A3B8;font-size:13px;margin:8px 0 0" id="footer-tagline">We engineer high-converting storefronts backed by real, current sales proof.</p>
         <div style="display:flex;gap:10px;margin-top:12px">
-          <a href="#" aria-label="Instagram">◎</a><a href="#" aria-label="X">𝕏</a><a href="#" aria-label="TikTok">♪</a><a href="#" aria-label="LinkedIn">in</a>
+          <a href="#" id="soc-instagram" aria-label="Instagram" target="_blank" rel="noopener">◎</a><a href="#" id="soc-x" aria-label="X" target="_blank" rel="noopener">𝕏</a><a href="#" id="soc-tiktok" aria-label="TikTok" target="_blank" rel="noopener">♪</a><a href="#" id="soc-linkedin" aria-label="LinkedIn" target="_blank" rel="noopener">in</a><a href="#" id="soc-facebook" aria-label="Facebook" target="_blank" rel="noopener" style="display:none">f</a><a href="#" id="soc-youtube" aria-label="YouTube" target="_blank" rel="noopener" style="display:none">▶</a>
         </div>
       </div>
       <div>
-        <b style="color:#fff">Quick Links</b>
+        <b style="color:#fff" id="footer-quick-links">Quick Links</b>
         <div style="display:grid;gap:8px;margin-top:10px;font-size:13px">
-          <a href="#portfolio">Portfolio</a><a href="#proof">Proof</a><a href="#pricing">Pricing</a><a href="#faq">FAQ</a>
+          <a href="#portfolio" id="footer-link-portfolio">Portfolio</a><a href="#proof" id="footer-link-proof">Proof</a><a href="#pricing" id="footer-link-pricing">Pricing</a><a href="#faq" id="footer-link-faq">FAQ</a>
         </div>
       </div>
       <div>
-        <b style="color:#fff">Contact</b>
+        <b style="color:#fff" id="footer-contact-h">Contact</b>
         <div style="display:grid;gap:8px;margin-top:10px;font-size:13px">
           <span id="footer-email">hello@nexatech.store</span>
           <span id="footer-phone">+234 812 345 6789</span>
@@ -310,7 +310,7 @@
         </div>
       </div>
       <div>
-        <b style="color:#fff">Legal</b>
+        <b style="color:#fff" id="footer-legal-h">Legal</b>
         <div style="display:grid;gap:8px;margin-top:10px;font-size:13px">
           <a href="/privacy.html" id="privacy-link">Privacy Policy</a><a href="/terms.html" id="terms-link">Terms of Service</a>
         </div>
@@ -318,7 +318,7 @@
     </div>
     <div class="copy">
       <span id="footer-copyright">© 2026 Nexatech Dropshipping Store. All rights reserved.</span>
-      <span>Built with honesty all proof numbers are live from our database.</span>
+      <span id="footer-built-note">Built with honesty all proof numbers are live from our database.</span>
     </div>
   </div>
 </footer>
@@ -345,7 +345,7 @@
 <!-- Chatbot — New Chat / Recent / WhatsApp + persists reload -->
 <button class="chat-btn" id="chat-btn" aria-label="Chat">💬</button>
 <div class="chat-win" id="chat-win">
-  <div class="chat-head"><b>Nexatech Assistant</b><button id="chat-close" style="background:none;border:none;color:#fff;cursor:pointer">✕</button></div>
+  <div class="chat-head"><b id="chat-title">Nexatech Assistant</b><button id="chat-close" style="background:none;border:none;color:#fff;cursor:pointer">✕</button></div>
   <div class="chat-actions" style="display:flex;gap:6px;padding:8px;background:#F8FAFC;border-bottom:1px solid var(--border);flex-wrap:wrap">
     <button id="chat-new" class="btn btn-ghost" style="padding:6px 10px;font-size:11px">+ New Chat</button>
     <button id="chat-recent" class="btn btn-ghost" style="padding:6px 10px;font-size:11px">Recent ▾</button>

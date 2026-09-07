@@ -3,6 +3,8 @@ const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 let CONTENT={}, STATS={}, SCARCITY={}, SECTIONS=[];
 let PORTFOLIO=[], MODAL_INDEX=0, MODAL_ITEMS=[];
+// T: editable micro-copy from backend (Admin edits) with hardcoded fallback — every visible string flows through here
+function T(key, fb){ const v=CONTENT[key]; if(v===undefined||v===null) return fb; const s=String(v); return s.trim()===''&&typeof fb==='string'&&fb!=='' ? fb : s; }
 let sessionId = localStorage.getItem('nexatech_sid') || (localStorage.setItem('nexatech_sid', Math.random().toString(36).slice(2)+Date.now().toString(36)), localStorage.getItem('nexatech_sid'));
 function getUTM(){
   const p=new URLSearchParams(location.search);
@@ -93,6 +95,110 @@ function applyTheme(c){
   if(c.footer_address) $('#footer-address').textContent=c.footer_address;
   if(c.footer_copyright) $('#footer-copyright').textContent=c.footer_copyright + ` ${new Date().getFullYear()}`;
   else $('#footer-copyright').textContent=`© ${new Date().getFullYear()} Nexatech Dropshipping Store. All rights reserved.`;
+  applyMicroCopy();
+}
+
+// Every user-visible micro-string, editable in Admin backend. Falls back to current defaults.
+function setText(id, txt){ const el=document.getElementById(id); if(el) el.textContent=txt; }
+function applyMicroCopy(){
+  // Navbar + drawer + footer links
+  setText('nav-link-portfolio', T('nav_link_portfolio','Portfolio'));
+  setText('nav-link-proof', T('nav_link_proof','Proof'));
+  setText('nav-link-pricing', T('nav_link_pricing','Pricing'));
+  setText('nav-link-faq', T('nav_link_faq','FAQ'));
+  setText('drawer-link-portfolio', T('nav_link_portfolio','Portfolio'));
+  setText('drawer-link-proof', T('nav_link_proof','Proof'));
+  setText('drawer-link-pricing', T('nav_link_pricing','Pricing'));
+  setText('drawer-link-faq', T('nav_link_faq','FAQ'));
+  setText('nav-whatsapp', T('nav_whatsapp_label','WhatsApp Us'));
+  setText('nav-book', T('nav_book_label','Book a Call'));
+  setText('drawer-wa', T('nav_whatsapp_label','WhatsApp Us'));
+  setText('drawer-book', T('nav_book_label','Book a Call'));
+  setText('footer-link-portfolio', T('nav_link_portfolio','Portfolio'));
+  setText('footer-link-proof', T('nav_link_proof','Proof'));
+  setText('footer-link-pricing', T('nav_link_pricing','Pricing'));
+  setText('footer-link-faq', T('nav_link_faq','FAQ'));
+  // Trust badges
+  const trust=(id,b,t)=>{ const el=document.getElementById(id); if(el) el.innerHTML='✔ <b>'+sanitize(b)+'</b> '+sanitize(t); };
+  trust('trust-1', T('trust_1_bold','7 to 14 Day'), T('trust_1_text','Delivery'));
+  trust('trust-2', T('trust_2_bold','100%'), T('trust_2_text','Ownership'));
+  trust('trust-3', T('trust_3_bold','Real Sales'), T('trust_3_text','Proof'));
+  // Hero visual
+  setText('hero-visual-domain', T('hero_visual_domain','nexatech.store'));
+  setText('chip-1-t', T('chip_1_title','New Sale $450'));
+  setText('chip-1-s', T('chip_1_sub','Elegance Mode - just now'));
+  setText('chip-2-t', T('chip_2_title','Order #1029 Shipped'));
+  setText('chip-2-s', T('chip_2_sub','GlowLab - 2m ago'));
+  setText('chip-3-t', T('chip_3_title','3.2% Conversion Rate'));
+  setText('chip-3-s', T('chip_3_sub','TechNest - today'));
+  // Eyebrows
+  setText('portfolio-eyebrow', T('portfolio_eyebrow','Portfolio'));
+  setText('proof-eyebrow', T('proof_eyebrow','Proof'));
+  setText('experts-eyebrow', T('experts_eyebrow','Team'));
+  setText('how-eyebrow', T('how_eyebrow','Process'));
+  setText('pricing-eyebrow', T('pricing_eyebrow','Pricing'));
+  setText('mentorship-eyebrow', T('mentorship_eyebrow','Mentorship'));
+  setText('testimonials-eyebrow', T('testimonials_eyebrow','Testimonials'));
+  setText('reviews-eyebrow', T('reviews_eyebrow','Customer Reviews'));
+  setText('certs-eyebrow', T('certs_eyebrow','Awards'));
+  setText('faq-eyebrow', T('faq_eyebrow','FAQ'));
+  // Filter pills (labels editable, data-filter matching untouched)
+  const fmap={All:'filter_all',Fashion:'filter_fashion',Beauty:'filter_beauty','Tech Gadgets':'filter_gadgets',Fitness:'filter_fitness',Home:'filter_home','Eco Friendly':'filter_eco'};
+  $$('#filter-bar .pill').forEach(p=>{ const k=fmap[p.dataset.filter]; if(k) p.textContent=T(k,p.dataset.filter); });
+  // Team + mentorship + CTA buttons
+  setText('view-full-team', T('team_view_all','View full team')+' →');
+  setText('mentorship-wa', T('mentorship_cta','Chat about Mentorship')+' →');
+  setText('cta-wa', T('cta_whatsapp_label','Chat on WhatsApp'));
+  setText('cta-book', T('cta_book_label','Book a Free Call')+' →');
+  // Footer
+  setText('footer-tagline', T('footer_tagline','We engineer high-converting storefronts backed by real, current sales proof.'));
+  setText('footer-quick-links', T('footer_quick_links','Quick Links'));
+  setText('footer-contact-h', T('footer_contact','Contact'));
+  setText('footer-legal-h', T('footer_legal','Legal'));
+  setText('privacy-link', T('privacy_link_label','Privacy Policy'));
+  setText('terms-link', T('terms_link_label','Terms of Service'));
+  setText('footer-built-note', T('footer_built_note','Built with honesty all proof numbers are live from our database.'));
+  const socmap={'soc-instagram':'social_instagram_url','soc-x':'social_x_url','soc-tiktok':'social_tiktok_url','soc-linkedin':'social_linkedin_url','soc-facebook':'social_facebook_url','soc-youtube':'social_youtube_url'};
+  for(const [id,key] of Object.entries(socmap)){
+    const el=document.getElementById(id); if(!el) continue;
+    const url=(CONTENT[key]||'').trim();
+    if(url){ el.href=url; el.style.display=''; } else { el.style.display='none'; }
+  }
+  // Lead form copy
+  setText('f-label-name', T('form_label_name','Full Name *'));
+  setText('f-label-store', T('form_label_store','Desired Brand / Niche Name *'));
+  setText('f-label-niche', T('form_label_niche','Preferred Niche *'));
+  setText('f-label-niche-other', T('form_label_niche_other','Other niche tell us'));
+  setText('f-label-investment', T('form_label_investment','Investment Range *'));
+  setText('f-label-status', T('form_label_status','Current Status *'));
+  setText('f-label-scammed', T('form_label_scammed','Previously lost money to a fake mentor/agency? *'));
+  setText('f-label-scam-details', T('form_label_scam_details','What happened? (so we can help better)'));
+  setText('f-label-whatsapp', T('form_label_whatsapp','WhatsApp number *'));
+  setText('f-label-email', T('form_label_email','Business Email *'));
+  setText('f-label-contact-time', T('form_label_contact_time','Preferred contact time / timezone'));
+  setText('f-label-source', T('form_label_source','How did you hear about us?'));
+  setText('f-label-traffic', T('form_label_traffic','Traffic-source plan'));
+  setText('f-consent-text', T('form_consent_text','I agree to be contacted via WhatsApp/Email about my application. *'));
+  ['f-req-1','f-req-2','f-req-3','f-req-4','f-req-5','f-req-6'].forEach(id=> setText(id, T('form_required','Required')));
+  setText('f-wa-invalid', T('form_wa_invalid','Enter a valid WhatsApp number'));
+  setText('f-email-invalid', T('form_email_invalid','Enter a valid email'));
+  setText('f-consent-required', T('form_consent_required','Consent required'));
+  const ph=(name,key,fb)=>{ const el=document.querySelector(`#lead-form [name="${name}"]`); if(el) el.placeholder=T(key,fb); };
+  ph('name','form_ph_name','Ada Lovelace'); ph('storeName','form_ph_store','GlowLab');
+  ph('preferredNicheOther','form_ph_niche_other','e.g. Eco-friendly baby products');
+  ph('scamDetails','form_ph_scam_details','Briefly describe...');
+  ph('whatsapp','form_ph_whatsapp','812 345 6789'); ph('email','form_ph_email','you@example.com');
+  ph('preferredContactTime','form_ph_contact_time','e.g. Evenings WAT');
+  setText('btn-prev', '← '+T('form_back','Back'));
+  setText('btn-next', T('form_continue','Continue')+' →');
+  setText('btn-submit', T('form_submit','Submit Application & Book Strategy Call'));
+  // Chatbot chrome
+  setText('chat-title', T('chat_title','Nexatech Assistant'));
+  setText('chat-new', T('chat_new','+ New Chat'));
+  setText('chat-recent', T('chat_recent','Recent')+' ▾');
+  setText('chat-whatsapp', T('chat_whatsapp_btn','WhatsApp Us'));
+  const ci=$('#chat-input'); if(ci) ci.placeholder=T('chat_placeholder','Type a message...');
+  setText('chat-send', T('chat_send','Send'));
 }
 
 // Fetch content
@@ -149,15 +255,15 @@ function applySections(){
 function renderMarquee(){
   const marquee=$('#marquee');
   const items=[
-    {label:'Stores Launched', value: parseInt(STATS.stores_launched||47,10)},
-    {label:'Verified Sales', value: parseInt(STATS.verified_sales||38200000,10), fmt:v=>'$'+(v/1000000).toFixed(1)+'M'},
-    {label:'Happy Clients', value: parseInt(STATS.happy_clients||41,10)},
-    {label:'Avg Launch', value: parseInt(STATS.avg_launch_days||11,10), fmt:v=>v+' days'},
+    {label:T('stat_stores_label','Stores Launched'), value: parseInt(STATS.stores_launched||47,10), kind:'n'},
+    {label:T('stat_sales_label','Verified Sales'), value: parseInt(STATS.verified_sales||38200000,10), fmt:v=>'$'+(v/1000000).toFixed(1)+'M', kind:'m'},
+    {label:T('stat_clients_label','Happy Clients'), value: parseInt(STATS.happy_clients||41,10), kind:'n'},
+    {label:T('stat_launch_label','Avg Launch'), value: parseInt(STATS.avg_launch_days||11,10), fmt:v=>v+' days', kind:'d'},
   ];
   function makeStat(it){
     const d=document.createElement('div'); d.className='stat';
     const fmt = it.fmt ? it.fmt(it.value) : String(it.value);
-    d.innerHTML=`<strong data-count="${it.value}" data-fmt="${it.fmt?'1':'0'}">${it.fmt?it.fmt(0):0}</strong><span>${it.label}<br><small style="text-transform:none;letter-spacing:0;color:var(--text-muted)">${fmt}</small></span>`;
+    d.innerHTML=`<strong data-count="${it.value}" data-fmt="${it.fmt?'1':'0'}" data-kind="${it.kind}">${it.fmt?it.fmt(0):0}</strong><span>${it.label}<br><small style="text-transform:none;letter-spacing:0;color:var(--text-muted)">${fmt}</small></span>`;
     return d;
   }
   const row=document.createElement('div'); row.style.display='flex';
@@ -176,10 +282,10 @@ function renderMarquee(){
           const iv=setInterval(()=>{
             cur=Math.min(target, cur+step);
             if(isFmt){
-              // find label to decide fmt: check parent text
-              const label=s.nextElementSibling?.textContent||'';
-              if(label.includes('Verified')) s.textContent='$'+(cur/1000000).toFixed(1)+'M';
-              else if(label.includes('Avg')) s.textContent=cur+' days';
+              // kind-based formatting (labels are admin-editable, so never match on label text)
+              const kind=s.dataset.kind||'';
+              if(kind==='m') s.textContent='$'+(cur/1000000).toFixed(1)+'M';
+              else if(kind==='d') s.textContent=cur+' days';
               else s.textContent=cur;
             } else s.textContent=cur;
             if(cur>=target) clearInterval(iv);
@@ -201,7 +307,7 @@ function renderPortfolio(filter){
   const grid=$('#portfolio-grid'); grid.innerHTML='';
   const filtered = filter==='All'? PORTFOLIO : PORTFOLIO.filter(p=> (p.category||'').toLowerCase()===filter.toLowerCase() || (p.tags||'').toLowerCase().includes(filter.toLowerCase()));
   if(filtered.length===0){
-    grid.innerHTML='<p class="sub">No stores in this category yet check back soon or view All.</p>';
+    grid.innerHTML='<p class="sub">'+sanitize(T('portfolio_empty','No stores in this category yet check back soon or view All.'))+'</p>';
     return;
   }
   filtered.forEach((item, idx)=>{
@@ -210,7 +316,7 @@ function renderPortfolio(filter){
     // detect video?
     const isVideo = item.url.match(/\.(mp4|webm|mov)$/i) || item.url.includes('video');
     const media = isVideo ? `<video src="${item.url}" muted loop playsinline poster=""></video><span style="position:absolute;right:10px;top:10px;background:rgba(0,0,0,.6);color:#fff;padding:4px 8px;border-radius:999px;font-size:10px">VIDEO</span>` : `<img src="${item.url}" alt="${sanitize(item.alt_text||item.caption)}" loading="lazy">`;
-    card.innerHTML=`<div class="card-media">${media}<div class="overlay"><span class="tag">${sanitize(item.category||'Store')}</span><div class="result">${sanitize(item.result_stat||'')}</div><div style="font-size:13px;font-weight:700;margin-top:4px">${sanitize(item.caption||'')}</div><div class="view">View Case Study →</div></div></div>`;
+    card.innerHTML=`<div class="card-media">${media}<div class="overlay"><span class="tag">${sanitize(item.category||'Store')}</span><div class="result">${sanitize(item.result_stat||'')}</div><div style="font-size:13px;font-weight:700;margin-top:4px">${sanitize(item.caption||'')}</div><div class="view">${sanitize(T('modal_view_case','View Case Study'))} →</div></div></div>`;
     // stagger in
     requestAnimationFrame(()=> setTimeout(()=>card.classList.add('in'), 30+idx*40));
     card.addEventListener('click', ()=> openModal(item, filtered));
@@ -278,8 +384,9 @@ function updateModal(){
   $('#modal-tag').textContent=item.category||'Store';
   $('#modal-title').textContent=item.caption||'Store';
   $('#modal-result').textContent=item.result_stat||'';
-  $('#modal-desc').textContent=item.case_study_text||'A fully-configured dropshipping store built for conversions premium theme, winning products, and automated fulfillment.';
+  $('#modal-desc').textContent=item.case_study_text||T('modal_fallback_desc','A fully-configured dropshipping store built for conversions premium theme, winning products, and automated fulfillment.');
   const waNum=CONTENT.whatsapp_number||'2348123456789';
+  $('#modal-cta').textContent=T('modal_cta','Start a Store Like This')+' →';
   $('#modal-cta').href=whatsappLink(waNum, `Hi Nexatech! I love the ${item.category||''} store "${item.caption||''}" I want a store like this. How do we start?`);
   $('#modal-cta').onclick=()=>track('cta_click','modal-cta',{store:item.caption});
 }
@@ -314,7 +421,7 @@ async function loadMedia(){
   const pGrid=$('#proof-grid'); pGrid.innerHTML='';
   proof.forEach(item=>{
     const c=document.createElement('div'); c.className='proof-card reveal';
-    c.innerHTML=`<img src="${item.url}" alt="${sanitize(item.alt_text||'proof')}" loading="lazy"><p>${sanitize(item.caption||'Verified sales proof')}</p>`;
+    c.innerHTML=`<img src="${item.url}" alt="${sanitize(item.alt_text||'proof')}" loading="lazy"><p>${sanitize(item.caption||T('proof_caption_fallback','Verified sales proof'))}</p>`;
     pGrid.appendChild(c);
   });
   const testiR=await fetch('/api/media?type=testimonials'); const testi=await testiR.json();
@@ -323,7 +430,7 @@ async function loadMedia(){
     const isVideo=item.url.match(/\.(mp4|webm)$/i);
     const media=isVideo?`<video src="${item.url}" muted loop playsinline style="width:40px;height:40px;border-radius:50%;object-fit:cover"></video>`:`<img src="${item.url}" alt="">`;
     const el=document.createElement('div'); el.className='testi reveal';
-    el.innerHTML=`<q>${sanitize(item.caption||'Great experience with Nexatech.')}</q><div class="who">${media}<div><b>${sanitize(item.alt_text||'Client')}</b><br><small style="color:var(--text-muted)">${sanitize(item.result_stat||'Verified buyer')}</small></div></div>`;
+    el.innerHTML=`<q>${sanitize(item.caption||T('testi_fallback','Great experience with Nexatech.'))}</q><div class="who">${media}<div><b>${sanitize(item.alt_text||'Client')}</b><br><small style="color:var(--text-muted)">${sanitize(item.result_stat||T('testi_role_fallback','Verified buyer'))}</small></div></div>`;
     if(isVideo){ const v=el.querySelector('video'); if(v) v.play().catch(()=>{}); }
     tGrid.appendChild(el);
   });
@@ -334,7 +441,7 @@ async function loadMedia(){
     if(rGrid){
       rGrid.innerHTML='';
       if(reviews.length===0){
-        if(empty) empty.classList.remove('hidden');
+        if(empty) { empty.textContent=T('reviews_empty','No reviews uploaded yet add them in Admin - Media Manager - Review Screenshots.'); empty.classList.remove('hidden'); }
       } else {
         if(empty) empty.classList.add('hidden');
         reviews.forEach((item, idx)=>{
@@ -342,8 +449,8 @@ async function loadMedia(){
           const card=document.createElement('div'); card.className='reviews-card reveal';
           card.style.transitionDelay=(idx*50)+'ms';
           card.innerHTML = isVideo
-            ? `<video src="${item.url}" muted loop playsinline preload="metadata" poster=""></video><div class="play-badge"><span>▶</span></div><div class="caption">${sanitize(item.caption||'Video Review')}</div>`
-            : `<img src="${item.url}" alt="${sanitize(item.alt_text||item.caption||'Review screenshot')}" loading="lazy"><div class="caption">${sanitize(item.caption||'Customer Review')}</div>`;
+            ? `<video src="${item.url}" muted loop playsinline preload="metadata" poster=""></video><div class="play-badge"><span>▶</span></div><div class="caption">${sanitize(item.caption||T('review_video_label','Video Review'))}</div>`
+            : `<img src="${item.url}" alt="${sanitize(item.alt_text||item.caption||T('review_caption_fallback','Customer Review'))}" loading="lazy"><div class="caption">${sanitize(item.caption||T('review_caption_fallback','Customer Review'))}</div>`;
           card.addEventListener('click', ()=>{
             // open in modal lightbox (reuse portfolio modal)
             MODAL_ITEMS=reviews; MODAL_INDEX=reviews.findIndex(x=>x.id===item.id);
@@ -371,13 +478,13 @@ async function loadMedia(){
     if(cGrid){
       cGrid.innerHTML='';
       if(certs.length===0){
-        if(cEmpty) cEmpty.classList.remove('hidden');
+        if(cEmpty) { cEmpty.textContent=T('certs_empty','No certificates uploaded yet - add them in Admin - Media Manager - Certificates & Awards.'); cEmpty.classList.remove('hidden'); }
       } else {
         if(cEmpty) cEmpty.classList.add('hidden');
         certs.forEach((item, idx)=>{
           const card=document.createElement('div'); card.className='certs-card reveal';
           card.style.transitionDelay=(idx*50)+'ms';
-          card.innerHTML=`<img src="${item.url}" alt="${sanitize(item.alt_text||item.caption||'Certificate')}" loading="lazy"><div class="caption">${sanitize(item.caption||'Certificate')}</div>`;
+          card.innerHTML=`<img src="${item.url}" alt="${sanitize(item.alt_text||item.caption||T('cert_caption_fallback','Certificate'))}" loading="lazy"><div class="caption">${sanitize(item.caption||T('cert_caption_fallback','Certificate'))}</div>`;
           card.addEventListener('click', ()=>{
             MODAL_ITEMS=certs; MODAL_INDEX=certs.findIndex(x=>x.id===item.id);
             updateModal();
@@ -416,7 +523,7 @@ function renderPricing(){
   const waNum=CONTENT.whatsapp_number||'2348123456789';
   tiers.forEach(t=>{
     const el=document.createElement('div'); el.className='price-card'+(t.popular?' popular':'');
-    el.innerHTML=`${t.popular?'<span class="popular-badge">Most Popular</span>':''}<div class="eyebrow" style="margin:0">${sanitize(t.name)}</div><div class="price">${sanitize(t.price)}</div><ul>${t.features.map(f=>`<li>${sanitize(f)}</li>`).join('')}</ul><a class="btn ${t.popular?'btn-primary':'btn-ghost'}" href="${whatsappLink(waNum, t.wa)}" target="_blank" style="margin-top:auto">Choose ${sanitize(t.name)} →</a>`;
+    el.innerHTML=`${t.popular?'<span class="popular-badge">'+sanitize(T('pricing_popular_badge','Most Popular'))+'</span>':''}<div class="eyebrow" style="margin:0">${sanitize(t.name)}</div><div class="price">${sanitize(t.price)}</div><ul>${t.features.map(f=>`<li>${sanitize(f)}</li>`).join('')}</ul><a class="btn ${t.popular?'btn-primary':'btn-ghost'}" href="${whatsappLink(waNum, t.wa)}" target="_blank" style="margin-top:auto">${sanitize(T('pricing_cta_template','Choose {name}').replace('{name}', t.name))} →</a>`;
     const a=el.querySelector('a'); a.addEventListener('click',()=>track('cta_click','pricing-'+t.key,{price:t.price}));
     grid.appendChild(el);
   });
@@ -463,7 +570,7 @@ function showStep(n){
   $('#bar1').classList.toggle('on', n>=1);
   $('#bar2').classList.toggle('on', n>=2);
   $('#bar3').classList.toggle('on', n>=3);
-  const labels=['Step 1 of 3 Vision','Step 2 of 3 Qualification','Step 3 of 3 Contact & Delivery'];
+  const labels=[T('form_step_1','Step 1 of 3 Vision'),T('form_step_2','Step 2 of 3 Qualification'),T('form_step_3','Step 3 of 3 Contact & Delivery')];
   $('#step-indicator').textContent=labels[n-1];
   $('#btn-prev').classList.toggle('hidden', n===1);
   $('#btn-next').classList.toggle('hidden', n===totalSteps);
@@ -537,13 +644,13 @@ $('#lead-form').addEventListener('submit', async e=>{
   // client validation already done
   const btn=$('#btn-submit');
   const msg=$('#form-msg');
-  btn.disabled=true; btn.textContent='Submitting...'; msg.textContent='';
+  btn.disabled=true; btn.textContent=T('form_submitting','Submitting...'); msg.textContent='';
   try{
     const res=await fetch('/api/leads',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     const j=await res.json();
     if(!res.ok) throw new Error(j.error||'Submission failed');
     msg.style.color='var(--success)';
-    const emailEcho = payload.email ? ` We've sent details to ${payload.email} — please check your inbox (and spam folder).` : ` Please check your inbox (and spam folder).`;
+    const emailEcho = payload.email ? ' '+T('form_success_email_note',"We've sent details to {email} - please check your inbox (and spam folder).").replace('{email}', payload.email) : '';
     msg.textContent=(j.message||'Application received.') + emailEcho;
     e.target.reset(); showStep(1);
     track('form_complete','lead_form',{leadId:j.leadId});
@@ -552,7 +659,7 @@ $('#lead-form').addEventListener('submit', async e=>{
   }catch(err){
     msg.style.color='#EF4444'; msg.textContent=err.message || 'Something went wrong. Please try again or chat on WhatsApp.';
   }finally{
-    btn.disabled=false; btn.textContent='Submit Application & Book Strategy Call';
+    btn.disabled=false; btn.textContent=T('form_submit','Submit Application & Book Strategy Call');
   }
 });
 
@@ -758,7 +865,7 @@ function initChat(){
   function renderRecent(){
     if(!recentList) return;
     const recents=getRecents();
-    if(recents.length===0){ recentList.innerHTML='<div style="padding:8px;font-size:12px;color:#94A3B8">No recent chats yet — start a conversation first.</div>'; return; }
+    if(recents.length===0){ recentList.innerHTML='<div style="padding:8px;font-size:12px;color:#94A3B8">'+sanitize(T('chat_no_recent','No recent chats yet - start a conversation first.'))+'</div>'; return; }
     recentList.innerHTML='';
     recents.forEach(r=>{
       const div=document.createElement('div');
@@ -793,10 +900,21 @@ function initChat(){
   function bindQuick(){
     body.querySelectorAll('.quick button').forEach(b=> b.addEventListener('click', ()=>{ input.value=b.dataset.q; sendMsg(); }));
   }
+  function chatQs(){
+    return [
+      T('chat_quick_1','What is included in Pro?'),
+      T('chat_quick_2','How long to launch?'),
+      T('chat_quick_3','Do I own the store?')
+    ];
+  }
+  function quickHtml(){
+    return '<div class="quick">'+chatQs().map(q=>`<button data-q="${sanitize(q)}">${sanitize(q)}</button>`).join('')+'</div>';
+  }
   function showGreeting(){
     const id=getIdentity();
     const first=id ? escId(String(id.name).split(' ')[0]) : 'there';
-    body.innerHTML=`<div class="msg bot">Hi ${first}! I’m the Nexatech assistant. Ask me about packages, timelines, or proof or tap a quick question below.</div><div class="quick"><button data-q="What’s included in Pro?">What’s included in Pro?</button><button data-q="How long to launch?">How long to launch?</button><button data-q="Do I own the store?">Do I own the store?</button></div><div style="font-size:10px;color:#94A3B8;padding:2px 4px">Chatting as <b>${id?escId(id.name):''}</b>${id?' ('+escId(id.email)+')':''} <button id="chat-switch-id" style="border:none;background:none;color:#7C3AED;cursor:pointer;font-size:10px;text-decoration:underline">switch</button></div>`;
+    const greet=T('chat_greeting','Hi {name}! I am the Nexatech assistant. Ask me about packages, timelines, or proof or tap a quick question below.').replace('{name}', first);
+    body.innerHTML=`<div class="msg bot">${sanitize(greet)}</div>`+quickHtml()+`<div style="font-size:10px;color:#94A3B8;padding:2px 4px">${sanitize(T('chat_chatting_as','Chatting as'))} <b>${id?escId(id.name):''}</b>${id?' ('+escId(id.email)+')':''} <button id="chat-switch-id" style="border:none;background:none;color:#7C3AED;cursor:pointer;font-size:10px;text-decoration:underline">${sanitize(T('chat_switch','switch'))}</button></div>`;
     bindQuick();
     body.querySelector('#chat-switch-id')?.addEventListener('click', ()=>{ clearIdentity(); showGate(); });
     setChatEnabled(true);
@@ -804,19 +922,19 @@ function initChat(){
   }
   function showGate(){
     setChatEnabled(false);
-    body.innerHTML=`<div class="msg bot">Hi! Before we start, please tell us your <b>name</b> and <b>email</b> so we can follow up.</div>
+    body.innerHTML=`<div class="msg bot">${T('chat_gate_intro','Hi! Before we start, please tell us your name and email so we can follow up.')}</div>
     <div id="chat-gate" style="display:grid;gap:8px;background:#fff;border:1px solid var(--border);border-radius:14px;padding:12px">
-      <label style="display:grid;gap:4px;font-size:11px;font-weight:700;color:var(--text-muted)">YOUR NAME<input id="chat-gate-name" placeholder="Ada Lovelace" style="padding:10px 12px;border:1px solid var(--border);border-radius:10px;outline:none"></label>
-      <label style="display:grid;gap:4px;font-size:11px;font-weight:700;color:var(--text-muted)">EMAIL<input id="chat-gate-email" type="email" placeholder="you@example.com" style="padding:10px 12px;border:1px solid var(--border);border-radius:10px;outline:none"></label>
+      <label style="display:grid;gap:4px;font-size:11px;font-weight:700;color:var(--text-muted)">${sanitize(T('chat_gate_name_label','YOUR NAME'))}<input id="chat-gate-name" placeholder="${sanitize(T('form_ph_name','Ada Lovelace'))}" style="padding:10px 12px;border:1px solid var(--border);border-radius:10px;outline:none"></label>
+      <label style="display:grid;gap:4px;font-size:11px;font-weight:700;color:var(--text-muted)">${sanitize(T('chat_gate_email_label','EMAIL'))}<input id="chat-gate-email" type="email" placeholder="${sanitize(T('form_ph_email','you@example.com'))}" style="padding:10px 12px;border:1px solid var(--border);border-radius:10px;outline:none"></label>
       <div id="chat-gate-err" style="font-size:11px;color:#EF4444;min-height:14px"></div>
-      <button id="chat-gate-start" class="btn btn-primary" style="justify-content:center">Start Chat →</button>
+      <button id="chat-gate-start" class="btn btn-primary" style="justify-content:center">${sanitize(T('chat_gate_start','Start Chat'))} →</button>
     </div>`;
     const start=()=>{
       const n=body.querySelector('#chat-gate-name')?.value?.trim()||'';
       const e=body.querySelector('#chat-gate-email')?.value?.trim()||'';
       const err=body.querySelector('#chat-gate-err');
-      if(n.length<2){ if(err) err.textContent='Please enter your name.'; return; }
-      if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)){ if(err) err.textContent='Please enter a valid email.'; return; }
+      if(n.length<2){ if(err) err.textContent=T('chat_gate_err_name','Please enter your name.'); return; }
+      if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)){ if(err) err.textContent=T('chat_gate_err_email','Please enter a valid email.'); return; }
       setIdentity(n,e);
       showGreeting();
       try{ win.classList.add('open'); }catch{}
@@ -864,8 +982,8 @@ function initChat(){
     const a=document.createElement('a');
     a.href=url; a.target='_blank'; a.rel='noopener';
     a.className='chat-wa-btn';
-    a.textContent='Continue on WhatsApp →';
-    a.setAttribute('aria-label','Continue on WhatsApp');
+    a.textContent=T('chat_wa_continue','Continue on WhatsApp')+' →';
+    a.setAttribute('aria-label',T('chat_wa_continue','Continue on WhatsApp'));
     // Inline ensure no overflow (also in CSS)
     a.style.cssText='display:inline-flex;align-items:center;justify-content:center;max-width:100%;box-sizing:border-box;word-break:break-word;white-space:normal;overflow-wrap:anywhere;margin-top:8px;padding:10px 14px;border-radius:999px;background:var(--primary);color:#fff;font-weight:700;font-size:13px;text-decoration:none;box-shadow:0 6px 14px rgba(11,18,32,.12);';
     return a;
@@ -905,12 +1023,12 @@ function initChat(){
       const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text, sessionId, history, pageUrl: location.href, name: id.name, email: id.email})});
       const j=await r.json();
       const bot=document.createElement('div'); bot.className='msg bot';
-      let replyText = j.reply || j.error || 'Not available right now';
+      let replyText = j.reply || j.error || T('chat_offline','Not available right now - tap below to chat on WhatsApp.');
       // Strip any raw wa.me URLs Gemini might still emit — we render as button instead so link never overflows frame
       replyText = replyText.replace(/https?:\/\/wa\.me[^\s"'\)]+/gi, '').replace(/https?:\/\/wa\.me[^\s]*/gi, '').replace(/\[WHATSAPP[^\]]*\]/gi, '').trim();
       // Collapse double spaces left by stripping
       replyText = replyText.replace(/\s{2,}/g,' ').trim();
-      bot.textContent = replyText || 'Not available right now';
+      bot.textContent = replyText || T('chat_offline','Not available right now - tap below to chat on WhatsApp.');
       if(shouldShowWhatsAppButton(replyText, userQuestion, j)){
         const btn = createWhatsAppButton(userQuestion);
         bot.appendChild(document.createElement('br'));
@@ -923,7 +1041,7 @@ function initChat(){
       }
       body.appendChild(bot);
     }catch{
-      const bot=document.createElement('div'); bot.className='msg bot'; bot.textContent='Not available right now — tap below to chat on WhatsApp.';
+      const bot=document.createElement('div'); bot.className='msg bot'; bot.textContent=T('chat_offline','Not available right now - tap below to chat on WhatsApp.');
       const btn = createWhatsAppButton(userQuestion);
       bot.appendChild(document.createElement('br'));
       bot.appendChild(btn);
