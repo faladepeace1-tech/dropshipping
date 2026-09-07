@@ -116,6 +116,22 @@ function escapeHtml(str) {
   if (!str) return '';
   return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
 }
+// Email subjects must stay plain ASCII. Some inboxes render raw UTF-8 in the Subject
+// header as garbled text, so we normalize subjects and RFC2047-encode the header.
+function cleanSubject(str, fallback) {
+  if (fallback === undefined) fallback = 'A message from Nexatech';
+  let s = String(str == null ? '' : str);
+  const pairs = [['\u2014','-'],['\u2013','-'],['\u2015','-'],['\u2212','-'],['\u2019',"'"],['\u2018',"'"],['\u201A',"'"],['\u201C','"'],['\u201D','"'],['\u201E','"'],['\u2026','...'],['\u2022','-'],['\u00B7','-'],['\u2192','->'],['\u2190','<-'],['\u21D2','=>']];
+  for (const pair of pairs) s = s.split(pair[0]).join(pair[1]);
+  s = s.replace(/[^\x20-\x7E]/g, '');
+  s = s.replace(/\s+/g, ' ').trim().slice(0, 78);
+  return s || fallback;
+}
+function encodeSubjectHeader(subject) {
+  const s = String(subject == null ? '' : subject);
+  if (!/[^\x00-\x7F]/.test(s)) return s;
+  return '=?UTF-8?B?' + Buffer.from(s, 'utf8').toString('base64') + '?=';
+}
 
 function requireAuth(req, res, next) {
   const token = req.cookies?.token || (req.headers.authorization || '').replace('Bearer ', '');
@@ -821,7 +837,7 @@ async function sendGmailRaw({ to, subject, html, text, fromName, fromEmail, repl
   let raw = '';
   raw += `From: ${fromHeader}\r\n`;
   raw += `To: ${to}\r\n`;
-  raw += `Subject: ${subject}\r\n`;
+  raw += `Subject: ${encodeSubjectHeader(subject)}\r\n`;
   if(replyTo) raw += `Reply-To: ${replyTo}\r\n`;
   raw += `MIME-Version: 1.0\r\n`;
   raw += `Content-Type: multipart/alternative; boundary="${boundary}"\r\n\r\n`;
@@ -913,10 +929,10 @@ async function generateFollowupAI({ lead={}, transcript='', kind='form_instant',
   const niche = lead.preferredNiche || lead.niche || '';
   const store = lead.storeName || '';
   const fallbackSubject = kind === 'form_instant'
-    ? `Thanks ${name} — your ${store ? store+' ' : ''}store request is in ✅`
+    ? cleanSubject('Thanks ' + name + ' - your ' + (store ? store + ' ' : '') + 'store request is in', 'Thanks ' + name + ' - your store request is in')
     : kind === 'chat_instant'
-      ? `Great chatting, ${name} — next step for your store 🚀`
-      : `${name}, quick check-in (Day ${dayNumber||''}) — your store slot`;
+      ? cleanSubject('Great chatting, ' + name + ' - next step for your' + (niche ? ' ' + niche : '') + ' store', 'Great chatting, ' + name + ' - next step for your store')
+      : cleanSubject(name + ', quick check-in (Day ' + (dayNumber || '') + ') - your store slot', 'Quick check-in - your store slot');
   const fallbackInner = kind === 'form_instant'
     ? `<p>Hi ${escapeHtml(name)},</p><p>Thanks for applying for your <b>${escapeHtml(store||'dropshipping store')}</b>${niche?` in the <b>${escapeHtml(niche)}</b> niche`:''}. We have received your request and our team will reach out on WhatsApp within 24 hours.</p><p>While you wait: every store we build includes winning-product research, supplier automation and 100% ownership in your account — launched in 7 to 14 days.</p>`
     : kind === 'chat_instant'
@@ -933,7 +949,7 @@ async function generateFollowupAI({ lead={}, transcript='', kind='form_instant',
   ].filter(Boolean).join(' | ').slice(0,1200);
   const cleanTranscript = String(transcript||'').slice(0,2500);
   const dayAngle = kind.startsWith('daily') ? `This is Day ${dayNumber} follow-up (angles rotate: Day2 reminder+social proof, Day3 FAQ/objection handling incl. scam-trust, Day4 urgency/slot scarcity, Day5+ mentorship pay-after-results). Keep it fresh, never repeat verbatim.` : 'This is the FIRST instant follow-up (thank them, confirm next step within 24h on WhatsApp).';
-  const prompt = `You are Nexatech email copywriter. Write a short personalized follow-up email.\n${dayAngle}\nLEAD CONTEXT: ${ctxSummary || '(chat-only contact)'}\nCHAT TRANSCRIPT (if any): ${cleanTranscript || '(none — form lead)'}\nRULES:\n- Friendly, human, 120-180 words, 2-3 short paragraphs. Address by first name.\n- Reference their niche/store/request specifically. If scammed=yes, show empathy + trust (100% ownership, video proof).\n- Never invent prices beyond Starter $149 / Pro $299 / Elite $599 / Mentorship pay-after-results.\n- No raw URLs (WhatsApp button + unsubscribe are added separately). No emojis overload (max 1).\n- Return ONLY valid JSON: {"subject":"...","html_inner":"<p>...</p><p>...</p>","text_inner":"..."}`;
+  const prompt = `You are Nexatech email copywriter. Write a short personalized follow-up email.\n${dayAngle}\nLEAD CONTEXT: ${ctxSummary || '(chat-only contact)'}\nCHAT TRANSCRIPT (if any): ${cleanTranscript || '(none — form lead)'}\nRULES:\n- Friendly, human, 120-180 words, 2-3 short paragraphs. Address by first name.\n- Reference their niche/store/request specifically. If scammed=yes, show empathy + trust (100% ownership, video proof).\n- Never invent prices beyond Starter $149 / Pro $299 / Elite $599 / Mentorship pay-after-results.\n- No raw URLs (WhatsApp button + unsubscribe are added separately). No emojis overload (max 1).\n- SUBJECT RULE: include the person's first name plus their store or niche, plain ASCII text only (letters, numbers, basic punctuation - no emoji, no special dashes, no curly quotes). Example: Thanks Ada - your GlowLab fashion store request is in.\n- Return ONLY valid JSON: {"subject":"...","html_inner":"<p>...</p><p>...</p>","text_inner":"..."}`;
   try{
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
     const controller = new AbortController();
@@ -947,7 +963,7 @@ async function generateFollowupAI({ lead={}, transcript='', kind='form_instant',
     const m = text.match(/\{[\s\S]*\}/);
     if(!m) throw new Error('no JSON');
     const parsed = JSON.parse(m[0]);
-    const subject = String(parsed.subject||'').slice(0,140) || fallbackSubject;
+    const subject = cleanSubject(parsed.subject, fallbackSubject);
     let htmlInner = String(parsed.html_inner||parsed.html||'').slice(0,4000) || fallbackInner;
     // basic sanitization: strip scripts, allow p/b/i/ul/li/br/strong/em
     htmlInner = htmlInner.replace(/<script[\s\S]*?<\/script>/gi,'').replace(/on\w+="[^"]*"/gi,'').slice(0,4000);
@@ -2220,17 +2236,17 @@ app.post('/api/admin/ai/suggest-subject', requireAuth, async (req, res) => {
     let sampleLead = {};
     try{ sampleLead = await db.prepare('SELECT name, storeName, preferredNiche FROM leads ORDER BY created_at DESC LIMIT 1').get() || {}; }catch{ sampleLead = {}; }
     const fallbacks = [
-      `{{name}}, your ${sampleLead.storeName||'store'} plan is ready ✅`,
-      `Quick one, {{name}} — your ${sampleLead.preferredNiche||'niche'} store slot`,
-      `{{name}}, let's get your store launched in 7–14 days 🚀`,
-      `Your Nexatech application — next step, {{name}}`,
+      `{{name}}, your ${sampleLead.storeName||'store'} plan is ready`,
+      `Quick one, {{name}} - your ${sampleLead.preferredNiche||'niche'} store slot`,
+      `{{name}}, lets get your store launched in 7-14 days`,
+      `Your Nexatech application - next step, {{name}}`,
       `{{name}}, still want your ${sampleLead.preferredNiche||''} store?`.trim()
     ].slice(0, n);
     const key = await getGeminiKey().catch(()=> '');
-    if(!key) return res.json({ ok:true, ai:false, subjects: fallbacks, hint: 'Set Gemini key for fully AI-generated options — showing template suggestions' });
+    if(!key) return res.json({ ok:true, ai:false, subjects: fallbacks, hint: 'Set Gemini key for fully AI-generated options (showing template suggestions)' });
     let model = GEMINI_MODEL;
     try{ const r = await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_model'); if(r?.value?.trim()) model = r.value.trim(); }catch{}
-    const prompt = `Write ${n} short email subject lines for a Nexatech dropshipping store email${ctx?` about: ${ctx}`:''}. Audience: aspiring store founders${sampleLead.preferredNiche?` (e.g. ${sampleLead.preferredNiche} niche)`:''}. Rules: under 60 chars each, no clickbait, may use {{name}} token once, max 1 emoji total across all. Return ONLY a JSON array of strings.`;
+    const prompt = `Write ${n} short email subject lines for a Nexatech dropshipping store email${ctx?` about: ${ctx}`:''}. Audience: aspiring store founders${sampleLead.preferredNiche?` (e.g. ${sampleLead.preferredNiche} niche)`:''}. Rules: under 60 chars each, no clickbait, include the {{name}} token in each subject, plain ASCII text only (no emoji, no special dashes). Return ONLY a JSON array of strings.`;
     try{
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
       const controller = new AbortController();
@@ -2243,12 +2259,12 @@ app.post('/api/admin/ai/suggest-subject', requireAuth, async (req, res) => {
       const m = text.match(/\[[\s\S]*\]/);
       if(!m) throw new Error('no JSON array');
       const arr = JSON.parse(m[0]);
-      const subjects = (Array.isArray(arr)?arr:[]).map(s=> String(s).slice(0,90)).filter(Boolean).slice(0,n);
+      const subjects = (Array.isArray(arr)?arr:[]).map(s=> cleanSubject(s, '')).filter(Boolean).slice(0,n);
       if(!subjects.length) throw new Error('empty');
       return res.json({ ok:true, ai:true, subjects });
     }catch(e){
       console.error('suggest-subject AI failed:', e.message);
-      return res.json({ ok:true, ai:false, subjects: fallbacks, hint: 'AI failed ('+String(e.message).slice(0,100)+') — showing template suggestions' });
+      return res.json({ ok:true, ai:false, subjects: fallbacks, hint: 'AI failed ('+String(e.message).slice(0,100)+') - showing template suggestions' });
     }
   }catch(e){ res.status(500).json({ error: e.message }); }
 });
@@ -2570,3 +2586,4 @@ app.listen(PORT, () => {
   console.log(`Nexatech server running at http://localhost:${PORT}`);
   console.log(`Admin: http://localhost:${PORT}/admin  (admin / 123450000)`);
 });
+
