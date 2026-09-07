@@ -1808,6 +1808,117 @@ function drawChart(id, labels, values, label){
     ctx.fillText(String(v), x, y-6);
   });
 }
+// ========== Auto AI Follow-ups — CRM panel (instant + daily, same Gmail, HTML + WhatsApp + opt-out) ==========
+async function loadFollowupStatus(){
+  try{
+    const r = await fetch('/api/admin/followups/status', { headers: authHeaders() });
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error||'failed');
+    const s = j.settings || {};
+    const fe=$('#fu-enabled'); if(fe) fe.checked = !!s.enabled;
+    const fi=$('#fu-instant'); if(fi) fi.checked = !!s.instantEnabled;
+    const fd=$('#fu-daily'); if(fd) fd.checked = !!s.dailyEnabled;
+    const fm=$('#fu-maxdays'); if(fm) fm.value = s.maxDays||7;
+    const fi2=$('#fu-idle'); if(fi2) fi2.value = s.chatIdleMinutes||10;
+    const fn=$('#fu-fromname'); if(fn) fn.value = s.fromName||'';
+    const mh=$('#followup-max-hint'); if(mh) mh.textContent = s.maxDays||7;
+    const pill=$('#followup-status-pill');
+    if(pill){
+      const on = s.enabled ? (s.instantEnabled||s.dailyEnabled) : false;
+      pill.textContent = !s.enabled ? 'OFF' : `ON • sent ${j.counts?.totalSent||0} (${j.counts?.todaySent||0} today) • unsub ${j.counts?.unsubscribed||0} • Gmail ${j.gmail?.email||'not connected'}`;
+      pill.style.color = on ? '#10B981' : '#F59E0B';
+      pill.style.borderColor = on ? '#A7F3D0' : '#FDE68A';
+    }
+    const uc=$('#unsub-count'); if(uc) uc.textContent = j.counts?.unsubscribed ?? 0;
+    if(!j.gmail?.email) { const m=$('#followup-msg'); if(m) m.innerHTML = '<span style="color:#F59E0B">Gmail not connected — follow-ups will fail until you Connect Gmail (same Client ID) in Integrations or Campaigns.</span>'; }
+  }catch(e){ const p=$('#followup-status-pill'); if(p) p.textContent='Error: '+e.message; }
+}
+async function loadFollowupLogs(){
+  try{
+    const kind=$('#followup-kind')?.value||'';
+    const search=$('#followup-search')?.value?.trim()||'';
+    const qs = `limit=50&kind=${encodeURIComponent(kind)}&search=${encodeURIComponent(search)}`;
+    const r = await fetch('/api/admin/followups/logs?'+qs, { headers: authHeaders() });
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error||'failed');
+    const wrap=$('#followup-list');
+    const cnt=$('#followup-count');
+    if(cnt) cnt.textContent = `${j.logs?.length||0} shown • ${j.total||0} total`;
+    if(wrap){
+      if(!j.logs?.length){ wrap.innerHTML='<div style="font-size:12px;color:#94A3B8;border:1px dashed #E2E8F0;border-radius:10px;padding:12px;text-align:center">No follow-ups sent yet — submit a test lead or chat, then Refresh. Instant sends appear here + in Outbox.</div>'; }
+      else wrap.innerHTML = j.logs.map(l=> `<div style="border:1px solid #E2E8F0;border-radius:10px;padding:8px 10px;background:#fff;display:flex;gap:8px;justify-content:space-between;align-items:start;flex-wrap:wrap"><div style="flex:1;min-width:200px"><div style="font-size:12px;font-weight:700">${(l.subject||'(no subject)').slice(0,90)}</div><div style="font-size:11px;color:#64748B">to <b>${l.email}</b> • <span style="background:#F1F5F9;border-radius:999px;padding:1px 6px">${l.kind}${l.day_number?` d${l.day_number}`:''}</span> • <span style="color:${l.status==='sent'?'#10B981':(l.status==='skipped'?'#F59E0B':'#F87171')}">${l.status}</span> • ${l.sent_at||''}${l.message_id?` • <small>${String(l.message_id).slice(0,16)}</small>`:''}${l.error?` • <small style="color:#F87171">${String(l.error).slice(0,80)}</small>`:''}</div></div></div>`).join('');
+    }
+  }catch(e){ const w=$('#followup-list'); if(w) w.innerHTML='<div style="color:#F87171;font-size:12px">Error: '+e.message+'</div>'; }
+}
+async function loadUnsubs(){
+  try{
+    const r = await fetch('/api/admin/followups/unsubscribes', { headers: authHeaders() });
+    const j = await r.json();
+    const wrap=$('#unsub-list');
+    if(wrap){
+      if(!j.length){ wrap.innerHTML='<small style="color:#94A3B8">No opt-outs.</small>'; return; }
+      wrap.innerHTML = j.map(u=> `<div style="display:flex;gap:8px;align-items:center;font-size:11px;border:1px solid #E2E8F0;border-radius:8px;padding:4px 8px;background:#FFFBEB"><span style="flex:1">${u.email} <small style="color:#94A3B8">${u.created_at||''}</small></span><button data-resub="${u.email}" style="font-size:10px;border:1px solid #10B981;color:#10B981;border-radius:999px;padding:2px 8px;background:#fff;cursor:pointer">Resubscribe</button></div>`).join('');
+      wrap.querySelectorAll('[data-resub]').forEach(b=> b.addEventListener('click', async()=>{
+        if(!confirm('Resubscribe '+b.dataset.resub+'?')) return;
+        await fetch('/api/admin/followups/unsubscribes/'+encodeURIComponent(b.dataset.resub), { method:'DELETE', headers: authHeaders() });
+        loadUnsubs(); loadFollowupStatus();
+      }));
+    }
+  }catch{}
+}
+$('#btn-save-followup')?.addEventListener('click', async()=>{
+  const msg=$('#followup-msg');
+  if(msg) msg.textContent='Saving...';
+  try{
+    const body = {
+      followup_enabled: $('#fu-enabled')?.checked,
+      followup_instant_enabled: $('#fu-instant')?.checked,
+      followup_daily_enabled: $('#fu-daily')?.checked,
+      followup_max_days: $('#fu-maxdays')?.value,
+      followup_chat_idle_minutes: $('#fu-idle')?.value,
+      followup_from_name: $('#fu-fromname')?.value
+    };
+    const r = await fetch('/api/admin/followups/settings', { method:'PUT', headers:{'Content-Type':'application/json', ...authHeaders()}, body: JSON.stringify(body) });
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error||'Save failed');
+    if(msg){ msg.innerHTML='<span style="color:#10B981">Saved ✓ — instant + daily follow-ups updated.</span>'; }
+    loadFollowupStatus();
+  }catch(e){ if(msg) msg.textContent='Error: '+e.message; }
+});
+$('#btn-test-followup')?.addEventListener('click', async()=>{
+  const msg=$('#followup-msg');
+  if(msg) msg.textContent='Sending AI test follow-up to your Gmail...';
+  try{
+    const r = await fetch('/api/admin/followups/test', { method:'POST', headers: authHeaders() });
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error||'Send failed');
+    if(msg) msg.innerHTML=`<span style="color:#10B981">Test sent ✓ to ${j.to} — subject: ${j.subject} ${j.ai?'(AI-generated)':'(template fallback — check Gemini key)'}. Check inbox + Logs below + Outbox.</span>`;
+    loadFollowupLogs(); loadFollowupStatus();
+  }catch(e){ if(msg) msg.textContent='Error: '+e.message; }
+});
+$('#btn-run-daily')?.addEventListener('click', async()=>{
+  const msg=$('#followup-msg');
+  const dry = !confirm('Send daily follow-ups NOW?\n\nOK = actually SEND to due leads/chats\nCancel = dry-run preview only (no send)');
+  if(msg) msg.textContent = dry ? 'Previewing audience (dry run)...' : 'Sending daily follow-ups...';
+  try{
+    const r = await fetch('/api/admin/followups/run-daily', { method:'POST', headers:{'Content-Type':'application/json', ...authHeaders()}, body: JSON.stringify({ dryRun: dry, limit: 50 }) });
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error||'Run failed');
+    if(msg){
+      if(j.dryRun) msg.innerHTML=`<span style="color:#64748B">Dry run: would send <b>${j.wouldSend}</b> (Day 2–${j.maxDays}). ${ (j.emails||[]).slice(0,5).map(e=>e.email).join(', ')||''}</span>`;
+      else msg.innerHTML=`<span style="color:#10B981">Daily run done ✓ sent ${j.sent}, failed ${j.failed}, skipped ${j.skipped} (total ${j.total}). See Logs + Outbox.</span>`;
+    }
+    loadFollowupLogs(); loadFollowupStatus();
+  }catch(e){ if(msg) msg.textContent='Error: '+e.message; }
+});
+$('#btn-refresh-followup')?.addEventListener('click', ()=>{ loadFollowupStatus(); loadFollowupLogs(); });
+$('#followup-search')?.addEventListener('input', ()=> loadFollowupLogs());
+$('#followup-kind')?.addEventListener('change', ()=> loadFollowupLogs());
+$('#btn-view-unsubs')?.addEventListener('click', loadUnsubs);
+// Hook into campaigns tab load
+const _origCampaignsTab = document.querySelector('.side-nav button[data-tab="campaigns"]');
+_origCampaignsTab?.addEventListener('click', ()=>{ loadFollowupStatus(); loadFollowupLogs(); }, true);
+
 $('#btn-refresh-stats').addEventListener('click', async()=>{
   const r=await fetch('/api/admin/refresh-stats',{method:'POST',headers:authHeaders()});
   if(r.ok){ alert('Stats refreshed'); loadOverview(); }

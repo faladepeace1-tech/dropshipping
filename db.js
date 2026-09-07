@@ -315,6 +315,28 @@ export async function initDb() {
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       );
+      CREATE TABLE IF NOT EXISTS followup_logs (
+        id SERIAL PRIMARY KEY,
+        email TEXT NOT NULL,
+        lead_id INTEGER,
+        session_id TEXT DEFAULT '',
+        kind TEXT DEFAULT 'form_instant',
+        day_number INTEGER DEFAULT 0,
+        subject TEXT DEFAULT '',
+        body_html TEXT DEFAULT '',
+        body_text TEXT DEFAULT '',
+        status TEXT DEFAULT 'pending',
+        error TEXT DEFAULT '',
+        message_id TEXT DEFAULT '',
+        sent_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_followup_email ON followup_logs(email);
+      CREATE TABLE IF NOT EXISTS email_unsubscribes (
+        id SERIAL PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        reason TEXT DEFAULT '',
+        created_at TIMESTAMP DEFAULT NOW()
+      );
     `);
   } else {
     db.exec(`
@@ -465,6 +487,28 @@ export async function initDb() {
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     );
+    CREATE TABLE IF NOT EXISTS followup_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT NOT NULL,
+      lead_id INTEGER,
+      session_id TEXT DEFAULT '',
+      kind TEXT DEFAULT 'form_instant',
+      day_number INTEGER DEFAULT 0,
+      subject TEXT DEFAULT '',
+      body_html TEXT DEFAULT '',
+      body_text TEXT DEFAULT '',
+      status TEXT DEFAULT 'pending',
+      error TEXT DEFAULT '',
+      message_id TEXT DEFAULT '',
+      sent_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_followup_email ON followup_logs(email);
+    CREATE TABLE IF NOT EXISTS email_unsubscribes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT UNIQUE NOT NULL,
+      reason TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now'))
+    );
   `);
   }
 
@@ -577,6 +621,12 @@ export async function initDb() {
       ['webhook_form_enabled', 'false', 'boolean'],
       ['gemini_api_key', '', 'text'],
       ['gemini_model', 'gemini-2.5-flash', 'text'],
+      ['followup_enabled', 'true', 'boolean'],
+      ['followup_instant_enabled', 'true', 'boolean'],
+      ['followup_daily_enabled', 'true', 'boolean'],
+      ['followup_max_days', '7', 'number'],
+      ['followup_chat_idle_minutes', '10', 'number'],
+      ['followup_from_name', 'Nexatech', 'text'],
       ['privacy_title', 'Privacy Policy', 'text'],
       ['privacy_last_updated', 'September 3, 2026', 'text'],
       ['privacy_content', `<h2>Introduction</h2><p>At Nexatech Dropshipping Store, we respect your privacy and are committed to protecting your personal data. This policy explains how we collect, use, and safeguard your information.</p><h2>Information We Collect</h2><p>We collect information you provide via our application form (name, email, WhatsApp, niche preferences) and anonymous analytics (page views, click events) to improve our service.</p><h2>How We Use Your Information</h2><ul><li>To contact you about your store application via WhatsApp/Email</li><li>To personalize your strategy call</li><li>To improve our website and services</li><li>To comply with legal obligations</li></ul><h2>Data Sharing</h2><p>We never sell your data. We may share it with trusted automation tools (e.g., webhooks you configure) solely to fulfill your request.</p><h2>Your Rights</h2><p>You may request access, correction, or deletion of your personal data by emailing saheednexatech@gmail.com.</p><h2>Contact</h2><p>Questions? Email <strong>saheednexatech@gmail.com</strong> or WhatsApp <strong>+1 928 382 5389</strong>.</p>`, 'html'],
@@ -819,6 +869,12 @@ export async function initDb() {
     await ensure('certificates_subtitle','Verified credentials, partnerships and awards that prove credibility.','text');
     await ensure('gemini_api_key','','text');
     await ensure('gemini_model','gemini-2.5-flash','text');
+    await ensure('followup_enabled','true','boolean');
+    await ensure('followup_instant_enabled','true','boolean');
+    await ensure('followup_daily_enabled','true','boolean');
+    await ensure('followup_max_days','7','number');
+    await ensure('followup_chat_idle_minutes','10','number');
+    await ensure('followup_from_name','Nexatech','text');
     // upgrade old 1.5 model to 2.5 free per owner request
     try{ const gm = (await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_model'))?.value; if(gm && gm.includes('1.5')) await db.prepare("UPDATE content SET value='gemini-2.5-flash' WHERE key='gemini_model'").run(); }catch{}
     // contact migration

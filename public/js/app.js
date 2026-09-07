@@ -941,8 +941,45 @@ function initChat(){
   input.addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendMsg(); } });
   // if no history, keep initial bot greeting and save it
   if(!hadHistory) saveHistory();
-  // Auto-archive on page hide/reload for recent
-  window.addEventListener('beforeunload', ()=>{ try{ archiveCurrent(); }catch{} });
+  // Auto follow-up: after name+email + chat ends, send instant AI email (HTML + WhatsApp + opt-out, logged to CRM)
+  // Triggers: idle 3 min after last message, New Chat, or page hide — backend dedups + cron also catches idle
+  const FINISH_KEY = 'nexatech_chat_followup_sent_';
+  function followupSentFlag(){ try{ return sessionStorage.getItem(FINISH_KEY + sessionId) === '1'; }catch{ return false; } }
+  function markFollowupSent(){ try{ sessionStorage.setItem(FINISH_KEY + sessionId, '1'); }catch{} }
+  let idleTimer = null;
+  function notifyChatFinished(reason){
+    try{
+      if(followupSentFlag()) return;
+      const id = getIdentity();
+      if(!id || !id.email) return;
+      const hasUser = !!body.querySelector('.msg.user');
+      if(!hasUser) return;
+      markFollowupSent();
+      const payload = JSON.stringify({ sessionId });
+      if(reason === 'hide' && navigator.sendBeacon){
+        try{ navigator.sendBeacon('/api/chat/finish', new Blob([payload], {type:'application/json'})); return; }catch{}
+      }
+      fetch('/api/chat/finish', { method:'POST', headers:{'Content-Type':'application/json'}, body: payload }).catch(()=>{});
+    }catch{}
+  }
+  function resetIdleTimer(){
+    try{ if(idleTimer) clearTimeout(idleTimer); }catch{}
+    idleTimer = setTimeout(()=> notifyChatFinished('idle'), 3*60*1000);
+  }
+  const _origSendMsg = sendMsg;
+  // wrap to reset idle after each send (monkey-patch via event)
+  send.addEventListener('click', resetIdleTimer);
+  input.addEventListener('keydown', ()=>{ try{ if(idleTimer) clearTimeout(idleTimer); }catch{} });
+  // reset after bot reply completes — poll: observe body changes
+  try{
+    const obs = new MutationObserver(()=> resetIdleTimer());
+    obs.observe(body, { childList:true });
+  }catch{}
+  resetIdleTimer();
+  // Auto-archive on page hide/reload for recent + notify finish
+  window.addEventListener('beforeunload', ()=>{ try{ archiveCurrent(); }catch{} try{ notifyChatFinished('hide'); }catch{} });
+  document.addEventListener('visibilitychange', ()=>{ if(document.hidden) try{ notifyChatFinished('hide'); }catch{} });
+  newBtn?.addEventListener('click', ()=>{ try{ notifyChatFinished('new'); }catch{} try{ if(idleTimer) clearTimeout(idleTimer); }catch{} try{ sessionStorage.removeItem(FINISH_KEY + sessionId); }catch{} resetIdleTimer(); }, true);
 }
 
 // Init all

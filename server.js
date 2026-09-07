@@ -10,6 +10,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import cron from 'node-cron';
+import crypto from 'crypto';
 import { initDb, getDb, reseedDefaults } from './db.js';
 import { google } from 'googleapis';
 
@@ -502,6 +503,16 @@ app.post('/api/leads', leadLimiter, async (req, res) => {
   // also log event
   try { await db.prepare('INSERT INTO events (event_type,element_id,session_id,page_url,metadata) VALUES (?,?,?,?,?)').run('lead_submitted', 'lead_form', sessionId||'', pageUrl||'', JSON.stringify({ leadId, niche: preferredNiche })); } catch {}
 
+  // Instant AI follow-up email (HTML + WhatsApp + opt-out, logged to CRM) — fire-and-forget so response stays instant
+  try{
+    const leadForMail = { id: leadId, name, storeName, preferredNiche, preferredNicheOther, investmentRange, storeStatus, wasScammed, scamDetails, whatsapp, email, preferredContactTime, source, trafficPlan };
+    const baseUrl = getBaseUrl(req);
+    setImmediate(async ()=>{
+      try{ await ensureFollowupTables(); await sendFollowupEmail({ to: email, name, lead: leadForMail, leadId, sessionId: sessionId||'', kind:'form_instant', dayNumber: 1, transcript:'', baseUrl }); }
+      catch(e){ console.error('instant form followup failed', e.message); }
+    });
+  }catch(e){ console.error('instant form followup schedule failed', e.message); }
+
   res.json({
     ok: true,
     leadId,
@@ -821,6 +832,237 @@ async function sendGmailRaw({ to, subject, html, text, fromName, fromEmail, repl
   const res = await gmail.users.messages.send({ userId:'me', requestBody:{ raw: encoded }});
   return { messageId: res.data.id, threadId: res.data.threadId, from };
 }
+
+// ==================== Auto AI Follow-ups — instant (form + chat) + daily, via same Gmail Client ID/Secret ====================
+// Requirements covered:
+// - After name+email from form OR chatbot, send AI-generated follow-up based on their request / chat transcript
+// - Every day send follow-up via same Gmail OAuth (google_client_id/secret)
+// - All sends appear in CRM backend (followup_logs + campaign_sends + events)
+// - Opt-out (unsubscribe) link in every email
+// - WhatsApp CTA in every email, HTML-designed, first message sent instantly
+async function ensureFollowupTables(){
+  try{
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS followup_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT NOT NULL,
+        lead_id INTEGER,
+        session_id TEXT DEFAULT '',
+        kind TEXT DEFAULT 'form_instant',
+        day_number INTEGER DEFAULT 0,
+        subject TEXT DEFAULT '',
+        body_html TEXT DEFAULT '',
+        body_text TEXT DEFAULT '',
+        status TEXT DEFAULT 'pending',
+        error TEXT DEFAULT '',
+        message_id TEXT DEFAULT '',
+        sent_at TEXT DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_followup_email ON followup_logs(email);
+      CREATE TABLE IF NOT EXISTS email_unsubscribes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT UNIQUE NOT NULL,
+        reason TEXT DEFAULT '',
+        created_at TEXT DEFAULT (datetime('now'))
+      );
+    `);
+  }catch(e){ console.error('ensureFollowupTables', e.message); }
+}
+async function getFollowupSettings(){
+  const get = async (k, fb) => {
+    try{ const r = await db.prepare('SELECT value FROM content WHERE key=?').get(k); const v = r?.value?.trim(); return v === undefined || v === '' ? fb : v; }catch{ return fb; }
+  };
+  const bool = (v) => String(v).toLowerCase() === 'true' || v === true || v === '1';
+  const enabled = bool(await get('followup_enabled','true'));
+  const instantEnabled = bool(await get('followup_instant_enabled','true'));
+  const dailyEnabled = bool(await get('followup_daily_enabled','true'));
+  const maxDays = Math.min(30, Math.max(1, parseInt(await get('followup_max_days','7'),10) || 7));
+  const chatIdleMinutes = Math.min(120, Math.max(2, parseInt(await get('followup_chat_idle_minutes','10'),10) || 10));
+  const fromName = await get('followup_from_name','') || (await getGoogleConfig().then(c=>c.gmailSenderName).catch(()=>'')) || 'Nexatech';
+  return { enabled, instantEnabled, dailyEnabled, maxDays, chatIdleMinutes, fromName };
+}
+async function isEmailUnsubscribed(email){
+  if(!email) return false;
+  try{
+    const row = await db.prepare('SELECT email FROM email_unsubscribes WHERE email=?').get(String(email).toLowerCase().trim());
+    return !!row;
+  }catch{ return false; }
+}
+function getUnsubscribeToken(email){
+  return crypto.createHmac('sha256', JWT_SECRET).update(String(email||'').toLowerCase().trim()).digest('hex').slice(0,32);
+}
+function getBaseUrl(req){
+  if(process.env.RENDER_EXTERNAL_URL) return process.env.RENDER_EXTERNAL_URL.replace(/\/$/,'');
+  if(req) return `${req.protocol}://${req.get('host')}`;
+  return `http://localhost:${PORT}`;
+}
+function getUnsubscribeUrl(email, baseUrl){
+  const b = (baseUrl||process.env.RENDER_EXTERNAL_URL||`http://localhost:${PORT}`).replace(/\/$/,'');
+  return `${b}/unsubscribe?email=${encodeURIComponent(email)}&token=${getUnsubscribeToken(email)}`;
+}
+async function getOwnerContact(){
+  const get = async (k, fb) => { try{ const r = await db.prepare('SELECT value FROM content WHERE key=?').get(k); return r?.value?.trim() || fb; }catch{ return fb; } };
+  const whatsapp_number = await get('whatsapp_number','19283825389');
+  const footer_email = await get('footer_email','saheednexatech@gmail.com');
+  const footer_phone = await get('footer_phone','+1 928 382 5389');
+  return { whatsapp_number, footer_email, footer_phone };
+}
+// AI-generated subject + inner HTML based on lead request or chat transcript. Falls back to templates if Gemini unavailable.
+async function generateFollowupAI({ lead={}, transcript='', kind='form_instant', dayNumber=0 }){
+  const name = (lead.name||'there').split(' ')[0];
+  const niche = lead.preferredNiche || lead.niche || '';
+  const store = lead.storeName || '';
+  const fallbackSubject = kind === 'form_instant'
+    ? `Thanks ${name} — your ${store ? store+' ' : ''}store request is in ✅`
+    : kind === 'chat_instant'
+      ? `Great chatting, ${name} — next step for your store 🚀`
+      : `${name}, quick check-in (Day ${dayNumber||''}) — your store slot`;
+  const fallbackInner = kind === 'form_instant'
+    ? `<p>Hi ${escapeHtml(name)},</p><p>Thanks for applying for your <b>${escapeHtml(store||'dropshipping store')}</b>${niche?` in the <b>${escapeHtml(niche)}</b> niche`:''}. We have received your request and our team will reach out on WhatsApp within 24 hours.</p><p>While you wait: every store we build includes winning-product research, supplier automation and 100% ownership in your account — launched in 7 to 14 days.</p>`
+    : kind === 'chat_instant'
+      ? `<p>Hi ${escapeHtml(name)},</p><p>Thanks for chatting with us${transcript ? ' about <b>'+escapeHtml(transcript.slice(0,120))+'…</b>' : ''}. Based on what you asked, the best next step is a quick WhatsApp chat with Ifeoluwa so we can map your niche, timeline and package.</p><p>Reply to this email or tap WhatsApp below — we usually reply within hours.</p>`
+      : `<p>Hi ${escapeHtml(name)},</p><p>Just checking in${store?` on <b>${escapeHtml(store)}</b>`:''}${niche?` (${escapeHtml(niche)})`:''} — your build slot is still open. Many founders start with a free strategy call to lock timeline and package.</p><p>Want us to hold your slot for this week? Tap WhatsApp below or reply “YES”.</p>`;
+  const key = await getGeminiKey().catch(()=> '');
+  if(!key) return { subject: fallbackSubject, htmlInner: fallbackInner, textInner: fallbackInner.replace(/<[^>]+>/g,''), ai: false };
+  let model = GEMINI_MODEL;
+  try{ const r = await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_model'); if(r?.value?.trim()) model = r.value.trim(); }catch{}
+  const ctxSummary = [
+    `Name: ${lead.name||''}`, `Store: ${lead.storeName||''}`, `Niche: ${lead.preferredNiche||''} ${lead.preferredNicheOther||''}`,
+    `Investment: ${lead.investmentRange||''}`, `Status: ${lead.storeStatus||''}`, `WasScammed: ${lead.wasScammed||''}`,
+    lead.scamDetails ? `ScamDetails: ${lead.scamDetails}` : '', `TrafficPlan: ${lead.trafficPlan||''}`, `Source: ${lead.source||''}`
+  ].filter(Boolean).join(' | ').slice(0,1200);
+  const cleanTranscript = String(transcript||'').slice(0,2500);
+  const dayAngle = kind.startsWith('daily') ? `This is Day ${dayNumber} follow-up (angles rotate: Day2 reminder+social proof, Day3 FAQ/objection handling incl. scam-trust, Day4 urgency/slot scarcity, Day5+ mentorship pay-after-results). Keep it fresh, never repeat verbatim.` : 'This is the FIRST instant follow-up (thank them, confirm next step within 24h on WhatsApp).';
+  const prompt = `You are Nexatech email copywriter. Write a short personalized follow-up email.\n${dayAngle}\nLEAD CONTEXT: ${ctxSummary || '(chat-only contact)'}\nCHAT TRANSCRIPT (if any): ${cleanTranscript || '(none — form lead)'}\nRULES:\n- Friendly, human, 120-180 words, 2-3 short paragraphs. Address by first name.\n- Reference their niche/store/request specifically. If scammed=yes, show empathy + trust (100% ownership, video proof).\n- Never invent prices beyond Starter $149 / Pro $299 / Elite $599 / Mentorship pay-after-results.\n- No raw URLs (WhatsApp button + unsubscribe are added separately). No emojis overload (max 1).\n- Return ONLY valid JSON: {"subject":"...","html_inner":"<p>...</p><p>...</p>","text_inner":"..."}`;
+  try{
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
+    const controller = new AbortController();
+    const t = setTimeout(()=>controller.abort(), 15000);
+    const resp = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json','x-goog-api-key':key}, body: JSON.stringify({ contents:[{role:'user',parts:[{text:prompt}]}], generationConfig:{temperature:0.8,maxOutputTokens:700,topP:0.9} }), signal: controller.signal });
+    clearTimeout(t);
+    const data = await resp.json().catch(()=> ({}));
+    if(!resp.ok) throw new Error(data?.error?.message || `Gemini ${resp.status}`);
+    let text = data?.candidates?.[0]?.content?.parts?.map(p=>p.text||'').join('\n') || '';
+    text = text.trim().replace(/^```json\s*/i,'').replace(/^```\s*/,'').replace(/```\s*$/,'').trim();
+    const m = text.match(/\{[\s\S]*\}/);
+    if(!m) throw new Error('no JSON');
+    const parsed = JSON.parse(m[0]);
+    const subject = String(parsed.subject||'').slice(0,140) || fallbackSubject;
+    let htmlInner = String(parsed.html_inner||parsed.html||'').slice(0,4000) || fallbackInner;
+    // basic sanitization: strip scripts, allow p/b/i/ul/li/br/strong/em
+    htmlInner = htmlInner.replace(/<script[\s\S]*?<\/script>/gi,'').replace(/on\w+="[^"]*"/gi,'').slice(0,4000);
+    if(!/<p|</.test(htmlInner)) htmlInner = `<p>${escapeHtml(htmlInner).replace(/\n/g,'<br>')}</p>`;
+    const textInner = String(parsed.text_inner||parsed.text||'').slice(0,3000) || htmlInner.replace(/<[^>]+>/g,'');
+    return { subject, htmlInner, textInner, ai: true };
+  }catch(e){
+    console.error('followup AI failed, using fallback:', e.message);
+    return { subject: fallbackSubject, htmlInner: fallbackInner, textInner: fallbackInner.replace(/<[^>]+>/g,''), ai: false };
+  }
+}
+function buildFollowupHtml({ innerHtml, leadName='', whatsappNumber='', whatsappUrl='', unsubscribeUrl='', preheader='' }){
+  const waNum = (whatsappNumber||'19283825389').replace(/\D/g,'');
+  const waUrl = whatsappUrl || `https://wa.me/${waNum}?text=${encodeURIComponent('Hi Nexatech! Following up on my store request.')}`;
+  const safeInner = innerHtml || '<p>Thanks for reaching out — we will be in touch shortly.</p>';
+  const pre = preheader ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0">${escapeHtml(preheader).slice(0,140)}</div>` : '';
+  return `<!doctype html><html><body style="margin:0;padding:0;background:#F1F5F9;font-family:Inter,system-ui,-apple-system,sans-serif;color:#0B1220">`
+  + pre
+  + `<div style="max-width:600px;margin:0 auto;padding:24px 16px">`
+  + `<div style="background:linear-gradient(135deg,#0B1220,#132238);border-radius:16px 16px 0 0;padding:22px 24px;text-align:center"><div style="display:inline-block;background:linear-gradient(135deg,#00D1FF,#7C3AED);color:#fff;font-weight:900;width:40px;height:40px;line-height:40px;border-radius:12px;font-size:20px">N</div><div style="color:#fff;font-weight:900;letter-spacing:2px;margin-top:8px">NEXATECH</div><div style="color:#94A3B8;font-size:12px;margin-top:2px">Done-for-you dropshipping stores • 7–14 day launch</div></div>`
+  + `<div style="background:#fff;border:1px solid #E2E8F0;border-top:none;border-radius:0 0 16px 16px;padding:26px 24px;line-height:1.65;font-size:14px">${safeInner}`
+  + `<div style="text-align:center;margin:22px 0 6px"><a href="${waUrl}" style="display:inline-block;background:#25D366;color:#fff;font-weight:800;font-size:14px;text-decoration:none;padding:13px 26px;border-radius:999px">💬 Chat on WhatsApp →</a><div style="font-size:11px;color:#64748B;margin-top:6px">Fastest reply • usually within hours • ${escapeHtml(waNum)}</div></div>`
+  + `</div>`
+  + `<div style="text-align:center;font-size:11px;color:#94A3B8;margin-top:14px;line-height:1.6">You received this because you contacted Nexatech${leadName?` as ${escapeHtml(leadName)}`:''}.<br><a href="${unsubscribeUrl}" style="color:#7C3AED">Unsubscribe / opt out</a> • Reply STOP to opt out • saheednexatech@gmail.com<br>Serving clients worldwide</div>`
+  + `</div></body></html>`;
+}
+async function ensureAutoCampaign(){
+  try{
+    let row = await db.prepare('SELECT * FROM campaigns WHERE name=?').get('Auto AI Follow-ups');
+    if(row) return row.id;
+    const info = await db.prepare('INSERT INTO campaigns (name,subject,body_html,body_text,from_name,status) VALUES (?,?,?,?,?,?)')
+      .run('Auto AI Follow-ups','Auto follow-up','Auto AI follow-up body','Auto AI follow-up', 'Nexatech', 'auto');
+    return info.lastInsertRowid || (await db.prepare('SELECT * FROM campaigns WHERE name=?').get('Auto AI Follow-ups'))?.id || 0;
+  }catch{ return 0; }
+}
+async function hasFollowupBeenSent({ email, kind, sessionId='', dayNumber=0 }){
+  try{
+    const em = String(email||'').toLowerCase().trim();
+    if(!em) return true;
+    if(kind === 'form_instant' || kind === 'chat_instant'){
+      if(sessionId){
+        const r = await db.prepare("SELECT id FROM followup_logs WHERE session_id=? AND kind=? AND status=? LIMIT 1").get(sessionId, kind, 'sent');
+        if(r) return true;
+      }
+      const r2 = await db.prepare("SELECT id FROM followup_logs WHERE email=? AND kind=? AND status=? LIMIT 1").get(em, kind, 'sent');
+      if(r2) return true;
+      return false;
+    }
+    // daily: same kind+day already sent?
+    const r = await db.prepare("SELECT id FROM followup_logs WHERE email=? AND kind=? AND day_number=? AND status=? LIMIT 1").get(em, kind, dayNumber, 'sent');
+    if(r) return true;
+    // also max 1 followup per day per email
+    const today = await db.prepare("SELECT id FROM followup_logs WHERE email=? AND date(sent_at)=date('now') AND status=? LIMIT 1").get(em, 'sent');
+    if(today) return true;
+    return false;
+  }catch{ return false; }
+}
+async function logFollowup({ email, name='', leadId=null, sessionId='', kind='', dayNumber=0, subject='', body_html='', body_text='', status='sent', error='', messageId='' }){
+  const em = String(email||'').toLowerCase().trim();
+  let logId = null;
+  try{
+    const info = await db.prepare('INSERT INTO followup_logs (email,lead_id,session_id,kind,day_number,subject,body_html,body_text,status,error,message_id,sent_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,datetime(\'now\'))')
+      .run(em, leadId, sessionId||'', kind, dayNumber||0, subject||'', body_html||'', body_text||'', status, String(error||'').slice(0,500), messageId||'');
+    logId = info.lastInsertRowid || null;
+  }catch(e){ console.error('followup log failed', e.message); }
+  // Mirror into CRM: campaign_sends (auto campaign) + events timeline so every send appears in backend CRM
+  try{
+    const campId = await ensureAutoCampaign();
+    await db.prepare('INSERT INTO campaign_sends (campaign_id, lead_id, email, name, status, error, message_id, sent_at) VALUES (?,?,?,?,?,?,?,datetime(\'now\'))')
+      .run(campId || 0, leadId, em, name||'', status, String(error||'').slice(0,500), messageId||'');
+  }catch(e){ console.error('followup campaign_sends mirror failed', e.message); }
+  try{
+    await db.prepare('INSERT INTO events (event_type,element_id,session_id,page_url,metadata) VALUES (?,?,?,?,?)')
+      .run('email_sent', String(leadId||sessionId||em), sessionId||'', '', JSON.stringify({ kind, dayNumber, to: em, subject, messageId, logId }));
+  }catch{}
+  return logId;
+}
+// Central sender — checks opt-out + settings + dedup, generates AI HTML, sends via same Gmail Client ID/Secret, logs to CRM
+async function sendFollowupEmail({ to, name='', lead=null, leadId=null, sessionId='', kind='form_instant', dayNumber=0, transcript='', baseUrl='' }){
+  const email = String(to||lead?.email||'').toLowerCase().trim();
+  if(!email || !email.includes('@')) return { ok:false, skipped:'invalid email' };
+  const displayName = name || lead?.name || '';
+  if(await isEmailUnsubscribed(email)){
+    await logFollowup({ email, name: displayName, leadId: leadId ?? lead?.id ?? null, sessionId, kind, dayNumber, subject:'(skipped — unsubscribed)', status:'skipped', error:'unsubscribed' });
+    return { ok:false, skipped:'unsubscribed' };
+  }
+  const settings = await getFollowupSettings().catch(()=> ({ enabled:true, instantEnabled:true, dailyEnabled:true }));
+  if(!settings.enabled) return { ok:false, skipped:'followups disabled' };
+  if(kind.includes('instant') && !settings.instantEnabled) return { ok:false, skipped:'instant disabled' };
+  if(kind.startsWith('daily') && !settings.dailyEnabled) return { ok:false, skipped:'daily disabled' };
+  if(await hasFollowupBeenSent({ email, kind, sessionId, dayNumber })) return { ok:false, skipped:'already sent' };
+  const owner = await getOwnerContact().catch(()=> ({ whatsapp_number:'19283825389', footer_email:'saheednexatech@gmail.com', footer_phone:'+1 928 382 5389' }));
+  const unsubUrl = getUnsubscribeUrl(email, baseUrl);
+  const gen = await generateFollowupAI({ lead: lead||{ name: displayName, email }, transcript, kind, dayNumber });
+  const waPrefill = `Hi Nexatech! ${displayName?displayName.split(' ')[0]+' here — ':''}following up on my store request${lead?.preferredNiche?` (${lead.preferredNiche})`:''}.`;
+  const waUrl = `https://wa.me/${owner.whatsapp_number.replace(/\D/g,'')}?text=${encodeURIComponent(waPrefill)}`;
+  const html = buildFollowupHtml({ innerHtml: gen.htmlInner, leadName: displayName, whatsappNumber: owner.whatsapp_number, whatsappUrl: waUrl, unsubscribeUrl: unsubUrl, preheader: gen.textInner.slice(0,120) });
+  const text = `${gen.textInner}\n\nChat on WhatsApp: ${waUrl}\n\nTo opt out: ${unsubUrl}`;
+  // Gmail send via same Client ID/Secret
+  try{
+    await getAuthenticatedGmail();
+  }catch(e){
+    await logFollowup({ email, name: displayName, leadId: leadId ?? lead?.id ?? null, sessionId, kind, dayNumber, subject: gen.subject, body_html: html, body_text: text, status:'failed', error: e.message });
+    return { ok:false, error: e.message };
+  }
+  try{
+    const cfg = await getGoogleConfig().catch(()=> ({}));
+    const info = await sendGmailRaw({ to: email, subject: gen.subject, html, text, fromName: settings.fromName || cfg.gmailSenderName || 'Nexatech', replyTo: owner.footer_email });
+    await logFollowup({ email, name: displayName, leadId: leadId ?? lead?.id ?? null, sessionId, kind, dayNumber, subject: gen.subject, body_html: html, body_text: text, status:'sent', messageId: info.messageId||'' });
+    return { ok:true, messageId: info.messageId, subject: gen.subject, ai: gen.ai };
+  }catch(e){
+    await logFollowup({ email, name: displayName, leadId: leadId ?? lead?.id ?? null, sessionId, kind, dayNumber, subject: gen.subject, body_html: html, body_text: text, status:'failed', error: e.message });
+    return { ok:false, error: e.message };
+  }
+}
 function buildLeadRowForHeaders(lead, headers){
   // If sheet has custom headers, map lead fields to header positions; otherwise use EXPECTED order
   const ts = lead.submittedAt || new Date().toISOString();
@@ -947,6 +1189,63 @@ app.post('/api/chat', async (req, res) => {
   }
   await logChatMessage(sid, 'model', 'Gemini failed — check API key/model.', pageUrl);
   return res.status(503).json({ error: 'Gemini failed — check API key/model', fallback: 'Please chat on WhatsApp instead.' });
+});
+
+// Chat finished — instant AI follow-up after name+email + conversation ends (frontend calls after idle / close / New Chat; cron also auto-detects idle)
+app.post('/api/chat/finish', async (req, res) => {
+  try{
+    const sid = String(req.body?.sessionId || '').slice(0,120);
+    if(!sid) return res.status(400).json({ error: 'sessionId required' });
+    await ensureFollowupTables();
+    let session = null;
+    try{ session = await db.prepare('SELECT session_id, name, email FROM chat_sessions WHERE session_id=?').get(sid); }catch{}
+    if(!session || !session.email || !session.email.includes('@')) return res.status(400).json({ error: 'No email for this chat session yet — name+email required before follow-up' });
+    if(await hasFollowupBeenSent({ email: session.email, kind:'chat_instant', sessionId: sid })) return res.json({ ok:true, already:true, message:'Follow-up already sent for this chat' });
+    // Build transcript from recent messages
+    let transcript = '';
+    try{
+      const msgs = await db.prepare('SELECT role, text FROM chat_messages WHERE session_id=? ORDER BY created_at ASC LIMIT 30').all(sid);
+      transcript = (msgs||[]).map(m=> `${m.role==='user'?'Visitor':'Assistant'}: ${m.text}`).join('\n').slice(0,2500);
+    }catch{}
+    if(!transcript) return res.status(400).json({ error: 'No conversation yet' });
+    const baseUrl = getBaseUrl(req);
+    // Try to link to lead if same email exists
+    let lead = null, leadId = null;
+    try{ lead = await db.prepare('SELECT * FROM leads WHERE email=? ORDER BY created_at DESC LIMIT 1').get(String(session.email).toLowerCase().trim()) || await db.prepare('SELECT * FROM leads WHERE email=? ORDER BY created_at DESC LIMIT 1').get(session.email); leadId = lead?.id ?? null; }catch{}
+    const r = await sendFollowupEmail({ to: session.email, name: session.name||lead?.name||'', lead: lead || { name: session.name, email: session.email }, leadId, sessionId: sid, kind:'chat_instant', dayNumber: 1, transcript, baseUrl });
+    if(r.ok) return res.json({ ok:true, messageId: r.messageId, subject: r.subject });
+    if(r.skipped) return res.json({ ok:true, skipped: r.skipped });
+    return res.status(502).json({ error: r.error || 'Follow-up failed — check Gmail connection' });
+  }catch(e){ return res.status(500).json({ error: e.message }); }
+});
+
+// Public opt-out (one-click from every email) + resubscribe
+app.get('/unsubscribe', async (req, res) => {
+  const email = String(req.query.email||'').toLowerCase().trim();
+  const token = String(req.query.token||'');
+  if(!email || !email.includes('@')) return res.status(400).send('<h2>Invalid link</h2><p>Missing email.</p>');
+  if(token !== getUnsubscribeToken(email)) return res.status(403).send('<h2>Invalid link</h2><p>This unsubscribe link is invalid. Please use the link from your email.</p>');
+  try{
+    await ensureFollowupTables();
+    await db.prepare("INSERT INTO email_unsubscribes (email, reason) VALUES (?,?) ON CONFLICT(email) DO UPDATE SET reason=excluded.reason").run(email, 'one-click');
+  }catch(e){ return res.status(500).send('Failed: '+escapeHtml(e.message)); }
+  res.send(`<html><body style="font-family:Inter,system-ui;padding:32px;max-width:560px;margin:auto;text-align:center"><h2>Unsubscribed ✓</h2><p><b>${escapeHtml(email)}</b> will no longer receive follow-up emails from Nexatech.</p><p style="color:#64748B;font-size:13px">Changed your mind? <a href="/resubscribe?email=${encodeURIComponent(email)}&token=${getUnsubscribeToken(email)}">Resubscribe</a></p></body></html>`);
+});
+app.get('/resubscribe', async (req, res) => {
+  const email = String(req.query.email||'').toLowerCase().trim();
+  const token = String(req.query.token||'');
+  if(!email || token !== getUnsubscribeToken(email)) return res.status(403).send('Invalid link');
+  try{ await db.prepare('DELETE FROM email_unsubscribes WHERE email=?').run(email); }catch{}
+  res.send(`<html><body style="font-family:Inter,system-ui;padding:32px;max-width:560px;margin:auto;text-align:center"><h2>Resubscribed ✓</h2><p><b>${escapeHtml(email)}</b> will receive follow-ups again.</p><a href="/">Back to site</a></body></html>`);
+});
+app.post('/api/unsubscribe', async (req, res) => {
+  const email = String(req.body?.email||'').toLowerCase().trim();
+  if(!email || !email.includes('@')) return res.status(400).json({ error: 'valid email required' });
+  try{
+    await ensureFollowupTables();
+    await db.prepare("INSERT INTO email_unsubscribes (email, reason) VALUES (?,?) ON CONFLICT(email) DO UPDATE SET reason=excluded.reason").run(email, String(req.body?.reason||'api').slice(0,120));
+    res.json({ ok:true, email });
+  }catch(e){ res.status(500).json({ error: e.message }); }
 });
 
 // --- Auth ---
@@ -1835,6 +2134,83 @@ app.delete('/api/admin/chats/:sessionId', requireAuth, async (req,res)=>{
   }catch(e){ res.status(500).json({ error: e.message }); }
 });
 
+// ==================== Follow-ups Admin CRM — every send appears here ====================
+app.get('/api/admin/followups/status', requireAuth, async (req, res) => {
+  try{
+    await ensureFollowupTables();
+    const settings = await getFollowupSettings();
+    const gmail = await getGoogleConfig();
+    let total=0, today=0, failed=0, unsub=0;
+    try{ total = parseInt((await db.prepare('SELECT COUNT(*) as c FROM followup_logs WHERE status=?').get('sent'))?.c||0,10)||0; }catch{}
+    try{ today = parseInt((await db.prepare("SELECT COUNT(*) as c FROM followup_logs WHERE status=? AND date(sent_at)=date('now')").get('sent'))?.c||0,10)||0; }catch{}
+    try{ failed = parseInt((await db.prepare('SELECT COUNT(*) as c FROM followup_logs WHERE status=?').get('failed'))?.c||0,10)||0; }catch{}
+    try{ unsub = parseInt((await db.prepare('SELECT COUNT(*) as c FROM email_unsubscribes').get())?.c||0,10)||0; }catch{}
+    res.json({ settings, gmail: { connected: !!gmail.gmailConnectedEmail, email: gmail.gmailConnectedEmail||'', hasClient: !!(gmail.clientId&&gmail.clientSecret), hasRefresh: !!gmail.refreshToken }, counts: { totalSent: total, todaySent: today, failed, unsubscribed: unsub } });
+  }catch(e){ res.status(500).json({ error: e.message }); }
+});
+app.put('/api/admin/followups/settings', requireAuth, async (req, res) => {
+  const { followup_enabled, followup_instant_enabled, followup_daily_enabled, followup_max_days, followup_chat_idle_minutes, followup_from_name } = req.body || {};
+  const payload = {};
+  if(followup_enabled !== undefined) payload.followup_enabled = String(!!followup_enabled && followup_enabled !== 'false');
+  if(followup_instant_enabled !== undefined) payload.followup_instant_enabled = String(!!followup_instant_enabled && followup_instant_enabled !== 'false');
+  if(followup_daily_enabled !== undefined) payload.followup_daily_enabled = String(!!followup_daily_enabled && followup_daily_enabled !== 'false');
+  if(followup_max_days !== undefined) payload.followup_max_days = String(Math.min(30, Math.max(1, parseInt(followup_max_days,10)||7)));
+  if(followup_chat_idle_minutes !== undefined) payload.followup_chat_idle_minutes = String(Math.min(120, Math.max(2, parseInt(followup_chat_idle_minutes,10)||10)));
+  if(followup_from_name !== undefined) payload.followup_from_name = String(followup_from_name||'').slice(0,80);
+  if(!Object.keys(payload).length) return res.status(400).json({ error: 'nothing to update' });
+  const stmt = await db.prepare("INSERT INTO content (key,value,type,updated_at) VALUES (?,?,?,datetime('now')) ON CONFLICT(key) DO UPDATE SET value=excluded.value, type=excluded.type, updated_at=datetime('now')");
+  for(const [k,v] of Object.entries(payload)) await stmt.run(k, v, k==='followup_max_days'||k==='followup_chat_idle_minutes'?'number':(k==='followup_from_name'?'text':'boolean'));
+  res.json({ ok:true, updated: payload, settings: await getFollowupSettings() });
+});
+app.get('/api/admin/followups/logs', requireAuth, async (req, res) => {
+  try{
+    await ensureFollowupTables();
+    const lim = Math.min(parseInt(req.query.limit,10)||50, 200);
+    const off = parseInt(req.query.offset,10)||0;
+    const { kind='', search='' } = req.query;
+    let sql = 'SELECT * FROM followup_logs WHERE 1=1';
+    const params = [];
+    if(kind){ sql+=' AND kind=?'; params.push(kind); }
+    if(search){ sql+=' AND (email LIKE ? OR subject LIKE ? OR session_id LIKE ?)'; const s=`%${search}%`; params.push(s,s,s); }
+    sql+=' ORDER BY sent_at DESC LIMIT ? OFFSET ?';
+    params.push(lim, off);
+    const rows = await db.prepare(sql).all(...params);
+    const totalRow = await db.prepare('SELECT COUNT(*) as c FROM followup_logs').get();
+    res.json({ logs: rows, total: parseInt(totalRow?.c||0,10)||0, limit: lim, offset: off });
+  }catch(e){ res.status(500).json({ error: e.message }); }
+});
+app.get('/api/admin/followups/unsubscribes', requireAuth, async (req, res) => {
+  try{
+    await ensureFollowupTables();
+    const rows = await db.prepare('SELECT * FROM email_unsubscribes ORDER BY created_at DESC LIMIT 500').all();
+    res.json(rows);
+  }catch(e){ res.status(500).json({ error: e.message }); }
+});
+app.delete('/api/admin/followups/unsubscribes/:email', requireAuth, async (req, res) => {
+  try{ await db.prepare('DELETE FROM email_unsubscribes WHERE email=?').run(String(req.params.email||'').toLowerCase().trim()); res.json({ ok:true }); }
+  catch(e){ res.status(500).json({ error: e.message }); }
+});
+app.post('/api/admin/followups/test', requireAuth, async (req, res) => {
+  try{
+    await ensureFollowupTables();
+    const cfg = await getGoogleConfig();
+    const to = (req.body?.to || cfg.gmailConnectedEmail || '').trim();
+    if(!to) return res.status(400).json({ error: 'Provide to email or connect Gmail first' });
+    const sampleLead = (await db.prepare('SELECT * FROM leads ORDER BY created_at DESC LIMIT 1').get()) || { name:'Test Founder', storeName:'Test Store', preferredNiche:'Fashion', investmentRange:'Pro', email: to, whatsapp:'+19283825389' };
+    const r = await sendFollowupEmail({ to, name: sampleLead.name||'Founder', lead: { ...sampleLead, email: to }, leadId: sampleLead.id??null, sessionId:'test-'+Date.now(), kind:'form_instant', dayNumber:1, transcript:'', baseUrl: getBaseUrl(req) });
+    // test should not be blocked by dedup — if skipped as already sent, force with unique session
+    if(r.ok) return res.json({ ok:true, to, subject: r.subject, ai: r.ai });
+    return res.status(500).json({ error: r.error || r.skipped || 'send failed' });
+  }catch(e){ res.status(500).json({ error: e.message }); }
+});
+app.post('/api/admin/followups/run-daily', requireAuth, async (req, res) => {
+  try{
+    const { dryRun=false, limit=50 } = req.body || {};
+    const r = await runDailyFollowups({ manual:true, dryRun: !!dryRun, limit: Math.min(parseInt(limit,10)||50,200), baseUrl: getBaseUrl(req) });
+    res.json({ ok:true, ...r });
+  }catch(e){ res.status(500).json({ error: e.message }); }
+});
+
 // Scheduled jobs
 async function refreshStats() {
   try {
@@ -1888,9 +2264,108 @@ async function retryWebhooks() {
   if (pending.length) console.log(`Webhook retry processed ${pending.length} leads`);
 }
 
-// Cron: nightly stats at 02:00, retry every 5 min
+// Cron: nightly stats at 02:00, retry every 5 min, idle-chat followups every 5 min, daily AI followups 09:00
 cron.schedule('0 2 * * *', refreshStats);
 cron.schedule('*/5 * * * *', retryWebhooks);
+cron.schedule('*/5 * * * *', processIdleChatFollowups);
+cron.schedule('0 9 * * *', ()=> runDailyFollowups({}).catch(e=> console.error('daily followups cron', e.message)));
+
+// Idle chats: session updated > chatIdleMinutes ago, has email+messages, no chat_instant sent yet -> send instant AI follow-up
+async function processIdleChatFollowups(){
+  try{
+    await ensureFollowupTables();
+    const settings = await getFollowupSettings().catch(()=> ({ enabled:true, instantEnabled:true, chatIdleMinutes:10 }));
+    if(!settings.enabled || !settings.instantEnabled) return;
+    const idleMin = settings.chatIdleMinutes || 10;
+    const cutoff = Date.now() - idleMin*60*1000;
+    let sessions = [];
+    try{ sessions = await db.prepare('SELECT session_id, name, email, updated_at FROM chat_sessions WHERE email IS NOT NULL ORDER BY updated_at DESC LIMIT 100').all(); }catch{ return; }
+    const baseUrl = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+    for(const s of sessions){
+      try{
+        const em = String(s.email||'').trim();
+        if(!em || !em.includes('@')) continue;
+        if(await isEmailUnsubscribed(em)) continue;
+        const updatedMs = new Date(s.updated_at).getTime();
+        if(isNaN(updatedMs) || updatedMs > cutoff) continue; // only idle
+        if(await hasFollowupBeenSent({ email: em, kind:'chat_instant', sessionId: s.session_id })) continue;
+        const msgs = await db.prepare('SELECT role, text FROM chat_messages WHERE session_id=? ORDER BY created_at ASC LIMIT 30').all(s.session_id).catch(()=>[]);
+        if(!msgs || !msgs.length) continue;
+        const hasUser = msgs.some(m=> m.role==='user');
+        if(!hasUser) continue;
+        const transcript = msgs.map(m=> `${m.role==='user'?'Visitor':'Assistant'}: ${m.text}`).join('\n').slice(0,2500);
+        let lead=null, leadId=null;
+        try{ lead = await db.prepare('SELECT * FROM leads WHERE email=? ORDER BY created_at DESC LIMIT 1').get(em.toLowerCase()) || await db.prepare('SELECT * FROM leads WHERE email=? ORDER BY created_at DESC LIMIT 1').get(em); leadId = lead?.id ?? null; }catch{}
+        await sendFollowupEmail({ to: em, name: s.name||lead?.name||'', lead: lead || { name: s.name, email: em }, leadId, sessionId: s.session_id, kind:'chat_instant', dayNumber:1, transcript, baseUrl });
+        await new Promise(r=> setTimeout(r, 400));
+      }catch(e){ console.error('idle chat followup session', s?.session_id, e.message); }
+    }
+  }catch(e){ console.error('processIdleChatFollowups', e.message); }
+}
+
+// Daily AI follow-ups: leads from last maxDays (day 2..maxDays) + chat-only contacts, one per email per day, AI-personalized
+async function runDailyFollowups({ manual=false, dryRun=false, limit=200, baseUrl='' }={}){
+  await ensureFollowupTables();
+  const settings = await getFollowupSettings().catch(()=> ({ enabled:true, dailyEnabled:true, maxDays:7 }));
+  if(!settings.enabled) return { ok:false, skipped:'followups disabled' };
+  if(!settings.dailyEnabled) return { ok:false, skipped:'daily disabled' };
+  const maxDays = settings.maxDays || 7;
+  const base = baseUrl || process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+  const now = Date.now();
+  const dayMs = 86400*1000;
+  let leads = [];
+  try{ leads = await db.prepare('SELECT * FROM leads WHERE email IS NOT NULL ORDER BY created_at DESC LIMIT 500').all(); }catch(e){ return { ok:false, error:e.message }; }
+  let chatSessions = [];
+  try{ chatSessions = await db.prepare('SELECT session_id, name, email, created_at, updated_at FROM chat_sessions WHERE email IS NOT NULL ORDER BY updated_at DESC LIMIT 500').all(); }catch{}
+  const leadEmails = new Set(leads.map(l=> String(l.email||'').toLowerCase().trim()).filter(Boolean));
+  const candidates = [];
+  for(const l of leads){
+    const em = String(l.email||'').toLowerCase().trim();
+    if(!em || !em.includes('@')) continue;
+    if(['closed','archived'].includes(String(l.pipeline_stage||'').toLowerCase())) continue;
+    const createdMs = new Date(l.created_at || l.submittedAt || Date.now()).getTime();
+    if(isNaN(createdMs)) continue;
+    const dayNumber = Math.floor((now - createdMs)/dayMs) + 1;
+    if(dayNumber < 2 || dayNumber > maxDays) continue; // day1 = instant already sent; daily starts day2
+    candidates.push({ email: em, name: l.name||'', lead: l, leadId: l.id, sessionId: l.sessionId||'', kind:'daily', dayNumber, source:'lead' });
+  }
+  for(const s of chatSessions){
+    const em = String(s.email||'').toLowerCase().trim();
+    if(!em || !em.includes('@')) continue;
+    if(leadEmails.has(em)) continue; // avoid double-send when same email is already a lead
+    const createdMs = new Date(s.created_at || s.updated_at || Date.now()).getTime();
+    if(isNaN(createdMs)) continue;
+    const dayNumber = Math.floor((now - createdMs)/dayMs) + 1;
+    if(dayNumber < 2 || dayNumber > maxDays) continue;
+    candidates.push({ email: em, name: s.name||'', lead: { name: s.name, email: em }, leadId: null, sessionId: s.session_id, kind:'daily', dayNumber, source:'chat' });
+  }
+  // Filter unsubscribed + already-sent-today/day
+  const filtered = [];
+  for(const c of candidates){
+    if(await isEmailUnsubscribed(c.email)) continue;
+    if(await hasFollowupBeenSent({ email: c.email, kind:'daily', dayNumber: c.dayNumber })) continue;
+    filtered.push(c);
+  }
+  const batch = filtered.slice(0, limit);
+  if(dryRun) return { ok:true, dryRun:true, wouldSend: batch.length, maxDays, emails: batch.map(b=> ({ email:b.email, day:b.dayNumber, source:b.source })).slice(0,30) };
+  let sent=0, failed=0, skipped=0;
+  for(const c of batch){
+    try{
+      let transcript='';
+      if(c.sessionId){
+        try{
+          const msgs = await db.prepare('SELECT role, text FROM chat_messages WHERE session_id=? ORDER BY created_at ASC LIMIT 20').all(c.sessionId);
+          transcript = (msgs||[]).map(m=> `${m.role==='user'?'Visitor':'Assistant'}: ${m.text}`).join('\n').slice(0,2000);
+        }catch{}
+      }
+      const r = await sendFollowupEmail({ to: c.email, name: c.name, lead: c.lead, leadId: c.leadId, sessionId: c.sessionId||'', kind:'daily', dayNumber: c.dayNumber, transcript, baseUrl: base });
+      if(r.ok) sent++; else if(r.skipped) skipped++; else failed++;
+    }catch{ failed++; }
+    await new Promise(r=> setTimeout(r, 400)); // Gmail throttle
+  }
+  console.log(`Daily followups ${manual?'(manual) ':''}sent=${sent} failed=${failed} skipped=${skipped} candidates=${candidates.length}`);
+  return { ok:true, total: batch.length, sent, failed, skipped, maxDays };
+}
 
 // Fallback to index for SPA? Serve index.html for root, admin.html for /admin
 app.get('/admin', async (req, res) => {
