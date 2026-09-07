@@ -946,6 +946,15 @@ export async function initDb() {
     for (const r of mediasDef) await db.prepare('INSERT INTO media (type,category,url,caption,alt_text,tags,result_stat,case_study_text,display_order,published) VALUES (?,?,?,?,?,?,?,?,?,?)').run(r[0],r[1],r[2],r[3],r[4],r[5],r[6],r[7],r[8],r[9]);
     if (forceReset) console.log('FORCE_DEFAULT_CONTENT: reseeded media');
   }
+  // Hero Image tab in Media Manager must never be empty: ensure at least the default hero image row
+  try{
+    const heroRow = await db.prepare("SELECT COUNT(*) as c FROM media WHERE type='hero'").get();
+    if((parseInt(heroRow?.c ?? 0, 10) || 0) === 0){
+      await db.prepare('INSERT INTO media (type,category,url,caption,alt_text,tags,result_stat,case_study_text,display_order,published) VALUES (?,?,?,?,?,?,?,?,?,?)')
+        .run('hero','Hero','https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=900','Default hero store mockup','Dropshipping store mockup','','','',0,1);
+      console.log('Seeded default hero media row');
+    }
+  }catch(e){ console.error('hero seed error', e.message); }
 
   const teamCount = await getCount('team');
   const teamsDef = [

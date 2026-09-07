@@ -1418,6 +1418,9 @@ function updateMediaHint(){
   } else if(currentMediaTab==='portfolio'){
     hint.style.display='block';
     txt.textContent='Portfolio supports any ratio but 16:10 works best. Videos autoplay muted on hover.';
+  } else if(currentMediaTab==='hero'){
+    hint.style.display='block';
+    txt.innerHTML='For the <b>homepage hero mockup</b> upload a wide image (16:10 works best). Uploading sets it live instantly — or hover any image below and click <b>Set as Hero</b> to switch.';
   } else if(currentMediaTab==='certificates'){
     hint.style.display='block';
     txt.innerHTML='For <b>Certificates & Awards</b> upload image files (PNG/JPG/PDF preview as image). Recommended <b>4:3</b> or square, max 5MB. These appear in the homepage Certificates section.';
@@ -1445,9 +1448,19 @@ async function loadMedia(){
   // Actually fetch all then filter client side for admin view? Simplify: fetch with type
   renderMediaGallery();
 }
+// Current live hero preview (hero tab only)
+function renderHeroBanner(g){
+  if(currentMediaTab!=='hero') return;
+  const url=(CONTENT.hero_image_url||'').trim();
+  const bar=document.createElement('div');
+  bar.style.cssText='grid-column:1/-1;display:flex;gap:12px;align-items:center;background:rgba(124,58,237,.08);border:1px solid rgba(124,58,237,.3);border-radius:12px;padding:10px 12px;margin-bottom:4px';
+  bar.innerHTML=`<img src="${url}" style="width:120px;height:75px;object-fit:cover;border-radius:8px;background:#0B1220" onerror="this.style.display='none'"><div style="font-size:12px"><b>Live hero image</b><div style="color:#94A3B8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:420px">${url||'(none set)'}</div><small style="color:#94A3B8">Upload a new image below (goes live instantly) or click Set as Hero on any image.</small></div>`;
+  g.appendChild(bar);
+}
 function renderMediaGallery(){
   const g=$('#media-gallery'); g.innerHTML='';
   const filtered = MEDIA; // already filtered by type
+  renderHeroBanner(g);
   filtered.forEach(item=>{
     const div=document.createElement('div');
     div.draggable=true;
@@ -1455,16 +1468,20 @@ function renderMediaGallery(){
     div.style.cssText='background:#0B1220;border:1px solid rgba(255,255,255,.08);border-radius:12px;overflow:hidden;display:flex;flex-direction:column';
     const isVideo=item.url.match(/\.(mp4|webm|mov)$/i);
     const ratio = (currentMediaTab==='reviews' ? '2550/1650' : '4/3');
+    const isHeroTab = currentMediaTab==='hero';
+    const isActiveHero = isHeroTab && CONTENT.hero_image_url && item.url===CONTENT.hero_image_url;
     div.innerHTML=`
       <div style="aspect-ratio:${ratio};overflow:hidden;background:#132238;position:relative">
         ${isVideo?`<video src="${item.url}" muted style="width:100%;height:100%;object-fit:cover"></video><span style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,.6);color:#fff;font-size:10px;padding:4px 6px;border-radius:999px">VIDEO</span>`:`<img src="${item.url}" style="width:100%;height:100%;object-fit:cover">`}
         <span style="position:absolute;left:8px;top:8px;background:${item.published?'#10B981':'#64748B'};color:#fff;font-size:10px;padding:3px 6px;border-radius:999px">${item.published?'LIVE':'DRAFT'}</span>
+        ${isActiveHero?'<span style="position:absolute;right:8px;top:8px;background:#7C3AED;color:#fff;font-size:10px;padding:3px 8px;border-radius:999px">ACTIVE HERO</span>':''}
       </div>
       <div style="padding:10px;display:grid;gap:6px">
         <b style="font-size:13px">${item.caption||'(no caption)'}</b>
         <small style="color:#94A3B8">${item.category||' '} • ${item.result_stat||''}</small>
         <small style="color:#94A3B8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${item.url}</small>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${isHeroTab?`<button class="btn btn-primary" data-sethero="${item.id}" style="padding:6px 10px;font-size:11px" ${isActiveHero?'disabled':''}>${isActiveHero?'Active ✓':'Set as Hero'}</button>`:''}
           <button class="btn btn-ghost" data-edit="${item.id}" style="padding:6px 10px;font-size:11px">Edit</button>
           <button class="btn btn-ghost" data-toggle="${item.id}" style="padding:6px 10px;font-size:11px">${item.published?'Unpublish':'Publish'}</button>
           <button class="btn btn-ghost" data-del="${item.id}" style="padding:6px 10px;font-size:11px;color:#F87171">Delete</button>
@@ -1491,6 +1508,17 @@ function renderMediaGallery(){
   });
   // attach edit/delete/toggle
   g.querySelectorAll('[data-edit]').forEach(b=> b.addEventListener('click', ()=> openEditMedia(b.dataset.edit)));
+  g.querySelectorAll('[data-sethero]').forEach(b=> b.addEventListener('click', async()=>{
+    b.textContent='...'; b.disabled=true;
+    try{
+      const r=await fetch('/api/admin/media/'+b.dataset.sethero+'/set-hero',{method:'POST',headers:authHeaders()});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok) throw new Error(j.error||'Failed');
+      CONTENT.hero_image_url=j.hero_image_url||CONTENT.hero_image_url;
+      alert('Hero image updated — homepage shows it instantly');
+    }catch(e){ alert('Failed: '+e.message); }
+    loadMedia();
+  }));
   g.querySelectorAll('[data-toggle]').forEach(b=> b.addEventListener('click', async()=>{
     const id=b.dataset.toggle;
     const it=MEDIA.find(m=>String(m.id)===String(id));

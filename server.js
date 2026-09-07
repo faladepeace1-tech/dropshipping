@@ -357,6 +357,10 @@ app.post('/api/media', requireAuth, upload.single('file'), async (req, res) => {
   const order = _orderRow ? _orderRow.n : 1;
   const info = await db.prepare('INSERT INTO media (type,category,url,caption,alt_text,tags,result_stat,case_study_text,display_order,published) VALUES (?,?,?,?,?,?,?,?,?,1)').run(type, category||'', finalUrl, caption||'', alt_text||'', tags||'', result_stat||'', case_study_text||'', order);
   const row = await db.prepare('SELECT * FROM media WHERE id=?').get(info.lastInsertRowid);
+  // Hero uploads go live instantly
+  if(type==='hero' && finalUrl){
+    try{ await db.prepare("INSERT INTO content (key,value,type,updated_at) VALUES (?,?,?,datetime('now')) ON CONFLICT(key) DO UPDATE SET value=excluded.value, type=excluded.type, updated_at=datetime('now')").run('hero_image_url', finalUrl, 'text'); }catch{}
+  }
   res.json(row);
 });
 
@@ -413,6 +417,16 @@ app.put('/api/media/reorder', requireAuth, async (req, res) => {
     await stmt.run(idx, orderedIds[idx]);
   }
   res.json({ ok: true });
+});
+
+// Set a Media Manager image as the live homepage hero image (one click, instant)
+app.post('/api/admin/media/:id/set-hero', requireAuth, async (req, res) => {
+  const item = await db.prepare('SELECT * FROM media WHERE id=?').get(req.params.id);
+  if(!item) return res.status(404).json({ error: 'media not found' });
+  if(!item.url) return res.status(400).json({ error: 'media has no url' });
+  await db.prepare("INSERT INTO content (key,value,type,updated_at) VALUES (?,?,?,datetime('now')) ON CONFLICT(key) DO UPDATE SET value=excluded.value, type=excluded.type, updated_at=datetime('now')")
+    .run('hero_image_url', item.url, 'text');
+  res.json({ ok: true, hero_image_url: item.url });
 });
 
 // Generic admin file upload (logo, favicon, etc.)
