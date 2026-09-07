@@ -47,7 +47,12 @@ function applyTheme(c){
       }
     }
   }catch{}
-  if(c.favicon_url && c.favicon_url.trim()) $('#favicon').href=c.favicon_url;
+  if(c.favicon_url && c.favicon_url.trim()){
+    // Cache-bust so a newly uploaded favicon actually replaces the old tab icon
+    const furl=String(c.favicon_url).trim();
+    let v=0; for(const ch of furl) v=(v*31+ch.charCodeAt(0))>>>0;
+    $('#favicon').href=furl+(furl.includes('?')?'&':'?')+'v='+v.toString(36);
+  }
   if(c.seo_title) {$('#seo-title').textContent=c.seo_title; document.title=c.seo_title;}
   if(c.seo_description) $('#seo-desc').content=c.seo_description;
   if(c.og_image) $('#og-image').content=c.og_image;
@@ -501,14 +506,27 @@ async function loadMedia(){
   // team
   const teamR=await fetch('/api/team'); const team=await teamR.json();
   const tGrid2=$('#team-grid'); tGrid2.innerHTML='';
-  team.slice(0,4).forEach((m,idx)=>{
-    const card=document.createElement('div'); card.className='team-card';
-    card.style.transitionDelay=(idx*80)+'ms';
-    card.innerHTML=`<img src="${m.photo_url||'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200'}" alt="${sanitize(m.name)}"><div><h4>${sanitize(m.name)}</h4><small>${sanitize(m.role)}</small><p>${sanitize(m.credibility_note)}</p>${m.social_url?`<a href="${m.social_url}" target="_blank" style="font-size:12px;color:var(--accent-2)">LinkedIn →</a>`:''}</div>`;
-    tGrid2.appendChild(card);
-    setTimeout(()=>card.classList.add('in'), 200+idx*120);
-  });
-  if(team.length>4) {$('#view-full-team').classList.remove('hidden'); $('#view-full-team').href='/team.html';}
+  let teamExpanded=false;
+  function renderTeamList(){
+    tGrid2.innerHTML='';
+    const vis=teamExpanded?team:team.slice(0,4);
+    vis.forEach((m,idx)=>{
+      const card=document.createElement('div'); card.className='team-card in';
+      card.style.transitionDelay=(idx*80)+'ms';
+      card.innerHTML=`<img src="${m.photo_url||'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200'}" alt="${sanitize(m.name)}"><div><h4>${sanitize(m.name)}</h4><small>${sanitize(m.role)}</small><p>${sanitize(m.credibility_note)}</p>${m.social_url?`<a href="${m.social_url}" target="_blank" style="font-size:12px;color:var(--accent-2)">LinkedIn →</a>`:''}</div>`;
+      tGrid2.appendChild(card);
+      setTimeout(()=>card.classList.add('in'), 200+idx*120);
+    });
+    const more=$('#view-full-team');
+    if(more){
+      if(team.length>4){
+        more.classList.remove('hidden');
+        more.textContent=(teamExpanded ? 'Show less' : T('team_view_all','View full team')+' →');
+      } else more.classList.add('hidden');
+    }
+  }
+  renderTeamList();
+  $('#view-full-team')?.addEventListener('click', e=>{ e.preventDefault(); teamExpanded=!teamExpanded; renderTeamList(); document.getElementById('experts')?.scrollIntoView({behavior:'smooth'}); });
 }
 
 // Pricing

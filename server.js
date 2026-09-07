@@ -119,7 +119,9 @@ app.get('/uploads/:name', async (req, res, next) => {
     if(!fname) return next();
     const row = await db.prepare('SELECT mime, data FROM media_blobs WHERE filename=?').get(fname);
     if(!row || !row.data) return next();
-    if(row.mime) res.contentType(row.mime);
+    let mime = row.mime || '';
+    if(/\.ico$/i.test(fname) && !/^image\//.test(mime)) mime = 'image/x-icon';
+    if(mime) res.contentType(mime);
     res.setHeader('Cache-Control','public, max-age=86400');
     return res.send(Buffer.isBuffer(row.data) ? row.data : Buffer.from(row.data));
   }catch(e){ return next(); }
@@ -185,7 +187,10 @@ const upload = multer({
   storage,
   limits: { fileSize: 15 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    if (/^(image|video)\//.test(file.mimetype)) cb(null, true);
+    // Accept images/video by mimetype, plus .ico/.svg by extension (some browsers
+    // send favicons as application/octet-stream, which the regex above rejects)
+    if (/^(image|video)\//.test(file.mimetype || '')) cb(null, true);
+    else if (/\.(ico|svg|png|jpe?g|webp|gif)$/i.test(file.originalname || '')) cb(null, true);
     else cb(new Error('Only image/video allowed'));
   }
 });

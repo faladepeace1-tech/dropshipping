@@ -51,6 +51,9 @@ $$('.side-nav button').forEach(b=> b.addEventListener('click', ()=>{
   if(tab==='analytics') loadAnalytics();
   if(tab==='leads') loadLeads();
   if(tab==='brand') loadBrand();
+  if(tab==='team') loadTeam();
+  if(tab==='media') loadMedia();
+  if(tab==='sections') loadSections();
   if(tab==='campaigns'){ loadCampaigns(); loadTemplates(); loadGmailStatus(); loadOutbox(); }
   if(tab==='chats') loadChats();
   if(tab==='overview') loadOverview();
@@ -1586,9 +1589,21 @@ $('#edit-media-save').addEventListener('click', async e=>{
 
 // Team
 async function loadTeam(){
-  const r=await fetch('/api/team', {headers: authHeaders()});
-  TEAM=await r.json();
-  const list=$('#team-list'); list.innerHTML='';
+  const list=$('#team-list');
+  try{
+    list.innerHTML='<div style="font-size:12px;color:#94A3B8">Loading experts...</div>';
+    const r=await fetch('/api/team', {headers: authHeaders()});
+    if(!r.ok) throw new Error('Server returned '+r.status+' — try logging out and back in');
+    TEAM=await r.json();
+  }catch(e){
+    list.innerHTML='<div style="font-size:12px;color:#F87171;border:1px solid #FECACA;border-radius:10px;padding:10px">Could not load experts: '+e.message+'</div>';
+    return;
+  }
+  list.innerHTML='';
+  if(!TEAM.length){
+    list.innerHTML='<div style="font-size:12px;color:#94A3B8;border:1px dashed #E2E8F0;border-radius:10px;padding:14px;text-align:center">No experts yet — add your first expert with the form above. They appear instantly in the homepage Experts section.</div>';
+    return;
+  }
   TEAM.forEach(m=>{
     const div=document.createElement('div');
     div.style.cssText='display:flex;gap:12px;align-items:center;background:#0B1220;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:10px';
