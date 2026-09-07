@@ -281,6 +281,9 @@ const CONTENT_SCHEMA = {
     {key:'form_label_traffic', label:'Label: Traffic Plan'},
   ],
   chatbot: [
+    {key:'chatbot_system_prompt', label:'AI Brain — System Prompt (persona, knowledge, style, handoff rules). Site knowledge auto-appends.', type:'textarea', rows:16},
+    {key:'chatbot_temperature', label:'Creativity 0–1.5 (lower = strict, higher = chatty)'},
+    {key:'chatbot_max_tokens', label:'Max Reply Length (tokens, 100–2000)'},
     {key:'chat_title', label:'Chat Header Name'},
     {key:'chat_new', label:'New Chat Button'},
     {key:'chat_recent', label:'Recent Button'},
@@ -351,7 +354,7 @@ function renderContentForms(){
     label.textContent=field.label + `   ${field.key}`;
     let input;
     if(field.type==='textarea'){
-      input=document.createElement('textarea'); input.rows=4; input.value=displayVal;
+      input=document.createElement('textarea'); input.rows=field.rows||4; input.value=displayVal;
       if(listKeys.includes(field.key)) input.placeholder = 'One item per line — text format';
     } else if(field.type==='image_upload'){
     } else if(field.type==='image_upload'){

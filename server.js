@@ -92,6 +92,17 @@ try {
   console.log('Admin password set to 123450000');
 } catch(e){ console.error('admin fix error',e); }
 
+// Seed the editable chatbot brain on first boot only: if the admin has never saved
+// chatbot_system_prompt, store the built-in prompt so it is visible/editable in
+// Admin -> Content & Theme -> Chatbot. Never overwrites an admin edit.
+try {
+  const ex = await db.prepare('SELECT value FROM content WHERE key=?').get('chatbot_system_prompt');
+  if(!ex || !String(ex.value || '').trim()){
+    await db.prepare("INSERT INTO content (key,value,type,updated_at) VALUES (?,?,?,datetime('now')) ON CONFLICT(key) DO UPDATE SET value=excluded.value, type=excluded.type, updated_at=datetime('now')").run('chatbot_system_prompt', NEXATECH_BASE_PROMPT, 'text');
+    console.log('Seeded editable chatbot_system_prompt');
+  }
+} catch(e){ console.error('chatbot prompt seed error', e.message); }
+
 const app = express();
 app.set('trust proxy', 1); // Required for Render + Cloudflare (X-Forwarded-For) + express-rate-limit
 // Security & middleware
@@ -698,6 +709,29 @@ async function getGeminiKeySource(){
   if (GEMINI_API_KEY && GEMINI_API_KEY.trim()) return 'env';
   return 'none';
 }
+// Chatbot brain — editable in Admin -> Content & Theme -> Chatbot. Falls back to built-in.
+async function getChatbotPrompt(){
+  try{
+    const row = await db.prepare('SELECT value FROM content WHERE key=?').get('chatbot_system_prompt');
+    const v = row?.value?.trim() || '';
+    if(v) return v;
+  }catch{}
+  return NEXATECH_BASE_PROMPT;
+}
+async function getChatbotGenConfig(){
+  let temperature = 0.7, maxOutputTokens = 600;
+  try{
+    const t = await db.prepare('SELECT value FROM content WHERE key=?').get('chatbot_temperature');
+    const tv = parseFloat(t?.value);
+    if(!isNaN(tv)) temperature = Math.min(1.5, Math.max(0, tv));
+  }catch{}
+  try{
+    const m = await db.prepare('SELECT value FROM content WHERE key=?').get('chatbot_max_tokens');
+    const mv = parseInt(m?.value, 10);
+    if(!isNaN(mv)) maxOutputTokens = Math.min(2000, Math.max(100, mv));
+  }catch{}
+  return { temperature, maxOutputTokens, topP: 0.9 };
+}
 async function callGemini(userMessage, history=[]){
   const key = await getGeminiKey();
   if(!key) return null;
@@ -708,7 +742,9 @@ async function callGemini(userMessage, history=[]){
     if(row?.value?.trim()) model = row.value.trim();
   }catch{}
   const siteKnowledge = await buildSiteKnowledge();
-  const fullPrompt = NEXATECH_BASE_PROMPT + "\n\nSITE KNOWLEDGE (live, everything except secrets — owner: Akinyemmi Ifeoluwa, brand NEXATECH, includes plans, portfolio, WhatsApp, pricing, team, certificates):\n" + siteKnowledge;
+  const basePrompt = await getChatbotPrompt();
+  const genCfg = await getChatbotGenConfig();
+  const fullPrompt = basePrompt + "\n\nSITE KNOWLEDGE (live, everything except secrets — owner: Akinyemmi Ifeoluwa, brand NEXATECH, includes plans, portfolio, WhatsApp, pricing, team, certificates):\n" + siteKnowledge;
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
   // Build contents with history (up to last 10 turns) for conversational memory
   let contents = [];
@@ -722,7 +758,7 @@ async function callGemini(userMessage, history=[]){
   const payload = {
     systemInstruction: { parts: [{ text: fullPrompt }] },
     contents,
-    generationConfig: { temperature: 0.7, maxOutputTokens: 600, topP: 0.9 }
+    generationConfig: genCfg
   };
   try{
     const controller = new AbortController();
@@ -1567,11 +1603,11 @@ app.post('/api/admin/gemini-test', requireAuth, async (req, res) => {
   // Try Gemini API with detailed error
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
   const siteKnowledge = await buildSiteKnowledge();
-  const fullPrompt = NEXATECH_BASE_PROMPT + "\n\nSITE KNOWLEDGE:\n" + siteKnowledge;
+  const fullPrompt = (await getChatbotPrompt()) + "\n\nSITE KNOWLEDGE:\n" + siteKnowledge;
   const payload = {
     systemInstruction: { parts: [{ text: fullPrompt }] },
     contents: [{ role:'user', parts:[{ text: testMsg }] }],
-    generationConfig: { temperature: 0.7, maxOutputTokens: 600, topP: 0.9 }
+    generationConfig: await getChatbotGenConfig()
   };
   try{
     const controller=new AbortController(); const t=setTimeout(()=>controller.abort(),12000);
