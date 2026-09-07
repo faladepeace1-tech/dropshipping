@@ -119,6 +119,27 @@ const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: { e
 app.use('/api/', generalLimiter);
 
 // Static
+// Asset versioning: every deploy gets a new ?v= hash on JS/CSS + HTML pages, so
+// browsers and CDNs can never serve stale code after you publish backend edits.
+const ASSET_VER = (()=>{ try{
+  const h = crypto.createHash('md5');
+  for(const f of ['public/js/app.js','public/js/admin.js','public/css/style.css','public/css/admin.css','public/index.html','public/admin.html']){
+    try{ const st = fs.statSync(path.join(__dirname, f)); h.update(f + ':' + st.mtimeMs + ':' + st.size); }catch{}
+  }
+  return h.digest('hex').slice(0,8);
+}catch{ return 'dev'; } })();
+function versionedHtml(file){
+  let html = fs.readFileSync(path.join(__dirname, 'public', file), 'utf8');
+  html = html.split('/js/app.js').join('/js/app.js?v='+ASSET_VER)
+             .split('/js/admin.js').join('/js/admin.js?v='+ASSET_VER)
+             .split('/css/style.css').join('/css/style.css?v='+ASSET_VER)
+             .split('/css/admin.css').join('/css/admin.css?v='+ASSET_VER);
+  return html;
+}
+app.use((req, res, next)=>{ if(req.query && req.query.v) res.set('Cache-Control','public, max-age=31536000, immutable'); next(); });
+app.get(['/', '/index.html'], (req, res)=> res.type('html').send(versionedHtml('index.html')));
+app.get('/admin', (req, res)=> res.type('html').send(versionedHtml('admin.html')));
+app.get(['/privacy.html', '/terms.html'], (req, res)=> res.type('html').send(versionedHtml(String(req.path).slice(1))));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(UPLOAD_DIR));
 // DB media store (Postgres): files uploaded while DATABASE_URL is set live in media_blobs,
@@ -155,6 +176,13 @@ async function persistUpload(file){
 function escapeHtml(str) {
   if (!str) return '';
   return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
+}
+// FormData sends booleans as '1'/'0' strings ('0' is truthy!) — parse explicitly
+function parseBool(v){
+  if(v === true || v === 1) return 1;
+  if(v === false || v === 0) return 0;
+  const s = String(v ?? '').trim().toLowerCase();
+  return (s === '1' || s === 'true' || s === 'yes' || s === 'on') ? 1 : 0;
 }
 // Email subjects must stay plain ASCII. Some inboxes render raw UTF-8 in the Subject
 // header as garbled text, so we normalize subjects and RFC2047-encode the header.
@@ -213,9 +241,11 @@ app.get('/api/health', async (req, res) => res.json({ status: 'ok', time: new Da
 app.get('/api/content', async (req, res) => {
   const rows = await db.prepare('SELECT key,value,type FROM content').all();
   const obj = {};
+  // Never expose credentials/tokens publicly (admin reads them via authed endpoints)
   const SENSITIVE = new Set(['gemini_api_key', 'GEMINI_API_KEY', 'GOOGLE_API_KEY']);
   rows.forEach(r => {
     if (SENSITIVE.has(r.key)) return; // hide secrets from public
+    if (r.key.startsWith('google_') || r.key.startsWith('gmail_')) return; // OAuth tokens + connected Gmail
     let v = r.value;
     if (r.type === 'json') { try { v = JSON.parse(v); } catch {} }
     else if (r.type === 'boolean') v = v === 'true';
@@ -402,7 +432,7 @@ app.patch('/api/media/:id', requireAuth, upload.single('file'), async (req, res)
     result_stat: req.body.result_stat ?? existing.result_stat,
     case_study_text: req.body.case_study_text ?? existing.case_study_text,
     display_order: req.body.display_order ?? existing.display_order,
-    published: req.body.published !== undefined ? (req.body.published ? 1 : 0) : existing.published
+    published: req.body.published !== undefined ? parseBool(req.body.published) : existing.published
   };
   await db.prepare('UPDATE media SET type=?,category=?,url=?,caption=?,alt_text=?,tags=?,result_stat=?,case_study_text=?,display_order=?,published=? WHERE id=?')
     .run(fields.type, fields.category, fields.url, fields.caption, fields.alt_text, fields.tags, fields.result_stat, fields.case_study_text, fields.display_order, fields.published, id);
@@ -478,7 +508,7 @@ app.patch('/api/team/:id', requireAuth, upload.single('photo'), async (req, res)
     photo_url,
     social_url: req.body.social_url ?? ex.social_url,
     display_order: req.body.display_order ?? ex.display_order,
-    published: req.body.published !== undefined ? (req.body.published ? 1 : 0) : ex.published
+    published: req.body.published !== undefined ? parseBool(req.body.published) : ex.published
   };
   await db.prepare('UPDATE team SET name=?,role=?,credibility_note=?,photo_url=?,social_url=?,display_order=?,published=? WHERE id=?')
     .run(fields.name, fields.role, fields.credibility_note, fields.photo_url, fields.social_url, fields.display_order, fields.published, req.params.id);
@@ -2808,10 +2838,7 @@ async function runDailyFollowups({ manual=false, dryRun=false, limit=200, baseUr
   return { ok:true, total: batch.length, sent, failed, skipped, maxDays };
 }
 
-// Fallback to index for SPA? Serve index.html for root, admin.html for /admin
-app.get('/admin', async (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
-});
+// (Root, /admin and legal pages are served versioned near the top so deploys refresh instantly)
 
 app.listen(PORT, () => {
   console.log(`Nexatech server running at http://localhost:${PORT}`);

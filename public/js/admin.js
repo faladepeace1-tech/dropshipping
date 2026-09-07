@@ -1,6 +1,8 @@
 // Admin App
 const $ = s=>document.querySelector(s);
 const $$ = s=>[...document.querySelectorAll(s)];
+// Attribute-safe escaping for value="..." interpolations (names/quotes must not break editing)
+function escAttr(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 let token = localStorage.getItem('nexatech_admin_token') || '';
 let CONTENT={}, SECTIONS=[], MEDIA=[], TEAM=[], LEADS=[], ANALYTICS=null;
 let lastPublishedContent=null;
@@ -1605,13 +1607,13 @@ function openEditMedia(id){
   editingMediaId=id;
   const body=$('#edit-media-body');
   body.innerHTML=`
-    <label>Caption<input id="em-caption" value="${it.caption||''}"></label>
-    <label>Category<input id="em-category" value="${it.category||''}"></label>
-    <label>URL<input id="em-url" value="${it.url||''}"></label>
-    <label>Alt text<input id="em-alt" value="${it.alt_text||''}"></label>
-    <label>Tags<input id="em-tags" value="${it.tags||''}"></label>
-    <label>Result stat<input id="em-result" value="${it.result_stat||''}"></label>
-    <label>Case study text<textarea id="em-case" rows="3">${it.case_study_text||''}</textarea></label>
+    <label>Caption<input id="em-caption" value="${escAttr(it.caption)}"></label>
+    <label>Category<input id="em-category" value="${escAttr(it.category)}"></label>
+    <label>URL<input id="em-url" value="${escAttr(it.url)}"></label>
+    <label>Alt text<input id="em-alt" value="${escAttr(it.alt_text)}"></label>
+    <label>Tags<input id="em-tags" value="${escAttr(it.tags)}"></label>
+    <label>Result stat<input id="em-result" value="${escAttr(it.result_stat)}"></label>
+    <label>Case study text<textarea id="em-case" rows="3">${escAttr(it.case_study_text)}</textarea></label>
     <label>Replace file (optional)<input type="file" id="em-file" accept="image/*,video/*"></label>
     <label style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="em-pub" ${it.published?'checked':''}> Published</label>
   `;
@@ -1711,12 +1713,12 @@ function openEditTeam(id){
   if(!it) return;
   editingTeamId=id;
   $('#edit-team-body').innerHTML=`
-    <label>Name<input id="et-name" value="${it.name||''}"></label>
-    <label>Role<input id="et-role" value="${it.role||''}"></label>
-    <label>Credibility note<input id="et-note" value="${it.credibility_note||''}"></label>
-    <label>Photo URL<input id="et-photo" value="${it.photo_url||''}"></label>
+    <label>Name<input id="et-name" value="${escAttr(it.name)}"></label>
+    <label>Role<input id="et-role" value="${escAttr(it.role)}"></label>
+    <label>Credibility note<input id="et-note" value="${escAttr(it.credibility_note)}"></label>
+    <label>Photo URL<input id="et-photo" value="${escAttr(it.photo_url)}"></label>
     <label>Replace photo<input type="file" id="et-file" accept="image/*"></label>
-    <label>Social URL<input id="et-social" value="${it.social_url||''}"></label>
+    <label>Social URL<input id="et-social" value="${escAttr(it.social_url)}"></label>
     <label style="flex-direction:row;gap:8px;align-items:center"><input type="checkbox" id="et-pub" ${it.published?'checked':''}> Published</label>
   `;
   document.getElementById('edit-team-dialog').showModal();
