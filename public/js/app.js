@@ -348,10 +348,11 @@ function renderPortfolio(filter){
 // Filter bar
 $$('#filter-bar .pill').forEach? null:null; // placeholder
 document.addEventListener('click', e=>{
-  if(e.target.matches('.pill')){
+  const pill=e.target?.closest?.('.pill');
+  if(pill && pill.dataset && pill.dataset.filter){
     $$('.pill').forEach(p=>p.classList.remove('active'));
-    e.target.classList.add('active');
-    const f=e.target.dataset.filter;
+    pill.classList.add('active');
+    const f=pill.dataset.filter;
     renderPortfolio(f);
     track('portfolio_filter', f);
   }

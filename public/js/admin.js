@@ -428,10 +428,11 @@ function renderContentForms(){
   });
 }
 $('#content-tabs').addEventListener('click', e=>{
-  if(e.target.dataset.ctab){
+  const btn=e.target?.closest?.('[data-ctab]');
+  if(btn && btn.dataset.ctab){
     $$('#content-tabs button').forEach(b=>b.classList.remove('active'));
-    e.target.classList.add('active');
-    currentCTab=e.target.dataset.ctab;
+    btn.classList.add('active');
+    currentCTab=btn.dataset.ctab;
     renderContentForms();
   }
 });
@@ -1434,10 +1435,11 @@ function updateMediaHint(){
   }
 }
 $('#media-tabs').addEventListener('click', e=>{
-  if(e.target.dataset.mtab){
+  const btn=e.target?.closest?.('[data-mtab]');
+  if(btn && btn.dataset.mtab){
     $$('#media-tabs button').forEach(b=>b.classList.remove('active'));
-    e.target.classList.add('active');
-    currentMediaTab=e.target.dataset.mtab;
+    btn.classList.add('active');
+    currentMediaTab=btn.dataset.mtab;
     $('#media-type').value=currentMediaTab;
     updateMediaHint();
     loadMedia();
