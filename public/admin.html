@@ -308,6 +308,11 @@
             <div style="display:grid;gap:8px;margin-top:10px">
               <label>Campaign Name<input id="camp-name"></label>
               <label>Subject (supports {{name}}, {{storeName}}, {{preferredNiche}}, {{email}}, {{whatsapp}} etc)<input id="camp-subject" placeholder="Welcome {{name}}!"></label>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+                <button class="btn btn-ghost" id="btn-camp-ai-subject" type="button" style="padding:6px 10px;font-size:11px;border-color:#7C3AED;color:#7C3AED">✨ AI Suggest Subject</button>
+                <span id="camp-ai-subject-msg" style="font-size:11px;color:#94A3B8"></span>
+              </div>
+              <div id="camp-ai-subjects" style="display:grid;gap:4px"></div>
               <label>HTML Body<textarea id="camp-html" rows="8" placeholder="<p>Hi {{name}},</p>..."></textarea></label>
               <label>Text fallback<textarea id="camp-text" rows="3" placeholder="Hi {{name}}, ..."></textarea></label>
               <div style="font-size:11px;color:#94A3B8">Personalization tags: <code>{{name}}</code> <code>{{storeName}}</code> <code>{{preferredNiche}}</code> <code>{{investmentRange}}</code> <code>{{email}}</code> <code>{{whatsapp}}</code> — like HubSpot tokens.</div>

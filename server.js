@@ -518,7 +518,7 @@ app.post('/api/leads', leadLimiter, async (req, res) => {
     leadId,
     webhook_status: webhookStatus,
     whatsappFallback,
-    message: "Application received — we'll reach out on WhatsApp shortly"
+    message: "Application received — we'll message you on email shortly. Please check your inbox (and spam folder)."
   });
 });
 
@@ -2208,6 +2208,48 @@ app.post('/api/admin/followups/run-daily', requireAuth, async (req, res) => {
     const { dryRun=false, limit=50 } = req.body || {};
     const r = await runDailyFollowups({ manual:true, dryRun: !!dryRun, limit: Math.min(parseInt(limit,10)||50,200), baseUrl: getBaseUrl(req) });
     res.json({ ok:true, ...r });
+  }catch(e){ res.status(500).json({ error: e.message }); }
+});
+
+// AI subject-line suggestions for campaign/personal emails (uses same Gemini key; template fallback if unset)
+app.post('/api/admin/ai/suggest-subject', requireAuth, async (req, res) => {
+  try{
+    const { context='', topic='', count=3 } = req.body || {};
+    const n = Math.min(5, Math.max(1, parseInt(count,10)||3));
+    const ctx = String(context||topic||'').slice(0,600);
+    let sampleLead = {};
+    try{ sampleLead = await db.prepare('SELECT name, storeName, preferredNiche FROM leads ORDER BY created_at DESC LIMIT 1').get() || {}; }catch{ sampleLead = {}; }
+    const fallbacks = [
+      `{{name}}, your ${sampleLead.storeName||'store'} plan is ready ✅`,
+      `Quick one, {{name}} — your ${sampleLead.preferredNiche||'niche'} store slot`,
+      `{{name}}, let's get your store launched in 7–14 days 🚀`,
+      `Your Nexatech application — next step, {{name}}`,
+      `{{name}}, still want your ${sampleLead.preferredNiche||''} store?`.trim()
+    ].slice(0, n);
+    const key = await getGeminiKey().catch(()=> '');
+    if(!key) return res.json({ ok:true, ai:false, subjects: fallbacks, hint: 'Set Gemini key for fully AI-generated options — showing template suggestions' });
+    let model = GEMINI_MODEL;
+    try{ const r = await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_model'); if(r?.value?.trim()) model = r.value.trim(); }catch{}
+    const prompt = `Write ${n} short email subject lines for a Nexatech dropshipping store email${ctx?` about: ${ctx}`:''}. Audience: aspiring store founders${sampleLead.preferredNiche?` (e.g. ${sampleLead.preferredNiche} niche)`:''}. Rules: under 60 chars each, no clickbait, may use {{name}} token once, max 1 emoji total across all. Return ONLY a JSON array of strings.`;
+    try{
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
+      const controller = new AbortController();
+      const t = setTimeout(()=>controller.abort(), 15000);
+      const resp = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json','x-goog-api-key':key}, body: JSON.stringify({ contents:[{role:'user',parts:[{text:prompt}]}], generationConfig:{temperature:0.9,maxOutputTokens:300} }), signal: controller.signal });
+      clearTimeout(t);
+      const data = await resp.json().catch(()=> ({}));
+      if(!resp.ok) throw new Error(data?.error?.message || `Gemini ${resp.status}`);
+      const text = (data?.candidates?.[0]?.content?.parts?.map(p=>p.text||'').join('\n') || '').trim();
+      const m = text.match(/\[[\s\S]*\]/);
+      if(!m) throw new Error('no JSON array');
+      const arr = JSON.parse(m[0]);
+      const subjects = (Array.isArray(arr)?arr:[]).map(s=> String(s).slice(0,90)).filter(Boolean).slice(0,n);
+      if(!subjects.length) throw new Error('empty');
+      return res.json({ ok:true, ai:true, subjects });
+    }catch(e){
+      console.error('suggest-subject AI failed:', e.message);
+      return res.json({ ok:true, ai:false, subjects: fallbacks, hint: 'AI failed ('+String(e.message).slice(0,100)+') — showing template suggestions' });
+    }
   }catch(e){ res.status(500).json({ error: e.message }); }
 });
 

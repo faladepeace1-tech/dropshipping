@@ -542,12 +542,9 @@ $('#lead-form').addEventListener('submit', async e=>{
     const res=await fetch('/api/leads',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     const j=await res.json();
     if(!res.ok) throw new Error(j.error||'Submission failed');
-    msg.style.color='var(--success)'; msg.textContent=j.message||"Application received we'll reach out on WhatsApp shortly";
-    if(j.whatsappFallback){
-      const a=document.createElement('a'); a.href=j.whatsappFallback; a.target='_blank'; a.className='btn btn-primary'; a.style.marginTop='10px'; a.textContent='Chat on WhatsApp now →';
-      a.addEventListener('click',()=>track('cta_click','form-whatsapp-fallback'));
-      msg.appendChild(document.createElement('br')); msg.appendChild(a);
-    }
+    msg.style.color='var(--success)';
+    const emailEcho = payload.email ? ` We've sent details to ${payload.email} — please check your inbox (and spam folder).` : ` Please check your inbox (and spam folder).`;
+    msg.textContent=(j.message||'Application received.') + emailEcho;
     e.target.reset(); showStep(1);
     track('form_complete','lead_form',{leadId:j.leadId});
     // optional: redirect to calendly after 1.5s?

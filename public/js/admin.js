@@ -1048,6 +1048,29 @@ $('#btn-camp-test')?.addEventListener('click', async()=>{
     alert(r.ok ? `Test sent to ${j.to}` : j.error||'Test failed — check Gmail connection');
   }finally{ if(btn) btn.disabled=false; }
 });
+// AI subject-line suggestions (click a suggestion to use it)
+$('#btn-camp-ai-subject')?.addEventListener('click', async()=>{
+  const msg=$('#camp-ai-subject-msg'), box=$('#camp-ai-subjects');
+  if(msg) msg.textContent='Asking AI...';
+  if(box) box.innerHTML='';
+  try{
+    const context = `campaign "${$('#camp-name')?.value||''}" — body preview: ${($('#camp-html')?.value||'').replace(/<[^>]+>/g,' ').slice(0,300)}`;
+    const r=await fetch('/api/admin/ai/suggest-subject',{method:'POST',headers:{'Content-Type':'application/json',...authHeaders()}, body: JSON.stringify({ context, count: 3 })});
+    const j=await r.json();
+    if(!r.ok) throw new Error(j.error||'failed');
+    if(msg) msg.textContent = j.ai ? 'AI suggestions — click to use:' : ('Template suggestions — click to use ('+(j.hint||'set Gemini key for AI')+')');
+    if(box){
+      box.innerHTML='';
+      (j.subjects||[]).forEach(s=>{
+        const b=document.createElement('button');
+        b.type='button'; b.textContent=s;
+        b.style.cssText='text-align:left;font-size:12px;border:1px solid #E2E8F0;border-radius:8px;padding:6px 10px;background:#F8FAFC;cursor:pointer';
+        b.addEventListener('click', ()=>{ const inp=$('#camp-subject'); if(inp) inp.value=s; if(msg) msg.textContent='Subject set ✓ — Save Campaign to keep'; });
+        box.appendChild(b);
+      });
+    }
+  }catch(e){ if(msg) msg.textContent='Error: '+e.message; }
+});
 $('#btn-camp-delete')?.addEventListener('click', async()=>{
   if(!SELECTED_CAMP || !confirm('Delete campaign '+SELECTED_CAMP.name+'?')) return;
   await fetch('/api/admin/campaigns/'+SELECTED_CAMP.id,{method:'DELETE',headers: authHeaders()});
