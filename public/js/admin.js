@@ -560,15 +560,16 @@ async function loadGeminiStatus(){
     const r=await fetch('/api/admin/gemini-key',{headers:authHeaders()});
     const j=await r.json();
     const el=$('#gemini-key-status');
+    const n=j.keyCount||(j.dbHas?1:0);
     if(el){
-      if(j.dbHas) el.textContent = `Key set ✓ ${j.masked} via db (saved permanently), model: ${j.model}`;
+      if(n>0) el.textContent = `${n} key${n>1?'s':''} set ✓ ${(j.keys||[]).map(k=>k.masked).join(' + ')} (saved permanently), model: ${j.model} — rotates on quota`;
       else if(j.envHas) el.textContent = `Key set (${j.masked||'env'} via env, model: ${j.model}) — also save in DB to persist`;
       else el.textContent = 'No key set — chatbot disabled, paste Gemini key above (AQ.Ab8... or AIza...)';
-      el.style.color = j.dbHas ? '#10B981' : (j.envHas ? '#64748B' : '#F87171');
+      el.style.color = n>0 ? '#10B981' : (j.envHas ? '#64748B' : '#F87171');
     }
     const sumEl=$('#gemini-summary-status');
     if(sumEl){
-      if(j.dbHas) { sumEl.textContent=`${j.masked} ✓ saved permanently`; sumEl.style.color='#10B981'; }
+      if(n>0) { sumEl.textContent=`${n} key${n>1?'s':''} ✓ saved permanently`; sumEl.style.color='#10B981'; }
       else if(j.envHas) { sumEl.textContent='env only — save to persist'; sumEl.style.color='#F59E0B'; }
       else { sumEl.textContent='not set'; sumEl.style.color='#F87171'; }
     }
@@ -623,16 +624,20 @@ $('#btn-show-gemini-key')?.addEventListener('click', ()=>{
 });
 $('#btn-save-gemini')?.addEventListener('click', async()=>{
   const key=$('#int-gemini-key')?.value || '';
+  const key2=$('#int-gemini-key2')?.value || '';
+  const key3=$('#int-gemini-key3')?.value || '';
   const model=$('#int-gemini-model')?.value || '';
-  if(!key.trim() && !model.trim()){ $('#gemini-msg').textContent='Paste a key (AQ.Ab8... or AIza...) or model first'; return; }
+  if(!key.trim() && !key2.trim() && !key3.trim() && !model.trim()){ $('#gemini-msg').textContent='Paste a key (AQ.Ab8... or AIza...) or model first'; return; }
   const btn=$('#btn-save-gemini'); if(btn) btn.disabled=true;
   $('#gemini-msg').textContent='Saving...';
   try{
-    const r=await fetch('/api/admin/gemini-key',{method:'PUT',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify({key, model})});
+    const r=await fetch('/api/admin/gemini-key',{method:'PUT',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify({key, key2, key3, model})});
     const j=await r.json();
     if(r.ok){
-      $('#gemini-msg').innerHTML = j.dbHas ? `<span style="color:#10B981">✓ Saved permanently in backend ✓ ${j.masked} — closed until you click Edit again</span>` : (j.message||'Saved');
+      $('#gemini-msg').innerHTML = j.keyCount ? `<span style="color:#10B981">✓ Saved permanently — ${j.keyCount} key${j.keyCount>1?'s':''} will rotate on quota. Closed until you click Edit again</span>` : (j.message||'Saved');
       $('#int-gemini-key').value='';
+      const k2=$('#int-gemini-key2'); if(k2) k2.value='';
+      const k3=$('#int-gemini-key3'); if(k3) k3.value='';
       if(model) $('#int-gemini-model').value='';
       await loadGeminiStatus();
       // auto-close details — stays closed until Edit clicked
@@ -652,7 +657,12 @@ $('#btn-test-gemini')?.addEventListener('click', async()=>{
     const r=await fetch('/api/admin/gemini-test',{method:'POST',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify({message:'Hello, what is NexaTech mentorship?'})});
     const j=await r.json();
     if(out) out.textContent = JSON.stringify(j, null, 2);
-    $('#gemini-msg').textContent = r.ok ? 'Gemini test succeeded' : (j.error||'Gemini test failed');
+    if(r.ok){
+      $('#gemini-msg').innerHTML = `<span style="color:#10B981">Gemini test succeeded via ${j.masked||'key'} (${j.perKey?.filter(p=>p.ok).length||1}/${j.keyCount||1} keys OK)</span>`;
+    } else {
+      const qs = (j.perKey||[]).map(p=>`${p.masked}: ${p.quota?'QUOTA EXHAUSTED':p.error}`).join(' | ');
+      $('#gemini-msg').innerHTML = `<span style="color:#F87171">Gemini test failed — ${j.error||''}${qs?'<br><small>'+qs+'</small>':''}${j.hint?'<br><small>'+j.hint+'</small>':''}</span>`;
+    }
   }catch(e){ if(out) out.textContent='Error: '+e.message; }
   finally{ if(btn){ btn.disabled=false; btn.textContent='Test Gemini →'; } }
 });

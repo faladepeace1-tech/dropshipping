@@ -652,6 +652,8 @@ export async function initDb() {
       ['webhook_form_url', '', 'text'],
       ['webhook_form_enabled', 'false', 'boolean'],
       ['gemini_api_key', '', 'text'],
+      ['gemini_api_key_2', '', 'text'],
+      ['gemini_api_key_3', '', 'text'],
       ['gemini_model', 'gemini-2.5-flash', 'text'],
       ['followup_enabled', 'true', 'boolean'],
       ['followup_instant_enabled', 'true', 'boolean'],
@@ -802,7 +804,7 @@ export async function initDb() {
     'google_client_id','google_client_secret','google_sheets_doc_id','google_sheets_sheet_name',
     'google_refresh_token','google_access_token','google_token_expiry','google_column_mapping',
     'gmail_connected_email','gmail_last_sync','gmail_sender_name',
-    'gemini_api_key','gemini_model',
+    'gemini_api_key','gemini_api_key_2','gemini_api_key_3','gemini_model',
     'webhook_url','webhook_enabled','webhook_form_url','webhook_form_enabled','webhook_chatbot_url','webhook_chatbot_enabled',
     'logo_text','logo_url','favicon_url','logo_position','brand_position','og_image'
   ]);

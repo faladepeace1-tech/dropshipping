@@ -242,7 +242,7 @@ app.get('/api/content', async (req, res) => {
   const rows = await db.prepare('SELECT key,value,type FROM content').all();
   const obj = {};
   // Never expose credentials/tokens publicly (admin reads them via authed endpoints)
-  const SENSITIVE = new Set(['gemini_api_key', 'GEMINI_API_KEY', 'GOOGLE_API_KEY']);
+  const SENSITIVE = new Set(['gemini_api_key', 'gemini_api_key_2', 'gemini_api_key_3', 'GEMINI_API_KEY', 'GOOGLE_API_KEY']);
   rows.forEach(r => {
     if (SENSITIVE.has(r.key)) return; // hide secrets from public
     if (r.key.startsWith('google_') || r.key.startsWith('gmail_')) return; // OAuth tokens + connected Gmail
@@ -721,15 +721,99 @@ app.get('/api/admin/analytics', requireAuth, async (req, res) => {
   res.json({ totalViews, uniqueVisitors, ctaClicks, funnelStarts, funnelCompletions, trafficSource: traffic, geo, daily, topPortfolio, leadsByDay });
 });
 
-// --- Helpers: Gemini — DB key takes precedence over env (so saved AQ.Ab8... is actually used)
-async function getGeminiKey(){
+// --- Helpers: Gemini — DB keys take precedence over env; extra keys rotate on quota errors
+// Free tier is ~20 generate requests/day per key/project, shared by chatbot,
+// follow-ups and tests — so up to 3 keys (different Google projects) fail over.
+function geminiFingerprint(key){ const k=String(key||''); return k.slice(0,8)+'...'+k.slice(-4); }
+const geminiCooldowns = new Map(); // fingerprint -> retry-after epoch ms
+async function getGeminiKeys(){
+  const keys = [];
   try{
-    const row = await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_api_key');
-    const dbVal = row?.value?.trim() || '';
-    if(dbVal) return dbVal;
+    for(const k of ['gemini_api_key', 'gemini_api_key_2', 'gemini_api_key_3']){
+      const row = await db.prepare('SELECT value FROM content WHERE key=?').get(k);
+      const v = row?.value?.trim() || '';
+      if(v && !keys.includes(v)) keys.push(v);
+    }
   }catch{}
-  if (GEMINI_API_KEY && GEMINI_API_KEY.trim()) return GEMINI_API_KEY.trim();
-  return '';
+  if(GEMINI_API_KEY && GEMINI_API_KEY.trim() && !keys.includes(GEMINI_API_KEY.trim())) keys.push(GEMINI_API_KEY.trim());
+  return keys;
+}
+async function getGeminiKey(){
+  const ks = await getGeminiKeys();
+  return ks[0] || '';
+}
+function geminiQuotaDelayMs(data){
+  try{
+    const det = data?.error?.details || [];
+    for(const d of det){
+      const t = d && d['@type'];
+      if(t && t.indexOf('RetryInfo') !== -1 && d.retryDelay){
+        const m = String(d.retryDelay).match(/([\d.]+)s/);
+        if(m) return Math.ceil(parseFloat(m[1]) * 1000);
+      }
+    }
+  }catch{}
+  return 60000;
+}
+// One Gemini call with automatic failover to the next saved key on quota errors.
+// Returns { text, keyUsed }. Throws Error with .quota=true when all keys are exhausted.
+async function geminiGenerate({ model, systemText, contents, genConfig, timeoutMs=12000 }){
+  const keys = await getGeminiKeys();
+  if(!keys.length){
+    const e = new Error('No Gemini API key saved');
+    e.quota = false; e.tried = 0;
+    throw e;
+  }
+  const now = Date.now();
+  const usable = keys.filter(k => (geminiCooldowns.get(geminiFingerprint(k)) || 0) <= now);
+  const pool = (usable.length ? usable : keys).slice();
+  pool.sort((a,b)=> (geminiCooldowns.get(geminiFingerprint(a))||0) - (geminiCooldowns.get(geminiFingerprint(b))||0));
+  let lastErr = null;
+  for(const key of pool){
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
+    const controller = new AbortController();
+    const t = setTimeout(()=>controller.abort(), timeoutMs);
+    try{
+      const resp = await fetch(url, {
+        method:'POST',
+        headers:{'Content-Type':'application/json','x-goog-api-key':key},
+        body: JSON.stringify({ ...(systemText ? { systemInstruction: { parts: [{ text: systemText }] } } : {}), contents, generationConfig: genConfig }),
+        signal: controller.signal
+      });
+      const data = await resp.json().catch(()=> ({}));
+      if(!resp.ok){
+        const msg = data?.error?.message || data?.error?.status || ('Gemini error ' + resp.status + ' ' + resp.statusText);
+        const isQuota = resp.status===429 || /quota|RESOURCE_EXHAUSTED|exceed/i.test(String(msg));
+        if(isQuota) geminiCooldowns.set(geminiFingerprint(key), Date.now() + geminiQuotaDelayMs(data));
+        const hint = key.startsWith('AQ.') ? ' (AQ. key — ensure it is a Google AI API key, not OAuth token; try AIza... key from aistudio.google.com)' : '';
+        const err = new Error(msg + hint);
+        err.quota = isQuota; err.status = resp.status;
+        throw err;
+      }
+      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || (data?.candidates?.[0]?.content?.parts || []).map(p=>p.text).join('\n') || '';
+      if(!text.trim()){
+        const err = new Error('Empty reply from Gemini');
+        err.quota = false;
+        throw err;
+      }
+      geminiCooldowns.delete(geminiFingerprint(key));
+      return { text: text.trim(), keyUsed: geminiFingerprint(key) };
+    }catch(e){
+      clearTimeout(t);
+      if(e && e.name === 'AbortError'){
+        const err = new Error('Gemini timed out');
+        err.quota = false;
+        lastErr = err;
+        break;
+      }
+      lastErr = e;
+      if(!(e && e.quota)) break; // non-quota error: fail over makes no sense
+    }
+  }
+  const out = new Error((lastErr && lastErr.message) || 'Gemini failed');
+  out.quota = !!(lastErr && lastErr.quota);
+  out.tried = pool.length;
+  throw out;
 }
 async function getGeminiKeySource(){
   try{
@@ -775,7 +859,6 @@ async function callGemini(userMessage, history=[]){
   const basePrompt = await getChatbotPrompt();
   const genCfg = await getChatbotGenConfig();
   const fullPrompt = basePrompt + "\n\nSITE KNOWLEDGE (live, everything except secrets — owner: Akinyemmi Ifeoluwa, brand NEXATECH, includes plans, portfolio, WhatsApp, pricing, team, certificates):\n" + siteKnowledge;
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
   // Build contents with history (up to last 10 turns) for conversational memory.
   // Gemini rejects consecutive same-role turns, so merge them; first turn must be user.
   let contents = [];
@@ -792,25 +875,9 @@ async function callGemini(userMessage, history=[]){
   const tail = contents[contents.length-1];
   if(tail && tail.role==='user') tail.parts[0].text = (tail.parts[0].text + '\n' + String(userMessage)).slice(0,4000);
   else contents.push({ role: 'user', parts: [{ text: userMessage }] });
-  const payload = {
-    systemInstruction: { parts: [{ text: fullPrompt }] },
-    contents,
-    generationConfig: genCfg
-  };
   try{
-    const controller = new AbortController();
-    const t = setTimeout(()=>controller.abort(), 12000);
-    const resp = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json','x-goog-api-key':key}, body: JSON.stringify(payload), signal: controller.signal });
-    clearTimeout(t);
-    const data = await resp.json().catch(()=> ({}));
-    if(!resp.ok){
-      const msg = data?.error?.message || data?.error?.status || `Gemini error ${resp.status} ${resp.statusText}`;
-      // Extra hint for AQ. keys
-      const hint = key.startsWith('AQ.') ? ' (AQ. key — ensure it is a Google AI API key, not OAuth token; try AIza... key from aistudio.google.com)' : '';
-      throw new Error(msg + hint);
-    }
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || data?.candidates?.[0]?.content?.parts?.map(p=>p.text).join('\n') || '';
-    return text.trim() || null;
+    const r = await geminiGenerate({ model, systemText: fullPrompt, contents, genConfig });
+    return r.text;
   }catch(e){
     console.error('Gemini call failed', e.message);
     // Also store last error for test endpoint debugging (optional)
@@ -1073,8 +1140,8 @@ async function generateFollowupAI({ lead={}, transcript='', kind='form_instant',
     : kind === 'chat_instant'
       ? `<p>Hi ${escapeHtml(name)},</p><p>Thanks for chatting with us${transcript ? ' about <b>'+escapeHtml(transcript.slice(0,120))+'…</b>' : ''}. Based on what you asked, the best next step is a quick WhatsApp chat with Ifeoluwa so we can map your niche, timeline and package.</p><p>Reply to this email or tap WhatsApp below — we usually reply within hours.</p>`
       : `<p>Hi ${escapeHtml(name)},</p><p>Just checking in${store?` on <b>${escapeHtml(store)}</b>`:''}${niche?` (${escapeHtml(niche)})`:''} — your build slot is still open. Many founders start with a free strategy call to lock timeline and package.</p><p>Want us to hold your slot for this week? Tap WhatsApp below or reply “YES”.</p>`;
-  const key = await getGeminiKey().catch(()=> '');
-  if(!key) return { subject: fallbackSubject, htmlInner: fallbackInner, textInner: fallbackInner.replace(/<[^>]+>/g,''), ai: false };
+  const keys = await getGeminiKeys().catch(()=> []);
+  if(!keys.length) return { subject: fallbackSubject, htmlInner: fallbackInner, textInner: fallbackInner.replace(/<[^>]+>/g,''), ai: false };
   let model = GEMINI_MODEL;
   try{ const r = await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_model'); if(r?.value?.trim()) model = r.value.trim(); }catch{}
   const ctxSummary = [
@@ -1086,15 +1153,8 @@ async function generateFollowupAI({ lead={}, transcript='', kind='form_instant',
   const dayAngle = kind.startsWith('daily') ? `This is Day ${dayNumber} follow-up (angles rotate: Day2 reminder+social proof, Day3 FAQ/objection handling incl. scam-trust, Day4 urgency/slot scarcity, Day5+ mentorship pay-after-results). Keep it fresh, never repeat verbatim.` : 'This is the FIRST instant follow-up (thank them, confirm next step within 24h on WhatsApp).';
   const prompt = `You are Nexatech email copywriter. Write a short personalized follow-up email.\n${dayAngle}\nLEAD CONTEXT: ${ctxSummary || '(chat-only contact)'}\nCHAT TRANSCRIPT (if any): ${cleanTranscript || '(none — form lead)'}\nRULES:\n- Friendly, human, 120-180 words, 2-3 short paragraphs. Address by first name.\n- Reference their niche/store/request specifically. If scammed=yes, show empathy + trust (100% ownership, video proof).\n- Never invent prices beyond Starter $149 / Pro $299 / Elite $599 / Mentorship pay-after-results.\n- No raw URLs (WhatsApp button + unsubscribe are added separately). No emojis overload (max 1).\n- SUBJECT RULE: include the person's first name plus their store or niche, plain ASCII text only (letters, numbers, basic punctuation - no emoji, no special dashes, no curly quotes). Example: Thanks Ada - your GlowLab fashion store request is in.\n- Return ONLY valid JSON: {"subject":"...","html_inner":"<p>...</p><p>...</p>","text_inner":"..."}`;
   try{
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
-    const controller = new AbortController();
-    const t = setTimeout(()=>controller.abort(), 15000);
-    const resp = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json','x-goog-api-key':key}, body: JSON.stringify({ contents:[{role:'user',parts:[{text:prompt}]}], generationConfig:{temperature:0.8,maxOutputTokens:700,topP:0.9} }), signal: controller.signal });
-    clearTimeout(t);
-    const data = await resp.json().catch(()=> ({}));
-    if(!resp.ok) throw new Error(data?.error?.message || `Gemini ${resp.status}`);
-    let text = data?.candidates?.[0]?.content?.parts?.map(p=>p.text||'').join('\n') || '';
-    text = text.trim().replace(/^```json\s*/i,'').replace(/^```\s*/,'').replace(/```\s*$/,'').trim();
+    const r = await geminiGenerate({ model, contents: [{ role:'user', parts:[{ text: prompt }] }], genConfig: { temperature: 0.8, maxOutputTokens: 700, topP: 0.9 }, timeoutMs: 15000 });
+    let text = r.text.replace(/^```json\s*/i,'').replace(/^```\s*/,'').replace(/```\s*$/,'').trim();
     const m = text.match(/\{[\s\S]*\}/);
     if(!m) throw new Error('no JSON');
     const parsed = JSON.parse(m[0]);
@@ -1590,80 +1650,89 @@ app.post('/api/admin/webhook-test', requireAuth, async (req, res) => {
 // Gemini API key management (chatbot direct, not n8n) — owner pasted key AQ.Ab8RN6... — saved permanently in backend content table
 app.get('/api/admin/gemini-key', requireAuth, async (req, res) => {
   const envHas = !!(GEMINI_API_KEY && GEMINI_API_KEY.trim());
-  let dbHas = false, masked = '', dbModel='';
-  try{
-    const row = await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_api_key');
-    const v = row?.value?.trim() || '';
-    dbHas = !!v;
-    if(v) masked = v.slice(0,6) + '...' + v.slice(-4);
-  }catch{}
+  const keys = [];
+  for(const k of ['gemini_api_key', 'gemini_api_key_2', 'gemini_api_key_3']){
+    try{
+      const row = await db.prepare('SELECT value FROM content WHERE key=?').get(k);
+      const v = row?.value?.trim() || '';
+      if(v) keys.push({ slot: keys.length + 1, keyName: k, masked: v.slice(0,6) + '...' + v.slice(-4), source: 'db' });
+    }catch{}
+  }
+  if(envHas) keys.push({ slot: keys.length + 1, keyName: 'env', masked: 'env...key', source: 'env' });
+  let dbModel='';
   try{
     const mr = await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_model');
     dbModel = mr?.value?.trim() || GEMINI_MODEL;
   }catch{ dbModel=GEMINI_MODEL; }
   const effectiveModel = dbModel || GEMINI_MODEL;
-  res.json({ envHas, dbHas, masked, model: effectiveModel, dbModel, envModel: GEMINI_MODEL, source: dbHas ? 'db' : (envHas ? 'env' : 'none'), savedPermanently: dbHas });
+  const first = keys[0] || null;
+  res.json({ envHas, dbHas: keys.some(k=>k.source==='db'), masked: first?.masked || '', keys, keyCount: keys.length, model: effectiveModel, dbModel, envModel: GEMINI_MODEL, source: first?.source || 'none', savedPermanently: keys.some(k=>k.source==='db') });
 });
 app.put('/api/admin/gemini-key', requireAuth, async (req, res) => {
-  const { key, model } = req.body;
-  let savedKey=false, savedModel=false;
+  const { key, key2, key3, model, clear2, clear3 } = req.body;
+  let savedKey=false, savedModel=false, saved2=false, saved3=false;
   // Permanent save in backend content table — never wiped unless you edit again (PROTECTED_KEYS)
   if(key !== undefined && String(key).trim() !== ''){
     const val = String(key).trim();
     await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, type=excluded.type").run('gemini_api_key', val, 'text');
     savedKey=true;
   }
+  const saveExtra = async (slotKey, val) => {
+    const v = String(val).trim();
+    if(!v) return false;
+    await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, type=excluded.type").run(slotKey, v, 'text');
+    return true;
+  };
+  if(key2 !== undefined) saved2 = await saveExtra('gemini_api_key_2', key2);
+  if(key3 !== undefined) saved3 = await saveExtra('gemini_api_key_3', key3);
+  if(clear2){ try{ await db.prepare("DELETE FROM content WHERE key='gemini_api_key_2'").run(); }catch{} }
+  if(clear3){ try{ await db.prepare("DELETE FROM content WHERE key='gemini_api_key_3'").run(); }catch{} }
   if(model !== undefined && String(model).trim() !== ''){
     const mval = String(model).trim();
     await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('gemini_model', mval, 'text');
     savedModel=true;
   }
   // Return fresh status to confirm permanent save
-  let dbHas=false, masked='', dbModelOut=GEMINI_MODEL;
-  try{
-    const row = await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_api_key');
-    const v=row?.value?.trim()||''; dbHas=!!v; if(v) masked=v.slice(0,6)+'...'+v.slice(-4);
-    const mr=await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_model');
-    dbModelOut=mr?.value?.trim()||GEMINI_MODEL;
-  }catch{}
-  res.json({ ok: true, savedKey, savedModel, dbHas, masked, model: dbModelOut, savedPermanently: dbHas, message: dbHas ? 'Saved permanently in backend (content table, PROTECTED_KEYS)' : 'No key saved — paste a key and Save' });
+  const keys = await getGeminiKeys().catch(()=> []);
+  res.json({ ok: true, savedKey, saved2, saved3, savedModel, keyCount: keys.length, keys: keys.map(k=> geminiFingerprint(k)), model, message: keys.length ? ('Saved permanently in backend (' + keys.length + ' key' + (keys.length>1?'s':'') + ' rotate on quota)') : 'No key saved — paste a key and Save' });
 });
 app.post('/api/admin/gemini-test', requireAuth, async (req, res) => {
   const { message } = req.body;
   const testMsg = message || 'Hello, what is NexaTech mentorship?';
-  const key = await getGeminiKey();
+  const keys = await getGeminiKeys();
   const source = await getGeminiKeySource();
   let model = GEMINI_MODEL;
   try{ const mr=await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_model'); if(mr?.value?.trim()) model=mr.value.trim(); }catch{}
-  if(!key) return res.status(500).json({ ok:false, error: 'No Gemini API key saved — paste AQ.Ab8... or AIza... in DB and Save', source, model });
-  const masked = key.slice(0,6)+'...'+key.slice(-4);
-  // Try Gemini API with detailed error
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
+  if(!keys.length) return res.status(500).json({ ok:false, error: 'No Gemini API key saved — paste AQ.Ab8... or AIza... in DB and Save', source, model });
   const siteKnowledge = await buildSiteKnowledge();
   const fullPrompt = (await getChatbotPrompt()) + "\n\nSITE KNOWLEDGE:\n" + siteKnowledge;
-  const payload = {
-    systemInstruction: { parts: [{ text: fullPrompt }] },
-    contents: [{ role:'user', parts:[{ text: testMsg }] }],
-    generationConfig: await getChatbotGenConfig()
-  };
-  try{
-    const controller=new AbortController(); const t=setTimeout(()=>controller.abort(),12000);
-    const resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify(payload),signal:controller.signal});
-    clearTimeout(t);
-    const data=await resp.json().catch(()=>({}));
-    if(!resp.ok){
-      const gErr=data?.error?.message||`Gemini API ${resp.status} ${resp.statusText}`;
-      const details=data?.error||data;
-      console.error('Gemini test failed', gErr, details);
-      return res.status(500).json({ ok:false, error: gErr, details, model, source, masked, hint: 'If key is AQ.Ab8... verify it is a valid Google AI API key (AIza...) and model gemini-2.5-flash is enabled for your project. Try model gemini-1.5-flash as fallback.' });
-    }
-    const text=data?.candidates?.[0]?.content?.parts?.[0]?.text||data?.candidates?.[0]?.content?.parts?.map(p=>p.text).join('\n')||'';
-    if(!text.trim()) return res.status(500).json({ ok:false, error: 'Empty reply from Gemini', model, source, masked });
-    return res.json({ ok:true, reply:text.trim(), model, source, masked });
-  }catch(e){
-    console.error('Gemini test exception', e.message);
-    return res.status(500).json({ ok:false, error: e.message, model, source, masked });
+  const genConfig = await getChatbotGenConfig();
+  // Test every saved key individually so you can see which one is quota-exhausted
+  const perKey = [];
+  for(const k of keys){
+    const masked = geminiFingerprint(k);
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(k)}`;
+    try{
+      const controller=new AbortController(); const t=setTimeout(()=>controller.abort(),12000);
+      const resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':k},body:JSON.stringify({ systemInstruction: { parts: [{ text: fullPrompt }] }, contents: [{ role:'user', parts:[{ text: testMsg }] }], generationConfig: genConfig }),signal:controller.signal});
+      clearTimeout(t);
+      const data=await resp.json().catch(()=>({}));
+      if(!resp.ok){
+        const gErr=data?.error?.message||`Gemini API ${resp.status} ${resp.statusText}`;
+        perKey.push({ masked, ok:false, error: gErr, quota: resp.status===429 });
+      } else {
+        const text=data?.candidates?.[0]?.content?.parts?.[0]?.text||(data?.candidates?.[0]?.content?.parts||[]).map(p=>p.text).join('\n')||'';
+        if(!text.trim()) perKey.push({ masked, ok:false, error:'Empty reply from Gemini', quota:false });
+        else perKey.push({ masked, ok:true, reply:text.trim().slice(0,500) });
+      }
+    }catch(e){ perKey.push({ masked, ok:false, error: e.message, quota:false }); }
+    await new Promise(r=> setTimeout(r, 300));
   }
+  const good = perKey.find(p=> p.ok);
+  if(good) return res.json({ ok:true, reply: good.reply, model, source, masked: good.masked, perKey, keyCount: keys.length });
+  const anyQuota = perKey.some(p=> p.quota);
+  console.error('Gemini test failed all keys', perKey.map(p=> p.masked+': '+p.error).join(' | '));
+  return res.status(500).json({ ok:false, error: perKey[0]?.error || 'All keys failed', perKey, keyCount: keys.length, model, source, masked: perKey[0]?.masked, hint: anyQuota ? 'All keys quota-exhausted (free tier ~20/day each) — add another key from a different Google project, or wait for reset.' : 'If key is AQ.Ab8... verify it is a valid Google AI API key (AIza...) and model gemini-2.5-flash is enabled for your project. Try model gemini-1.5-flash as fallback.' });
 });
 
 // Google Sheets direct (append row) — matches n8n node: operation append, documentId, sheetName
@@ -2440,20 +2509,14 @@ app.post('/api/admin/ai/suggest-subject', requireAuth, async (req, res) => {
       `Your Nexatech application - next step, {{name}}`,
       `{{name}}, still want your ${sampleLead.preferredNiche||''} store?`.trim()
     ].slice(0, n);
-    const key = await getGeminiKey().catch(()=> '');
-    if(!key) return res.json({ ok:true, ai:false, subjects: fallbacks, hint: 'Set Gemini key for fully AI-generated options (showing template suggestions)' });
+    const keys = await getGeminiKeys().catch(()=> []);
+    if(!keys.length) return res.json({ ok:true, ai:false, subjects: fallbacks, hint: 'Set Gemini key for fully AI-generated options (showing template suggestions)' });
     let model = GEMINI_MODEL;
     try{ const r = await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_model'); if(r?.value?.trim()) model = r.value.trim(); }catch{}
     const prompt = `Write ${n} short email subject lines for a Nexatech dropshipping store email${ctx?` about: ${ctx}`:''}. Audience: aspiring store founders${sampleLead.preferredNiche?` (e.g. ${sampleLead.preferredNiche} niche)`:''}. Rules: under 60 chars each, no clickbait, include the {{name}} token in each subject, plain ASCII text only (no emoji, no special dashes). Return ONLY a JSON array of strings.`;
     try{
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
-      const controller = new AbortController();
-      const t = setTimeout(()=>controller.abort(), 15000);
-      const resp = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json','x-goog-api-key':key}, body: JSON.stringify({ contents:[{role:'user',parts:[{text:prompt}]}], generationConfig:{temperature:0.9,maxOutputTokens:300} }), signal: controller.signal });
-      clearTimeout(t);
-      const data = await resp.json().catch(()=> ({}));
-      if(!resp.ok) throw new Error(data?.error?.message || `Gemini ${resp.status}`);
-      const text = (data?.candidates?.[0]?.content?.parts?.map(p=>p.text||'').join('\n') || '').trim();
+      const r = await geminiGenerate({ model, contents: [{ role:'user', parts:[{ text: prompt }] }], genConfig: { temperature: 0.9, maxOutputTokens: 300 }, timeoutMs: 15000 });
+      const text = r.text;
       const m = text.match(/\[[\s\S]*\]/);
       if(!m) throw new Error('no JSON array');
       const arr = JSON.parse(m[0]);
@@ -2496,7 +2559,7 @@ async function restoreBackup(dump){
     await db.prepare('INSERT INTO content_revisions (snapshot, label) VALUES (?,?)').run(snap.slice(0,500000), 'pre-full-restore');
   }catch{}
   // Restore content + sections (upsert, never delete protected secrets unless backup has non-empty value)
-  const PROTECTED_RESTORE = new Set(['google_client_id','google_client_secret','google_sheets_doc_id','google_sheets_sheet_name','google_refresh_token','google_access_token','google_token_expiry','google_column_mapping','gmail_connected_email','gmail_sender_name','gemini_api_key','gemini_model']);
+  const PROTECTED_RESTORE = new Set(['google_client_id','google_client_secret','google_sheets_doc_id','google_sheets_sheet_name','google_refresh_token','google_access_token','google_token_expiry','google_column_mapping','gmail_connected_email','gmail_sender_name','gemini_api_key','gemini_api_key_2','gemini_api_key_3','gemini_model']);
   if(Array.isArray(dump.tables.content)){
     const stmt = await db.prepare("INSERT INTO content (key,value,type,updated_at) VALUES (?,?,?,datetime('now')) ON CONFLICT(key) DO UPDATE SET value=excluded.value, type=excluded.type, updated_at=datetime('now')");
     for(const r of dump.tables.content){
@@ -2676,7 +2739,7 @@ app.get('/api/admin/backup/status', requireAuth, async (req, res) => {
   try{
     const counts = {};
     for(const t of BACKUP_TABLES){ try{ counts[t] = parseInt((await db.prepare(`SELECT COUNT(*) as c FROM ${t}`).get())?.c||0,10)||0; }catch{ counts[t]=-1; } }
-    const secretKeys = ['google_client_id','google_client_secret','google_sheets_doc_id','google_refresh_token','gmail_connected_email','gemini_api_key'];
+    const secretKeys = ['google_client_id','google_client_secret','google_sheets_doc_id','google_refresh_token','gmail_connected_email','gemini_api_key','gemini_api_key_2','gemini_api_key_3'];
     const secrets = {};
     for(const k of secretKeys){
       try{ const v = (await db.prepare('SELECT value FROM content WHERE key=?').get(k))?.value || ''; secrets[k] = v ? ('saved ✓ ' + String(v).slice(0,4) + '...' + String(v).slice(-3)) : 'not set'; }
