@@ -11,7 +11,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import cron from 'node-cron';
 import crypto from 'crypto';
-import { initDb, getDb, reseedDefaults } from './db.js';
+import { initDb, getDb, reseedDefaults, usePg } from './db.js';
 import { google } from 'googleapis';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -110,6 +110,33 @@ app.use('/api/', generalLimiter);
 // Static
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(UPLOAD_DIR));
+// DB media store (Postgres): files uploaded while DATABASE_URL is set live in media_blobs,
+// so images survive redeploys with no disk. Checked before disk files.
+app.get('/uploads/:name', async (req, res, next) => {
+  try{
+    if(!usePg) return next();
+    const fname = path.basename(String(req.params.name||''));
+    if(!fname) return next();
+    const row = await db.prepare('SELECT mime, data FROM media_blobs WHERE filename=?').get(fname);
+    if(!row || !row.data) return next();
+    if(row.mime) res.contentType(row.mime);
+    res.setHeader('Cache-Control','public, max-age=86400');
+    return res.send(Buffer.isBuffer(row.data) ? row.data : Buffer.from(row.data));
+  }catch(e){ return next(); }
+});
+
+// Persist an uploaded file: Postgres -> media_blobs (returns same /uploads/ URL shape),
+// otherwise keep the disk file. Always returns the public URL.
+async function persistUpload(file){
+  const url = `/uploads/${file.filename}`;
+  if(!usePg) return url;
+  try{
+    const buf = fs.readFileSync(file.path);
+    await db.prepare("INSERT INTO media_blobs (filename,mime,data) VALUES (?,?,?) ON CONFLICT(filename) DO UPDATE SET mime=excluded.mime, data=excluded.data").run(file.filename, file.mimetype||'', buf);
+    try{ fs.unlinkSync(file.path); }catch{}
+  }catch(e){ console.error('media_blobs persist failed, keeping disk file:', e.message); }
+  return url;
+}
 
 // Helpers
 function escapeHtml(str) {
@@ -318,7 +345,7 @@ app.get('/api/media', async (req, res) => {
 app.post('/api/media', requireAuth, upload.single('file'), async (req, res) => {
   const { type, category, url, caption, alt_text, tags, result_stat, case_study_text } = req.body;
   let finalUrl = url;
-  if (req.file) finalUrl = `/uploads/${req.file.filename}`;
+  if (req.file) finalUrl = await persistUpload(req.file);
   if (!finalUrl) return res.status(400).json({ error: 'url or file required' });
   if (!type) return res.status(400).json({ error: 'type required (portfolio|sales_proof|testimonials)' });
   const _orderRow = await db.prepare('SELECT COALESCE(MAX(display_order),0)+1 as n FROM media WHERE type=?').get(type);
@@ -344,7 +371,7 @@ app.patch('/api/media/:id', requireAuth, upload.single('file'), async (req, res)
   const existing = await db.prepare('SELECT * FROM media WHERE id=?').get(id);
   if (!existing) return res.status(404).json({ error: 'not found' });
   let url = req.body.url || existing.url;
-  if (req.file) url = `/uploads/${req.file.filename}`;
+  if (req.file) url = await persistUpload(req.file);
   const fields = {
     type: req.body.type ?? existing.type,
     category: req.body.category ?? existing.category,
@@ -364,6 +391,10 @@ app.patch('/api/media/:id', requireAuth, upload.single('file'), async (req, res)
 });
 
 app.delete('/api/media/:id', requireAuth, async (req, res) => {
+  try{
+    const ex = await db.prepare('SELECT url FROM media WHERE id=?').get(req.params.id);
+    if(ex?.url?.startsWith('/uploads/')){ try{ await db.prepare('DELETE FROM media_blobs WHERE filename=?').run(path.basename(ex.url)); }catch{} }
+  }catch{}
   await db.prepare('DELETE FROM media WHERE id=?').run(req.params.id);
   res.json({ ok: true });
 });
@@ -382,7 +413,7 @@ app.put('/api/media/reorder', requireAuth, async (req, res) => {
 // Generic admin file upload (logo, favicon, etc.)
 app.post('/api/admin/upload', requireAuth, upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'file required' });
-  const url = `/uploads/${req.file.filename}`;
+  const url = await persistUpload(req.file);
   res.json({ ok: true, url, filename: req.file.filename, original: req.file.originalname });
 });
 
@@ -399,7 +430,7 @@ app.post('/api/team', requireAuth, upload.single('photo'), async (req, res) => {
   const { name, role, credibility_note, photo_url, social_url } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
   let finalPhoto = photo_url;
-  if (req.file) finalPhoto = `/uploads/${req.file.filename}`;
+  if (req.file) finalPhoto = await persistUpload(req.file);
   const _teamOrder = await db.prepare('SELECT COALESCE(MAX(display_order),0)+1 as n FROM team').get();
   const order = _teamOrder ? _teamOrder.n : 1;
   const info = await db.prepare('INSERT INTO team (name,role,credibility_note,photo_url,social_url,display_order,published) VALUES (?,?,?,?,?,?,1)').run(name, role||'', credibility_note||'', finalPhoto||'', social_url||'', order);
@@ -409,7 +440,7 @@ app.patch('/api/team/:id', requireAuth, upload.single('photo'), async (req, res)
   const ex = await db.prepare('SELECT * FROM team WHERE id=?').get(req.params.id);
   if (!ex) return res.status(404).json({ error: 'not found' });
   let photo_url = req.body.photo_url ?? ex.photo_url;
-  if (req.file) photo_url = `/uploads/${req.file.filename}`;
+  if (req.file) photo_url = await persistUpload(req.file);
   const fields = {
     name: req.body.name ?? ex.name,
     role: req.body.role ?? ex.role,
@@ -2316,15 +2347,19 @@ async function restoreBackup(dump){
       try{ await db.prepare("INSERT INTO sections (key,visible,display_order,animation_enabled) VALUES (?,?,?,?) ON CONFLICT(key) DO UPDATE SET visible=excluded.visible, display_order=excluded.display_order, animation_enabled=excluded.animation_enabled").run(s.key, s.visible?1:0, s.display_order??0, s.animation_enabled?1:0); }catch{}
     }
   }
-  // Append-only restores for operational tables (never wipe leads/chats): insert rows missing by id
-  const appendMissing = async (table, cols) => {
+  // Append-only restores for operational tables (never wipe leads/chats): insert rows missing by id.
+  // Explicit ids are preserved so cross-references (campaign_sends.lead_id) survive a SQLite -> Postgres move.
+  const appendMissing = async (table, cols, extraSkip) => {
     const rows = dump.tables[table];
     if(!Array.isArray(rows)) return 0;
     let n = 0;
     for(const r of rows){
       try{
-        const exists = r.id !== undefined && r.id !== null ? await db.prepare(`SELECT id FROM ${table} WHERE id=?`).get(r.id) : null;
-        if(exists) continue;
+        if(r.id !== undefined && r.id !== null){
+          const exists = await db.prepare(`SELECT id FROM ${table} WHERE id=?`).get(r.id);
+          if(exists) continue;
+        }
+        if(extraSkip && await extraSkip(r)) continue;
         const vals = cols.map(c => r[c] ?? null);
         const ph = cols.map(()=> '?').join(',');
         await db.prepare(`INSERT INTO ${table} (${cols.join(',')}) VALUES (${ph})`).run(...vals);
@@ -2333,25 +2368,98 @@ async function restoreBackup(dump){
     }
     return n;
   };
+  const emailExists = async (r) => {
+    if(!r.email) return false;
+    try{ const hit = await db.prepare('SELECT id FROM email_unsubscribes WHERE email=?').get(String(r.email).toLowerCase().trim()); return !!hit; }catch{ return false; }
+  };
   const added = {};
-  added.media = await appendMissing('media', ['type','category','url','caption','alt_text','tags','result_stat','case_study_text','display_order','published']);
-  added.team = await appendMissing('team', ['name','role','credibility_note','photo_url','social_url','display_order','published']);
-  added.email_templates = await appendMissing('email_templates', ['name','subject','body_html','body_text','category']);
+  added.media = await appendMissing('media', ['id','type','category','url','caption','alt_text','tags','result_stat','case_study_text','display_order','published']);
+  added.team = await appendMissing('team', ['id','name','role','credibility_note','photo_url','social_url','display_order','published']);
+  added.email_templates = await appendMissing('email_templates', ['id','name','subject','body_html','body_text','category']);
+  added.leads = await appendMissing('leads', ['id','name','storeName','preferredNiche','preferredNicheOther','investmentRange','storeStatus','wasScammed','scamDetails','whatsapp','email','preferredContactTime','source','trafficPlan','consent','submittedAt','pageUrl','sessionId','utm_source','utm_medium','utm_campaign','webhook_status','webhook_attempts','pipeline_stage','created_at']);
+  added.events = await appendMissing('events', ['id','event_type','element_id','session_id','timestamp','page_url','utm_source','utm_medium','utm_campaign','metadata']);
+  added.campaigns = await appendMissing('campaigns', ['id','name','subject','body_html','body_text','from_name','from_email','reply_to','status','created_by','total_recipients','sent_count','failed_count','open_count','created_at','sent_at']);
+  added.campaign_sends = await appendMissing('campaign_sends', ['id','campaign_id','lead_id','email','name','status','error','message_id','sent_at','opened_at']);
+  added.chat_messages = await appendMissing('chat_messages', ['id','session_id','role','text','page_url','created_at']);
+  added.followup_logs = await appendMissing('followup_logs', ['id','email','lead_id','session_id','kind','day_number','subject','body_html','body_text','status','error','message_id','sent_at']);
+  added.email_unsubscribes = await appendMissing('email_unsubscribes', ['id','email','reason','created_at'], emailExists);
+  added.content_revisions = await appendMissing('content_revisions', ['id','snapshot','label','created_at']);
+  // stats_cache + chat_sessions: upsert by natural key
+  if(Array.isArray(dump.tables.stats_cache)){
+    for(const s of dump.tables.stats_cache){
+      if(!s || !s.metric) continue;
+      try{ await db.prepare("INSERT INTO stats_cache (metric,value,computed_at) VALUES (?,?,datetime('now')) ON CONFLICT(metric) DO UPDATE SET value=excluded.value, computed_at=datetime('now')").run(s.metric, String(s.value ?? '')); }catch{}
+    }
+  }
+  if(Array.isArray(dump.tables.chat_sessions)){
+    for(const s of dump.tables.chat_sessions){
+      if(!s || !s.session_id) continue;
+      try{ await db.prepare("INSERT INTO chat_sessions (session_id,name,email,updated_at) VALUES (?,?,?,datetime('now')) ON CONFLICT(session_id) DO UPDATE SET name=excluded.name, email=excluded.email, updated_at=datetime('now')").run(s.session_id, s.name||'', s.email||''); }catch{}
+    }
+  }
+  // Postgres: explicit-id inserts don't advance SERIAL sequences — fix them so future inserts don't collide
+  if(usePg){
+    for(const t of ['media','team','leads','events','campaigns','campaign_sends','email_templates','chat_messages','content_revisions','followup_logs','email_unsubscribes','media_blobs','backup_snapshots']){
+      try{ await db.prepare(`SELECT setval(pg_get_serial_sequence('${t}', 'id'), COALESCE((SELECT MAX(id) FROM ${t}), 1))`).get(); }catch{}
+    }
+  }
   return { ok:true, added };
-}
-function backupFilePath(name){
-  const safe = String(name||'').replace(/[^a-zA-Z0-9-_]/g,'').slice(0,60) || ('backup-' + new Date().toISOString().slice(0,10));
-  return path.join(BACKUP_DIR, safe + '.json');
 }
 async function writeFileBackup(name){
   const dump = await collectBackup();
-  const fp = backupFilePath(name || ('backup-' + new Date().toISOString().replace(/[:.]/g,'-').slice(0,19)));
-  fs.writeFileSync(fp, JSON.stringify(dump));
+  const base = (name || ('backup-' + new Date().toISOString().replace(/[:.]/g,'-').slice(0,19))).replace(/[^a-zA-Z0-9-_]/g,'').slice(0,60) || ('backup-' + Date.now());
+  const fp = path.join(BACKUP_DIR, base + '.json');
+  try{ fs.writeFileSync(fp, JSON.stringify(dump)); }catch(e){ console.error('disk snapshot failed (ok on Postgres):', e.message); }
+  // Always keep a copy in the DATABASE itself (survives redeploys with no disk). Keep newest 5.
+  try{
+    await db.prepare("INSERT INTO backup_snapshots (name,dump) VALUES (?,?) ON CONFLICT(name) DO UPDATE SET dump=excluded.dump, created_at=datetime('now')").run(base, JSON.stringify(dump));
+    const olds = await db.prepare('SELECT id FROM backup_snapshots ORDER BY id DESC LIMIT 100 OFFSET 5').all();
+    for(const o of (olds||[])){ try{ await db.prepare('DELETE FROM backup_snapshots WHERE id=?').run(o.id); }catch{} }
+  }catch(e){ console.error('db snapshot failed:', e.message); }
   try{
     const files = fs.readdirSync(BACKUP_DIR).filter(f=> f.endsWith('.json')).map(f=> ({ f, t: fs.statSync(path.join(BACKUP_DIR,f)).mtimeMs })).sort((a,b)=> b.t-a.t);
     for(const extra of files.slice(20)){ try{ fs.unlinkSync(path.join(BACKUP_DIR, extra.f)); }catch{} }
   }catch{}
-  return { file: path.basename(fp), exportedAt: dump.exportedAt };
+  return { file: base + '.json', exportedAt: dump.exportedAt, store: usePg ? 'db' : 'disk+db' };
+}
+async function listSnapshots(){
+  const out = [];
+  try{
+    const files = fs.readdirSync(BACKUP_DIR).filter(f=> f.endsWith('.json')).map(f=>{
+      const st = fs.statSync(path.join(BACKUP_DIR, f));
+      return { file: f, size: st.size, modified: st.mtime.toISOString(), store: 'disk' };
+    });
+    out.push(...files);
+  }catch{}
+  try{
+    const rows = await db.prepare('SELECT name, LENGTH(dump) as size, created_at FROM backup_snapshots ORDER BY id DESC LIMIT 10').all();
+    const diskNames = new Set(out.map(f=> f.file));
+    for(const r of (rows||[])){
+      const fname = r.name + '.json';
+      if(diskNames.has(fname)) continue; // disk copy already listed
+      out.push({ file: fname, size: parseInt(r.size||0,10)||0, modified: r.created_at, store: 'db' });
+    }
+  }catch{}
+  out.sort((a,b)=> String(b.modified||'').localeCompare(String(a.modified||'')));
+  return out;
+}
+async function readSnapshot(fname){
+  const safe = path.basename(String(fname||''));
+  // DB copy first (works with no disk), disk fallback
+  try{
+    const base = safe.replace(/\.json$/i,'');
+    const row = await db.prepare('SELECT dump FROM backup_snapshots WHERE name=?').get(base);
+    if(row?.dump) return JSON.parse(row.dump);
+  }catch{}
+  const fp = path.join(BACKUP_DIR, safe);
+  if(!fs.existsSync(fp)) throw new Error('backup not found');
+  return JSON.parse(fs.readFileSync(fp, 'utf8'));
+}
+async function deleteSnapshot(fname){
+  const safe = path.basename(String(fname||''));
+  const base = safe.replace(/\.json$/i,'');
+  try{ await db.prepare('DELETE FROM backup_snapshots WHERE name=?').run(base); }catch{}
+  try{ fs.unlinkSync(path.join(BACKUP_DIR, safe)); }catch{}
 }
 // Export full backup (any browser can download + verify saves)
 app.get('/api/admin/backup/export', requireAuth, async (req, res) => {
@@ -2372,16 +2480,11 @@ app.post('/api/admin/backup/import', requireAuth, async (req, res) => {
   }catch(e){ res.status(500).json({ error: e.message }); }
 });
 // File snapshots on server disk (survive restarts via Render disk)
+// Snapshots live in the DATABASE (+ disk copy when available) — no disk needed
 app.get('/api/admin/backup/files', requireAuth, async (req, res) => {
   try{
-    let files = [];
-    try{
-      files = fs.readdirSync(BACKUP_DIR).filter(f=> f.endsWith('.json')).map(f=>{
-        const st = fs.statSync(path.join(BACKUP_DIR, f));
-        return { file: f, size: st.size, modified: st.mtime.toISOString() };
-      }).sort((a,b)=> b.modified.localeCompare(a.modified));
-    }catch{}
-    res.json({ dir: BACKUP_DIR, onDisk: fs.existsSync(BACKUP_DIR), files, dataDir: process.env.DATA_DIR || '(project dir)', usePg: !!process.env.DATABASE_URL });
+    const files = await listSnapshots();
+    res.json({ files, usePg: !!process.env.DATABASE_URL, dataDir: process.env.DATA_DIR || '(project dir)' });
   }catch(e){ res.status(500).json({ error: e.message }); }
 });
 app.post('/api/admin/backup/files', requireAuth, async (req, res) => {
@@ -2392,15 +2495,13 @@ app.post('/api/admin/backup/files', requireAuth, async (req, res) => {
 });
 app.post('/api/admin/backup/files/:file/restore', requireAuth, async (req, res) => {
   try{
-    const fp = path.join(BACKUP_DIR, path.basename(req.params.file));
-    if(!fs.existsSync(fp)) return res.status(404).json({ error: 'backup file not found' });
-    const dump = JSON.parse(fs.readFileSync(fp, 'utf8'));
+    const dump = await readSnapshot(req.params.file);
     const r = await restoreBackup(dump);
-    res.json({ ok:true, file: path.basename(fp), ...r });
+    res.json({ ok:true, file: path.basename(String(req.params.file||'')), ...r });
   }catch(e){ res.status(500).json({ error: e.message }); }
 });
 app.delete('/api/admin/backup/files/:file', requireAuth, async (req, res) => {
-  try{ fs.unlinkSync(path.join(BACKUP_DIR, path.basename(req.params.file))); res.json({ ok:true }); }
+  try{ await deleteSnapshot(req.params.file); res.json({ ok:true }); }
   catch(e){ res.status(500).json({ error: e.message }); }
 });
 // Saved-state summary — any browser can confirm what is stored WITHOUT seeing secrets

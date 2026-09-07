@@ -18,10 +18,9 @@ services:
         sync: false
       - key: GEMINI_MODEL
         value: gemini-2.5-flash
-      - key: DATA_DIR
-        value: /opt/render/project/src/data
+      # Postgres is the single source of truth (no disk): leads, content, uploads
+      # (media_blobs) and snapshots (backup_snapshots) all live in the database.
+      # Set this in the Render dashboard (already done) — app auto-switches from SQLite.
+      - key: DATABASE_URL
+        sync: false
     healthCheckPath: /api/health
-    disk:
-      name: nexatech-data
-      mountPath: /opt/render/project/src/data
-      sizeGB: 1

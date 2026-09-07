@@ -22,7 +22,11 @@ npm start # runs node --experimental-sqlite server.js
 5. Environment: `JWT_SECRET` auto-generated, `PORT=10000`
 6. Health check: `/api/health`
 
-SQLite (`data.sqlite`) is ephemeral on Render free tier. For persistence, attach a Render Disk at `/opt/render/project/src/data.sqlite` or migrate to Postgres (swap `db.js`).
+SQLite (`data.sqlite`) is local-dev only. Production uses Postgres: set `DATABASE_URL` in
+Render and redeploy — content, leads, chats, follow-ups, uploads (`media_blobs`) and
+snapshots (`backup_snapshots`) all live in the database, no disk needed. Migrating hosts?
+Admin → Integrations → Backup & Restore → Download Full Backup, point the new host at its
+database, then Restore from File (merge-safe, secrets never wiped by empty values).
 
 ## Admin Features
 - Content & Theme (all sections, 2550×1650 reviews wall, logo/favicon upload `/api/admin/upload`)

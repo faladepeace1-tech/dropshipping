@@ -341,6 +341,19 @@ export async function initDb() {
         reason TEXT DEFAULT '',
         created_at TIMESTAMP DEFAULT NOW()
       );
+      CREATE TABLE IF NOT EXISTS media_blobs (
+        id SERIAL PRIMARY KEY,
+        filename TEXT UNIQUE NOT NULL,
+        mime TEXT DEFAULT '',
+        data BYTEA NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS backup_snapshots (
+        id SERIAL PRIMARY KEY,
+        name TEXT UNIQUE NOT NULL,
+        dump TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
     `);
   } else {
     db.exec(`
@@ -511,6 +524,19 @@ export async function initDb() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       email TEXT UNIQUE NOT NULL,
       reason TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS media_blobs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      filename TEXT UNIQUE NOT NULL,
+      mime TEXT DEFAULT '',
+      data BLOB NOT NULL,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS backup_snapshots (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      dump TEXT NOT NULL,
       created_at TEXT DEFAULT (datetime('now'))
     );
   `);
@@ -1047,4 +1073,4 @@ export async function reseedDefaults() {
 }
 
 export function getDb() { return db; }
-export { DB_PATH, DATA_DIR, usePg, pgPool };
+export { DB_PATH, DATA_DIR, usePg, pgPool, convertSqlForPg };
