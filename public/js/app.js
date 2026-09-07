@@ -14,7 +14,12 @@ function sanitize(t){const d=document.createElement('div');d.textContent=t;retur
 function whatsappLink(num, msg){ const n=(num||'').replace(/\D/g,''); return `https://wa.me/${n}?text=${encodeURIComponent(msg||'')}`; }
 function track(event_type, element_id, metadata={}){
   const payload={event_type,element_id,session_id:sessionId,page_url:location.href,utm:getUTM(),metadata};
-  try{navigator.sendBeacon&&navigator.sendBeacon('/api/events', JSON.stringify(payload));}catch{}
+  try{
+    if(navigator.sendBeacon){
+      const blob=new Blob([JSON.stringify(payload)],{type:'application/json'});
+      if(navigator.sendBeacon('/api/events', blob)) return;
+    }
+  }catch{}
   fetch('/api/events',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).catch(()=>{});
 }
 
@@ -100,7 +105,7 @@ function applyTheme(c){
   if(c.footer_address) $('#footer-address').textContent=c.footer_address;
   if(c.footer_copyright) $('#footer-copyright').textContent=c.footer_copyright + ` ${new Date().getFullYear()}`;
   else $('#footer-copyright').textContent=`© ${new Date().getFullYear()} Nexatech Dropshipping Store. All rights reserved.`;
-  applyMicroCopy();
+  try{ applyMicroCopy(); }catch(e){ console.error('microcopy failed (theme still applied)', e); }
 }
 
 // Every user-visible micro-string, editable in Admin backend. Falls back to current defaults.
@@ -108,7 +113,8 @@ function setText(id, txt){ const el=document.getElementById(id); if(el) el.textC
 function applyMicroCopy(){
   // Hero mockup image (editable in Admin backend)
   const heroImg=document.getElementById('hero-mock-img');
-  if(heroImg && c.hero_image_url && String(c.hero_image_url).trim()) heroImg.src=String(c.hero_image_url).trim();
+  const heroUrl=T('hero_image_url','').trim();
+  if(heroImg && heroUrl) heroImg.src=heroUrl;
   // Navbar + drawer + footer links
   setText('nav-link-portfolio', T('nav_link_portfolio','Portfolio'));
   setText('nav-link-proof', T('nav_link_proof','Proof'));

@@ -776,15 +776,22 @@ async function callGemini(userMessage, history=[]){
   const genCfg = await getChatbotGenConfig();
   const fullPrompt = basePrompt + "\n\nSITE KNOWLEDGE (live, everything except secrets — owner: Akinyemmi Ifeoluwa, brand NEXATECH, includes plans, portfolio, WhatsApp, pricing, team, certificates):\n" + siteKnowledge;
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
-  // Build contents with history (up to last 10 turns) for conversational memory
+  // Build contents with history (up to last 10 turns) for conversational memory.
+  // Gemini rejects consecutive same-role turns, so merge them; first turn must be user.
   let contents = [];
   if(Array.isArray(history) && history.length){
     const clean = history.filter(h=> h && (h.role==='user' || h.role==='model') && h.text).slice(-10);
     for(const h of clean){
-      contents.push({ role: h.role, parts: [{ text: String(h.text).slice(0,2000) }] });
+      const txt = String(h.text).slice(0,2000);
+      const prev = contents[contents.length-1];
+      if(prev && prev.role===h.role) prev.parts[0].text = (prev.parts[0].text + '\n' + txt).slice(0,4000);
+      else contents.push({ role: h.role, parts: [{ text: txt }] });
     }
   }
-  contents.push({ role: 'user', parts: [{ text: userMessage }] });
+  while(contents.length && contents[0].role!=='user') contents.shift();
+  const tail = contents[contents.length-1];
+  if(tail && tail.role==='user') tail.parts[0].text = (tail.parts[0].text + '\n' + String(userMessage)).slice(0,4000);
+  else contents.push({ role: 'user', parts: [{ text: userMessage }] });
   const payload = {
     systemInstruction: { parts: [{ text: fullPrompt }] },
     contents,
