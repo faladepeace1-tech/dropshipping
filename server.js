@@ -877,7 +877,7 @@ async function callGemini(userMessage, history=[]){
   if(tail && tail.role==='user') tail.parts[0].text = (tail.parts[0].text + '\n' + String(userMessage)).slice(0,4000);
   else contents.push({ role: 'user', parts: [{ text: userMessage }] });
   try{
-    const r = await geminiGenerate({ model, systemText: fullPrompt, contents, genConfig });
+    const r = await geminiGenerate({ model, systemText: fullPrompt, contents, genConfig: genCfg });
     try{ globalThis.__lastGeminiCode = 'ok'; }catch{}
     return r.text;
   }catch(e){
