@@ -242,7 +242,7 @@ app.get('/api/content', async (req, res) => {
   const rows = await db.prepare('SELECT key,value,type FROM content').all();
   const obj = {};
   // Never expose credentials/tokens publicly (admin reads them via authed endpoints)
-  const SENSITIVE = new Set(['gemini_api_key', 'gemini_api_key_2', 'gemini_api_key_3', 'GEMINI_API_KEY', 'GOOGLE_API_KEY']);
+  const SENSITIVE = new Set(['gemini_api_key', 'gemini_api_key_2', 'gemini_api_key_3', 'ai_api_key', 'GEMINI_API_KEY', 'GOOGLE_API_KEY']);
   rows.forEach(r => {
     if (SENSITIVE.has(r.key)) return; // hide secrets from public
     if (r.key.startsWith('google_') || r.key.startsWith('gmail_')) return; // OAuth tokens + connected Gmail
@@ -816,6 +816,107 @@ async function geminiGenerate({ model, systemText, contents, genConfig, timeoutM
   out.tried = pool.length;
   throw out;
 }
+
+// --- AI providers: Gemini plus any OpenAI-compatible API (Groq, OpenRouter,
+// Together, Hugging Face, Mistral, Pollinations, custom). The chatbot, follow-up
+// emails and subject suggestions all go through aiGenerate(), so switching
+// provider changes everything at once. Nothing here is unlimited: every free
+// API has daily/rate limits — Gemini ~20/day/key, others per their own docs.
+const AI_PRESETS = {
+  gemini:       { label: 'Gemini (Google)', baseUrl: '', model: '', needsKey: true },
+  groq:         { label: 'Groq (generous free tier)', baseUrl: 'https://api.groq.com/openai/v1', model: 'llama-3.3-70b-versatile', needsKey: true },
+  openrouter:   { label: 'OpenRouter', baseUrl: 'https://openrouter.ai/api/v1', model: '', needsKey: true },
+  together:     { label: 'Together AI', baseUrl: 'https://api.together.xyz/v1', model: '', needsKey: true },
+  huggingface:  { label: 'Hugging Face', baseUrl: 'https://router.huggingface.co/v1', model: '', needsKey: true },
+  mistral:      { label: 'Mistral', baseUrl: 'https://api.mistral.ai/v1', model: 'mistral-small-latest', needsKey: true },
+  custom:       { label: 'Custom OpenAI-compatible', baseUrl: '', model: '', needsKey: true }
+};
+async function getAIConfig(){
+  const g = async (k)=>{ try{ return (await db.prepare('SELECT value FROM content WHERE key=?').get(k))?.value?.trim() || ''; }catch{ return ''; } };
+  let provider = (await g('ai_provider') || 'gemini').toLowerCase();
+  if(!AI_PRESETS[provider]) provider = 'gemini';
+  const preset = AI_PRESETS[provider];
+  return { provider, preset, apiKey: await g('ai_api_key'), baseUrl: await g('ai_base_url') || preset.baseUrl, model: await g('ai_model') || preset.model };
+}
+async function aiReady(){
+  const cfg = await getAIConfig().catch(()=> null);
+  if(!cfg || cfg.provider === 'gemini'){
+    const ks = await getGeminiKeys().catch(()=> []);
+    if(!ks.length) return { ready:false, reason:'No Gemini API key saved' };
+    return { ready:true };
+  }
+  if(cfg.preset.needsKey && !cfg.apiKey) return { ready:false, reason:'Set the API key for ' + cfg.preset.label };
+  if(!cfg.model) return { ready:false, reason:'Set a model for ' + cfg.preset.label };
+  if(!cfg.baseUrl) return { ready:false, reason:'Set the API base URL for the custom provider' };
+  return { ready:true };
+}
+async function openAIChat({ baseUrl, apiKey, model, messages, temperature, maxTokens, timeoutMs=25000 }){
+  const url = String(baseUrl || '').replace(/\/$/,'') + '/chat/completions';
+  const headers = { 'Content-Type':'application/json' };
+  if(apiKey) headers['Authorization'] = 'Bearer ' + apiKey;
+  const controller = new AbortController();
+  const t = setTimeout(()=>controller.abort(), timeoutMs);
+  try{
+    const resp = await fetch(url, { method:'POST', headers, body: JSON.stringify({ model, messages, temperature: temperature ?? 0.7, max_tokens: maxTokens || 600 }), signal: controller.signal });
+    const data = await resp.json().catch(()=> ({}));
+    if(!resp.ok){
+      const msg = (data && data.error && (data.error.message || data.error.code)) || ('HTTP ' + resp.status);
+      const err = new Error(String(msg).slice(0,300));
+      err.status = resp.status;
+      err.quota = resp.status===429 || /quota|rate.?limit|insufficient|credit/i.test(String(msg));
+      throw err;
+    }
+    const text = (data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
+    if(!String(text).trim()){
+      const e = new Error('Empty reply from AI provider');
+      e.quota = false;
+      throw e;
+    }
+    return { text: String(text).trim() };
+  }catch(e){
+    if(e && e.name==='AbortError'){
+      const x = new Error('AI provider timed out');
+      x.quota = false;
+      throw x;
+    }
+    throw e;
+  }finally{ clearTimeout(t); }
+}
+// Single entry point for ALL AI text: picks the configured provider.
+async function aiGenerate({ systemText='', contents=[], genConfig=null, timeoutMs=25000 }){
+  const cfg = await getAIConfig();
+  const gc = genConfig || await getChatbotGenConfig().catch(()=> ({ temperature:0.7, maxOutputTokens:600 }));
+  if(cfg.provider === 'gemini'){
+    let model = GEMINI_MODEL;
+    try{ const r = await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_model'); if(r?.value?.trim()) model = r.value.trim(); }catch{}
+    const r = await geminiGenerate({ model, systemText, contents, genConfig: gc, timeoutMs });
+    return { text: r.text, via: 'gemini:' + model };
+  }
+  if(cfg.preset.needsKey && !cfg.apiKey){
+    const e = new Error('Set the API key for ' + cfg.preset.label + ' in Admin → Integrations → AI Provider');
+    e.quota = false;
+    throw e;
+  }
+  if(!cfg.model){
+    const e = new Error('Set a model for ' + cfg.preset.label + ' in Admin → Integrations → AI Provider');
+    e.quota = false;
+    throw e;
+  }
+  if(!cfg.baseUrl){
+    const e = new Error('Set the API base URL for the custom provider');
+    e.quota = false;
+    throw e;
+  }
+  const messages = [];
+  if(systemText) messages.push({ role:'system', content: systemText });
+  for(const c of (contents || [])){
+    const txt = ((c.parts || []).map(p=>p.text || '').join('\n') || '').slice(0,4000);
+    if(!txt.trim()) continue;
+    messages.push({ role: c.role==='model' ? 'assistant' : 'user', content: txt });
+  }
+  const r = await openAIChat({ baseUrl: cfg.baseUrl, apiKey: cfg.apiKey, model: cfg.model, messages, temperature: gc.temperature ?? 0.7, maxTokens: gc.maxOutputTokens || 600, timeoutMs });
+  return { text: r.text, via: cfg.provider + ':' + cfg.model };
+}
 async function getGeminiKeySource(){
   try{
     const row = await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_api_key');
@@ -848,14 +949,8 @@ async function getChatbotGenConfig(){
   return { temperature, maxOutputTokens, topP: 0.9 };
 }
 async function callGemini(userMessage, history=[]){
-  const key = await getGeminiKey();
-  if(!key) return null;
-  // Model can be overridden via DB gemini_model or env
-  let model = GEMINI_MODEL;
-  try{
-    const row = await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_model');
-    if(row?.value?.trim()) model = row.value.trim();
-  }catch{}
+  const ready = await aiReady().catch(()=> ({ ready:false }));
+  if(!ready.ready) return null;
   const siteKnowledge = await buildSiteKnowledge();
   const basePrompt = await getChatbotPrompt();
   const genCfg = await getChatbotGenConfig();
@@ -877,14 +972,14 @@ async function callGemini(userMessage, history=[]){
   if(tail && tail.role==='user') tail.parts[0].text = (tail.parts[0].text + '\n' + String(userMessage)).slice(0,4000);
   else contents.push({ role: 'user', parts: [{ text: userMessage }] });
   try{
-    const r = await geminiGenerate({ model, systemText: fullPrompt, contents, genConfig: genCfg, timeoutMs: 20000 });
+    const r = await aiGenerate({ systemText: fullPrompt, contents, genConfig: genCfg, timeoutMs: 20000 });
     try{ globalThis.__lastGeminiCode = 'ok'; }catch{}
     return r.text;
   }catch(e){
     // One retry on pure timeouts (slow model/cold path) before giving up
     if(e && (e.name === 'AbortError' || /timed out/i.test(e.message || ''))){
       try{
-        const r2 = await geminiGenerate({ model, systemText: fullPrompt, contents, genConfig: genCfg, timeoutMs: 25000 });
+        const r2 = await aiGenerate({ systemText: fullPrompt, contents, genConfig: genCfg, timeoutMs: 25000 });
         try{ globalThis.__lastGeminiCode = 'ok'; }catch{}
         return r2.text;
       }catch(e2){ e = e2; }
@@ -1155,7 +1250,8 @@ async function generateFollowupAI({ lead={}, transcript='', kind='form_instant',
       ? `<p>Hi ${escapeHtml(name)},</p><p>Thanks for chatting with us${transcript ? ' about <b>'+escapeHtml(transcript.slice(0,120))+'…</b>' : ''}. Based on what you asked, the best next step is a quick WhatsApp chat with Ifeoluwa so we can map your niche, timeline and package.</p><p>Reply to this email or tap WhatsApp below — we usually reply within hours.</p>`
       : `<p>Hi ${escapeHtml(name)},</p><p>Just checking in${store?` on <b>${escapeHtml(store)}</b>`:''}${niche?` (${escapeHtml(niche)})`:''} — your build slot is still open. Many founders start with a free strategy call to lock timeline and package.</p><p>Want us to hold your slot for this week? Tap WhatsApp below or reply “YES”.</p>`;
   const keys = await getGeminiKeys().catch(()=> []);
-  if(!keys.length) return { subject: fallbackSubject, htmlInner: fallbackInner, textInner: fallbackInner.replace(/<[^>]+>/g,''), ai: false };
+  const cfg = await getAIConfig().catch(()=> ({ provider:'gemini' }));
+  if(cfg.provider === 'gemini' && !keys.length) return { subject: fallbackSubject, htmlInner: fallbackInner, textInner: fallbackInner.replace(/<[^>]+>/g,''), ai: false };
   let model = GEMINI_MODEL;
   try{ const r = await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_model'); if(r?.value?.trim()) model = r.value.trim(); }catch{}
   const ctxSummary = [
@@ -1167,7 +1263,7 @@ async function generateFollowupAI({ lead={}, transcript='', kind='form_instant',
   const dayAngle = kind.startsWith('daily') ? `This is Day ${dayNumber} follow-up (angles rotate: Day2 reminder+social proof, Day3 FAQ/objection handling incl. scam-trust, Day4 urgency/slot scarcity, Day5+ mentorship pay-after-results). Keep it fresh, never repeat verbatim.` : 'This is the FIRST instant follow-up (thank them, confirm next step within 24h on WhatsApp).';
   const prompt = `You are Nexatech email copywriter. Write a short personalized follow-up email.\n${dayAngle}\nLEAD CONTEXT: ${ctxSummary || '(chat-only contact)'}\nCHAT TRANSCRIPT (if any): ${cleanTranscript || '(none — form lead)'}\nRULES:\n- Friendly, human, 120-180 words, 2-3 short paragraphs. Address by first name.\n- Reference their niche/store/request specifically. If scammed=yes, show empathy + trust (100% ownership, video proof).\n- Never invent prices beyond Starter $149 / Pro $299 / Elite $599 / Mentorship pay-after-results.\n- No raw URLs (WhatsApp button + unsubscribe are added separately). No emojis overload (max 1).\n- SUBJECT RULE: include the person's first name plus their store or niche, plain ASCII text only (letters, numbers, basic punctuation - no emoji, no special dashes, no curly quotes). Example: Thanks Ada - your GlowLab fashion store request is in.\n- Return ONLY valid JSON: {"subject":"...","html_inner":"<p>...</p><p>...</p>","text_inner":"..."}`;
   try{
-    const r = await geminiGenerate({ model, contents: [{ role:'user', parts:[{ text: prompt }] }], genConfig: { temperature: 0.8, maxOutputTokens: 700, topP: 0.9 }, timeoutMs: 15000 });
+    const r = await aiGenerate({ contents: [{ role:'user', parts:[{ text: prompt }] }], genConfig: { temperature: 0.8, maxOutputTokens: 700, topP: 0.9 }, timeoutMs: 15000 });
     let text = r.text.replace(/^```json\s*/i,'').replace(/^```\s*/,'').replace(/```\s*$/,'').trim();
     const m = text.match(/\{[\s\S]*\}/);
     if(!m) throw new Error('no JSON');
@@ -1406,11 +1502,11 @@ app.post('/api/chat', async (req, res) => {
   }catch(e){ console.error('chat session upsert failed', e.message); }
   // Log user message immediately (so count works even if AI fails)
   await logChatMessage(sid, 'user', message, pageUrl);
-  // Gemini direct only for chatbot (webhook removed per owner request — chat uses Gemini, form uses webhook)
-  const geminiKey = await getGeminiKey();
-  if(!geminiKey){
-    await logChatMessage(sid, 'model', 'Chatbot not configured — set Gemini API key.', pageUrl);
-    return res.status(503).json({ error: 'Chatbot not configured — set Gemini API key in Admin → Integrations → Gemini Direct', fallback: 'Please chat on WhatsApp instead.' });
+  // AI provider check (Gemini by default, or any configured provider)
+  const ready = await aiReady().catch(()=> ({ ready:false }));
+  if(!ready.ready){
+    await logChatMessage(sid, 'model', 'Chatbot not configured — ' + (ready.reason || 'set an AI provider') + '.', pageUrl);
+    return res.status(503).json({ error: 'Chatbot not configured — ' + (ready.reason || 'set an AI provider in Admin → Integrations → AI Provider'), code: 'config', fallback: 'Please chat on WhatsApp instead.' });
   }
   const history = Array.isArray(req.body.history) ? req.body.history : [];
   const reply = await callGemini(message, history);
@@ -1720,17 +1816,67 @@ app.put('/api/admin/gemini-key', requireAuth, async (req, res) => {
   const keys = await getGeminiKeys().catch(()=> []);
   res.json({ ok: true, savedKey, saved2, saved3, savedModel, keyCount: keys.length, keys: keys.map(k=> geminiFingerprint(k)), model, message: keys.length ? ('Saved permanently in backend (' + keys.length + ' key' + (keys.length>1?'s':'') + ' rotate on quota)') : 'No key saved — paste a key and Save' });
 });
+// AI provider selection (Gemini or any OpenAI-compatible API) — saved permanently
+app.get('/api/admin/ai/provider', requireAuth, async (req, res) => {
+  const cfg = await getAIConfig();
+  const mask = (v)=> v ? (String(v).slice(0,4) + '...' + String(v).slice(-3)) : '';
+  res.json({
+    provider: cfg.provider,
+    apiKeyMasked: mask(cfg.apiKey),
+    hasKey: !!cfg.apiKey,
+    baseUrl: cfg.baseUrl,
+    model: cfg.model,
+    presets: Object.fromEntries(Object.entries(AI_PRESETS).map(([k,p])=> [k, { label: p.label, baseUrl: p.baseUrl, model: p.model, needsKey: p.needsKey }]))
+  });
+});
+app.put('/api/admin/ai/provider', requireAuth, async (req, res) => {
+  const { provider, api_key, base_url, model, clearKey } = req.body || {};
+  const updated = {};
+  if(provider !== undefined){
+    const p = String(provider).toLowerCase();
+    if(!AI_PRESETS[p]) return res.status(400).json({ error: 'Unknown provider' });
+    await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('ai_provider', p, 'text');
+    updated.provider = p;
+  }
+  if(api_key !== undefined && String(api_key).trim() !== ''){
+    await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('ai_api_key', String(api_key).trim(), 'text');
+    updated.api_key = true;
+  }
+  if(clearKey){ try{ await db.prepare("DELETE FROM content WHERE key='ai_api_key'").run(); updated.clearedKey = true; }catch{} }
+  if(base_url !== undefined){
+    await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('ai_base_url', String(base_url).trim(), 'text');
+    updated.base_url = String(base_url).trim();
+  }
+  if(model !== undefined){
+    await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('ai_model', String(model).trim(), 'text');
+    updated.model = String(model).trim();
+  }
+  const cfg = await getAIConfig();
+  res.json({ ok:true, updated, provider: cfg.provider, hasKey: !!cfg.apiKey, baseUrl: cfg.baseUrl, model: cfg.model });
+});
 app.post('/api/admin/gemini-test', requireAuth, async (req, res) => {
   const { message } = req.body;
   const testMsg = message || 'Hello, what is NexaTech mentorship?';
+  const cfg = await getAIConfig().catch(()=> ({ provider:'gemini' }));
+  const siteKnowledge = await buildSiteKnowledge();
+  const fullPrompt = (await getChatbotPrompt()) + "\n\nSITE KNOWLEDGE:\n" + siteKnowledge;
+  const genConfig = await getChatbotGenConfig();
+  const contents = [{ role:'user', parts:[{ text: testMsg }] }];
+  // Non-Gemini provider: single test through the router
+  if(cfg.provider !== 'gemini'){
+    try{
+      const r = await aiGenerate({ systemText: fullPrompt, contents, genConfig, timeoutMs: 25000 });
+      return res.json({ ok:true, reply: r.text.slice(0,500), provider: cfg.provider, model: cfg.model, via: r.via });
+    }catch(e){
+      return res.status(500).json({ ok:false, error: e.message, provider: cfg.provider, model: cfg.model, quota: !!e.quota,
+        hint: e.quota ? 'Rate/quota limit on ' + cfg.preset.label + ' — wait a bit or check your plan.' : 'Check base URL, key and model for ' + cfg.preset.label + '.' });
+    }
+  }
   const keys = await getGeminiKeys();
   const source = await getGeminiKeySource();
   let model = GEMINI_MODEL;
   try{ const mr=await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_model'); if(mr?.value?.trim()) model=mr.value.trim(); }catch{}
-  if(!keys.length) return res.status(500).json({ ok:false, error: 'No Gemini API key saved — paste AQ.Ab8... or AIza... in DB and Save', source, model });
-  const siteKnowledge = await buildSiteKnowledge();
-  const fullPrompt = (await getChatbotPrompt()) + "\n\nSITE KNOWLEDGE:\n" + siteKnowledge;
-  const genConfig = await getChatbotGenConfig();
+  if(!keys.length) return res.status(500).json({ ok:false, error: 'No Gemini API key saved — paste a key in DB and Save', source, model, provider: 'gemini' });
   // Test every saved key individually so you can see which one is quota-exhausted
   const perKey = [];
   for(const k of keys){
@@ -1753,7 +1899,7 @@ app.post('/api/admin/gemini-test', requireAuth, async (req, res) => {
     await new Promise(r=> setTimeout(r, 300));
   }
   const good = perKey.find(p=> p.ok);
-  if(good) return res.json({ ok:true, reply: good.reply, model, source, masked: good.masked, perKey, keyCount: keys.length });
+  if(good) return res.json({ ok:true, reply: good.reply, model, source, masked: good.masked, perKey, keyCount: keys.length, provider: 'gemini' });
   const anyQuota = perKey.some(p=> p.quota);
   console.error('Gemini test failed all keys', perKey.map(p=> p.masked+': '+p.error).join(' | '));
   return res.status(500).json({ ok:false, error: perKey[0]?.error || 'All keys failed', perKey, keyCount: keys.length, model, source, masked: perKey[0]?.masked, hint: anyQuota ? 'All keys quota-exhausted (free tier ~20/day each) - add another key from a different Google project, or wait for reset.' : 'If key is AQ.Ab8... verify it is a valid Google AI API key (AIza...) and model gemini-3.6-flash is enabled for your project. Try a current model name from ai.google.dev/gemini-api/docs/models.' });
@@ -2533,13 +2679,13 @@ app.post('/api/admin/ai/suggest-subject', requireAuth, async (req, res) => {
       `Your Nexatech application - next step, {{name}}`,
       `{{name}}, still want your ${sampleLead.preferredNiche||''} store?`.trim()
     ].slice(0, n);
-    const keys = await getGeminiKeys().catch(()=> []);
-    if(!keys.length) return res.json({ ok:true, ai:false, subjects: fallbacks, hint: 'Set Gemini key for fully AI-generated options (showing template suggestions)' });
+    const ready = await aiReady().catch(()=> ({ ready:false }));
+    if(!ready.ready) return res.json({ ok:true, ai:false, subjects: fallbacks, hint: (ready.reason || 'AI not configured') + ' (showing template suggestions)' });
     let model = GEMINI_MODEL;
     try{ const r = await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_model'); if(r?.value?.trim()) model = r.value.trim(); }catch{}
     const prompt = `Write ${n} short email subject lines for a Nexatech dropshipping store email${ctx?` about: ${ctx}`:''}. Audience: aspiring store founders${sampleLead.preferredNiche?` (e.g. ${sampleLead.preferredNiche} niche)`:''}. Rules: under 60 chars each, no clickbait, include the {{name}} token in each subject, plain ASCII text only (no emoji, no special dashes). Return ONLY a JSON array of strings.`;
     try{
-      const r = await geminiGenerate({ model, contents: [{ role:'user', parts:[{ text: prompt }] }], genConfig: { temperature: 0.9, maxOutputTokens: 300 }, timeoutMs: 15000 });
+      const r = await aiGenerate({ contents: [{ role:'user', parts:[{ text: prompt }] }], genConfig: { temperature: 0.9, maxOutputTokens: 300 }, timeoutMs: 15000 });
       const text = r.text;
       const m = text.match(/\[[\s\S]*\]/);
       if(!m) throw new Error('no JSON array');
@@ -2583,7 +2729,7 @@ async function restoreBackup(dump){
     await db.prepare('INSERT INTO content_revisions (snapshot, label) VALUES (?,?)').run(snap.slice(0,500000), 'pre-full-restore');
   }catch{}
   // Restore content + sections (upsert, never delete protected secrets unless backup has non-empty value)
-  const PROTECTED_RESTORE = new Set(['google_client_id','google_client_secret','google_sheets_doc_id','google_sheets_sheet_name','google_refresh_token','google_access_token','google_token_expiry','google_column_mapping','gmail_connected_email','gmail_sender_name','gemini_api_key','gemini_api_key_2','gemini_api_key_3','gemini_model']);
+  const PROTECTED_RESTORE = new Set(['google_client_id','google_client_secret','google_sheets_doc_id','google_sheets_sheet_name','google_refresh_token','google_access_token','google_token_expiry','google_column_mapping','gmail_connected_email','gmail_sender_name','gemini_api_key','gemini_api_key_2','gemini_api_key_3','gemini_model','ai_provider','ai_api_key','ai_base_url','ai_model']);
   if(Array.isArray(dump.tables.content)){
     const stmt = await db.prepare("INSERT INTO content (key,value,type,updated_at) VALUES (?,?,?,datetime('now')) ON CONFLICT(key) DO UPDATE SET value=excluded.value, type=excluded.type, updated_at=datetime('now')");
     for(const r of dump.tables.content){

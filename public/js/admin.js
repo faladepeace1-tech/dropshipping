@@ -2073,6 +2073,84 @@ function drawChart(id, labels, values, label){
     ctx.fillText(String(v), x, y-6);
   });
 }
+// ========== AI Provider (Gemini or any OpenAI-compatible API) ==========
+let AI_PRESETS = {};
+async function loadAIProvider(){
+  try{
+    const r = await fetch('/api/admin/ai/provider', { headers: authHeaders() });
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error||'failed');
+    AI_PRESETS = j.presets || {};
+    const sel = $('#ai-provider-select');
+    if(sel){
+      sel.innerHTML = '';
+      Object.entries(AI_PRESETS).forEach(([k,p])=>{
+        const o = document.createElement('option');
+        o.value = k; o.textContent = p.label;
+        if(k === j.provider) o.selected = true;
+        sel.appendChild(o);
+      });
+      sel.onchange = ()=> syncAIProviderFields();
+    }
+    if(j.apiKeyMasked){ const ki=$('#ai-provider-key'); if(ki) ki.placeholder = 'Saved ' + j.apiKeyMasked + ' (leave blank to keep)'; }
+    if(j.baseUrl){ const u=$('#ai-provider-url'); if(u && !u.value) u.placeholder = j.baseUrl; }
+    if(j.model){ const m=$('#ai-provider-model'); if(m && !m.value) m.placeholder = j.model; }
+    syncAIProviderFields(j);
+    const pill = $('#ai-provider-status');
+    if(pill){
+      const pname = (AI_PRESETS[j.provider]||{}).label || j.provider;
+      pill.textContent = pname + (j.provider==='gemini' ? '' : ` • ${j.model||'no model'}${j.hasKey?' • key set':' • NO KEY'}`);
+      pill.style.color = '#10B981';
+    }
+  }catch(e){ const p=$('#ai-provider-status'); if(p) p.textContent='Error: '+e.message; }
+}
+function syncAIProviderFields(state){
+  const sel = $('#ai-provider-select');
+  const p = (sel && AI_PRESETS[sel.value]) || {};
+  const keyLabel = document.querySelector('label:has(#ai-provider-key)');
+  const urlLabel = document.querySelector('label:has(#ai-provider-url)');
+  const modelLabel = document.querySelector('label:has(#ai-provider-model)');
+  const selVal = sel ? sel.value : 'gemini';
+  if(keyLabel) keyLabel.style.display = '';
+  if(urlLabel) urlLabel.style.display = (selVal==='gemini') ? 'none' : '';
+  if(modelLabel) modelLabel.style.display = (selVal==='gemini') ? 'none' : '';
+  const urlInp = $('#ai-provider-url'), modelInp = $('#ai-provider-model');
+  if(urlInp && sel && p.baseUrl && document.activeElement!==urlInp) urlInp.placeholder = p.baseUrl;
+  if(modelInp && sel && p.model && document.activeElement!==modelInp) modelInp.placeholder = p.model;
+}
+$('#btn-save-ai-provider')?.addEventListener('click', async()=>{
+  const msg = $('#ai-provider-msg');
+  if(msg) msg.textContent = 'Saving...';
+  try{
+    const body = {
+      provider: $('#ai-provider-select')?.value,
+      api_key: $('#ai-provider-key')?.value || '',
+      base_url: $('#ai-provider-url')?.value || '',
+      model: $('#ai-provider-model')?.value || ''
+    };
+    // Only send fields relevant to the provider (blank = keep existing key, update url/model if typed)
+    const r = await fetch('/api/admin/ai/provider', { method:'PUT', headers:{'Content-Type':'application/json', ...authHeaders()}, body: JSON.stringify(body) });
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error||'Save failed');
+    if(msg) msg.innerHTML = '<span style="color:#10B981">Saved ✓ — chatbot, follow-ups and suggestions now use ' + ((AI_PRESETS[j.provider]||{}).label || j.provider) + '.</span>';
+    const ki=$('#ai-provider-key'); if(ki) ki.value='';
+    loadAIProvider();
+  }catch(e){ if(msg) msg.textContent='Error: '+e.message; }
+});
+$('#btn-test-ai-provider')?.addEventListener('click', async()=>{
+  const msg = $('#ai-provider-msg');
+  if(msg) msg.textContent = 'Testing provider...';
+  try{
+    const r = await fetch('/api/admin/gemini-test', { method:'POST', headers:{'Content-Type':'application/json', ...authHeaders()}, body: JSON.stringify({ message:'Hello, what is NexaTech mentorship?' }) });
+    const j = await r.json();
+    if(msg){
+      if(r.ok) msg.innerHTML = '<span style="color:#10B981">Provider works ✓ via ' + (j.via||j.provider||'') + ' — reply: ' + String(j.reply||'').slice(0,140) + '</span>';
+      else msg.innerHTML = '<span style="color:#F87171">Provider failed: ' + (j.error||'error') + (j.hint?'<br><small>'+j.hint+'</small>':'') + '</span>';
+    }
+  }catch(e){ if(msg) msg.textContent='Error: '+e.message; }
+});
+document.querySelector('.side-nav button[data-tab="settings"]')?.addEventListener('click', ()=>{ loadAIProvider(); }, true);
+
 // ========== Auto AI Follow-ups — CRM panel (instant + daily, same Gmail, HTML + WhatsApp + opt-out) ==========
 async function loadFollowupStatus(){
   try{

@@ -654,6 +654,10 @@ export async function initDb() {
       ['gemini_api_key', '', 'text'],
       ['gemini_api_key_2', '', 'text'],
       ['gemini_api_key_3', '', 'text'],
+      ['ai_provider', 'gemini', 'text'],
+      ['ai_api_key', '', 'text'],
+      ['ai_base_url', '', 'text'],
+      ['ai_model', '', 'text'],
       ['gemini_model', 'gemini-3.6-flash', 'text'],
       ['followup_enabled', 'true', 'boolean'],
       ['followup_instant_enabled', 'true', 'boolean'],
@@ -805,6 +809,7 @@ export async function initDb() {
     'google_refresh_token','google_access_token','google_token_expiry','google_column_mapping',
     'gmail_connected_email','gmail_last_sync','gmail_sender_name',
     'gemini_api_key','gemini_api_key_2','gemini_api_key_3','gemini_model',
+    'ai_provider','ai_api_key','ai_base_url','ai_model',
     'webhook_url','webhook_enabled','webhook_form_url','webhook_form_enabled','webhook_chatbot_url','webhook_chatbot_enabled',
     'logo_text','logo_url','favicon_url','logo_position','brand_position','og_image'
   ]);
