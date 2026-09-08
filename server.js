@@ -824,8 +824,8 @@ async function geminiGenerate({ model, systemText, contents, genConfig, timeoutM
 // API has daily/rate limits — Gemini ~20/day/key, others per their own docs.
 const AI_PRESETS = {
   gemini:       { label: 'Gemini (Google)', baseUrl: '', model: '', needsKey: true },
-  groq:         { label: 'Groq (generous free tier)', baseUrl: 'https://api.groq.com/openai/v1', model: 'llama-3.3-70b-versatile', needsKey: true },
-  openrouter:   { label: 'OpenRouter', baseUrl: 'https://openrouter.ai/api/v1', model: '', needsKey: true },
+  groq:         { label: 'Groq (generous free tier)', baseUrl: 'https://api.groq.com/openai/v1', model: 'openai/gpt-oss-20b', needsKey: true },
+  openrouter:   { label: 'OpenRouter', baseUrl: 'https://openrouter.ai/api/v1', model: 'z-ai/glm-5.2:free', needsKey: true },
   together:     { label: 'Together AI', baseUrl: 'https://api.together.xyz/v1', model: '', needsKey: true },
   huggingface:  { label: 'Hugging Face', baseUrl: 'https://router.huggingface.co/v1', model: '', needsKey: true },
   mistral:      { label: 'Mistral', baseUrl: 'https://api.mistral.ai/v1', model: 'mistral-small-latest', needsKey: true },

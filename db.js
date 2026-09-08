@@ -1048,6 +1048,8 @@ export async function initDb() {
     await ensure('followup_from_name','Nexatech','text');
     // upgrade retired models to gemini-3.6-flash (2.5-flash no longer served to new projects)
     try{ const gm = (await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_model'))?.value; if(gm && (gm.includes('1.5') || gm.trim() === 'gemini-2.5-flash')) await db.prepare("UPDATE content SET value='gemini-3.6-flash' WHERE key='gemini_model'").run(); }catch{}
+    // upgrade retired Groq model id (llama-3.3-70b-versatile shut down 08/16/26) to official replacement
+    try{ const am = (await db.prepare('SELECT value FROM content WHERE key=?').get('ai_model'))?.value; if(am && am.trim() === 'llama-3.3-70b-versatile') await db.prepare("UPDATE content SET value='openai/gpt-oss-20b' WHERE key='ai_model'").run(); }catch{}
     // contact migration
     const waOld = (await db.prepare('SELECT value FROM content WHERE key=?').get('whatsapp_number'))?.value;
     if(waOld && waOld.includes('234')) {
