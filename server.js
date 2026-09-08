@@ -1415,14 +1415,16 @@ app.post('/api/chat', async (req, res) => {
   }
   await logChatMessage(sid, 'model', 'Gemini failed — check API key/model.', pageUrl);
   let failCode = 'error';
+  let failDetail = '';
   try{ failCode = globalThis.__lastGeminiCode || 'error'; }catch{}
+  try{ failDetail = String(globalThis.__lastGeminiError || '').slice(0, 220); }catch{}
   const failHints = {
     quota: 'AI daily limit reached — try again shortly',
     timeout: 'AI took too long — try again',
     config: 'Chatbot not configured — set Gemini API key in Admin → Integrations → Gemini Direct',
     error: 'Gemini failed — check API key/model'
   };
-  return res.status(503).json({ error: failHints[failCode] || failHints.error, code: failCode, fallback: 'Please chat on WhatsApp instead.' });
+  return res.status(503).json({ error: failHints[failCode] || failHints.error, code: failCode, detail: failDetail, fallback: 'Please chat on WhatsApp instead.' });
 });
 
 // Chat finished — instant AI follow-up after name+email + conversation ends (frontend calls after idle / close / New Chat; cron also auto-detects idle)
