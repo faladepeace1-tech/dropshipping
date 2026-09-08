@@ -1427,7 +1427,7 @@ function updateMediaHint(){
   if(!hint||!txt) return;
   if(currentMediaTab==='reviews'){
     hint.style.display='block';
-    txt.innerHTML='For <b>Review Screenshots</b> please upload landscape images/videos at <b>2550 × 1650 px</b> (aspect 1.545). This keeps every review card pixel-perfect and prevents cropping. Videos should also be landscape (same ratio) and will autoplay muted on hover.';
+    txt.innerHTML='For <b>Review Screenshots</b> upload landscape images at <b>2550 × 1650 px</b> (aspect 1.545). <b>Videos must be portrait 9:16</b> (e.g. 1080 × 1920 phone video) — they display tall on the wall and play full-frame in the popup. Videos autoplay muted on hover.';
   } else if(currentMediaTab==='testimonials'){
     hint.style.display='block';
     txt.textContent='Testimonials: use short quotes with small avatar. For large review screenshots use Review Screenshots tab.';

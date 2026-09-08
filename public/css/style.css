@@ -264,9 +264,10 @@ button{font:inherit}
 .tdot:nth-child(3){animation-delay:.4s}
 @keyframes tblink{0%,60%,100%{opacity:.25;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
 
-/* Reviews Wall — uniform 2550×1650 landscape */
+/* Reviews Wall — images uniform 2550×1650 landscape, videos portrait 9:16 */
 .reviews-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}
 .reviews-card{position:relative;overflow:hidden;border-radius:16px;border:1px solid var(--border);background:#fff;box-shadow:var(--shadow);cursor:pointer;aspect-ratio:2550/1650;transition:transform .2s,box-shadow .2s}
+.reviews-card.portrait{aspect-ratio:9/16;max-height:600px}
 .reviews-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg)}
 .reviews-card img,.reviews-card video{width:100%;height:100%;object-fit:cover;display:block;transition:transform .35s}
 .reviews-card:hover img,.reviews-card:hover video{transform:scale(1.03)}

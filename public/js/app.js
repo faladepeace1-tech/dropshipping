@@ -385,6 +385,8 @@ function updateModal(){
       v=document.createElement('video'); v.id='modal-video'; v.controls=true; v.autoplay=true; v.muted=true; v.loop=true; v.style.width='100%'; v.style.height='100%'; v.style.objectFit='cover';
       img.replaceWith(v);
     }
+    v.style.objectFit='cover'; v.style.background='';
+    v.onloadedmetadata=()=>{ try{ if(v.videoHeight>v.videoWidth){ v.style.objectFit='contain'; v.style.background='#0B1220'; } }catch{} };
     v.src=item.url;
     v.play().catch(()=>{});
   } else {
@@ -461,7 +463,7 @@ async function loadMedia(){
         if(empty) empty.classList.add('hidden');
         reviews.forEach((item, idx)=>{
           const isVideo=item.url.match(/\.(mp4|webm|mov)$/i);
-          const card=document.createElement('div'); card.className='reviews-card reveal';
+          const card=document.createElement('div'); card.className='reviews-card reveal' + (isVideo ? ' portrait' : '');
           card.style.transitionDelay=(idx*50)+'ms';
           card.innerHTML = isVideo
             ? `<video src="${item.url}" muted loop playsinline preload="metadata" poster=""></video><div class="play-badge"><span>▶</span></div><div class="caption">${sanitize(item.caption||T('review_video_label','Video Review'))}</div>`
