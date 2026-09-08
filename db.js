@@ -654,7 +654,7 @@ export async function initDb() {
       ['gemini_api_key', '', 'text'],
       ['gemini_api_key_2', '', 'text'],
       ['gemini_api_key_3', '', 'text'],
-      ['gemini_model', 'gemini-2.5-flash', 'text'],
+      ['gemini_model', 'gemini-3.6-flash', 'text'],
       ['followup_enabled', 'true', 'boolean'],
       ['followup_instant_enabled', 'true', 'boolean'],
       ['followup_daily_enabled', 'true', 'boolean'],
@@ -1034,15 +1034,15 @@ export async function initDb() {
     await ensure('certificates_title','Certificates & Awards','text');
     await ensure('certificates_subtitle','Verified credentials, partnerships and awards that prove credibility.','text');
     await ensure('gemini_api_key','','text');
-    await ensure('gemini_model','gemini-2.5-flash','text');
+    await ensure('gemini_model','gemini-3.6-flash','text');
     await ensure('followup_enabled','true','boolean');
     await ensure('followup_instant_enabled','true','boolean');
     await ensure('followup_daily_enabled','true','boolean');
     await ensure('followup_max_days','7','number');
     await ensure('followup_chat_idle_minutes','10','number');
     await ensure('followup_from_name','Nexatech','text');
-    // upgrade old 1.5 model to 2.5 free per owner request
-    try{ const gm = (await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_model'))?.value; if(gm && gm.includes('1.5')) await db.prepare("UPDATE content SET value='gemini-2.5-flash' WHERE key='gemini_model'").run(); }catch{}
+    // upgrade retired models to gemini-3.6-flash (2.5-flash no longer served to new projects)
+    try{ const gm = (await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_model'))?.value; if(gm && (gm.includes('1.5') || gm.trim() === 'gemini-2.5-flash')) await db.prepare("UPDATE content SET value='gemini-3.6-flash' WHERE key='gemini_model'").run(); }catch{}
     // contact migration
     const waOld = (await db.prepare('SELECT value FROM content WHERE key=?').get('whatsapp_number'))?.value;
     if(waOld && waOld.includes('234')) {

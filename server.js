@@ -19,7 +19,7 @@ const __dirname = path.dirname(__filename);
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'nexatech-jwt-secret-change-in-prod-2026';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
 const NEXATECH_BASE_PROMPT = `You are Nexatech Dropshipping Expert's AI assistant, running on his portfolio site to represent him as a Shopify dropshipping expert (NexaTech). Owner's real name is Akinyemmi Ifeoluwa. You are NOT a generic chatbot — you speak with the confidence and specific knowledge of someone who builds and scales Shopify dropshipping stores for a living.
 
 WHAT YOU KNOW / CAN DISCUSS:
@@ -797,6 +797,7 @@ async function geminiGenerate({ model, systemText, contents, genConfig, timeoutM
         throw err;
       }
       geminiCooldowns.delete(geminiFingerprint(key));
+      clearTimeout(t);
       return { text: text.trim(), keyUsed: geminiFingerprint(key) };
     }catch(e){
       clearTimeout(t);
@@ -877,11 +878,16 @@ async function callGemini(userMessage, history=[]){
   else contents.push({ role: 'user', parts: [{ text: userMessage }] });
   try{
     const r = await geminiGenerate({ model, systemText: fullPrompt, contents, genConfig });
+    try{ globalThis.__lastGeminiCode = 'ok'; }catch{}
     return r.text;
   }catch(e){
     console.error('Gemini call failed', e.message);
-    // Also store last error for test endpoint debugging (optional)
-    try{ globalThis.__lastGeminiError = e.message; }catch{}
+    // Failure category for the chat endpoint so the frontend can explain itself
+    let code = 'error';
+    if(e && e.quota) code = 'quota';
+    else if(/timed out|abort/i.test(e?.message || '')) code = 'timeout';
+    else if(/no .*key saved/i.test(e?.message || '')) code = 'config';
+    try{ globalThis.__lastGeminiError = e.message; globalThis.__lastGeminiCode = code; }catch{}
     return null;
   }
 }
@@ -1408,7 +1414,15 @@ app.post('/api/chat', async (req, res) => {
     return res.json({ reply, source: 'gemini', model });
   }
   await logChatMessage(sid, 'model', 'Gemini failed — check API key/model.', pageUrl);
-  return res.status(503).json({ error: 'Gemini failed — check API key/model', fallback: 'Please chat on WhatsApp instead.' });
+  let failCode = 'error';
+  try{ failCode = globalThis.__lastGeminiCode || 'error'; }catch{}
+  const failHints = {
+    quota: 'AI daily limit reached — try again shortly',
+    timeout: 'AI took too long — try again',
+    config: 'Chatbot not configured — set Gemini API key in Admin → Integrations → Gemini Direct',
+    error: 'Gemini failed — check API key/model'
+  };
+  return res.status(503).json({ error: failHints[failCode] || failHints.error, code: failCode, fallback: 'Please chat on WhatsApp instead.' });
 });
 
 // Chat finished — instant AI follow-up after name+email + conversation ends (frontend calls after idle / close / New Chat; cron also auto-detects idle)
@@ -1732,7 +1746,7 @@ app.post('/api/admin/gemini-test', requireAuth, async (req, res) => {
   if(good) return res.json({ ok:true, reply: good.reply, model, source, masked: good.masked, perKey, keyCount: keys.length });
   const anyQuota = perKey.some(p=> p.quota);
   console.error('Gemini test failed all keys', perKey.map(p=> p.masked+': '+p.error).join(' | '));
-  return res.status(500).json({ ok:false, error: perKey[0]?.error || 'All keys failed', perKey, keyCount: keys.length, model, source, masked: perKey[0]?.masked, hint: anyQuota ? 'All keys quota-exhausted (free tier ~20/day each) — add another key from a different Google project, or wait for reset.' : 'If key is AQ.Ab8... verify it is a valid Google AI API key (AIza...) and model gemini-2.5-flash is enabled for your project. Try model gemini-1.5-flash as fallback.' });
+  return res.status(500).json({ ok:false, error: perKey[0]?.error || 'All keys failed', perKey, keyCount: keys.length, model, source, masked: perKey[0]?.masked, hint: anyQuota ? 'All keys quota-exhausted (free tier ~20/day each) - add another key from a different Google project, or wait for reset.' : 'If key is AQ.Ab8... verify it is a valid Google AI API key (AIza...) and model gemini-3.6-flash is enabled for your project. Try a current model name from ai.google.dev/gemini-api/docs/models.' });
 });
 
 // Google Sheets direct (append row) — matches n8n node: operation append, documentId, sheetName

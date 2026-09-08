@@ -575,7 +575,7 @@ async function loadGeminiStatus(){
     }
     const modelEl=$('#int-gemini-model');
     if(modelEl){
-      modelEl.placeholder = j.model || 'gemini-2.5-flash';
+      modelEl.placeholder = j.model || 'gemini-3.6-flash';
       if(j.dbModel) modelEl.value = '';
     }
   }catch{}

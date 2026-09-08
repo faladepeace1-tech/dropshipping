@@ -17,7 +17,7 @@ services:
       - key: GEMINI_API_KEY
         sync: false
       - key: GEMINI_MODEL
-        value: gemini-2.5-flash
+        value: gemini-3.6-flash
       # Postgres is the single source of truth (no disk): leads, content, uploads
       # (media_blobs) and snapshots (backup_snapshots) all live in the database.
       # Set this in the Render dashboard (already done) — app auto-switches from SQLite.
