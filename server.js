@@ -1502,11 +1502,11 @@ app.post('/api/chat', async (req, res) => {
   }catch(e){ console.error('chat session upsert failed', e.message); }
   // Log user message immediately (so count works even if AI fails)
   await logChatMessage(sid, 'user', message, pageUrl);
-  // AI provider check (Gemini by default, or any configured provider)
+  // AI provider check (Gemini rotation across saved keys)
   const ready = await aiReady().catch(()=> ({ ready:false }));
   if(!ready.ready){
-    await logChatMessage(sid, 'model', 'Chatbot not configured — ' + (ready.reason || 'set an AI provider') + '.', pageUrl);
-    return res.status(503).json({ error: 'Chatbot not configured — ' + (ready.reason || 'set an AI provider in Admin → Integrations → AI Provider'), code: 'config', fallback: 'Please chat on WhatsApp instead.' });
+    await logChatMessage(sid, 'model', 'Chatbot not configured — set Gemini API key.', pageUrl);
+    return res.status(503).json({ error: 'Chatbot not configured — set Gemini API key in Admin → Integrations → Gemini Direct', code: 'config', fallback: 'Please chat on WhatsApp instead.' });
   }
   const history = Array.isArray(req.body.history) ? req.body.history : [];
   const reply = await callGemini(message, history);

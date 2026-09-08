@@ -488,21 +488,6 @@
           </div>
           <div style="font-size:11px;color:#94A3B8;margin-top:8px">Keys are saved <b>permanently</b> in DB (content table: google_client_id / google_client_secret / google_sheets_doc_id / google_sheets_sheet_name / tokens). They persist across deploys and only change when you edit & Save again. Use <b>Auto-Detect</b> to list sheets inside the spreadsheet, see current header row, highlight missing columns, and auto-create the 22 lead columns: <code>Timestamp, Name, Store Name, Preferred Niche, Preferred Niche Other, Investment Range, Store Status, Was Scammed, Scam Details, WhatsApp, Email, Preferred Contact Time, Source, Traffic Plan, Page URL, Session ID, UTM Source, UTM Medium, UTM Campaign, Pipeline Stage, Webhook Status, Submitted At</code>.</div>
         </div>
-        <div class="card" style="border-color:rgba(0,209,255,.35)">
-          <h3>AI Provider — chatbot brain <small style="font-weight:500;color:#64748B" id="ai-provider-status">checking...</small></h3>
-          <p style="font-size:12px;color:#94A3B8">Switch the AI behind the chatbot, follow-up emails and subject suggestions. Best free pick: <b>Groq</b> — free key at console.groq.com (about 1,000 chats/day on llama-3.3-70b, very fast). Nothing free is unlimited — every provider enforces daily/rate limits.</p>
-          <label>Provider <select id="ai-provider-select" style="width:100%;margin-top:4px;padding:8px;border-radius:8px"></select></label>
-          <div id="ai-provider-fields" style="display:grid;gap:10px;margin-top:10px">
-            <label>API Key <input id="ai-provider-key" type="password" placeholder="sk-... / gsk-... (not needed for Pollinations)"></label>
-            <label>API Base URL <input id="ai-provider-url" placeholder="https://api.groq.com/openai/v1"></label>
-            <label>Model <input id="ai-provider-model" placeholder="llama-3.3-70b-versatile"></label>
-          </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
-            <button class="btn btn-primary" id="btn-save-ai-provider">Save Provider</button>
-            <button class="btn btn-ghost" id="btn-test-ai-provider" style="border-color:#7C3AED;color:#7C3AED">Test Provider →</button>
-          </div>
-          <div id="ai-provider-msg" style="font-size:13px;margin-top:8px"></div>
-        </div>
         <div class="card" style="border-color:rgba(124,58,237,.3)">
           <h3>Chatbot — Gemini Direct (replaces n8n webhook for chat) <small style="font-weight:500;color:#64748B" id="gemini-summary-status">checking...</small></h3>
           <p style="font-size:12px;color:#94A3B8">Paste your Gemini API key here to run the chatbot directly via Google Gemini. Form leads go directly to Google Sheets (above). Key is stored securely in DB and never shown publicly.</p>
@@ -511,7 +496,7 @@
             <span id="gemini-key-status" style="font-size:11px;color:#94A3B8">Checking...</span>
             <button class="btn btn-ghost" id="btn-show-gemini-key" style="padding:6px 10px;font-size:11px">Show</button>
           </div>
-          <label>Gemini Model <input id="int-gemini-model" placeholder="gemini-3.6-flash (default)"></label>
+          <label>Gemini Model <input id="int-gemini-model" placeholder="gemini-3.5-flash-lite (current free)"></label>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
             <button class="btn btn-primary" id="btn-save-gemini">Save Gemini Key</button>
             <button class="btn btn-ghost" id="btn-test-gemini" style="border-color:#7C3AED;color:#7C3AED">Test Gemini →</button>
