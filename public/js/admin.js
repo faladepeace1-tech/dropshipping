@@ -1549,43 +1549,65 @@ function renderMediaGallery(){
   }));
 }
 
-// preview on file select
+// preview on file select (first file + count)
 $('input[name="file"]').addEventListener('change', e=>{
-  const f=e.target.files[0];
-  if(!f) return;
+  const files=[...(e.target.files||[])];
+  if(!files.length) return;
+  const f=files[0];
   const url=URL.createObjectURL(f);
   $('#media-preview').style.display='block';
   $('#media-preview-img').src=url;
-  $('#media-preview-meta').textContent=`${f.name} • ${(f.size/1024).toFixed(1)} KB • ${f.type}`;
+  $('#media-preview-meta').textContent = files.length>1
+    ? `${files.length} files selected (first: ${f.name} • ${(f.size/1024).toFixed(1)} KB)`
+    : `${f.name} • ${(f.size/1024).toFixed(1)} KB • ${f.type}`;
 });
 $('input[name="url"]').addEventListener('input', e=>{
   const v=e.target.value.trim();
   if(v){ $('#media-preview').style.display='block'; $('#media-preview-img').src=v; $('#media-preview-meta').textContent=v; }
 });
 
-// upload with progress (XHR)
+// upload with progress (XHR) — supports many files at once (one request per file)
 $('#media-form').addEventListener('submit', async e=>{
   e.preventDefault();
   const fd=new FormData(e.target);
-  const file=fd.get('file');
+  const files=[...(e.target.querySelector('input[name="file"]')?.files||[])].filter(f=>f && f.size>0);
   const url=fd.get('url');
-  // validation: either file or url
-  if((!file || file.size===0) && !url) return alert('Provide a file or URL');
+  // validation: either file(s) or url
+  if(!files.length && !url) return alert('Provide file(s) or URL');
   $('#upload-progress').style.display='block';
   $('#upload-bar').style.width='10%';
+  $('#upload-bar').style.background='';
   $('#upload-text').textContent='Uploading...';
+  const uploadOne=(oneFd, label)=> new Promise((resolve, reject)=>{
+    const xhr=new XMLHttpRequest();
+    xhr.open('POST','/api/media');
+    xhr.setRequestHeader('Authorization','Bearer '+token);
+    xhr.upload.onprogress = ev=>{ if(ev.lengthComputable){ const pct=Math.round(ev.loaded/ev.total*100); $('#upload-bar').style.width=pct+'%'; $('#upload-text').textContent=label+pct+'%'; } };
+    xhr.onload=()=>{ if(xhr.status>=200&&xhr.status<300) resolve(xhr.response); else reject(new Error(xhr.responseText||'Upload failed')); };
+    xhr.onerror=()=> reject(new Error('Network error'));
+    xhr.send(oneFd);
+  });
   try{
-    // Use XHR for progress if file
-    if(file && file.size>0){
-      await new Promise((resolve, reject)=>{
-        const xhr=new XMLHttpRequest();
-        xhr.open('POST','/api/media');
-        xhr.setRequestHeader('Authorization','Bearer '+token);
-        xhr.upload.onprogress = ev=>{ if(ev.lengthComputable){ const pct=Math.round(ev.loaded/ev.total*100); $('#upload-bar').style.width=pct+'%'; $('#upload-text').textContent=pct+'%'; } };
-        xhr.onload=()=>{ if(xhr.status>=200&&xhr.status<300) resolve(xhr.response); else reject(new Error(xhr.responseText||'Upload failed')); };
-        xhr.onerror=()=> reject(new Error('Network error'));
-        xhr.send(fd);
-      });
+    if(files.length){
+      let done=0, failed=0;
+      for(const file of files){
+        const oneFd=new FormData();
+        oneFd.append('type', fd.get('type'));
+        oneFd.append('category', fd.get('category')||'');
+        oneFd.append('caption', files.length>1 ? '' : (fd.get('caption')||''));
+        oneFd.append('alt_text', fd.get('alt_text')||'');
+        oneFd.append('tags', fd.get('tags')||'');
+        oneFd.append('result_stat', files.length>1 ? '' : (fd.get('result_stat')||''));
+        oneFd.append('case_study_text', files.length>1 ? '' : (fd.get('case_study_text')||''));
+        oneFd.append('file', file, file.name);
+        try{
+          await uploadOne(oneFd, `File ${done+1}/${files.length} `);
+          done++;
+        }catch(err){ failed++; console.error('bulk upload item failed', file.name, err.message); }
+        $('#upload-bar').style.width=Math.round(done/files.length*100)+'%';
+      }
+      $('#upload-text').textContent = failed ? `Done: ${done} uploaded, ${failed} failed` : `Done: ${done} uploaded`;
+      if(!done) throw new Error('All uploads failed');
     } else {
       // URL-only
       const payload={
@@ -1600,8 +1622,8 @@ $('#media-form').addEventListener('submit', async e=>{
       };
       const r=await fetch('/api/media/url',{method:'POST',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify(payload)});
       if(!r.ok) throw new Error((await r.json()).error||'Failed');
+      $('#upload-bar').style.width='100%'; $('#upload-text').textContent='Done';
     }
-    $('#upload-bar').style.width='100%'; $('#upload-text').textContent='Done';
     e.target.reset(); $('#media-preview').style.display='none';
     setTimeout(()=> $('#upload-progress').style.display='none', 800);
     await loadMedia();
