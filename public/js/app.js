@@ -1047,6 +1047,9 @@ function initChat(){
     input.value=''; body.scrollTop=body.scrollHeight;
     saveHistory();
     track('chat_message','chat', {text});
+    const typing=document.createElement('div'); typing.className='msg bot typing-bubble';
+    typing.innerHTML='<span class="tdot"></span><span class="tdot"></span><span class="tdot"></span>';
+    body.appendChild(typing); body.scrollTop=body.scrollHeight;
     try{
       const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text, sessionId, history, pageUrl: location.href, name: id.name, email: id.email})});
       const j=await r.json();
@@ -1075,6 +1078,7 @@ function initChat(){
       bot.appendChild(btn);
       body.appendChild(bot);
     } finally {
+      try{ typing.remove(); }catch{}
       isSending=false; send.disabled=false; input.disabled=false; try{ input.focus(); }catch{}
     }
     body.scrollTop=body.scrollHeight;

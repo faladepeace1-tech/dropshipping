@@ -877,10 +877,18 @@ async function callGemini(userMessage, history=[]){
   if(tail && tail.role==='user') tail.parts[0].text = (tail.parts[0].text + '\n' + String(userMessage)).slice(0,4000);
   else contents.push({ role: 'user', parts: [{ text: userMessage }] });
   try{
-    const r = await geminiGenerate({ model, systemText: fullPrompt, contents, genConfig: genCfg });
+    const r = await geminiGenerate({ model, systemText: fullPrompt, contents, genConfig: genCfg, timeoutMs: 20000 });
     try{ globalThis.__lastGeminiCode = 'ok'; }catch{}
     return r.text;
   }catch(e){
+    // One retry on pure timeouts (slow model/cold path) before giving up
+    if(e && (e.name === 'AbortError' || /timed out/i.test(e.message || ''))){
+      try{
+        const r2 = await geminiGenerate({ model, systemText: fullPrompt, contents, genConfig: genCfg, timeoutMs: 25000 });
+        try{ globalThis.__lastGeminiCode = 'ok'; }catch{}
+        return r2.text;
+      }catch(e2){ e = e2; }
+    }
     console.error('Gemini call failed', e.message);
     // Failure category for the chat endpoint so the frontend can explain itself
     let code = 'error';
