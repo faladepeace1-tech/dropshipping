@@ -1598,8 +1598,16 @@ function renderMediaGallery(){
   g.querySelectorAll('[data-toggle]').forEach(b=> b.addEventListener('click', async()=>{
     const id=b.dataset.toggle;
     const it=MEDIA.find(m=>String(m.id)===String(id));
-    const r=await fetch('/api/media/'+id,{method:'PATCH',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify({published: it.published?0:1})});
-    if(r.ok) loadMedia();
+    const orig=b.textContent; b.textContent='...'; b.disabled=true;
+    try{
+      const r=await fetch('/api/media/'+id,{method:'PATCH',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify({published: it.published?0:1})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
+      await loadMedia();
+    }catch(e){
+      b.textContent=orig; b.disabled=false;
+      alert('Publish failed: '+e.message+(/401|unauthorized|invalid token/i.test(e.message)?' — log out and log back in, then retry':''));
+    }
   }));
   g.querySelectorAll('[data-del]').forEach(b=> b.addEventListener('click', async()=>{
     if(!confirm('Delete this media?')) return;
