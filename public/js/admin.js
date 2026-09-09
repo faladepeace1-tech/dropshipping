@@ -11,6 +11,50 @@ function vimeoIdA(u){ try{ const m=String(u||'').match(/vimeo\.com\/(?:video\/)?
 function driveIdA(u){ try{ const m=String(u||'').match(/drive\.google\.com\/file\/d\/([A-Za-z0-9_-]{10,})/i); if(m) return m[1]; }catch{} return ''; }
 function mediaKindA(u){ if(!u) return 'image'; if(ytIdA(u)) return 'youtube'; if(vimeoIdA(u)) return 'vimeo'; if(driveIdA(u)) return 'drive'; if(isVideoFileA(u)) return 'video'; return 'image'; }
 function fmtSize(b){ if(!b && b!==0) return ''; if(b>=1048576) return (b/1048576).toFixed(1)+' MB'; return (b/1024).toFixed(1)+' KB'; }
+// ---- Chunked upload (large videos): 4MB pieces with per-piece retry ----
+// Single-shot uploads of 30MB+ get killed by proxies with an HTML error page,
+// so files over CHUNK_THRESHOLD go up piece by piece instead.
+const CHUNK_THRESHOLD = 6 * 1024 * 1024;
+const CHUNK_SIZE = 4 * 1024 * 1024;
+async function chunkedUploadMedia(file, meta, onProgress){
+  const totalChunks = Math.max(1, Math.ceil(file.size / CHUNK_SIZE));
+  const initR = await fetch('/api/media/chunk-init', {method:'POST', headers:{'Content-Type':'application/json', ...authHeaders()}, body: JSON.stringify({filename: file.name, totalSize: file.size, totalChunks, mime: file.type||'', ...meta})});
+  const initJ = await initR.json().catch(()=>({}));
+  if(!initR.ok) throw new Error(initJ.error || ('Init failed (HTTP '+initR.status+')'));
+  if(initR.status===401 || initJ.error==='Unauthorized' || initJ.error==='Invalid token') throw new Error('Session expired — log out and log back in, then retry.');
+  const uploadId = initJ.uploadId;
+  if(!uploadId) throw new Error('Init failed (no upload id)');
+  for(let i=0;i<totalChunks;i++){
+    const start = i*CHUNK_SIZE, end = Math.min(file.size, start+CHUNK_SIZE);
+    const blob = file.slice(start, end);
+    let attempt = 0, lastErr = '';
+    for(;;){
+      try{
+        const ctl = new AbortController();
+        const timer = setTimeout(()=> ctl.abort(), 90000);
+        const fd = new FormData();
+        fd.append('uploadId', uploadId);
+        fd.append('index', String(i));
+        fd.append('chunk', blob, file.name + '.part' + i);
+        let r, j;
+        try{ r = await fetch('/api/media/chunk', {method:'POST', headers: authHeaders(), body: fd, signal: ctl.signal}); }
+        finally{ clearTimeout(timer); }
+        j = await r.json().catch(()=>({}));
+        if(!r.ok) throw new Error(j.error || ('Piece '+(i+1)+' failed (HTTP '+r.status+')'));
+        break;
+      }catch(e){
+        attempt++; lastErr = (e && e.name==='AbortError') ? 'timed out' : e.message;
+        if(attempt>=4) throw new Error('Piece '+(i+1)+'/'+totalChunks+' failed after retries: '+lastErr);
+        await new Promise(res=> setTimeout(res, 800*attempt));
+      }
+    }
+    if(onProgress) onProgress(end / file.size, i+1, totalChunks);
+  }
+  const cR = await fetch('/api/media/chunk-complete', {method:'POST', headers:{'Content-Type':'application/json', ...authHeaders()}, body: JSON.stringify({uploadId})});
+  const cJ = await cR.json().catch(()=>({}));
+  if(!cR.ok) throw new Error(cJ.error || ('Assemble failed (HTTP '+cR.status+')'));
+  return cJ;
+}
 let token = localStorage.getItem('nexatech_admin_token') || '';
 let CONTENT={}, SECTIONS=[], MEDIA=[], TEAM=[], LEADS=[], ANALYTICS=null;
 let lastPublishedContent=null;
@@ -1657,19 +1701,33 @@ $('#media-form').addEventListener('submit', async e=>{
   try{
     if(files.length){
       let done=0, failed=0, lastErr='';
+      let fileIdx=0;
       for(const file of files){
+        fileIdx++;
         if(file.size>150*1024*1024){ failed++; lastErr=`${file.name}: over 150MB limit — compress or use URL`; console.error(lastErr); continue; }
-        const oneFd=new FormData();
-        oneFd.append('type', fd.get('type'));
-        oneFd.append('category', fd.get('category')||'');
-        oneFd.append('caption', files.length>1 ? '' : (fd.get('caption')||''));
-        oneFd.append('alt_text', fd.get('alt_text')||'');
-        oneFd.append('tags', fd.get('tags')||'');
-        oneFd.append('result_stat', files.length>1 ? '' : (fd.get('result_stat')||''));
-        oneFd.append('case_study_text', files.length>1 ? '' : (fd.get('case_study_text')||''));
-        oneFd.append('file', file, file.name);
+        const singleMeta = {
+          type: fd.get('type'),
+          category: fd.get('category')||'',
+          caption: files.length>1 ? '' : (fd.get('caption')||''),
+          alt_text: fd.get('alt_text')||'',
+          tags: fd.get('tags')||'',
+          result_stat: files.length>1 ? '' : (fd.get('result_stat')||''),
+          case_study_text: files.length>1 ? '' : (fd.get('case_study_text')||'')
+        };
         try{
-          await uploadOne(oneFd, `File ${done+1}/${files.length} `);
+          if(file.size > CHUNK_THRESHOLD){
+            // Big file: 4MB pieces with retry (proxies kill single giant requests)
+            await chunkedUploadMedia(file, singleMeta, (frac,a,b)=>{
+              const overall = Math.round(((fileIdx-1)+frac)/files.length*100);
+              $('#upload-bar').style.width=overall+'%';
+              $('#upload-text').textContent=`File ${fileIdx}/${files.length} (${fmtSize(file.size)}) piece ${a}/${b} — ${overall}%`;
+            });
+          } else {
+            const oneFd=new FormData();
+            for(const [k,v] of Object.entries(singleMeta)) oneFd.append(k, v);
+            oneFd.append('file', file, file.name);
+            await uploadOne(oneFd, `File ${fileIdx}/${files.length} `);
+          }
           done++;
         }catch(err){ failed++; lastErr=file.name+': '+err.message; console.error('bulk upload item failed', file.name, err.message); }
         $('#upload-bar').style.width=Math.round((done+failed)/files.length*100)+'%';
@@ -1733,13 +1791,21 @@ $('#edit-media-save').addEventListener('click', async e=>{
   fd.append('result_stat', $('#em-result').value);
   fd.append('case_study_text', $('#em-case').value);
   fd.append('published', $('#em-pub').checked ? '1' : '0');
-  const file=$('#em-file').files[0];
-  if(file){
-    if(file.size>150*1024*1024){ alert('File too large — limit is 150MB. Compress or use a URL.'); return; }
-    fd.append('file', file);
-  }
   const btn=$('#edit-media-save'); if(btn){ btn.disabled=true; btn.textContent='Saving...'; }
   try{
+    const file=$('#em-file').files[0];
+    if(file){
+      if(file.size>150*1024*1024){ alert('File too large — limit is 150MB. Compress or use a URL.'); if(btn){ btn.disabled=false; btn.textContent='Save'; } return; }
+      if(file.size > CHUNK_THRESHOLD){
+        // Big replacement: pieces first (file-only, no new gallery row), then save URL
+        if(btn) btn.textContent='Uploading pieces...';
+        const up = await chunkedUploadMedia(file, {mode:'file-only'}, (frac,a,b)=>{ if(btn) btn.textContent=`Uploading piece ${a}/${b}...`; });
+        fd.set('url', up.url);
+        if(btn) btn.textContent='Saving...';
+      } else {
+        fd.append('file', file);
+      }
+    }
     const r=await fetch('/api/media/'+editingMediaId, {method:'PATCH', headers: authHeaders(), body: fd});
     const j=await r.json().catch(()=>({}));
     if(r.ok){ document.getElementById('edit-media-dialog').close(); loadMedia(); }

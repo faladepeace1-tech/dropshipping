@@ -78,6 +78,11 @@ async function buildSiteKnowledge(){
 }
 const UPLOAD_DIR = path.join(__dirname, 'public', 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+// Chunked-upload staging dir: each upload gets TMP_UPLOAD_DIR/<uploadId>/ with
+// meta.json + 0.part, 1.part ... Assembled on complete, stale sessions swept hourly.
+// (Ephemeral disk is fine — chunks of one upload arrive within minutes.)
+const TMP_UPLOAD_DIR = path.join(process.env.DATA_DIR && process.env.DATA_DIR.trim() ? process.env.DATA_DIR.trim() : __dirname, 'tmp-uploads');
+try { if (!fs.existsSync(TMP_UPLOAD_DIR)) fs.mkdirSync(TMP_UPLOAD_DIR, { recursive: true }); } catch(e){ console.error('tmp upload dir', e.message); }
 
 await initDb();
 const db = getDb();
@@ -273,7 +278,9 @@ const upload = multer({
 function uploadErrorHandler(err, req, res, next){
   if(!err) return next();
   if(err.code === 'LIMIT_FILE_SIZE'){
-    return res.status(413).json({ error: 'File too large — limit is ' + Math.round(MAX_UPLOAD_BYTES/1024/1024) + 'MB. Compress the video or use a video URL instead.' });
+    if(req.path && req.path.startsWith('/api/media/chunk'))
+      return res.status(413).json({ error: 'Chunk too large — client must send ~4MB pieces.' });
+    return res.status(413).json({ error: 'File too large — limit is ' + Math.round(MAX_UPLOAD_BYTES/1024/1024) + 'MB. For big videos the uploader sends 4MB pieces automatically — reload the admin page and retry.' });
   }
   if(err.message && /only image\/video/i.test(err.message)){
     return res.status(400).json({ error: err.message });
@@ -525,6 +532,129 @@ app.post('/api/admin/upload', requireAuth, upload.single('file'), async (req, re
   if (!req.file) return res.status(400).json({ error: 'file required' });
   const url = await persistUpload(req.file);
   res.json({ ok: true, url, filename: req.file.filename, original: req.file.originalname });
+});
+
+// --- Chunked upload: large videos go up in small (~4MB) pieces so proxies / slow
+// networks can't kill one giant request with an HTML error page. Flow:
+//   POST /api/media/chunk-init {filename,totalSize,totalChunks,mime?,type,...meta} -> {uploadId}
+//   POST /api/media/chunk (multipart: uploadId,index,chunk) x N (retry each safely)
+//   POST /api/media/chunk-complete {uploadId} -> media row (or {url} when mode=file-only)
+const CHUNK_PART_BYTES = 8 * 1024 * 1024; // server accepts parts up to 8MB (client sends 4MB)
+const MEDIA_TYPES = new Set(['portfolio','hero','sales_proof','testimonials','reviews','certificates']);
+const UPLOAD_EXT_RE = /\.(png|jpe?g|webp|gif|bmp|avif|ico|svg|mp4|webm|mov|m4v|ogg|ogv|avi|mkv|3gp)$/i;
+const chunkUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, TMP_UPLOAD_DIR),
+    filename: (req, file, cb) => cb(null, 'tmp-' + Date.now() + '-' + Math.round(Math.random()*1e9) + '.part')
+  }),
+  limits: { fileSize: CHUNK_PART_BYTES }
+});
+function chunkSessionDir(uploadId){
+  const id = String(uploadId || '');
+  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return null;
+  return path.join(TMP_UPLOAD_DIR, id);
+}
+function readChunkMeta(uploadId){
+  const dir = chunkSessionDir(uploadId);
+  if(!dir) return null;
+  const fp = path.join(dir, 'meta.json');
+  try{ return { dir, meta: JSON.parse(fs.readFileSync(fp, 'utf8')) }; }catch{ return null; }
+}
+function sweepStaleChunks(maxAgeMs){
+  try{
+    for(const name of fs.readdirSync(TMP_UPLOAD_DIR)){
+      const dir = path.join(TMP_UPLOAD_DIR, name);
+      try{
+        const st = fs.statSync(dir);
+        if(!st.isDirectory()) { try{ fs.unlinkSync(dir); }catch{} continue; }
+        if(Date.now() - st.mtimeMs > maxAgeMs) fs.rmSync(dir, { recursive: true, force: true });
+      }catch{}
+    }
+  }catch{}
+}
+app.post('/api/media/chunk-init', requireAuth, async (req, res) => {
+  const { filename, totalSize, totalChunks, mime, type, mode, category, caption, alt_text, tags, result_stat, case_study_text } = req.body || {};
+  const cleanName = path.basename(String(filename || '')).slice(0, 120);
+  const size = parseInt(totalSize, 10);
+  const n = parseInt(totalChunks, 10);
+  if(!cleanName || !UPLOAD_EXT_RE.test(cleanName)) return res.status(400).json({ error: 'filename must end in an image/video extension (png, jpg, webp, gif, mp4, webm, mov, m4v, ogg)' });
+  if(!Number.isFinite(size) || size <= 0 || size > MAX_UPLOAD_BYTES) return res.status(400).json({ error: 'totalSize must be 1 byte..' + Math.round(MAX_UPLOAD_BYTES/1024/1024) + 'MB' });
+  if(!Number.isFinite(n) || n < 1 || n > 100) return res.status(400).json({ error: 'totalChunks must be 1..100 (use ~4MB pieces)' });
+  // expected pieces sanity: last piece can be short, so totalSize <= n*8MB and > (n-1)*1byte
+  if(size > n * CHUNK_PART_BYTES) return res.status(400).json({ error: 'totalChunks too small for totalSize' });
+  const m = String(mode || 'media');
+  if(m !== 'media' && m !== 'file-only') return res.status(400).json({ error: 'mode must be media|file-only' });
+  if(m === 'media' && !MEDIA_TYPES.has(String(type || ''))) return res.status(400).json({ error: 'type required (portfolio|hero|sales_proof|testimonials|reviews|certificates)' });
+  const uploadId = crypto.randomUUID();
+  try{
+    const dir = path.join(TMP_UPLOAD_DIR, uploadId);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'meta.json'), JSON.stringify({
+      filename: cleanName, totalSize: size, totalChunks: n, mime: String(mime || '').slice(0, 80),
+      mode: m, type: String(type || ''), category: String(category || '').slice(0,80),
+      caption: String(caption || '').slice(0,300), alt_text: String(alt_text || '').slice(0,300),
+      tags: String(tags || '').slice(0,300), result_stat: String(result_stat || '').slice(0,200),
+      case_study_text: String(case_study_text || '').slice(0,2000), createdAt: Date.now()
+    }));
+  }catch(e){ return res.status(500).json({ error: 'cannot stage upload: ' + e.message }); }
+  res.json({ ok: true, uploadId });
+});
+app.post('/api/media/chunk', requireAuth, chunkUpload.single('chunk'), async (req, res) => {
+  const { uploadId, index } = req.body || {};
+  const got = readChunkMeta(uploadId);
+  if(!got) { try{ if(req.file) fs.unlinkSync(req.file.path); }catch{} return res.status(404).json({ error: 'upload session not found or expired — restart the upload' }); }
+  const idx = parseInt(index, 10);
+  if(!Number.isInteger(idx) || idx < 0 || idx >= got.meta.totalChunks){ try{ if(req.file) fs.unlinkSync(req.file.path); }catch{} return res.status(400).json({ error: 'bad chunk index' }); }
+  if(!req.file){ return res.status(400).json({ error: 'chunk file required' }); }
+  try{
+    const dest = path.join(got.dir, idx + '.part');
+    try{ if(fs.existsSync(dest)) fs.unlinkSync(dest); }catch{}
+    fs.renameSync(req.file.path, dest);
+    fs.utimesSync(got.dir, new Date(), new Date()); // keep session fresh for sweeper
+  }catch(e){ try{ if(req.file?.path) fs.unlinkSync(req.file.path); }catch{} return res.status(500).json({ error: 'cannot store chunk: ' + e.message }); }
+  // count received (cheap readdir)
+  let received = 0;
+  try{ for(let i=0;i<got.meta.totalChunks;i++) if(fs.existsSync(path.join(got.dir, i + '.part'))) received++; }catch{}
+  res.json({ ok: true, index: idx, received, total: got.meta.totalChunks });
+});
+app.post('/api/media/chunk-complete', requireAuth, async (req, res) => {
+  const { uploadId } = req.body || {};
+  const got = readChunkMeta(uploadId);
+  if(!got) return res.status(404).json({ error: 'upload session not found or expired — restart the upload' });
+  const { dir, meta } = got;
+  try{
+    // verify every piece present
+    let bytes = 0;
+    for(let i=0;i<meta.totalChunks;i++){
+      const fp = path.join(dir, i + '.part');
+      if(!fs.existsSync(fp)) return res.status(400).json({ error: `missing chunk ${i+1}/${meta.totalChunks} — retry the failed pieces and complete again` });
+      bytes += fs.statSync(fp).size;
+    }
+    if(bytes !== meta.totalSize) return res.status(400).json({ error: `size mismatch (got ${bytes}, expected ${meta.totalSize}) — re-send mismatched chunks` });
+    const ext = path.extname(meta.filename) || '.bin';
+    const finalName = Date.now() + '-' + Math.round(Math.random() * 1e9) + ext;
+    const finalPath = path.join(UPLOAD_DIR, finalName);
+    const out = fs.createWriteStream(finalPath);
+    for(let i=0;i<meta.totalChunks;i++){
+      const data = fs.readFileSync(path.join(dir, i + '.part'));
+      out.write(data);
+    }
+    await new Promise((resolve, reject)=> out.end((err)=> err ? reject(err) : resolve()));
+    const stat = fs.statSync(finalPath);
+    if(stat.size !== meta.totalSize){ try{ fs.unlinkSync(finalPath); }catch{} return res.status(500).json({ error: 'assembled file size mismatch — please retry the upload' }); }
+    const url = await persistUpload({ path: finalPath, filename: finalName, mimetype: meta.mime || '' });
+    try{ fs.rmSync(dir, { recursive: true, force: true }); }catch{}
+    if(meta.mode === 'file-only') return res.json({ ok: true, url, filename: finalName });
+    const _o = await db.prepare('SELECT COALESCE(MAX(display_order),0)+1 as n FROM media WHERE type=?').get(meta.type);
+    const order = _o ? _o.n : 1;
+    const info = await db.prepare('INSERT INTO media (type,category,url,caption,alt_text,tags,result_stat,case_study_text,display_order,published) VALUES (?,?,?,?,?,?,?,?,?,1)')
+      .run(meta.type, meta.category || '', url, meta.caption || '', meta.alt_text || '', meta.tags || '', meta.result_stat || '', meta.case_study_text || '', order);
+    const row = await db.prepare('SELECT * FROM media WHERE id=?').get(info.lastInsertRowid);
+    if(meta.type === 'hero' && url){
+      try{ await db.prepare("INSERT INTO content (key,value,type,updated_at) VALUES (?,?,?,datetime('now')) ON CONFLICT(key) DO UPDATE SET value=excluded.value, type=excluded.type, updated_at=datetime('now')").run('hero_image_url', url, 'text'); }catch{}
+    }
+    res.json(row);
+  }catch(e){ console.error('chunk-complete', e.message); res.status(500).json({ error: 'assemble failed: ' + e.message }); }
 });
 
 // --- API: Team ---
@@ -3030,6 +3160,8 @@ cron.schedule('*/5 * * * *', retryWebhooks);
 cron.schedule('*/5 * * * *', processIdleChatFollowups);
 cron.schedule('0 9 * * *', ()=> runDailyFollowups({}).catch(e=> console.error('daily followups cron', e.message)));
 cron.schedule('30 3 * * *', async ()=>{ try{ const r = await writeFileBackup('auto-'+new Date().toISOString().slice(0,10)); console.log('auto backup', r.file); }catch(e){ console.error('auto backup', e.message); } });
+cron.schedule('17 * * * *', ()=> sweepStaleChunks(2 * 3600 * 1000)); // drop abandoned chunk sessions
+sweepStaleChunks(2 * 3600 * 1000); // also sweep on boot
 
 // Idle chats: session updated > chatIdleMinutes ago, has email+messages, no chat_instant sent yet -> send instant AI follow-up
 async function processIdleChatFollowups(){
