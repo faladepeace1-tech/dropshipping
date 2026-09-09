@@ -48,12 +48,28 @@ async function chunkedUploadMedia(file, meta, onProgress){
         await new Promise(res=> setTimeout(res, 800*attempt));
       }
     }
-    if(onProgress) onProgress(end / file.size, i+1, totalChunks);
+    if(onProgress) onProgress(end / file.size, i+1, totalChunks, 'pieces');
   }
   const cR = await fetch('/api/media/chunk-complete', {method:'POST', headers:{'Content-Type':'application/json', ...authHeaders()}, body: JSON.stringify({uploadId})});
   const cJ = await cR.json().catch(()=>({}));
-  if(!cR.ok) throw new Error(cJ.error || ('Assemble failed (HTTP '+cR.status+')'));
-  return cJ;
+  if(!cR.ok) throw new Error(cJ.error || ('Assemble start failed (HTTP '+cR.status+')'));
+  if(cJ.status === 'done') return cJ;
+  if(cJ.status === 'error' || cJ.error) throw new Error(cJ.error || 'Server assembly failed');
+  // 'processing' — big videos assemble in the background (proxies kill slow
+  // requests), so poll until done. Keep the tab open.
+  if(onProgress) onProgress(1, totalChunks, totalChunks, 'assembling');
+  for(let p=0;p<120;p++){
+    await new Promise(res=> setTimeout(res, 3000));
+    let sJ = null;
+    try{
+      const sR = await fetch('/api/media/chunk-status/'+encodeURIComponent(uploadId), {headers: authHeaders()});
+      sJ = await sR.json().catch(()=>null);
+    }catch(e){ continue; } // transient network blip — keep polling
+    if(!sJ) continue;
+    if(sJ.status === 'done') return sJ;
+    if(sJ.status === 'error') throw new Error(sJ.error || 'Server assembly failed');
+  }
+  throw new Error('Still assembling after 6 minutes — leave this tab open and check the gallery shortly; the video appears when the server finishes.');
 }
 let token = localStorage.getItem('nexatech_admin_token') || '';
 let CONTENT={}, SECTIONS=[], MEDIA=[], TEAM=[], LEADS=[], ANALYTICS=null;
@@ -1725,7 +1741,8 @@ $('#media-form').addEventListener('submit', async e=>{
         try{
           if(file.size > CHUNK_THRESHOLD){
             // Big file: 4MB pieces with retry (proxies kill single giant requests)
-            await chunkedUploadMedia(file, singleMeta, (frac,a,b)=>{
+            await chunkedUploadMedia(file, singleMeta, (frac,a,b,phase)=>{
+              if(phase==='assembling'){ $('#upload-text').textContent=`File ${fileIdx}/${files.length} (${fmtSize(file.size)}): assembling video on server — keep this tab open…`; return; }
               const overall = Math.round(((fileIdx-1)+frac)/files.length*100);
               $('#upload-bar').style.width=overall+'%';
               $('#upload-text').textContent=`File ${fileIdx}/${files.length} (${fmtSize(file.size)}) piece ${a}/${b} — ${overall}%`;
@@ -1807,7 +1824,7 @@ $('#edit-media-save').addEventListener('click', async e=>{
       if(file.size > CHUNK_THRESHOLD){
         // Big replacement: pieces first (file-only, no new gallery row), then save URL
         if(btn) btn.textContent='Uploading pieces...';
-        const up = await chunkedUploadMedia(file, {mode:'file-only'}, (frac,a,b)=>{ if(btn) btn.textContent=`Uploading piece ${a}/${b}...`; });
+        const up = await chunkedUploadMedia(file, {mode:'file-only'}, (frac,a,b,phase)=>{ if(btn) btn.textContent = phase==='assembling' ? 'Assembling on server — keep open…' : `Uploading piece ${a}/${b}...`; });
         fd.set('url', up.url);
         if(btn) btn.textContent='Saving...';
       } else {

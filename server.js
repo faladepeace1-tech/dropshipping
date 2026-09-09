@@ -618,44 +618,89 @@ app.post('/api/media/chunk', requireAuth, chunkUpload.single('chunk'), async (re
   res.json({ ok: true, index: idx, received, total: got.meta.totalChunks });
 });
 app.post('/api/media/chunk-complete', requireAuth, async (req, res) => {
+  // Fast: verify pieces, then assemble in the BACKGROUND and return at once.
+  // (Stitching + saving 30MB can take minutes on a small server — proxies kill
+  // slow requests with HTTP 524. The client polls chunk-status until done.)
   const { uploadId } = req.body || {};
   const got = readChunkMeta(uploadId);
   if(!got) return res.status(404).json({ error: 'upload session not found or expired — restart the upload' });
   const { dir, meta } = got;
+  const resultFp = path.join(dir, 'result.json');
+  const lockFp = path.join(dir, 'assembling.lock');
   try{
-    // verify every piece present
+    if(fs.existsSync(resultFp)){
+      try{ return res.json(JSON.parse(fs.readFileSync(resultFp, 'utf8'))); }catch{}
+    }
+    if(fs.existsSync(lockFp)){
+      try{ if(Date.now() - fs.statSync(lockFp).mtimeMs < 10*60*1000) return res.json({ ok: true, status: 'processing' }); }
+      catch{}
+      try{ fs.unlinkSync(lockFp); }catch{} // stale lock (crash) — start assembly again below
+    }
     let bytes = 0;
     for(let i=0;i<meta.totalChunks;i++){
       const fp = path.join(dir, i + '.part');
-      if(!fs.existsSync(fp)) return res.status(400).json({ error: `missing chunk ${i+1}/${meta.totalChunks} — retry the failed pieces and complete again` });
+      if(!fs.existsSync(fp)) return res.status(400).json({ error: `missing piece ${i+1}/${meta.totalChunks} — it failed to send, retry the upload` });
       bytes += fs.statSync(fp).size;
     }
-    if(bytes !== meta.totalSize) return res.status(400).json({ error: `size mismatch (got ${bytes}, expected ${meta.totalSize}) — re-send mismatched chunks` });
+    if(bytes !== meta.totalSize) return res.status(400).json({ error: `size mismatch (got ${bytes}, expected ${meta.totalSize}) — retry the upload` });
+    fs.writeFileSync(lockFp, JSON.stringify({ startedAt: Date.now() }));
+    try{ fs.utimesSync(dir, new Date(), new Date()); }catch{}
+    setImmediate(()=>{ assembleChunkedUpload(String(uploadId)).catch(e=> console.error('assemble bg', e.message)); });
+    return res.json({ ok: true, status: 'processing' });
+  }catch(e){ console.error('chunk-complete', e.message); res.status(500).json({ error: 'could not start assembly: ' + e.message }); }
+});
+app.get('/api/media/chunk-status/:uploadId', requireAuth, async (req, res) => {
+  const got = readChunkMeta(req.params.uploadId);
+  if(!got) return res.status(404).json({ error: 'upload session not found' });
+  const resultFp = path.join(got.dir, 'result.json');
+  if(fs.existsSync(resultFp)){
+    try{ return res.json(JSON.parse(fs.readFileSync(resultFp, 'utf8'))); }catch{}
+  }
+  if(fs.existsSync(path.join(got.dir, 'assembling.lock'))) return res.json({ ok: true, status: 'processing' });
+  return res.json({ ok: true, status: 'waiting' });
+});
+async function assembleChunkedUpload(uploadId){
+  const started = Date.now();
+  const got = readChunkMeta(uploadId);
+  if(!got) return;
+  const { dir, meta } = got;
+  const resultFp = path.join(dir, 'result.json');
+  const lockFp = path.join(dir, 'assembling.lock');
+  const fail = (msg)=>{ try{ fs.writeFileSync(resultFp, JSON.stringify({ ok: false, status: 'error', error: msg })); }catch{} try{ fs.unlinkSync(lockFp); }catch{} };
+  try{
     const ext = path.extname(meta.filename) || '.bin';
     const finalName = Date.now() + '-' + Math.round(Math.random() * 1e9) + ext;
     const finalPath = path.join(UPLOAD_DIR, finalName);
     const out = fs.createWriteStream(finalPath);
     for(let i=0;i<meta.totalChunks;i++){
       const data = fs.readFileSync(path.join(dir, i + '.part'));
-      out.write(data);
+      await new Promise((resolve, reject)=> out.write(data, (err)=> err ? reject(err) : resolve()));
     }
     await new Promise((resolve, reject)=> out.end((err)=> err ? reject(err) : resolve()));
     const stat = fs.statSync(finalPath);
-    if(stat.size !== meta.totalSize){ try{ fs.unlinkSync(finalPath); }catch{} return res.status(500).json({ error: 'assembled file size mismatch — please retry the upload' }); }
+    if(stat.size !== meta.totalSize){ try{ fs.unlinkSync(finalPath); }catch{} return fail('assembled file size mismatch — please retry the upload'); }
     const url = await persistUpload({ path: finalPath, filename: finalName, mimetype: meta.mime || '' });
-    try{ fs.rmSync(dir, { recursive: true, force: true }); }catch{}
-    if(meta.mode === 'file-only') return res.json({ ok: true, url, filename: finalName });
-    const _o = await db.prepare('SELECT COALESCE(MAX(display_order),0)+1 as n FROM media WHERE type=?').get(meta.type);
-    const order = _o ? _o.n : 1;
-    const info = await db.prepare('INSERT INTO media (type,category,url,caption,alt_text,tags,result_stat,case_study_text,display_order,published) VALUES (?,?,?,?,?,?,?,?,?,1)')
-      .run(meta.type, meta.category || '', url, meta.caption || '', meta.alt_text || '', meta.tags || '', meta.result_stat || '', meta.case_study_text || '', order);
-    const row = await db.prepare('SELECT * FROM media WHERE id=?').get(info.lastInsertRowid);
-    if(meta.type === 'hero' && url){
-      try{ await db.prepare("INSERT INTO content (key,value,type,updated_at) VALUES (?,?,?,datetime('now')) ON CONFLICT(key) DO UPDATE SET value=excluded.value, type=excluded.type, updated_at=datetime('now')").run('hero_image_url', url, 'text'); }catch{}
+    let done;
+    if(meta.mode === 'file-only'){
+      done = { ok: true, status: 'done', url, filename: finalName };
+    } else {
+      const _o = await db.prepare('SELECT COALESCE(MAX(display_order),0)+1 as n FROM media WHERE type=?').get(meta.type);
+      const order = _o ? _o.n : 1;
+      const info = await db.prepare('INSERT INTO media (type,category,url,caption,alt_text,tags,result_stat,case_study_text,display_order,published) VALUES (?,?,?,?,?,?,?,?,?,1)')
+        .run(meta.type, meta.category || '', url, meta.caption || '', meta.alt_text || '', meta.tags || '', meta.result_stat || '', meta.case_study_text || '', order);
+      const row = await db.prepare('SELECT * FROM media WHERE id=?').get(info.lastInsertRowid);
+      done = { ...row, status: 'done' };
+      if(meta.type === 'hero' && url){
+        try{ await db.prepare("INSERT INTO content (key,value,type,updated_at) VALUES (?,?,?,datetime('now')) ON CONFLICT(key) DO UPDATE SET value=excluded.value, type=excluded.type, updated_at=datetime('now')").run('hero_image_url', url, 'text'); }catch{}
+      }
     }
-    res.json(row);
-  }catch(e){ console.error('chunk-complete', e.message); res.status(500).json({ error: 'assemble failed: ' + e.message }); }
-});
+    try{ for(let i=0;i<meta.totalChunks;i++){ try{ fs.unlinkSync(path.join(dir, i + '.part')); }catch{} } }catch{}
+    try{ fs.writeFileSync(resultFp, JSON.stringify(done)); }catch{}
+    try{ fs.unlinkSync(lockFp); }catch{}
+    try{ fs.utimesSync(dir, new Date(), new Date()); }catch{}
+    console.log(`chunk assembled ${meta.filename} ${(meta.totalSize/1048576).toFixed(1)}MB in ${Math.round((Date.now()-started)/1000)}s -> ${url}`);
+  }catch(e){ console.error('assembleChunkedUpload', e.message); fail('assembly failed on server: ' + e.message + ' — retry the upload'); }
+}
 
 // --- API: Team ---
 app.get('/api/team', async (req, res) => {
