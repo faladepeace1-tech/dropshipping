@@ -108,8 +108,8 @@ app.set('trust proxy', 1); // Required for Render + Cloudflare (X-Forwarded-For)
 // Security & middleware
 app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
 app.use(cors({ origin: true, credentials: true }));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(cookieParser());
 
 // Rate limiting
@@ -143,7 +143,8 @@ app.get(['/privacy.html', '/terms.html'], (req, res)=> res.type('html').send(ver
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(UPLOAD_DIR));
 // DB media store (Postgres): files uploaded while DATABASE_URL is set live in media_blobs,
-// so images survive redeploys with no disk. Checked before disk files.
+// so images AND videos survive redeploys with no disk. Checked before disk files.
+// Supports HTTP Range requests so 30MB+ videos can seek/stream instead of downloading fully.
 app.get('/uploads/:name', async (req, res, next) => {
   try{
     if(!usePg) return next();
@@ -153,9 +154,40 @@ app.get('/uploads/:name', async (req, res, next) => {
     if(!row || !row.data) return next();
     let mime = row.mime || '';
     if(/\.ico$/i.test(fname) && !/^image\//.test(mime)) mime = 'image/x-icon';
+    if(!mime || mime === 'application/octet-stream'){
+      if(/\.mp4$/i.test(fname)) mime = 'video/mp4';
+      else if(/\.webm$/i.test(fname)) mime = 'video/webm';
+      else if(/\.mov$/i.test(fname)) mime = 'video/quicktime';
+      else if(/\.m4v$/i.test(fname)) mime = 'video/x-m4v';
+      else if(/\.(ogg|ogv)$/i.test(fname)) mime = 'video/ogg';
+      else if(/\.png$/i.test(fname)) mime = 'image/png';
+      else if(/\.(jpe?g)$/i.test(fname)) mime = 'image/jpeg';
+      else if(/\.webp$/i.test(fname)) mime = 'image/webp';
+      else if(/\.gif$/i.test(fname)) mime = 'image/gif';
+      else if(/\.svg$/i.test(fname)) mime = 'image/svg+xml';
+    }
+    const buf = Buffer.isBuffer(row.data) ? row.data : Buffer.from(row.data);
     if(mime) res.contentType(mime);
     res.setHeader('Cache-Control','public, max-age=86400');
-    return res.send(Buffer.isBuffer(row.data) ? row.data : Buffer.from(row.data));
+    res.setHeader('Accept-Ranges','bytes');
+    const range = req.headers.range;
+    if(range && buf.length){
+      const m = String(range).match(/bytes=(\d*)-(\d*)/);
+      if(m){
+        let start = m[1] === '' ? 0 : parseInt(m[1],10);
+        let end = m[2] === '' ? buf.length - 1 : parseInt(m[2],10);
+        if(isNaN(start)) start = 0;
+        if(isNaN(end) || end >= buf.length) end = buf.length - 1;
+        if(start <= end){
+          res.status(206);
+          res.setHeader('Content-Range', `bytes ${start}-${end}/${buf.length}`);
+          res.setHeader('Content-Length', String(end - start + 1));
+          return res.send(buf.subarray(start, end + 1));
+        }
+      }
+    }
+    res.setHeader('Content-Length', String(buf.length));
+    return res.send(buf);
   }catch(e){ return next(); }
 });
 
@@ -213,7 +245,9 @@ function requireAuth(req, res, next) {
   }
 }
 
-// Multer config
+// Multer config — 150MB so 30MB videos upload fine (was 15MB, which rejected them
+// with a generic HTML 500 and no JSON error, so the admin panel just said "failed")
+const MAX_UPLOAD_BYTES = 150 * 1024 * 1024;
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOAD_DIR),
   filename: (req, file, cb) => {
@@ -224,15 +258,31 @@ const storage = multer.diskStorage({
 });
 const upload = multer({
   storage,
-  limits: { fileSize: 15 * 1024 * 1024 },
+  limits: { fileSize: MAX_UPLOAD_BYTES },
   fileFilter: (req, file, cb) => {
-    // Accept images/video by mimetype, plus .ico/.svg by extension (some browsers
-    // send favicons as application/octet-stream, which the regex above rejects)
+    // Accept images/video by mimetype, plus known extensions (some browsers
+    // send .mov/.ico/.svg as application/octet-stream, which the regex rejects)
     if (/^(image|video)\//.test(file.mimetype || '')) cb(null, true);
-    else if (/\.(ico|svg|png|jpe?g|webp|gif)$/i.test(file.originalname || '')) cb(null, true);
-    else cb(new Error('Only image/video allowed'));
+    else if (/\.(ico|svg|png|jpe?g|webp|gif|bmp|avif)$/i.test(file.originalname || '')) cb(null, true);
+    else if (/\.(mp4|webm|mov|m4v|ogg|ogv|avi|mkv|3gp)$/i.test(file.originalname || '')) cb(null, true);
+    else cb(new Error('Only image/video allowed (png, jpg, webp, gif, mp4, webm, mov, m4v, ogg)'));
   }
 });
+// Multer/body-limit errors must return JSON (not an HTML stack) so admin.js can
+// show "File too large" instead of a silent failure.
+function uploadErrorHandler(err, req, res, next){
+  if(!err) return next();
+  if(err.code === 'LIMIT_FILE_SIZE'){
+    return res.status(413).json({ error: 'File too large — limit is ' + Math.round(MAX_UPLOAD_BYTES/1024/1024) + 'MB. Compress the video or use a video URL instead.' });
+  }
+  if(err.message && /only image\/video/i.test(err.message)){
+    return res.status(400).json({ error: err.message });
+  }
+  if(err.type === 'entity.too.large'){
+    return res.status(413).json({ error: 'Request too large — try a smaller file or URL.' });
+  }
+  return next(err);
+}
 
 // --- API: Health ---
 app.get('/api/health', async (req, res) => res.json({ status: 'ok', time: new Date().toISOString() }));
@@ -393,7 +443,7 @@ app.post('/api/media', requireAuth, upload.single('file'), async (req, res) => {
   let finalUrl = url;
   if (req.file) finalUrl = await persistUpload(req.file);
   if (!finalUrl) return res.status(400).json({ error: 'url or file required' });
-  if (!type) return res.status(400).json({ error: 'type required (portfolio|sales_proof|testimonials)' });
+  if (!type) return res.status(400).json({ error: 'type required (portfolio|hero|sales_proof|testimonials|reviews|certificates)' });
   const _orderRow = await db.prepare('SELECT COALESCE(MAX(display_order),0)+1 as n FROM media WHERE type=?').get(type);
   const order = _orderRow ? _orderRow.n : 1;
   const info = await db.prepare('INSERT INTO media (type,category,url,caption,alt_text,tags,result_stat,case_study_text,display_order,published) VALUES (?,?,?,?,?,?,?,?,?,1)').run(type, category||'', finalUrl, caption||'', alt_text||'', tags||'', result_stat||'', case_study_text||'', order);
@@ -3079,6 +3129,15 @@ async function runDailyFollowups({ manual=false, dryRun=false, limit=200, baseUr
 }
 
 // (Root, /admin and legal pages are served versioned near the top so deploys refresh instantly)
+
+// Multer / body-parser errors as JSON (must be after all routes, before listen)
+app.use(uploadErrorHandler);
+// Fallback: never leak HTML stacks to the admin panel
+app.use((err, req, res, next)=>{
+  if(res.headersSent) return next(err);
+  console.error('unhandled', err && err.message);
+  res.status(err && err.status || 500).json({ error: (err && err.message) || 'Server error' });
+});
 
 app.listen(PORT, () => {
   console.log(`Nexatech server running at http://localhost:${PORT}`);

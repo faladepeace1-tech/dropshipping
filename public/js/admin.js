@@ -3,6 +3,14 @@ const $ = s=>document.querySelector(s);
 const $$ = s=>[...document.querySelectorAll(s)];
 // Attribute-safe escaping for value="..." interpolations (names/quotes must not break editing)
 function escAttr(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+// Shared media helpers (mirror app.js): query-string-safe video check + YouTube/Vimeo/Drive embeds
+function stripUrlParamsA(u){ return String(u||'').split('?')[0].split('#')[0]; }
+function isVideoFileA(u){ return /\.(mp4|webm|mov|m4v|ogg|ogv|avi|mkv|3gp)$/i.test(stripUrlParamsA(u).trim()); }
+function ytIdA(u){ try{ const m=String(u||'').match(/(?:youtube\.com\/(?:watch\?.*v=|shorts\/|embed\/|live\/)|youtu\.be\/)([A-Za-z0-9_-]{6,20})/i); if(m) return m[1]; }catch{} return ''; }
+function vimeoIdA(u){ try{ const m=String(u||'').match(/vimeo\.com\/(?:video\/)?(\d{5,})/i); if(m) return m[1]; }catch{} return ''; }
+function driveIdA(u){ try{ const m=String(u||'').match(/drive\.google\.com\/file\/d\/([A-Za-z0-9_-]{10,})/i); if(m) return m[1]; }catch{} return ''; }
+function mediaKindA(u){ if(!u) return 'image'; if(ytIdA(u)) return 'youtube'; if(vimeoIdA(u)) return 'vimeo'; if(driveIdA(u)) return 'drive'; if(isVideoFileA(u)) return 'video'; return 'image'; }
+function fmtSize(b){ if(!b && b!==0) return ''; if(b>=1048576) return (b/1048576).toFixed(1)+' MB'; return (b/1024).toFixed(1)+' KB'; }
 let token = localStorage.getItem('nexatech_admin_token') || '';
 let CONTENT={}, SECTIONS=[], MEDIA=[], TEAM=[], LEADS=[], ANALYTICS=null;
 let lastPublishedContent=null;
@@ -343,6 +351,7 @@ function renderContentForms(){
   const schema=CONTENT_SCHEMA[currentCTab]||[];
   const listKeys = ['pricing_starter_features','pricing_pro_features','pricing_elite_features','mentorship_bullets'];
   schema.forEach(field=>{
+   try{
     const val=CONTENT[field.key]??'';
     let displayVal = typeof val==='object' ? JSON.stringify(val, null, 2) : String(val);
     // For list fields, show as one per line text format (not raw JSON) per owner request
@@ -358,7 +367,6 @@ function renderContentForms(){
     if(field.type==='textarea'){
       input=document.createElement('textarea'); input.rows=field.rows||4; input.value=displayVal;
       if(listKeys.includes(field.key)) input.placeholder = 'One item per line — text format';
-    } else if(field.type==='image_upload'){
     } else if(field.type==='image_upload'){
       // preview
       const preview=document.createElement('div');
@@ -425,6 +433,7 @@ function renderContentForms(){
     input.dataset.type=field.type||'text';
     label.appendChild(input);
     wrap.appendChild(label);
+   }catch(err){ console.error('render field failed', field && field.key, err); }
   });
 }
 $('#content-tabs').addEventListener('click', e=>{
@@ -486,7 +495,8 @@ $('#btn-save-content').addEventListener('click', async()=>{
     if(!Object.keys(payload).length){ if(msg) msg.textContent='Nothing to save'; return; }
     const r=await fetch('/api/content',{method:'PUT',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify(payload)});
     const j=await r.json().catch(()=>({}));
-    if(msg) msg.textContent = r.ok ? 'Saved ✓ preview updates instantly.' : (j.error||'Save failed');
+    if(r.status===401){ if(msg) msg.textContent='Session expired — please log out and log back in, then Save again.'; if(msg) msg.style.color='#F87171'; return; }
+    if(msg) msg.textContent = r.ok ? 'Saved ✓ preview updates instantly.' : (j.error||('Save failed (HTTP '+r.status+')'));
     if(msg) msg.style.color = r.ok ? '#10B981' : '#F87171';
     if(r.ok) await loadContent();
   }catch(e){ if(msg){ msg.textContent='Error: '+e.message; msg.style.color='#F87171'; } }
@@ -1427,13 +1437,16 @@ function updateMediaHint(){
   if(!hint||!txt) return;
   if(currentMediaTab==='reviews'){
     hint.style.display='block';
-    txt.innerHTML='For <b>Review Screenshots</b> upload landscape images at <b>2550 × 1650 px</b> (aspect 1.545). <b>Videos must be portrait 9:16</b> (e.g. 1080 × 1920 phone video) — they display tall on the wall and play full-frame in the popup. Videos autoplay muted on hover.';
+    txt.innerHTML='For <b>Review Screenshots</b> upload landscape images at <b>2550 × 1650 px</b> (aspect 1.545). <b>Videos must be portrait 9:16</b> (e.g. 1080 × 1920 phone video) — they display tall on the wall and play full-frame in the popup. Videos autoplay muted on hover. File limit <b>150MB</b> each — or paste a YouTube/Vimeo/Drive link in the URL field.';
   } else if(currentMediaTab==='testimonials'){
     hint.style.display='block';
-    txt.textContent='Testimonials: use short quotes with small avatar. For large review screenshots use Review Screenshots tab.';
+    txt.textContent='Testimonials: use short quotes with small avatar. Videos (file up to 150MB, or YouTube/Vimeo link) show with a play badge. For large review screenshots use Review Screenshots tab.';
   } else if(currentMediaTab==='portfolio'){
     hint.style.display='block';
-    txt.textContent='Portfolio supports any ratio but 16:10 works best. Videos autoplay muted on hover.';
+    txt.textContent='Portfolio supports any ratio but 16:10 works best. Videos (file up to 150MB, or YouTube/Vimeo/Drive URL) autoplay muted on hover and play in the popup.';
+  } else if(currentMediaTab==='sales_proof'){
+    hint.style.display='block';
+    txt.textContent='Sales proof: images or videos (file up to 150MB, or YouTube/Vimeo link). Videos play with controls on the homepage.';
   } else if(currentMediaTab==='hero'){
     hint.style.display='block';
     txt.innerHTML='For the <b>homepage hero mockup</b> upload a wide image (16:10 works best). Uploading sets it live instantly — or hover any image below and click <b>Set as Hero</b> to switch.';
@@ -1483,13 +1496,15 @@ function renderMediaGallery(){
     div.draggable=true;
     div.dataset.id=item.id;
     div.style.cssText='background:#0B1220;border:1px solid rgba(255,255,255,.08);border-radius:12px;overflow:hidden;display:flex;flex-direction:column';
-    const isVideo=item.url.match(/\.(mp4|webm|mov)$/i);
+    const kindA=mediaKindA(item.url);
+    const isVideo=kindA==='video';
+    const isEmbed=kindA==='youtube'||kindA==='vimeo'||kindA==='drive';
     const ratio = (currentMediaTab==='reviews' ? '2550/1650' : '4/3');
     const isHeroTab = currentMediaTab==='hero';
     const isActiveHero = isHeroTab && CONTENT.hero_image_url && item.url===CONTENT.hero_image_url;
     div.innerHTML=`
       <div style="aspect-ratio:${ratio};overflow:hidden;background:#132238;position:relative">
-        ${isVideo?`<video src="${item.url}" muted style="width:100%;height:100%;object-fit:cover"></video><span style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,.6);color:#fff;font-size:10px;padding:4px 6px;border-radius:999px">VIDEO</span>`:`<img src="${item.url}" style="width:100%;height:100%;object-fit:cover">`}
+        ${isEmbed?`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#1E293B;color:#fff;font-size:28px">▶</div><span style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,.6);color:#fff;font-size:10px;padding:4px 6px;border-radius:999px">${kindA.toUpperCase()}</span>`:(isVideo?`<video src="${item.url}" muted preload="metadata" style="width:100%;height:100%;object-fit:cover"></video><span style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,.6);color:#fff;font-size:10px;padding:4px 6px;border-radius:999px">VIDEO</span>`:`<img src="${item.url}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.opacity=.25">`)}
         <span style="position:absolute;left:8px;top:8px;background:${item.published?'#10B981':'#64748B'};color:#fff;font-size:10px;padding:3px 6px;border-radius:999px">${item.published?'LIVE':'DRAFT'}</span>
         ${isActiveHero?'<span style="position:absolute;right:8px;top:8px;background:#7C3AED;color:#fff;font-size:10px;padding:3px 8px;border-radius:999px">ACTIVE HERO</span>':''}
       </div>
@@ -1549,21 +1564,64 @@ function renderMediaGallery(){
   }));
 }
 
-// preview on file select (first file + count)
+// preview on file select (first file + count) — handles video + shows MB
 $('input[name="file"]').addEventListener('change', e=>{
   const files=[...(e.target.files||[])];
   if(!files.length) return;
   const f=files[0];
-  const url=URL.createObjectURL(f);
   $('#media-preview').style.display='block';
-  $('#media-preview-img').src=url;
+  const prevImg=$('#media-preview-img');
+  // If the selected file is a video, show a playable preview instead of a broken <img>
+  try{
+    const isVid=(f.type||'').startsWith('video/') || /\.(mp4|webm|mov|m4v|ogg|ogv)$/i.test(f.name||'');
+    if(isVid){
+      let v=$('#media-preview-video');
+      if(!v){
+        v=document.createElement('video');
+        v.id='media-preview-video'; v.controls=true; v.muted=true; v.style.cssText='max-width:100%;max-height:220px;border-radius:8px;background:#0B1220';
+        prevImg.replaceWith(v);
+      }
+      v.src=URL.createObjectURL(f);
+    } else {
+      let v=$('#media-preview-video');
+      if(v){
+        const ni=document.createElement('img'); ni.id='media-preview-img'; ni.style.cssText='max-width:100%;max-height:220px;border-radius:8px';
+        v.replaceWith(ni);
+      }
+      $('#media-preview-img').src=URL.createObjectURL(f);
+    }
+  }catch{ prevImg.src=URL.createObjectURL(f); }
+  const over=f.size>150*1024*1024?' — OVER 150MB LIMIT (will be rejected, compress or use URL)':'';
   $('#media-preview-meta').textContent = files.length>1
-    ? `${files.length} files selected (first: ${f.name} • ${(f.size/1024).toFixed(1)} KB)`
-    : `${f.name} • ${(f.size/1024).toFixed(1)} KB • ${f.type}`;
+    ? `${files.length} files selected (first: ${f.name} • ${fmtSize(f.size)}${over})`
+    : `${f.name} • ${fmtSize(f.size)} • ${f.type}${over}`;
 });
 $('input[name="url"]').addEventListener('input', e=>{
   const v=e.target.value.trim();
-  if(v){ $('#media-preview').style.display='block'; $('#media-preview-img').src=v; $('#media-preview-meta').textContent=v; }
+  if(!v) return;
+  $('#media-preview').style.display='block';
+  $('#media-preview-meta').textContent=v+' ('+mediaKindA(v)+')';
+  try{
+    const k=mediaKindA(v);
+    if(k==='video'){
+      let pv=$('#media-preview-video');
+      if(!pv){
+        pv=document.createElement('video');
+        pv.id='media-preview-video'; pv.controls=true; pv.muted=true; pv.style.cssText='max-width:100%;max-height:220px;border-radius:8px;background:#0B1220';
+        const old=$('#media-preview-img'); if(old) old.replaceWith(pv);
+      }
+      pv.src=v;
+    } else {
+      let pv=$('#media-preview-video');
+      if(pv){
+        const ni=document.createElement('img'); ni.id='media-preview-img'; ni.style.cssText='max-width:100%;max-height:220px;border-radius:8px';
+        pv.replaceWith(ni);
+      }
+      const im=$('#media-preview-img'); if(im) im.src=v;
+    }
+  }catch{
+    const im=$('#media-preview-img'); if(im) im.src=v;
+  }
 });
 
 // upload with progress (XHR) — supports many files at once (one request per file)
@@ -1583,14 +1641,24 @@ $('#media-form').addEventListener('submit', async e=>{
     xhr.open('POST','/api/media');
     xhr.setRequestHeader('Authorization','Bearer '+token);
     xhr.upload.onprogress = ev=>{ if(ev.lengthComputable){ const pct=Math.round(ev.loaded/ev.total*100); $('#upload-bar').style.width=pct+'%'; $('#upload-text').textContent=label+pct+'%'; } };
-    xhr.onload=()=>{ if(xhr.status>=200&&xhr.status<300) resolve(xhr.response); else reject(new Error(xhr.responseText||'Upload failed')); };
+    xhr.onload=()=>{
+      if(xhr.status>=200&&xhr.status<300) resolve(xhr.response);
+      else {
+        let msg='Upload failed (HTTP '+xhr.status+')';
+        try{ const j=JSON.parse(xhr.responseText||'{}'); if(j.error) msg=j.error; }catch{ if(xhr.responseText) msg=xhr.responseText.slice(0,200); }
+        if(xhr.status===413) msg='File too large — limit is 150MB. Compress the video or paste a video URL instead.';
+        if(xhr.status===401) msg='Session expired — log out and log back in, then retry.';
+        reject(new Error(msg));
+      }
+    };
     xhr.onerror=()=> reject(new Error('Network error'));
     xhr.send(oneFd);
   });
   try{
     if(files.length){
-      let done=0, failed=0;
+      let done=0, failed=0, lastErr='';
       for(const file of files){
+        if(file.size>150*1024*1024){ failed++; lastErr=`${file.name}: over 150MB limit — compress or use URL`; console.error(lastErr); continue; }
         const oneFd=new FormData();
         oneFd.append('type', fd.get('type'));
         oneFd.append('category', fd.get('category')||'');
@@ -1603,11 +1671,11 @@ $('#media-form').addEventListener('submit', async e=>{
         try{
           await uploadOne(oneFd, `File ${done+1}/${files.length} `);
           done++;
-        }catch(err){ failed++; console.error('bulk upload item failed', file.name, err.message); }
-        $('#upload-bar').style.width=Math.round(done/files.length*100)+'%';
+        }catch(err){ failed++; lastErr=file.name+': '+err.message; console.error('bulk upload item failed', file.name, err.message); }
+        $('#upload-bar').style.width=Math.round((done+failed)/files.length*100)+'%';
       }
-      $('#upload-text').textContent = failed ? `Done: ${done} uploaded, ${failed} failed` : `Done: ${done} uploaded`;
-      if(!done) throw new Error('All uploads failed');
+      $('#upload-text').textContent = failed ? `Done: ${done} uploaded, ${failed} failed — ${lastErr}` : `Done: ${done} uploaded`;
+      if(!done) throw new Error('All uploads failed — '+lastErr);
     } else {
       // URL-only
       const payload={
@@ -1666,9 +1734,18 @@ $('#edit-media-save').addEventListener('click', async e=>{
   fd.append('case_study_text', $('#em-case').value);
   fd.append('published', $('#em-pub').checked ? '1' : '0');
   const file=$('#em-file').files[0];
-  if(file) fd.append('file', file);
-  const r=await fetch('/api/media/'+editingMediaId, {method:'PATCH', headers: authHeaders(), body: fd});
-  if(r.ok){ document.getElementById('edit-media-dialog').close(); loadMedia(); } else alert('Save failed');
+  if(file){
+    if(file.size>150*1024*1024){ alert('File too large — limit is 150MB. Compress or use a URL.'); return; }
+    fd.append('file', file);
+  }
+  const btn=$('#edit-media-save'); if(btn){ btn.disabled=true; btn.textContent='Saving...'; }
+  try{
+    const r=await fetch('/api/media/'+editingMediaId, {method:'PATCH', headers: authHeaders(), body: fd});
+    const j=await r.json().catch(()=>({}));
+    if(r.ok){ document.getElementById('edit-media-dialog').close(); loadMedia(); }
+    else alert('Save failed: '+(j.error||('HTTP '+r.status))+(r.status===401?' — log out and log back in':'')); 
+  }catch(err){ alert('Save failed: '+err.message); }
+  finally{ if(btn){ btn.disabled=false; btn.textContent='Save'; } }
 });
 
 // Team

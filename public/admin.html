@@ -165,9 +165,9 @@
             <label>Tags (comma-separated)<input name="tags"></label>
             <label>Case-study text (portfolio only)<textarea name="case_study_text" rows="3" placeholder="What was built, timeline, result..."></textarea></label>
             <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-              <label>Upload files (select many at once)<input type="file" name="file" accept="image/*,video/*" multiple></label>
+              <label>Upload files — images or video up to 150MB each (select many at once)<input type="file" name="file" accept="image/*,video/*,.mov,.m4v" multiple></label>
               <span style="color:#64748B">or</span>
-              <label style="flex:1">Image/Video URL<input name="url" placeholder="https://..."></label>
+              <label style="flex:1">Image/Video URL — direct mp4/webm/mov link, or YouTube / Vimeo / Drive link<input name="url" placeholder="https://..."></label>
             </div>
             <div id="media-hint" style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:10px;font-size:12px;color:#1E40AF;display:none"><b>Tip:</b> <span id="media-hint-text"></span></div>
             <div id="media-preview" style="display:none;border:1px dashed #CBD5E1;border-radius:12px;padding:10px"><img id="media-preview-img" style="max-height:180px;border-radius:8px"><div id="media-preview-meta" style="font-size:12px;color:#64748B;margin-top:6px"></div></div>

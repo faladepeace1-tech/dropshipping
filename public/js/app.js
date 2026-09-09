@@ -12,6 +12,45 @@ function getUTM(){
 }
 function sanitize(t){const d=document.createElement('div');d.textContent=t;return d.innerHTML;}
 function whatsappLink(num, msg){ const n=(num||'').replace(/\D/g,''); return `https://wa.me/${n}?text=${encodeURIComponent(msg||'')}`; }
+// ---- Media helpers: robust video/URL detection (query strings, mov/m4v, YouTube/Vimeo/Drive) ----
+// Old code used url.match(/\.(mp4|webm)$/i) which fails for "/uploads/x.mp4?v=1",
+// Cloudinary "?...", and YouTube/Vimeo page links (which need an iframe, not <video>).
+function stripUrlParams(u){ return String(u||'').split('?')[0].split('#')[0]; }
+function isVideoFile(u){ return /\.(mp4|webm|mov|m4v|ogg|ogv|avi|mkv|3gp)$/i.test(stripUrlParams(u).trim()); }
+function youTubeId(u){
+  try{
+    const s=String(u||'').trim();
+    let m=s.match(/(?:youtube\.com\/(?:watch\?.*v=|shorts\/|embed\/|live\/)|youtu\.be\/)([A-Za-z0-9_-]{6,20})/i);
+    if(m) return m[1];
+  }catch{}
+  return '';
+}
+function vimeoId(u){
+  try{
+    const m=String(u||'').match(/vimeo\.com\/(?:video\/)?(\d{5,})/i);
+    if(m) return m[1];
+  }catch{}
+  return '';
+}
+function driveId(u){
+  try{
+    const m=String(u||'').match(/drive\.google\.com\/file\/d\/([A-Za-z0-9_-]{10,})/i);
+    if(m) return m[1];
+  }catch{}
+  return '';
+}
+function mediaKind(u){
+  if(!u) return 'image';
+  if(youTubeId(u)) return 'youtube';
+  if(vimeoId(u)) return 'vimeo';
+  if(driveId(u)) return 'drive';
+  if(isVideoFile(u)) return 'video';
+  if(/video/i.test(String(u)) && /\.(mp4|webm|mov|m4v|ogg)/i.test(String(u))) return 'video';
+  return 'image';
+}
+function youTubeEmbed(u){ return 'https://www.youtube.com/embed/'+youTubeId(u)+'?rel=0'; }
+function vimeoEmbed(u){ return 'https://player.vimeo.com/video/'+vimeoId(u); }
+function driveEmbed(u){ return 'https://drive.google.com/file/d/'+driveId(u)+'/preview'; }
 function track(event_type, element_id, metadata={}){
   const payload={event_type,element_id,session_id:sessionId,page_url:location.href,utm:getUTM(),metadata};
   try{
@@ -327,9 +366,15 @@ function renderPortfolio(filter){
   filtered.forEach((item, idx)=>{
     const card=document.createElement('div'); card.className='card';
     card.style.animationDelay=(idx*60)+'ms';
-    // detect video?
-    const isVideo = item.url.match(/\.(mp4|webm|mov)$/i) || item.url.includes('video');
-    const media = isVideo ? `<video src="${item.url}" muted loop playsinline poster=""></video><span style="position:absolute;right:10px;top:10px;background:rgba(0,0,0,.6);color:#fff;padding:4px 8px;border-radius:999px;font-size:10px">VIDEO</span>` : `<img src="${item.url}" alt="${sanitize(item.alt_text||item.caption)}" loading="lazy">`;
+    const kind = mediaKind(item.url);
+    const isVideo = kind==='video';
+    const isEmbed = kind==='youtube'||kind==='vimeo'||kind==='drive';
+    const embedSrc = kind==='youtube'?youTubeEmbed(item.url):kind==='vimeo'?vimeoEmbed(item.url):kind==='drive'?driveEmbed(item.url):'';
+    const media = isEmbed
+      ? `<iframe src="${embedSrc}" style="width:100%;height:100%;border:0" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe><span style="position:absolute;right:10px;top:10px;background:rgba(0,0,0,.6);color:#fff;padding:4px 8px;border-radius:999px;font-size:10px">VIDEO</span>`
+      : isVideo
+        ? `<video src="${item.url}" muted loop playsinline preload="metadata" poster=""></video><span style="position:absolute;right:10px;top:10px;background:rgba(0,0,0,.6);color:#fff;padding:4px 8px;border-radius:999px;font-size:10px">VIDEO</span>`
+        : `<img src="${item.url}" alt="${sanitize(item.alt_text||item.caption)}" loading="lazy" onerror="this.style.opacity=.25">`;
     card.innerHTML=`<div class="card-media">${media}<div class="overlay"><span class="tag">${sanitize(item.category||'Store')}</span><div class="result">${sanitize(item.result_stat||'')}</div><div style="font-size:13px;font-weight:700;margin-top:4px">${sanitize(item.caption||'')}</div><div class="view">${sanitize(T('modal_view_case','View Case Study'))} →</div></div></div>`;
     // stagger in
     requestAnimationFrame(()=> setTimeout(()=>card.classList.add('in'), 30+idx*40));
@@ -375,28 +420,57 @@ function openModal(item, list){
 function updateModal(){
   const item=MODAL_ITEMS[MODAL_INDEX];
   if(!item) return;
-  const img=$('#modal-img');
-  // If video, swap to video element? Simplify: show image/video as img src (video will not play in img tag, so handle)
-  const isVid=item.url.match(/\.(mp4|webm)$/i);
-  if(isVid){
-    // replace img with video
-    let v=document.getElementById('modal-video');
-    if(!v){
-      v=document.createElement('video'); v.id='modal-video'; v.controls=true; v.autoplay=true; v.muted=true; v.loop=true; v.style.width='100%'; v.style.height='100%'; v.style.objectFit='cover';
-      img.replaceWith(v);
+  const mediaBox=$('#modal-media');
+  const kind=mediaKind(item.url);
+  // Clear previous media (img / video / iframe) and render the right element
+  if(mediaBox){
+    mediaBox.innerHTML='';
+    if(kind==='youtube'||kind==='vimeo'||kind==='drive'){
+      const src=kind==='youtube'?youTubeEmbed(item.url):kind==='vimeo'?vimeoEmbed(item.url):driveEmbed(item.url);
+      const f=document.createElement('iframe');
+      f.src=src; f.allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+      f.allowFullscreen=true; f.style.cssText='width:100%;height:100%;border:0;background:#0B1220';
+      mediaBox.appendChild(f);
+    } else if(kind==='video'){
+      const v=document.createElement('video');
+      v.id='modal-video'; v.controls=true; v.autoplay=true; v.muted=true; v.loop=true; v.playsInline=true;
+      v.preload='auto'; v.style.cssText='width:100%;height:100%;object-fit:cover;background:#0B1220';
+      v.onloadedmetadata=()=>{ try{ if(v.videoHeight>v.videoWidth){ v.style.objectFit='contain'; } }catch{} };
+      v.onerror=()=>{ const p=document.createElement('div'); p.style.cssText='color:#F87171;padding:24px;text-align:center;font-size:13px'; p.textContent='Video failed to load — check the URL or re-upload the file.'; mediaBox.appendChild(p); };
+      const s=document.createElement('source'); s.src=item.url;
+      const ext=stripUrlParams(item.url).split('.').pop().toLowerCase();
+      s.type=ext==='webm'?'video/webm':ext==='mov'?'video/quicktime':ext==='m4v'?'video/x-m4v':ext==='ogv'||ext==='ogg'?'video/ogg':'video/mp4';
+      v.appendChild(s);
+      mediaBox.appendChild(v);
+      v.play().catch(()=>{});
+    } else {
+      const im=document.createElement('img');
+      im.id='modal-img'; im.alt=item.alt_text||item.caption||''; im.style.cssText='width:100%;height:100%;object-fit:cover';
+      im.onerror=()=>{ im.style.opacity=.25; };
+      im.src=item.url;
+      mediaBox.appendChild(im);
     }
-    v.style.objectFit='cover'; v.style.background='';
-    v.onloadedmetadata=()=>{ try{ if(v.videoHeight>v.videoWidth){ v.style.objectFit='contain'; v.style.background='#0B1220'; } }catch{} };
-    v.src=item.url;
-    v.play().catch(()=>{});
   } else {
-    let v=document.getElementById('modal-video');
-    if(v){
-      const newImg=document.createElement('img'); newImg.id='modal-img'; newImg.alt=''; newImg.style.width='100%'; newImg.style.height='100%'; newImg.style.objectFit='cover';
-      v.replaceWith(newImg);
+    // Fallback for older markup with #modal-img only
+    const img=$('#modal-img');
+    const isVid=isVideoFile(item.url);
+    if(isVid && img){
+      let v=document.getElementById('modal-video');
+      if(!v){
+        v=document.createElement('video'); v.id='modal-video'; v.controls=true; v.autoplay=true; v.muted=true; v.loop=true; v.style.width='100%'; v.style.height='100%'; v.style.objectFit='cover';
+        img.replaceWith(v);
+      }
+      v.src=item.url;
+      v.play().catch(()=>{});
+    } else if(img){
+      let v=document.getElementById('modal-video');
+      if(v){
+        const newImg=document.createElement('img'); newImg.id='modal-img'; newImg.alt=''; newImg.style.width='100%'; newImg.style.height='100%'; newImg.style.objectFit='cover';
+        v.replaceWith(newImg);
+      }
+      $('#modal-img').src=item.url;
+      $('#modal-img').alt=item.alt_text||item.caption;
     }
-    $('#modal-img').src=item.url;
-    $('#modal-img').alt=item.alt_text||item.caption;
   }
   $('#modal-tag').textContent=item.category||'Store';
   $('#modal-title').textContent=item.caption||'Store';
@@ -438,14 +512,21 @@ async function loadMedia(){
   const pGrid=$('#proof-grid'); pGrid.innerHTML='';
   proof.forEach(item=>{
     const c=document.createElement('div'); c.className='proof-card reveal';
-    c.innerHTML=`<img src="${item.url}" alt="${sanitize(item.alt_text||'proof')}" loading="lazy"><p>${sanitize(item.caption||T('proof_caption_fallback','Verified sales proof'))}</p>`;
+    const k=mediaKind(item.url);
+    if(k==='youtube') c.innerHTML=`<iframe src="${youTubeEmbed(item.url)}" style="width:100%;aspect-ratio:16/10;border:0;border-radius:12px" loading="lazy" allowfullscreen></iframe><p>${sanitize(item.caption||T('proof_caption_fallback','Verified sales proof'))}</p>`;
+    else if(k==='vimeo') c.innerHTML=`<iframe src="${vimeoEmbed(item.url)}" style="width:100%;aspect-ratio:16/10;border:0;border-radius:12px" loading="lazy" allowfullscreen></iframe><p>${sanitize(item.caption||T('proof_caption_fallback','Verified sales proof'))}</p>`;
+    else if(k==='drive') c.innerHTML=`<iframe src="${driveEmbed(item.url)}" style="width:100%;aspect-ratio:16/10;border:0;border-radius:12px" loading="lazy" allowfullscreen></iframe><p>${sanitize(item.caption||T('proof_caption_fallback','Verified sales proof'))}</p>`;
+    else if(k==='video') c.innerHTML=`<video src="${item.url}" controls muted loop playsinline preload="metadata" style="width:100%;border-radius:12px;background:#0B1220"></video><p>${sanitize(item.caption||T('proof_caption_fallback','Verified sales proof'))}</p>`;
+    else c.innerHTML=`<img src="${item.url}" alt="${sanitize(item.alt_text||'proof')}" loading="lazy" onerror="this.style.opacity=.25"><p>${sanitize(item.caption||T('proof_caption_fallback','Verified sales proof'))}</p>`;
     pGrid.appendChild(c);
   });
   const testiR=await fetch('/api/media?type=testimonials'); const testi=await testiR.json();
   const tGrid=$('#testi-grid'); tGrid.innerHTML='';
   testi.forEach(item=>{
-    const isVideo=item.url.match(/\.(mp4|webm)$/i);
-    const media=isVideo?`<video src="${item.url}" muted loop playsinline style="width:40px;height:40px;border-radius:50%;object-fit:cover"></video>`:`<img src="${item.url}" alt="">`;
+    const k=mediaKind(item.url);
+    const isVideo=k==='video';
+    const isEmbed=k==='youtube'||k==='vimeo'||k==='drive';
+    const media=isEmbed?`<div style="width:40px;height:40px;border-radius:50%;background:#0B1220;color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px">▶</div>`:(isVideo?`<video src="${item.url}" muted loop playsinline preload="metadata" style="width:40px;height:40px;border-radius:50%;object-fit:cover"></video>`:`<img src="${item.url}" alt="" onerror="this.style.opacity=.25">`);
     const el=document.createElement('div'); el.className='testi reveal';
     el.innerHTML=`<q>${sanitize(item.caption||T('testi_fallback','Great experience with Nexatech.'))}</q><div class="who">${media}<div><b>${sanitize(item.alt_text||'Client')}</b><br><small style="color:var(--text-muted)">${sanitize(item.result_stat||T('testi_role_fallback','Verified buyer'))}</small></div></div>`;
     if(isVideo){ const v=el.querySelector('video'); if(v) v.play().catch(()=>{}); }
@@ -462,19 +543,24 @@ async function loadMedia(){
       } else {
         if(empty) empty.classList.add('hidden');
         reviews.forEach((item, idx)=>{
-          const isVideo=item.url.match(/\.(mp4|webm|mov)$/i);
+          const kind=mediaKind(item.url);
+          const isVideo=kind==='video';
+          const isEmbed=kind==='youtube'||kind==='vimeo'||kind==='drive';
+          const embedSrc=isEmbed?(kind==='youtube'?youTubeEmbed(item.url):kind==='vimeo'?vimeoEmbed(item.url):driveEmbed(item.url)):'';
           const card=document.createElement('div'); card.className='reviews-card reveal' + (isVideo ? ' portrait' : '');
           card.style.transitionDelay=(idx*50)+'ms';
-          card.innerHTML = isVideo
+          card.innerHTML = isEmbed
+            ? `<iframe src="${embedSrc}" style="width:100%;aspect-ratio:16/10;border:0" loading="lazy" allowfullscreen></iframe><div class="play-badge"><span>▶</span></div><div class="caption">${sanitize(item.caption||T('review_video_label','Video Review'))}</div>`
+            : isVideo
             ? `<video src="${item.url}" muted loop playsinline preload="metadata" poster=""></video><div class="play-badge"><span>▶</span></div><div class="caption">${sanitize(item.caption||T('review_video_label','Video Review'))}</div>`
-            : `<img src="${item.url}" alt="${sanitize(item.alt_text||item.caption||T('review_caption_fallback','Customer Review'))}" loading="lazy"><div class="caption">${sanitize(item.caption||T('review_caption_fallback','Customer Review'))}</div>`;
+            : `<img src="${item.url}" alt="${sanitize(item.alt_text||item.caption||T('review_caption_fallback','Customer Review'))}" loading="lazy" onerror="this.style.opacity=.25"><div class="caption">${sanitize(item.caption||T('review_caption_fallback','Customer Review'))}</div>`;
           card.addEventListener('click', ()=>{
             // open in modal lightbox (reuse portfolio modal)
             MODAL_ITEMS=reviews; MODAL_INDEX=reviews.findIndex(x=>x.id===item.id);
             updateModal();
             $('#portfolio-modal').classList.add('open');
             document.body.style.overflow='hidden';
-            track('reviews_view', String(item.id), {type: isVideo?'video':'image'});
+            track('reviews_view', String(item.id), {type: (isVideo||isEmbed)?'video':'image'});
           });
           // video hover preview
           if(isVideo){
