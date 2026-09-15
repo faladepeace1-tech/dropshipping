@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Privacy Policy Nexatech Dropshipping Store</title>
+<link rel="icon" href="data:,">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/style.css">
 <style>
@@ -12,8 +13,10 @@
 .legal-wrap small{color:var(--text-muted)}
 .legal-content{margin-top:18px;background:#fff;border:1px solid var(--border);border-radius:16px;padding:22px;box-shadow:var(--shadow);line-height:1.7}
 .legal-content h2{font-size:18px;margin:22px 0 8px}
+.legal-content h2:first-child{margin-top:0}
 .legal-content p,.legal-content li{color:#334155;font-size:14px}
 .legal-content ul{padding-left:18px}
+.legal-notice{margin-top:12px;font-size:12px;color:var(--text-muted)}
 </style>
 </head>
 <body>
@@ -27,16 +30,17 @@
       <a href="/#faq">FAQ</a>
     </nav>
     <div class="nav-cta">
-      <a class="btn btn-ghost hide-mobile" id="nav-wa" href="#" target="_blank">WhatsApp Us</a>
-      <a class="btn btn-primary" id="nav-book" href="#" target="_blank">Book a Call</a>
+      <a class="btn btn-ghost hide-mobile" id="nav-wa" href="https://wa.me/19283825389" target="_blank" rel="noopener">WhatsApp Us</a>
+      <a class="btn btn-primary" id="nav-book" href="#" target="_blank" rel="noopener">Book a Call</a>
     </div>
   </div>
 </header>
 <main class="legal-wrap">
   <a href="/" style="font-size:13px;color:var(--text-muted);font-weight:700">← Back to Home</a>
   <h1 id="p-title">Privacy Policy</h1>
-  <small id="p-updated">Last updated: </small>
-  <div class="legal-content" id="p-content">Loading...</div>
+  <small id="p-updated">Last updated: September 3, 2026</small>
+  <div class="legal-content" id="p-content"><h2>Introduction</h2><p>At Nexatech Dropshipping Store, we respect your privacy and are committed to protecting your personal data. This policy explains how we collect, use, and safeguard your information.</p><h2>Information We Collect</h2><p>We collect information you provide via our application form (name, email, WhatsApp, niche preferences) and anonymous analytics (page views, click events) to improve our service.</p><h2>How We Use Your Information</h2><ul><li>To contact you about your store application via WhatsApp/Email</li><li>To personalize your strategy call</li><li>To improve our website and services</li><li>To comply with legal obligations</li></ul><h2>Data Sharing</h2><p>We never sell your data. We may share it with trusted automation tools (e.g., webhooks you configure) solely to fulfill your request.</p><h2>Your Rights</h2><p>You may request access, correction, or deletion of your personal data by emailing saheednexatech@gmail.com.</p><h2>Contact</h2><p>Questions? Email <strong>saheednexatech@gmail.com</strong> or WhatsApp <strong>+1 928 382 5389</strong>.</p></div>
+  <p class="legal-notice" id="p-notice" hidden>Showing default policy — live content could not be loaded. Please refresh to retry.</p>
 </main>
 <footer class="footer">
   <div class="container">
@@ -47,23 +51,50 @@
   </div>
 </footer>
 <script>
-(async()=>{
-  try{
-    const r=await fetch('/api/content'); const j=await r.json(); const c=j.content;
-    document.getElementById('p-title').textContent=c.privacy_title||'Privacy Policy';
-    document.getElementById('p-updated').textContent='Last updated: '+(c.privacy_last_updated||' ');
-    document.getElementById('p-content').innerHTML=c.privacy_content||'<p>No content yet.</p>';
-    document.title=(c.privacy_title||'Privacy Policy')+' '+ (c.site_name||'Nexatech');
-    const wa=c.whatsapp_number||'19283825389';
-    const cal=c.calendly_url||'#';
-    document.getElementById('nav-wa').href='https://wa.me/'+wa.replace(/\D/g,'')+'?text='+encodeURIComponent('Hi Nexatech privacy question');
-    document.getElementById('nav-book').href=cal;
-    document.getElementById('f-copy').textContent=c.footer_copyright||'© Nexatech';
-    // favicon/logo
-    if(c.favicon_url) document.querySelector('link[rel="icon"]').href=c.favicon_url;
-    if(c.logo_text) document.getElementById('logo-text').textContent=c.logo_text;
-    if(c.logo_url) document.getElementById('logo-text').innerHTML='<img src="'+c.logo_url+'" style="height:28px" alt="logo">';
-  }catch(e){ document.getElementById('p-content').textContent='Failed to load.'; }
+(function(){
+  function setText(id, val){ var el = document.getElementById(id); if (el && val) el.textContent = val; }
+  function setHtml(id, val){ var el = document.getElementById(id); if (el && val) el.innerHTML = val; }
+  function setFavicon(url){
+    if(!url) return;
+    try{
+      var link = document.querySelector('link[rel="icon"]');
+      if(!link){ link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link); }
+      link.href = url;
+    }catch(e){}
+  }
+  function setLogo(text, url){
+    try{
+      var el = document.getElementById('logo-text');
+      if(!el) return;
+      if(url) el.innerHTML = '<img src="' + url.replace(/"/g,'') + '" style="height:28px" alt="logo">';
+      else if(text) el.textContent = text;
+    }catch(e){}
+  }
+  async function load(){
+    try{
+      var r = await fetch('/api/content', { headers: { 'Accept': 'application/json' } });
+      if(!r.ok) throw new Error('HTTP ' + r.status);
+      var j = await r.json();
+      var c = (j && j.content) || {};
+      if(c.privacy_title) { setText('p-title', c.privacy_title); document.title = c.privacy_title + ' ' + (c.site_name || 'Nexatech'); }
+      if(c.privacy_last_updated) setText('p-updated', 'Last updated: ' + c.privacy_last_updated);
+      if(c.privacy_content) setHtml('p-content', c.privacy_content);
+      var wa = String(c.whatsapp_number || '19283825389').replace(/\D/g, '') || '19283825389';
+      var navWa = document.getElementById('nav-wa');
+      if(navWa) navWa.href = 'https://wa.me/' + wa + '?text=' + encodeURIComponent('Hi Nexatech privacy question');
+      var cal = document.getElementById('nav-book');
+      if(cal && c.calendly_url) cal.href = c.calendly_url;
+      if(c.footer_copyright) setText('f-copy', c.footer_copyright);
+      setFavicon(c.favicon_url);
+      setLogo(c.logo_text, c.logo_url);
+    }catch(e){
+      // Static fallback content above stays visible — only show a small retry hint.
+      var n = document.getElementById('p-notice');
+      if(n) n.hidden = false;
+    }
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', load);
+  else load();
 })();
 </script>
 </body>

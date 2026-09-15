@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Terms and Conditions Nexatech Dropshipping Store</title>
+<link rel="icon" href="data:,">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/style.css">
 <style>
@@ -12,8 +13,10 @@
 .legal-wrap small{color:var(--text-muted)}
 .legal-content{margin-top:18px;background:#fff;border:1px solid var(--border);border-radius:16px;padding:22px;box-shadow:var(--shadow);line-height:1.7}
 .legal-content h2{font-size:18px;margin:22px 0 8px}
+.legal-content h2:first-child{margin-top:0}
 .legal-content p,.legal-content li{color:#334155;font-size:14px}
 .legal-content ul{padding-left:18px}
+.legal-notice{margin-top:12px;font-size:12px;color:var(--text-muted)}
 </style>
 </head>
 <body>
@@ -27,16 +30,17 @@
       <a href="/#faq">FAQ</a>
     </nav>
     <div class="nav-cta">
-      <a class="btn btn-ghost hide-mobile" id="nav-wa" href="#" target="_blank">WhatsApp Us</a>
-      <a class="btn btn-primary" id="nav-book" href="#" target="_blank">Book a Call</a>
+      <a class="btn btn-ghost hide-mobile" id="nav-wa" href="https://wa.me/19283825389" target="_blank" rel="noopener">WhatsApp Us</a>
+      <a class="btn btn-primary" id="nav-book" href="#" target="_blank" rel="noopener">Book a Call</a>
     </div>
   </div>
 </header>
 <main class="legal-wrap">
   <a href="/" style="font-size:13px;color:var(--text-muted);font-weight:700">← Back to Home</a>
   <h1 id="t-title">Terms and Conditions</h1>
-  <small id="t-updated">Last updated: </small>
-  <div class="legal-content" id="t-content">Loading...</div>
+  <small id="t-updated">Last updated: September 3, 2026</small>
+  <div class="legal-content" id="t-content"><h2>1. Services</h2><p>Nexatech builds, launches, and hands over done-for-you dropshipping stores. Timelines (7 to 14 days) are estimates and depend on client responsiveness.</p><h2>2. Ownership</h2><p>You own 100% of the store, domain, and assets upon handover. We build in your account.</p><h2>3. Payments &amp; Refunds</h2><p>Due to done-for-you labor, deposits are non-refundable. We revise until handover criteria are met. Support windows: Starter 14 days, Pro 30 days, Elite 60 days.</p><h2>4. Results Disclaimer</h2><p>We provide real, current sales proof but do not guarantee specific revenue. Success depends on traffic, product-market fit, and execution.</p><h2>5. Client Responsibilities</h2><p>You are responsible for running traffic (ads), complying with platform policies, and providing timely feedback.</p><h2>6. Limitation of Liability</h2><p>Our liability is limited to the amount paid for services.</p><h2>7. Governing Law</h2><p>These terms are governed by applicable international commercial law.</p><p>Contact: saheednexatech@gmail.com | +1 928 382 5389</p></div>
+  <p class="legal-notice" id="t-notice" hidden>Showing default terms — live content could not be loaded. Please refresh to retry.</p>
 </main>
 <footer class="footer">
   <div class="container">
@@ -47,22 +51,50 @@
   </div>
 </footer>
 <script>
-(async()=>{
-  try{
-    const r=await fetch('/api/content'); const j=await r.json(); const c=j.content;
-    document.getElementById('t-title').textContent=c.terms_title||'Terms and Conditions';
-    document.getElementById('t-updated').textContent='Last updated: '+(c.terms_last_updated||' ');
-    document.getElementById('t-content').innerHTML=c.terms_content||'<p>No content yet.</p>';
-    document.title=(c.terms_title||'Terms')+' '+ (c.site_name||'Nexatech');
-    const wa=c.whatsapp_number||'19283825389';
-    const cal=c.calendly_url||'#';
-    document.getElementById('nav-wa').href='https://wa.me/'+wa.replace(/\D/g,'')+'?text='+encodeURIComponent('Hi Nexatech terms question');
-    document.getElementById('nav-book').href=cal;
-    document.getElementById('f-copy').textContent=c.footer_copyright||'© Nexatech';
-    if(c.favicon_url) document.querySelector('link[rel="icon"]').href=c.favicon_url;
-    if(c.logo_text) document.getElementById('logo-text').textContent=c.logo_text;
-    if(c.logo_url) document.getElementById('logo-text').innerHTML='<img src="'+c.logo_url+'" style="height:28px" alt="logo">';
-  }catch(e){ document.getElementById('t-content').textContent='Failed to load.'; }
+(function(){
+  function setText(id, val){ var el = document.getElementById(id); if (el && val) el.textContent = val; }
+  function setHtml(id, val){ var el = document.getElementById(id); if (el && val) el.innerHTML = val; }
+  function setFavicon(url){
+    if(!url) return;
+    try{
+      var link = document.querySelector('link[rel="icon"]');
+      if(!link){ link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link); }
+      link.href = url;
+    }catch(e){}
+  }
+  function setLogo(text, url){
+    try{
+      var el = document.getElementById('logo-text');
+      if(!el) return;
+      if(url) el.innerHTML = '<img src="' + url.replace(/"/g,'') + '" style="height:28px" alt="logo">';
+      else if(text) el.textContent = text;
+    }catch(e){}
+  }
+  async function load(){
+    try{
+      var r = await fetch('/api/content', { headers: { 'Accept': 'application/json' } });
+      if(!r.ok) throw new Error('HTTP ' + r.status);
+      var j = await r.json();
+      var c = (j && j.content) || {};
+      if(c.terms_title) { setText('t-title', c.terms_title); document.title = c.terms_title + ' ' + (c.site_name || 'Nexatech'); }
+      if(c.terms_last_updated) setText('t-updated', 'Last updated: ' + c.terms_last_updated);
+      if(c.terms_content) setHtml('t-content', c.terms_content);
+      var wa = String(c.whatsapp_number || '19283825389').replace(/\D/g, '') || '19283825389';
+      var navWa = document.getElementById('nav-wa');
+      if(navWa) navWa.href = 'https://wa.me/' + wa + '?text=' + encodeURIComponent('Hi Nexatech terms question');
+      var cal = document.getElementById('nav-book');
+      if(cal && c.calendly_url) cal.href = c.calendly_url;
+      if(c.footer_copyright) setText('f-copy', c.footer_copyright);
+      setFavicon(c.favicon_url);
+      setLogo(c.logo_text, c.logo_url);
+    }catch(e){
+      // Static fallback content above stays visible — only show a small retry hint.
+      var n = document.getElementById('t-notice');
+      if(n) n.hidden = false;
+    }
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', load);
+  else load();
 })();
 </script>
 </body>

@@ -144,7 +144,11 @@ function versionedHtml(file){
 app.use((req, res, next)=>{ if(req.query && req.query.v) res.set('Cache-Control','public, max-age=31536000, immutable'); next(); });
 app.get(['/', '/index.html'], (req, res)=> res.type('html').send(versionedHtml('index.html')));
 app.get('/admin', (req, res)=> res.type('html').send(versionedHtml('admin.html')));
-app.get(['/privacy.html', '/terms.html'], (req, res)=> res.type('html').send(versionedHtml(String(req.path).slice(1))));
+app.get(['/privacy.html', '/privacy', '/terms.html', '/terms'], (req, res)=>{
+  const file = req.path.startsWith('/terms') ? 'terms.html' : 'privacy.html';
+  try { return res.type('html').send(versionedHtml(file)); }
+  catch(e){ return res.status(500).type('html').send('<h1>Page unavailable</h1><p><a href="/">Back to Home</a></p>'); }
+});
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(UPLOAD_DIR));
 // DB media store (Postgres): files uploaded while DATABASE_URL is set live in media_blobs,
@@ -296,6 +300,7 @@ app.get('/api/health', async (req, res) => res.json({ status: 'ok', time: new Da
 
 // --- API: Content ---
 app.get('/api/content', async (req, res) => {
+  try{
   const rows = await db.prepare('SELECT key,value,type FROM content').all();
   const obj = {};
   // Never expose credentials/tokens publicly (admin reads them via authed endpoints)
@@ -312,14 +317,24 @@ app.get('/api/content', async (req, res) => {
   const stats = await db.prepare('SELECT metric,value FROM stats_cache').all();
   const statsObj = {};
   stats.forEach(s => statsObj[s.metric] = s.value);
-  // compute scarcity remaining
-  const total = parseInt(obj.scarcity_slots_total || '10', 10);
-  const _scarcityRow = await db.prepare("SELECT COUNT(*) as c FROM leads WHERE created_at >= date('now','start of month')").get();
-  const leadsThisMonth = _scarcityRow ? _scarcityRow.c : 0;
-  const remaining = Math.max(0, total - leadsThisMonth);
+  // compute scarcity remaining (never let this break the whole endpoint — legal pages depend on it)
+  let remaining = parseInt(obj.scarcity_slots_total || '10', 10) || 10;
+  let used = 0;
+  try{
+    const total = parseInt(obj.scarcity_slots_total || '10', 10) || 10;
+    const _scarcityRow = await db.prepare("SELECT COUNT(*) as c FROM leads WHERE created_at >= date('now','start of month')").get();
+    const leadsThisMonth = parseInt(_scarcityRow?.c ?? 0, 10) || 0;
+    used = leadsThisMonth;
+    remaining = Math.max(0, total - leadsThisMonth);
+  }catch(e){ console.error('scarcity compute failed', e.message); }
+  const total = parseInt(obj.scarcity_slots_total || '10', 10) || 10;
   const labelTpl = obj.scarcity_label || 'Only {remaining} build slots left this month';
-  const scarcityText = labelTpl.replace('{remaining}', remaining);
-  res.json({ content: obj, stats: statsObj, scarcity: { total, used: leadsThisMonth, remaining, text: scarcityText } });
+  const scarcityText = String(labelTpl).replace('{remaining}', remaining);
+  res.json({ content: obj, stats: statsObj, scarcity: { total, used, remaining, text: scarcityText } });
+  }catch(e){
+    console.error('GET /api/content failed:', e.message);
+    res.status(500).json({ error: 'content unavailable', content: {} });
+  }
 });
 
 app.put('/api/content/:key', requireAuth, async (req, res) => {
