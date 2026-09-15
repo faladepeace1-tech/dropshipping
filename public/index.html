@@ -2,39 +2,72 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title id="seo-title">Nexatech Dropshipping Store Done For You High Converting Stores</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title id="seo-title">Nexatech Dropshipping Store — Done-For-You High Converting Stores</title>
 <meta name="description" id="seo-desc" content="We build, launch and hand over fully-configured dropshipping stores with winning products and automated fulfillment. You own 100%.">
-<meta property="og:title" content="Nexatech Dropshipping Store Done For You High Converting Stores">
+<meta property="og:title" content="Nexatech Dropshipping Store — Done-For-You High Converting Stores">
 <meta property="og:description" content="We build, launch and hand over fully-configured dropshipping stores with winning products and automated fulfillment.">
 <meta property="og:type" content="website">
 <meta property="og:image" id="og-image" content="">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#05070f">
 <link rel="icon" id="favicon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800;900&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/style.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/lenis@1.1.14/dist/lenis.min.js" defer></script>
 </head>
-<body>
+<body class="nx-3d">
+<a class="skip-link" href="#hero">Skip to content</a>
+
+<!-- 3D Preloader -->
+<div id="preloader" aria-hidden="true">
+  <div class="pre-inner">
+    <div class="pre-logo"><span class="logo-mark">N</span><span>NEXATECH</span></div>
+    <div class="pre-bar"><i id="preloader-bar"></i></div>
+    <div class="pre-meta"><span id="preloader-pct">0%</span><span>Loading 3D experience…</span></div>
+  </div>
+</div>
+
+<!-- Scroll progress + custom cursor -->
+<div id="scroll-progress" aria-hidden="true"><i id="scroll-progress-fill"></i></div>
+<div id="cursor-dot" aria-hidden="true"></div>
+<div id="cursor-ring" aria-hidden="true"></div>
+
+<!-- Global ambient 3D background -->
+<canvas id="webgl-fixed" aria-hidden="true"></canvas>
+<div class="ambient-orbs" aria-hidden="true"><span></span><span></span><span></span></div>
+
 <!-- Header -->
-<header class="header" id="header">
+<header class="header glass" id="header">
   <div class="container nav">
-    <a class="logo" href="#"><span class="logo-mark">N</span> <span id="logo-text">NEXATECH</span></a>
-    <nav class="nav-links" id="nav-links">
+    <a class="logo magnetic" href="#hero"><span class="logo-mark">N</span> <span id="logo-text">NEXATECH</span></a>
+    <nav class="nav-links" id="nav-links" aria-label="Primary">
       <a href="#portfolio" id="nav-link-portfolio">Portfolio</a>
       <a href="#proof" id="nav-link-proof">Proof</a>
       <a href="#pricing" id="nav-link-pricing">Pricing</a>
       <a href="#faq" id="nav-link-faq">FAQ</a>
     </nav>
     <div class="nav-cta">
-      <a class="btn btn-ghost hide-mobile" id="nav-whatsapp" href="#" target="_blank" rel="noopener">WhatsApp Us</a>
-      <a class="btn btn-primary" id="nav-book" href="#" target="_blank" rel="noopener">Book a Call</a>
+      <a class="btn btn-ghost hide-mobile magnetic" id="nav-whatsapp" href="#" target="_blank" rel="noopener">WhatsApp Us</a>
+      <a class="btn btn-primary magnetic" id="nav-book" href="#" target="_blank" rel="noopener">Book a Call</a>
       <button class="hamburger" id="hamburger" aria-label="Menu">☰</button>
     </div>
   </div>
 </header>
 <div class="mobile-drawer" id="drawer">
-  <div class="drawer">
+  <div class="drawer glass">
     <button id="drawer-close" class="btn btn-ghost" style="align-self:flex-end">✕</button>
     <a href="#portfolio" id="drawer-link-portfolio">Portfolio</a>
     <a href="#proof" id="drawer-link-proof">Proof</a>
@@ -45,53 +78,59 @@
   </div>
 </div>
 
-<!-- Hero -->
-<section class="hero" id="hero" data-section="hero">
+<main>
+<!-- ============ HERO : immersive 3D stage ============ -->
+<section class="hero hero-3d" id="hero" data-section="hero">
   <div class="hero-bg" aria-hidden="true">
+    <canvas id="hero-webgl"></canvas>
     <div class="aurora"><span></span><span></span><span></span></div>
     <div class="grid-lines"><i></i><i></i><i></i><i></i><i></i></div>
     <canvas id="hero-particles"></canvas>
+    <div class="hero-floor"></div>
+    <div class="hero-vignette"></div>
   </div>
   <div class="hero-inner">
-    <div>
-      <div class="badge eyebrow-hero" id="hero-badge"><span class="dot"></span> <span id="hero-badge-text">Only 5 build slots left this month</span></div>
-      <h1 class="hero-title" id="hero-title">Your Profitable Dropshipping Store <span>Built, Launched & Ready to Sell</span></h1>
-      <p class="hero-sub" id="hero-subtitle">We handle product research, supplier setup, store design & payment integration. You own everything. We launch in 7 to 14 days with proven winning products.</p>
+    <div class="hero-copy">
+      <div class="badge eyebrow-hero glass" id="hero-badge"><span class="dot"></span> <span id="hero-badge-text">Only 5 build slots left this month</span></div>
+      <h1 class="hero-title" id="hero-title" data-split>Your Profitable Dropshipping Store <span>Built, Launched &amp; Ready to Sell</span></h1>
+      <p class="hero-sub" id="hero-subtitle">We handle product research, supplier setup, store design &amp; payment integration. You own everything. We launch in 7 to 14 days with proven winning products.</p>
       <div class="hero-ctas">
-        <a class="btn btn-primary" id="hero-book" href="#" target="_blank" rel="noopener">Book a Free Strategy Call →</a>
-        <a class="btn btn-ghost" id="hero-wa" href="#" target="_blank" rel="noopener">Chat on WhatsApp</a>
+        <a class="btn btn-primary btn-glow magnetic" id="hero-book" href="#" target="_blank" rel="noopener">Book a Free Strategy Call →</a>
+        <a class="btn btn-ghost glass magnetic" id="hero-wa" href="#" target="_blank" rel="noopener">Chat on WhatsApp</a>
       </div>
       <div class="trust-row">
-        <span id="trust-1">✔ <b>7 to 14 Day</b> Delivery</span>
-        <span id="trust-2">✔ <b>100%</b> Ownership</span>
-        <span id="trust-3">✔ <b>Real Sales</b> Proof</span>
+        <span class="trust-chip glass" id="trust-1">✔ <b>7 to 14 Day</b> Delivery</span>
+        <span class="trust-chip glass" id="trust-2">✔ <b>100%</b> Ownership</span>
+        <span class="trust-chip glass" id="trust-3">✔ <b>Real Sales</b> Proof</span>
       </div>
+      <div class="hero-hint" aria-hidden="true"><span class="mouse"><i></i></span> Scroll to explore the 3D store</div>
     </div>
-    <div class="hero-visual" id="hero-visual" aria-hidden="true">
-      <div class="browser-bar"><i style="background:#FF5F56"></i><i style="background:#FFBD2E"></i><i style="background:#27CA3F"></i><span id="hero-visual-domain" style="margin-left:auto;font-size:12px;color:var(--text-muted);font-weight:700">nexatech.store</span></div>
-      <div class="mock-img">
-        <img id="hero-mock-img" src="https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=900" alt="Store mockup" loading="eager">
-        <div class="chip" id="chip-1"><span style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#00D1FF,#7C3AED);display:grid;place-items:center;color:#fff">$</span><div><b id="chip-1-t">New Sale $450</b><br><small id="chip-1-s">Elégance Mode • just now</small></div></div>
-        <div class="chip" id="chip-2"><span style="width:36px;height:36px;border-radius:10px;background:#10B981;display:grid;place-items:center;color:#fff">✓</span><div><b id="chip-2-t">Order #1029 Shipped</b><br><small id="chip-2-s">GlowLab • 2m ago</small></div></div>
-        <div class="chip" id="chip-3"><span style="width:36px;height:36px;border-radius:10px;background:#0B1220;display:grid;place-items:center;color:#fff">◉</span><div><b id="chip-3-t">3.2% Conversion Rate</b><br><small id="chip-3-s">TechNest • today</small></div></div>
+    <div class="hero-visual tilt-scene" id="hero-visual" aria-hidden="true">
+      <div class="tilt" data-tilt data-tilt-max="10">
+        <div class="browser-bar"><i style="background:#FF5F56"></i><i style="background:#FFBD2E"></i><i style="background:#27CA3F"></i><span id="hero-visual-domain" style="margin-left:auto;font-size:12px;color:var(--text-muted);font-weight:700">nexatech.store</span></div>
+        <div class="mock-img">
+          <img id="hero-mock-img" src="https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=900" alt="Store mockup" loading="eager">
+          <div class="chip float-3d" id="chip-1"><span style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#00D1FF,#7C3AED);display:grid;place-items:center;color:#fff">$</span><div><b id="chip-1-t">New Sale $450</b><br><small id="chip-1-s">Elégance Mode • just now</small></div></div>
+          <div class="chip float-3d" id="chip-2"><span style="width:36px;height:36px;border-radius:10px;background:#10B981;display:grid;place-items:center;color:#fff">✓</span><div><b id="chip-2-t">Order #1029 Shipped</b><br><small id="chip-2-s">GlowLab • 2m ago</small></div></div>
+          <div class="chip float-3d" id="chip-3"><span style="width:36px;height:36px;border-radius:10px;background:#0B1220;display:grid;place-items:center;color:#fff">◉</span><div><b id="chip-3-t">3.2% Conversion Rate</b><br><small id="chip-3-s">TechNest • today</small></div></div>
+        </div>
+        <div class="hero-visual-glow"></div>
       </div>
     </div>
   </div>
 </section>
 
 <!-- Social Proof Strip -->
-<section class="strip" id="social-proof" data-section="social_proof">
-  <div class="marquee" id="marquee">
-    <!-- duplicated via JS for infinite -->
-  </div>
+<section class="strip glass-strip" id="social-proof" data-section="social_proof">
+  <div class="marquee" id="marquee"></div>
 </section>
 
 <!-- Portfolio -->
-<section class="section" id="portfolio" data-section="portfolio">
+<section class="section" id="portfolio" data-section="portfolio" data-reveal>
   <div class="container">
     <div class="eyebrow" id="portfolio-eyebrow">Portfolio</div>
-    <h2 class="h2" id="portfolio-title">Store Portfolio</h2>
-    <p class="sub" id="portfolio-subtitle">Real stores we’ve built explore by niche, see the numbers.</p>
+    <h2 class="h2 gradient-text" id="portfolio-title">Store Portfolio</h2>
+    <p class="sub" id="portfolio-subtitle">Real stores we’ve built — explore by niche, see the numbers.</p>
     <div class="filter-bar" id="filter-bar">
       <button class="pill active" data-filter="All">All</button>
       <button class="pill" data-filter="Fashion">Fashion</button>
@@ -101,25 +140,25 @@
       <button class="pill" data-filter="Home">Home</button>
       <button class="pill" data-filter="Eco Friendly">Eco Friendly</button>
     </div>
-    <div class="masonry" id="portfolio-grid"></div>
+    <div class="masonry perspective-grid" id="portfolio-grid"></div>
   </div>
 </section>
 
 <!-- Sales Proof -->
-<section class="section section-alt" id="proof" data-section="sales_proof">
+<section class="section section-alt" id="proof" data-section="sales_proof" data-reveal>
   <div class="container">
     <div class="eyebrow" id="proof-eyebrow">Proof</div>
-    <h2 class="h2" id="sales-proof-title">Revenue Wall Real Results</h2>
-    <p class="sub" id="sales-proof-subtitle">Dashboard screenshots & payout proofs from stores we launched.</p>
-    <div class="proof-grid" id="proof-grid"></div>
+    <h2 class="h2 gradient-text" id="sales-proof-title">Revenue Wall — Real Results</h2>
+    <p class="sub" id="sales-proof-subtitle">Dashboard screenshots &amp; payout proofs from stores we launched.</p>
+    <div class="proof-grid perspective-grid" id="proof-grid"></div>
   </div>
 </section>
 
 <!-- Experts -->
-<section class="section" id="experts" data-section="experts">
+<section class="section" id="experts" data-section="experts" data-reveal>
   <div class="container">
     <div class="eyebrow" id="experts-eyebrow">Team</div>
-    <h2 class="h2" id="experts-title">Meet the Experts</h2>
+    <h2 class="h2 gradient-text" id="experts-title">Meet the Experts</h2>
     <p class="sub" id="experts-subtitle">The team that engineers your storefront.</p>
     <div class="team-grid" id="team-grid"></div>
     <div style="text-align:center;margin-top:16px"><a href="#" id="view-full-team" class="btn btn-ghost hidden">View full team →</a></div>
@@ -127,127 +166,122 @@
 </section>
 
 <!-- How It Works -->
-<section class="section section-alt" id="how-it-works" data-section="how_it_works">
+<section class="section section-alt" id="how-it-works" data-section="how_it_works" data-reveal>
   <div class="container">
     <div class="eyebrow" id="how-eyebrow">Process</div>
-    <h2 class="h2" id="how-title">How It Works 4 Step Launch Engine</h2>
+    <h2 class="h2 gradient-text" id="how-title">How It Works — 4 Step Launch Engine</h2>
     <p class="sub" id="how-subtitle">From niche to live store in under 2 weeks.</p>
     <div class="progress-line" id="progress-line"></div>
     <div class="steps" id="steps">
-      <div class="step" data-step="1" style="opacity:1;transform:none;visibility:visible"><div class="step-num">01</div><h3 id="step1-title">Niche & Product Mining</h3><p class="sub" style="margin:0" id="step1-desc">We deep-dive trending data to isolate a low competition, high demand niche and handpick winning products with proven ROAS.</p></div>
-      <div class="step" data-step="2" style="opacity:1;transform:none;visibility:visible"><div class="step-num">02</div><h3 id="step2-title">Store Architecture</h3><p class="sub" style="margin:0" id="step2-desc">Premium theme build, conversion-optimized copy, high res creatives, and mobile first design built for trust & speed.</p></div>
-      <div class="step" data-step="3" style="opacity:1;transform:none;visibility:visible"><div class="step-num">03</div><h3 id="step3-title">Fulfillment & Automation Setup</h3><p class="sub" style="margin:0" id="step3-desc">Supplier vetting, DSers/AutoDS integration, tracking automation, and payment gateway wiring hands free fulfillment.</p></div>
-      <div class="step" data-step="4" style="opacity:1;transform:none;visibility:visible"><div class="step-num">04</div><h3 id="step4-title">Handover & Scaling Roadmap</h3><p class="sub" style="margin:0" id="step4-desc">Full ownership transfer, Loom walkthroughs, ad-angle playbook, and a 30-day scaling roadmap to your first profitable month.</p></div>
+      <div class="step tilt" data-tilt data-step="1" style="opacity:1;transform:none;visibility:visible"><div class="step-num">01</div><h3 id="step1-title">Niche &amp; Product Mining</h3><p class="sub" style="margin:0" id="step1-desc">We deep-dive trending data to isolate a low competition, high demand niche and handpick winning products with proven ROAS.</p></div>
+      <div class="step tilt" data-tilt data-step="2" style="opacity:1;transform:none;visibility:visible"><div class="step-num">02</div><h3 id="step2-title">Store Architecture</h3><p class="sub" style="margin:0" id="step2-desc">Premium theme build, conversion-optimized copy, high res creatives, and mobile first design built for trust &amp; speed.</p></div>
+      <div class="step tilt" data-tilt data-step="3" style="opacity:1;transform:none;visibility:visible"><div class="step-num">03</div><h3 id="step3-title">Fulfillment &amp; Automation Setup</h3><p class="sub" style="margin:0" id="step3-desc">Supplier vetting, DSers/AutoDS integration, tracking automation, and payment gateway wiring — hands free fulfillment.</p></div>
+      <div class="step tilt" data-tilt data-step="4" style="opacity:1;transform:none;visibility:visible"><div class="step-num">04</div><h3 id="step4-title">Handover &amp; Scaling Roadmap</h3><p class="sub" style="margin:0" id="step4-desc">Full ownership transfer, Loom walkthroughs, ad-angle playbook, and a 30-day scaling roadmap to your first profitable month.</p></div>
     </div>
   </div>
 </section>
 
 <!-- Pricing -->
-<section class="section" id="pricing" data-section="pricing">
+<section class="section" id="pricing" data-section="pricing" data-reveal>
   <div class="container">
     <div class="eyebrow" id="pricing-eyebrow">Pricing</div>
-    <h2 class="h2" id="pricing-title">Packages</h2>
+    <h2 class="h2 gradient-text" id="pricing-title">Packages</h2>
     <p class="sub" id="pricing-subtitle">Choose your launch tier. Every plan: you own the store 100%.</p>
-    <div class="pricing" id="pricing-grid">
-      <!-- populated by JS -->
-    </div>
-    <div class="mentorship" id="mentorship" data-section="mentorship">
+    <div class="pricing perspective-grid" id="pricing-grid"></div>
+    <div class="mentorship glass glow-border" id="mentorship" data-section="mentorship">
       <div>
         <div class="eyebrow" style="margin:0 0 6px" id="mentorship-eyebrow">Mentorship</div>
-        <h3 style="margin:0" id="mentorship-title">Mentorship Results Before Payment</h3>
+        <h3 style="margin:0" id="mentorship-title">Mentorship — Results Before Payment</h3>
         <p class="sub" style="margin:6px 0 0" id="mentorship-subtitle">Make sales before paying for mentorship. We prove it first.</p>
         <ul id="mentorship-bullets" style="margin:10px 0 0;padding-left:18px;color:var(--text);font-size:13px"></ul>
       </div>
       <div style="text-align:right">
         <div style="font-weight:900;font-size:22px" id="mentorship-price">Pay After Results</div>
-        <a class="btn btn-primary" id="mentorship-wa" href="#" target="_blank">Chat about Mentorship →</a>
+        <a class="btn btn-primary btn-glow magnetic" id="mentorship-wa" href="#" target="_blank">Chat about Mentorship →</a>
       </div>
     </div>
   </div>
 </section>
 
 <!-- Testimonials -->
-<section class="section section-alt" id="testimonials" data-section="testimonials">
+<section class="section section-alt" id="testimonials" data-section="testimonials" data-reveal>
   <div class="container">
     <div class="eyebrow" id="testimonials-eyebrow">Testimonials</div>
-    <h2 class="h2" id="testimonials-title">What Clients Say</h2>
+    <h2 class="h2 gradient-text" id="testimonials-title">What Clients Say</h2>
     <p class="sub" id="testimonials-subtitle">Honest feedback from store owners.</p>
     <div class="testi-grid" id="testi-grid"></div>
   </div>
 </section>
 
-<!-- Reviews Screenshot Wall 2550×1650 landscape uniform -->
-<section class="section" id="reviews" data-section="reviews">
+<!-- Reviews Screenshot Wall -->
+<section class="section" id="reviews" data-section="reviews" data-reveal>
   <div class="container">
     <div class="eyebrow" id="reviews-eyebrow">Customer Reviews</div>
-    <h2 class="h2" id="reviews-title">Proof You Can See Reviews & Video Testimonials</h2>
+    <h2 class="h2 gradient-text" id="reviews-title">Proof You Can See — Reviews &amp; Video Testimonials</h2>
     <p class="sub" id="reviews-subtitle">Real WhatsApp, Trustpilot and video review screenshots. Click any to view full screen.</p>
     <div class="reviews-grid" id="reviews-grid"></div>
-    <div id="reviews-empty" class="hidden" style="text-align:center;padding:28px;border:1px dashed var(--border);border-radius:16px;color:var(--text-muted);font-size:13px">No reviews uploaded yet add them in Admin → Media Manager → <b>Review Screenshots</b>.</div>
+    <div id="reviews-empty" class="hidden" style="text-align:center;padding:28px;border:1px dashed var(--border);border-radius:16px;color:var(--text-muted);font-size:13px">No reviews uploaded yet — add them in Admin → Media Manager → <b>Review Screenshots</b>.</div>
   </div>
 </section>
 
-<!-- Certificates & Awards — image upload -->
-<section class="section section-alt" id="certificates" data-section="certificates">
+<!-- Certificates & Awards -->
+<section class="section section-alt" id="certificates" data-section="certificates" data-reveal>
   <div class="container">
     <div class="eyebrow" id="certs-eyebrow">Awards</div>
-    <h2 class="h2" id="certificates-title">Certificates & Awards</h2>
+    <h2 class="h2 gradient-text" id="certificates-title">Certificates &amp; Awards</h2>
     <p class="sub" id="certificates-subtitle">Verified credentials, partnerships and awards that prove credibility.</p>
     <div class="certs-grid" id="certs-grid"></div>
-    <div id="certs-empty" class="hidden" style="text-align:center;padding:28px;border:1px dashed var(--border);border-radius:16px;color:var(--text-muted);font-size:13px">No certificates uploaded yet — add them in Admin → Media Manager → <b>Certificates & Awards</b>.</div>
+    <div id="certs-empty" class="hidden" style="text-align:center;padding:28px;border:1px dashed var(--border);border-radius:16px;color:var(--text-muted);font-size:13px">No certificates uploaded yet — add them in Admin → Media Manager → <b>Certificates &amp; Awards</b>.</div>
   </div>
 </section>
 
 <!-- FAQ -->
-<section class="section" id="faq" data-section="faq">
+<section class="section" id="faq" data-section="faq" data-reveal>
   <div class="container">
     <div class="eyebrow" id="faq-eyebrow">FAQ</div>
-    <h2 class="h2" id="faq-title">Questions? We’ve Got Honest Answers.</h2>
+    <h2 class="h2 gradient-text" id="faq-title">Questions? We’ve Got Honest Answers.</h2>
     <p class="sub" id="faq-subtitle">No hype. Just clear terms.</p>
     <div class="faq" id="faq-list"></div>
   </div>
 </section>
 
 <!-- Lead Form -->
-<section class="section section-alt" id="apply" data-section="lead_form">
+<section class="section section-alt" id="apply" data-section="lead_form" data-reveal>
   <div class="container">
-    <div class="form-wrap" id="lead-form-wrap">
+    <div class="form-wrap glass glow-border tilt-scene" id="lead-form-wrap">
       <div class="form-head">
-        <h2 class="h2" style="margin:0" id="lead-form-title">Apply for Your Custom Store Launch</h2>
+        <h2 class="h2 gradient-text" style="margin:0" id="lead-form-title">Apply for Your Custom Store Launch</h2>
         <p class="sub" style="margin:6px 0 0" id="lead-form-subtitle">Tell us about your goals so we can prepare the right plan before your call.</p>
         <div class="steps-bar"><i id="bar1" class="on"></i><i id="bar2"></i><i id="bar3"></i></div>
-        <div style="font-size:12px;color:var(--text-muted);margin-top:6px"><span id="step-indicator">Step 1 of 3 Vision</span></div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:6px"><span id="step-indicator">Step 1 of 3 — Vision</span></div>
       </div>
       <form class="form-body" id="lead-form" novalidate>
         <div class="honey"><label>Leave blank<input name="honeypot" autocomplete="off"></label></div>
-        <!-- Step 1 -->
         <div data-step="1">
-          <div class="field"><label id="f-label-name">Full Name *</label><input name="name" required placeholder="Ada Lovelace"><small id="f-req-1">Required</small></div>
+          <div class="field"><label id="f-label-name">Full Name *</label><input name="name" required placeholder="Ada Lovelace" autocomplete="name"><small id="f-req-1">Required</small></div>
           <div class="field"><label id="f-label-store">Desired Brand / Niche Name *</label><input name="storeName" required placeholder="GlowLab"><small id="f-req-2">Required</small></div>
           <div class="field"><label id="f-label-niche">Preferred Niche *</label>
             <select name="preferredNiche" required><option value="">Select</option><option>Fashion</option><option>Beauty</option><option>Electronics</option><option>Home</option><option>Health</option><option>Pets</option><option>Fitness</option><option>General</option><option>Other</option></select><small id="f-req-3">Required</small>
           </div>
-          <div class="field hidden" id="other-niche-field"><label id="f-label-niche-other">Other niche tell us</label><input name="preferredNicheOther" placeholder="e.g. Eco-friendly baby products"></div>
+          <div class="field hidden" id="other-niche-field"><label id="f-label-niche-other">Other niche — tell us</label><input name="preferredNicheOther" placeholder="e.g. Eco-friendly baby products"></div>
           <div class="field"><label id="f-label-investment">Investment Range *</label>
             <select name="investmentRange" required><option value="">Select</option><option>Starter</option><option>Scale</option><option>Elite</option><option>Not sure yet</option></select><small id="f-req-4">Required</small>
           </div>
         </div>
-        <!-- Step 2 -->
         <div data-step="2" class="hidden">
           <div class="field"><label id="f-label-status">Current Status *</label>
-            <select name="storeStatus" required><option value="">Select</option><option value="brand_new">Brand new no store yet</option><option value="existing_not_converting">Have a store that isn't converting</option></select><small id="f-req-5">Required</small>
+            <select name="storeStatus" required><option value="">Select</option><option value="brand_new">Brand new — no store yet</option><option value="existing_not_converting">Have a store that isn't converting</option></select><small id="f-req-5">Required</small>
           </div>
           <div class="field"><label id="f-label-scammed">Previously lost money to a fake mentor/agency? *</label>
             <select name="wasScammed" required><option value="">Select</option><option value="yes">Yes</option><option value="no">No</option></select><small id="f-req-6">Required</small>
           </div>
           <div class="field hidden" id="scam-details-field"><label id="f-label-scam-details">What happened? (so we can help better)</label><textarea name="scamDetails" rows="3" placeholder="Briefly describe..."></textarea></div>
         </div>
-        <!-- Step 3 -->
         <div data-step="3" class="hidden">
           <div class="field"><label id="f-label-whatsapp">WhatsApp number *</label>
-            <div style="display:flex;gap:8px"><select name="wa_code" style="max-width:120px"><option value="+234">🇳🇬 +234</option><option value="+1">🇺🇸 +1</option><option value="+44">🇬🇧 +44</option><option value="+27">🇿🇦 +27</option><option value="+971">🇦🇪 +971</option></select><input name="whatsapp" required placeholder="812 345 6789" style="flex:1"></div><small id="f-wa-invalid">Enter a valid WhatsApp number</small>
+            <div style="display:flex;gap:8px"><select name="wa_code" style="max-width:120px"><option value="+234">🇳🇬 +234</option><option value="+1">🇺🇸 +1</option><option value="+44">🇬🇧 +44</option><option value="+27">🇿🇦 +27</option><option value="+971">🇦🇪 +971</option></select><input name="whatsapp" required placeholder="812 345 6789" inputmode="tel" style="flex:1"></div><small id="f-wa-invalid">Enter a valid WhatsApp number</small>
           </div>
-          <div class="field"><label id="f-label-email">Business Email *</label><input name="email" type="email" required placeholder="you@example.com"><small id="f-email-invalid">Enter a valid email</small></div>
+          <div class="field"><label id="f-label-email">Business Email *</label><input name="email" type="email" required placeholder="you@example.com" autocomplete="email"><small id="f-email-invalid">Enter a valid email</small></div>
           <div class="field"><label id="f-label-contact-time">Preferred contact time / timezone</label><input name="preferredContactTime" placeholder="e.g. Evenings WAT"></div>
           <div class="field"><label id="f-label-source">How did you hear about us?</label>
             <select name="source"><option value="">Select</option><option>Instagram</option><option>WhatsApp status</option><option>TikTok</option><option>Referral</option><option>Google</option><option>Other</option></select>
@@ -259,8 +293,8 @@
         </div>
         <div class="form-actions">
           <button type="button" class="btn btn-ghost hidden" id="btn-prev">← Back</button>
-          <button type="button" class="btn btn-primary" id="btn-next">Continue →</button>
-          <button type="submit" class="btn btn-primary hidden" id="btn-submit">Submit Application & Book Strategy Call</button>
+          <button type="button" class="btn btn-primary btn-glow" id="btn-next">Continue →</button>
+          <button type="submit" class="btn btn-primary btn-glow hidden" id="btn-submit">Submit Application &amp; Book Strategy Call</button>
         </div>
         <div id="form-msg" style="font-size:13px;font-weight:600"></div>
       </form>
@@ -269,20 +303,21 @@
 </section>
 
 <!-- CTA Band -->
-<section class="section" data-section="cta_band">
+<section class="section" data-section="cta_band" data-reveal>
   <div class="container">
-    <div class="cta-band">
+    <div class="cta-band cta-3d">
       <div>
         <h3 style="margin:0" id="cta-band-title">Ready to Own a Store That Sells?</h3>
-        <p style="margin:6px 0 0;opacity:.9" id="cta-band-subtitle">Slots are limited by real capacity apply today and lock your build window.</p>
+        <p style="margin:6px 0 0;opacity:.85" id="cta-band-subtitle">Slots are limited by real capacity — apply today and lock your build window.</p>
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <a class="btn btn-ghost" id="cta-wa" href="#" target="_blank">Chat on WhatsApp</a>
-        <a class="btn" id="cta-book" href="#" target="_blank" style="background:#fff;color:var(--primary)">Book a Free Call →</a>
+        <a class="btn btn-ghost magnetic" id="cta-wa" href="#" target="_blank">Chat on WhatsApp</a>
+        <a class="btn magnetic" id="cta-book" href="#" target="_blank" style="background:#fff;color:var(--primary)">Book a Free Call →</a>
       </div>
     </div>
   </div>
 </section>
+</main>
 
 <!-- Footer -->
 <footer class="footer" data-section="footer">
@@ -306,7 +341,7 @@
         <div style="display:grid;gap:8px;margin-top:10px;font-size:13px">
           <span id="footer-email">hello@nexatech.store</span>
           <span id="footer-phone">+234 812 345 6789</span>
-          <span id="footer-address">Lagos, Nigeria Serving clients worldwide</span>
+          <span id="footer-address">Lagos, Nigeria — Serving clients worldwide</span>
         </div>
       </div>
       <div>
@@ -318,14 +353,14 @@
     </div>
     <div class="copy">
       <span id="footer-copyright">© 2026 Nexatech Dropshipping Store. All rights reserved.</span>
-      <span id="footer-built-note">Built with honesty all proof numbers are live from our database.</span>
+      <span id="footer-built-note">Built with honesty — all proof numbers are live from our database.</span>
     </div>
   </div>
 </footer>
 
 <!-- Portfolio Modal -->
 <div class="modal-backdrop" id="portfolio-modal" role="dialog" aria-modal="true">
-  <div class="modal">
+  <div class="modal glass-strong">
     <div class="modal-media" id="modal-media">
       <button class="close-x" id="modal-close">✕</button>
       <button class="carousel-btn prev" id="modal-prev">‹</button>
@@ -337,30 +372,30 @@
       <h3 id="modal-title" style="margin:10px 0 6px">Store Name</h3>
       <div id="modal-result" style="font-weight:800;color:var(--success);font-size:13px"></div>
       <p id="modal-desc" style="color:var(--text-muted);font-size:13px;line-height:1.6;margin:12px 0 0"></p>
-      <a id="modal-cta" href="#" target="_blank" class="btn btn-primary" style="margin-top:16px">Start a Store Like This →</a>
+      <a id="modal-cta" href="#" target="_blank" class="btn btn-primary btn-glow" style="margin-top:16px">Start a Store Like This →</a>
     </div>
   </div>
 </div>
 
-<!-- Chatbot — New Chat / Recent / WhatsApp + persists reload -->
-<button class="chat-btn" id="chat-btn" aria-label="Chat">💬</button>
-<div class="chat-win" id="chat-win">
+<!-- Chatbot -->
+<button class="chat-btn chat-3d" id="chat-btn" aria-label="Chat">💬</button>
+<div class="chat-win glass-strong" id="chat-win">
   <div class="chat-head"><b id="chat-title">Nexatech Assistant</b><button id="chat-close" style="background:none;border:none;color:#fff;cursor:pointer">✕</button></div>
-  <div class="chat-actions" style="display:flex;gap:6px;padding:8px;background:#F8FAFC;border-bottom:1px solid var(--border);flex-wrap:wrap">
+  <div class="chat-actions" style="display:flex;gap:6px;padding:8px;background:rgba(248,250,252,.8);border-bottom:1px solid var(--border);flex-wrap:wrap">
     <button id="chat-new" class="btn btn-ghost" style="padding:6px 10px;font-size:11px">+ New Chat</button>
     <button id="chat-recent" class="btn btn-ghost" style="padding:6px 10px;font-size:11px">Recent ▾</button>
-    <a id="chat-whatsapp" href="https://wa.me/19283825389?text=Hi%20Nexatech%20%F0%9F%91%8B%2C%0A%0AI%20want%20the%20*Mentorship%20Plan%20-%20%24200*%3A%0A%0A%E2%9C%93%20You%20get%20results%20%26%20make%20sales%20BEFORE%20paying%20for%20mentorship%0A%E2%9C%93%201-on-1%20Store%20Review%0A%E2%9C%93%20Winning%20Product%20Research%0A%E2%9C%93%20Ad%20Strategy%20%26%20Scaling%0A%E2%9C%93%20Supplier%20%26%20Order%20Automation%0A%E2%9C%93%20Lifetime%20Support%0A%0APlease%20send%20me%20details%20on%20how%20to%20get%20started%20with%20the%20Mentorship%20plan" target="_blank" class="btn btn-ghost" style="padding:6px 10px;font-size:11px;border-color:#25D366;color:#25D366">WhatsApp Us</a>
+    <a id="chat-whatsapp" href="https://wa.me/19283825389?text=Hi%20Nexatech" target="_blank" class="btn btn-ghost" style="padding:6px 10px;font-size:11px;border-color:#25D366;color:#25D366">WhatsApp Us</a>
   </div>
   <div id="chat-recent-list" style="display:none;max-height:140px;overflow:auto;border-bottom:1px solid var(--border);background:#fff;padding:8px"></div>
   <div class="chat-body" id="chat-body">
-    <div class="msg bot">Hi! I’m the Nexatech assistant. Ask me about packages, timelines, or proof or tap a quick question below.</div>
+    <div class="msg bot">Hi! I’m the Nexatech assistant. Ask me about packages, timelines, or proof — or tap a quick question below.</div>
     <div class="quick">
       <button data-q="What’s included in Pro?">What’s included in Pro?</button>
       <button data-q="How long to launch?">How long to launch?</button>
       <button data-q="Do I own the store?">Do I own the store?</button>
     </div>
   </div>
-  <div class="chat-input"><input id="chat-input" placeholder="Type a message..."><button class="btn btn-primary" id="chat-send" style="padding:8px 14px;border-radius:999px">Send</button></div>
+  <div class="chat-input"><input id="chat-input" placeholder="Type a message..." autocomplete="off"><button class="btn btn-primary" id="chat-send" style="padding:8px 14px;border-radius:999px">Send</button></div>
 </div>
 
 <script src="/js/app.js" type="module"></script>
