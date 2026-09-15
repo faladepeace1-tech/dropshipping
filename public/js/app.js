@@ -65,32 +65,7 @@ function track(event_type, element_id, metadata={}){
   fetch('/api/events',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).catch(()=>{});
 }
 
-// ================= 3D CHROME: preloader / cursor / progress =================
-let PRELOADER_DONE=false;
-function setPreloader(pct){
-  const bar=$('#preloader-bar'), pctEl=$('#preloader-pct');
-  if(bar) bar.style.width=Math.min(100,Math.max(0,pct))+'%';
-  if(pctEl) pctEl.textContent=Math.round(Math.min(100,Math.max(0,pct)))+'%';
-}
-function finishPreloader(){
-  if(PRELOADER_DONE) return; PRELOADER_DONE=true;
-  setPreloader(100);
-  setTimeout(()=>{ $('#preloader')?.classList.add('done'); document.body.classList.add('loaded'); }, 350);
-  setTimeout(()=>{ $('#preloader')?.remove(); }, 1200);
-}
-function initPreloader(){
-  let p=0;
-  setPreloader(8);
-  const iv=setInterval(()=>{
-    if(PRELOADER_DONE){ clearInterval(iv); return; }
-    p=Math.min(92, p+Math.random()*14);
-    setPreloader(p);
-    if(p>=92) clearInterval(iv);
-  }, 220);
-  // Safety: never trap the user behind the loader
-  setTimeout(finishPreloader, 4500);
-  window.addEventListener('load', ()=> setTimeout(finishPreloader, 400));
-}
+// ================= 3D CHROME: cursor / progress =================
 function initCursor(){
   if(window.matchMedia('(hover: none)').matches) return;
   const dot=$('#cursor-dot'), ring=$('#cursor-ring');
@@ -112,11 +87,12 @@ function initCursor(){
 }
 function initScrollProgress(){
   const fill=$('#scroll-progress-fill');
-  if(!fill) return;
+  const orbs=document.querySelector('.ambient-orbs');
   const onScroll=()=>{
     const h=document.documentElement;
     const max=h.scrollHeight-h.clientHeight;
-    fill.style.width=(max>0? (h.scrollTop/max)*100 : 0)+'%';
+    if(fill) fill.style.width=(max>0? (h.scrollTop/max)*100 : 0)+'%';
+    if(orbs && !reducedMotion()) orbs.style.transform=`translateY(${h.scrollTop*.06}px)`;
   };
   addEventListener('scroll', onScroll, {passive:true}); onScroll();
 }
@@ -257,6 +233,33 @@ async function initHeroWebGL(){
     pGeo.setAttribute('position', new THREE.BufferAttribute(pos,3));
     const pts=new THREE.Points(pGeo, new THREE.PointsMaterial({color:0x7dd3fc,size:.045,transparent:true,opacity:.8}));
     scene.add(pts);
+    // Tron-style 3D floor grid
+    const grid=new THREE.GridHelper(46, 46, 0x00d1ff, 0x7c3aed);
+    grid.position.y=-3.6;
+    grid.material.transparent=true; grid.material.opacity=.22;
+    scene.add(grid);
+    // Floating holographic sale labels (canvas sprites orbiting the engine)
+    function makeLabel(text, accent){
+      const cv=document.createElement('canvas'); cv.width=512; cv.height=144;
+      const g=cv.getContext('2d');
+      g.fillStyle='rgba(6,12,26,.85)';
+      if(g.roundRect){ g.beginPath(); g.roundRect(8,8,496,128,44); g.fill(); }
+      else g.fillRect(8,8,496,128);
+      g.strokeStyle=accent; g.lineWidth=6;
+      if(g.roundRect){ g.beginPath(); g.roundRect(8,8,496,128,44); g.stroke(); }
+      else g.strokeRect(8,8,496,128);
+      g.fillStyle=accent; g.beginPath(); g.arc(52,72,16,0,Math.PI*2); g.fill();
+      g.fillStyle='#fff'; g.font='700 46px Inter, sans-serif'; g.textBaseline='middle';
+      g.fillText(text, 84, 76);
+      const tex=new THREE.CanvasTexture(cv); tex.anisotropy=4; return tex;
+    }
+    const holos=[];
+    [['$450 New Sale','#00d1ff'],['Order #1029 Shipped','#10b981'],['3.2% Conversion','#a78bfa']].forEach(([txt,col],i)=>{
+      const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:makeLabel(txt,col), transparent:true, depthWrite:false}));
+      sp.scale.set(3.2,.9,1);
+      sp.userData={a:i*2.15, r:4.7+i*.55, y:.9-i*1.25, s:.5+i*.22};
+      scene.add(sp); holos.push(sp);
+    });
     group.position.x=isMobile?0:2.6;
     // Mouse parallax
     let tx=0, ty=0;
@@ -292,17 +295,22 @@ async function initHeroWebGL(){
         m.rotation.x+=.01; m.rotation.y+=.012;
       });
       pts.rotation.y=t*.015;
+      grid.position.z=(t*.15)%2;
+      holos.forEach((sp,i)=>{
+        const u=sp.userData; u.a+=.0024*u.s*3;
+        sp.position.set(group.position.x+Math.cos(u.a)*u.r, u.y+Math.sin(t*.7+i*1.3)*.35, Math.sin(u.a)*u.r*.5);
+      });
       camera.position.x+=(tx*1.2-camera.position.x)*.03;
       camera.position.y+=((.4-ty*.9)-camera.position.y)*.03;
+      camera.position.z+=((11+Math.min(scrollY*.008,5.5))-camera.position.z)*.05;
       camera.lookAt(group.position.x*.6, 0, 0);
       renderer.render(scene,camera);
     }
     loop();
-    setPreloader(96);
   }catch(e){ console.warn('hero webgl failed, CSS fallback active', e.message); canvas.style.display='none'; }
 }
-// Cheap ambient 2D drift on the fixed background canvas (no 2nd WebGL context)
-function initFixedBackground(){
+// Cheap ambient 2D drift fallback (used when WebGL/three is unavailable)
+function initFixedBackground2D(){
   const c=$('#webgl-fixed');
   if(!c || reducedMotion()){ if(c) c.style.display='none'; return; }
   const ctx=c.getContext('2d');
@@ -332,6 +340,78 @@ function initFixedBackground(){
   })();
 }
 
+// 3D spotlight: card glow follows the cursor (cheap CSS-var driven)
+function initSpotlight(){
+  if(reducedMotion() || window.matchMedia('(hover: none)').matches) return;
+  let queued=false;
+  document.addEventListener('pointermove', e=>{
+    const x=e.clientX, y=e.clientY;
+    if(!queued){ queued=true; requestAnimationFrame(()=>{
+      queued=false;
+      $$('.spotlight').forEach(el=>{
+        const r=el.getBoundingClientRect();
+        if(x<r.left||x>r.right||y<r.top||y>r.bottom) return;
+        el.style.setProperty('--mx', ((x-r.left)/r.width*100).toFixed(1)+'%');
+        el.style.setProperty('--my', ((y-r.top)/r.height*100).toFixed(1)+'%');
+      });
+    });}
+  }, {passive:true});
+}
+
+// Ambient 3D background: lightweight second scene (wireframe shapes + fog,
+// scroll-drifted camera). Falls back to the cheap 2D drift if WebGL fails.
+async function initAmbientWebGL(){
+  const c=$('#webgl-fixed');
+  if(!c || reducedMotion()){ if(c) c.style.display='none'; return; }
+  let THREE;
+  try{ THREE=await import('three'); }
+  catch{ initFixedBackground2D(); return; }
+  try{
+    const renderer=new THREE.WebGLRenderer({canvas:c, alpha:true, antialias:false, powerPreference:'low-power'});
+    renderer.setPixelRatio(Math.min(devicePixelRatio||1, 1));
+    const scene=new THREE.Scene();
+    scene.fog=new THREE.FogExp2(0xffffff, 0.028);
+    const camera=new THREE.PerspectiveCamera(60, 1, .1, 60);
+    camera.position.z=14;
+    scene.add(new THREE.AmbientLight(0x88aaff, .9));
+    const dl=new THREE.DirectionalLight(0x00d1ff, 1.0); dl.position.set(4,6,6); scene.add(dl);
+    const geos=[
+      new THREE.IcosahedronGeometry(1.5, 0),
+      new THREE.TorusGeometry(1.15, .3, 10, 26),
+      new THREE.OctahedronGeometry(1.4, 0),
+      new THREE.TorusKnotGeometry(.85, .26, 64, 10),
+      new THREE.IcosahedronGeometry(1.0, 1)
+    ];
+    const cols=[0x00d1ff, 0x7c3aed, 0x38bdf8, 0x10b981, 0x7c3aed];
+    const spots=[[-7.5,3.2],[7.5,-1.2],[-6.5,-4],[7,4.2],[0,-5.5]];
+    const shapes=geos.map((g,i)=>{
+      const m=new THREE.Mesh(g, new THREE.MeshStandardMaterial({color:cols[i], wireframe:true, transparent:true, opacity:.32}));
+      m.position.set(spots[i][0], spots[i][1], -2-i);
+      m.userData={sx:.0016+i*.0006, sy:.0022+i*.0004, y0:spots[i][1], ph:i*1.7};
+      scene.add(m); return m;
+    });
+    function resize(){
+      renderer.setSize(innerWidth, innerHeight, false);
+      camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
+    }
+    resize(); addEventListener('resize', resize);
+    let sy=0;
+    addEventListener('scroll', ()=>{ sy=window.scrollY; }, {passive:true});
+    const clock=new THREE.Clock();
+    (function loop(){
+      requestAnimationFrame(loop);
+      if(document.hidden) return;
+      const t=clock.getElapsedTime();
+      shapes.forEach(m=>{
+        m.rotation.x+=m.userData.sx; m.rotation.y+=m.userData.sy;
+        m.position.y=m.userData.y0+Math.sin(t*.5+m.userData.ph)*.35;
+      });
+      camera.position.y+=((-sy*.0022)-camera.position.y)*.05;
+      renderer.render(scene, camera);
+    })();
+  }catch{ initFixedBackground2D(); }
+}
+
 // ================= THEME / CONTENT =================
 function applyTheme(c){
   const r=document.documentElement;
@@ -339,21 +419,22 @@ function applyTheme(c){
   for(const [k,css] of Object.entries(map)) if(c[k]) r.style.setProperty(css,c[k]);
   if(c.font_family) r.style.setProperty('--font',c.font_family);
   if(c.logo_text) $('#logo-text').textContent=c.logo_text;
-  const mark = document.querySelector('.logo-mark');
-  if(c.logo_url && c.logo_url.trim()){
-    if(mark) mark.innerHTML=`<img src="${c.logo_url}" alt="logo" style="width:100%;height:100%;object-fit:cover;border-radius:12px;display:block">`;
-  } else {
-    if(mark && mark.querySelector('img')) mark.innerHTML='N';
-  }
+  // Logo image (uploaded in Admin) renders before the brand name; no default mark
   try{
     const logo = document.querySelector('.logo');
     const textEl = document.getElementById('logo-text');
-    if(logo && mark && textEl){
+    const lu = (c.logo_url||'').trim();
+    if(logo && textEl){
+      let img = logo.querySelector('.logo-img');
+      if(lu){
+        if(!img){ img=document.createElement('img'); img.className='logo-img'; img.alt='logo'; logo.insertBefore(img, textEl); }
+        if(img.getAttribute('src')!==lu) img.src=lu;
+      } else if(img){ img.remove(); }
       const pos = (c.logo_position || c.brand_position || 'logo_first');
       if(pos === 'brand_first'){
-        if(logo.firstElementChild !== textEl) logo.insertBefore(textEl, mark);
-      } else {
-        if(logo.firstElementChild !== mark) logo.insertBefore(mark, textEl);
+        if(logo.firstElementChild !== textEl) logo.insertBefore(textEl, logo.firstElementChild);
+      } else if(img){
+        if(logo.firstElementChild !== img) logo.insertBefore(img, textEl);
       }
     }
   }catch{}
@@ -606,7 +687,7 @@ function renderPortfolio(filter){
     return;
   }
   filtered.forEach((item, idx)=>{
-    const card=document.createElement('div'); card.className='card'; card.setAttribute('data-tilt',''); card.dataset.tiltMax='6';
+    const card=document.createElement('div'); card.className='card spotlight'; card.setAttribute('data-tilt',''); card.dataset.tiltMax='6';
     card.style.animationDelay=(idx*60)+'ms';
     const kind = mediaKind(item.url);
     const isVideo = kind==='video';
@@ -735,7 +816,7 @@ async function loadMedia(){
   const proofR=await fetch('/api/media?type=sales_proof'); const proof=await proofR.json();
   const pGrid=$('#proof-grid'); if(pGrid){ pGrid.innerHTML='';
   proof.forEach(item=>{
-    const c=document.createElement('div'); c.className='proof-card reveal'; c.setAttribute('data-tilt','');
+    const c=document.createElement('div'); c.className='proof-card reveal spotlight'; c.setAttribute('data-tilt','');
     const k=mediaKind(item.url);
     if(k==='youtube') c.innerHTML=`<iframe src="${youTubeEmbed(item.url)}" style="width:100%;aspect-ratio:16/10;border:0;border-radius:12px" loading="lazy" allowfullscreen></iframe><p>${sanitize(item.caption||T('proof_caption_fallback','Verified sales proof'))}</p>`;
     else if(k==='vimeo') c.innerHTML=`<iframe src="${vimeoEmbed(item.url)}" style="width:100%;aspect-ratio:16/10;border:0;border-radius:12px" loading="lazy" allowfullscreen></iframe><p>${sanitize(item.caption||T('proof_caption_fallback','Verified sales proof'))}</p>`;
@@ -751,7 +832,7 @@ async function loadMedia(){
     const isVideo=k==='video';
     const isEmbed=k==='youtube'||k==='vimeo'||k==='drive';
     const media=isEmbed?`<div style="width:42px;height:42px;border-radius:50%;background:#0B1220;color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px">▶</div>`:(isVideo?`<video src="${item.url}" muted loop playsinline preload="metadata" style="width:42px;height:42px;border-radius:50%;object-fit:cover"></video>`:`<img src="${item.url}" alt="" onerror="this.style.opacity=.25">`);
-    const el=document.createElement('div'); el.className='testi reveal';
+    const el=document.createElement('div'); el.className='testi reveal spotlight';
     el.innerHTML=`<q>${sanitize(item.caption||T('testi_fallback','Great experience with Nexatech.'))}</q><div class="who">${media}<div><b>${sanitize(item.alt_text||'Client')}</b><br><small style="color:var(--text-muted)">${sanitize(item.result_stat||T('testi_role_fallback','Verified buyer'))}</small></div></div>`;
     if(isVideo){ const v=el.querySelector('video'); if(v) v.play().catch(()=>{}); }
     tGrid.appendChild(el);
@@ -828,7 +909,7 @@ async function loadMedia(){
     tGrid2.innerHTML='';
     const vis=teamExpanded?team:team.slice(0,4);
     vis.forEach((m,idx)=>{
-      const card=document.createElement('div'); card.className='team-card in';
+      const card=document.createElement('div'); card.className='team-card in spotlight';
       card.style.transitionDelay=(idx*80)+'ms';
       card.innerHTML=`<img src="${m.photo_url||'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200'}" alt="${sanitize(m.name)}"><div><h4>${sanitize(m.name)}</h4><small>${sanitize(m.role)}</small><p>${sanitize(m.credibility_note)}</p>${m.social_url?`<a href="${m.social_url}" target="_blank" style="font-size:12px;color:var(--accent-2)">LinkedIn →</a>`:''}</div>`;
       tGrid2.appendChild(card);
@@ -859,7 +940,7 @@ function renderPricing(){
   grid.innerHTML='';
   const waNum=CONTENT.whatsapp_number||'2348123456789';
   tiers.forEach(t=>{
-    const el=document.createElement('div'); el.className='price-card'+(t.popular?' popular':''); el.setAttribute('data-tilt','');
+    const el=document.createElement('div'); el.className='price-card spotlight'+(t.popular?' popular':''); el.setAttribute('data-tilt','');
     el.innerHTML=`${t.popular?'<span class="popular-badge">'+sanitize(T('pricing_popular_badge','Most Popular'))+'</span>':''}<div class="eyebrow" style="margin:0">${sanitize(t.name)}</div><div class="price">${sanitize(t.price)}</div><ul>${t.features.map(f=>`<li>${sanitize(f)}</li>`).join('')}</ul><a class="btn ${t.popular?'btn-primary btn-glow':'btn-ghost'}" href="${whatsappLink(waNum, t.wa||('Hi Nexatech! I want the '+t.name+' plan ('+t.price+').'))}" target="_blank" style="margin-top:auto">${sanitize(T('pricing_cta_template','Choose {name}').replace('{name}', t.name))} →</a>`;
     const a=el.querySelector('a'); a.addEventListener('click',()=>track('cta_click','pricing-'+t.key,{price:t.price}));
     grid.appendChild(el);
@@ -1364,15 +1445,12 @@ function initChat(){
 
 // Init all
 (async function init(){
-  initPreloader();
   initCursor();
   initScrollProgress();
-  initFixedBackground();
+  initAmbientWebGL();
   try{ await loadContent(); }catch(e){ console.error('content load failed',e); }
-  setPreloader(70);
   renderMarquee();
   try{ await loadPortfolio(); }catch(e){ console.error(e); }
-  setPreloader(85);
   try{ await loadMedia(); }catch(e){ console.error(e); }
   initLeadForm();
   initParticles();
@@ -1382,6 +1460,7 @@ function initChat(){
   initReveal();
   initChat();
   initTilt();
+  initSpotlight();
   initMagnetic();
   initSmoothScroll();
   initGsapReveals();
@@ -1390,5 +1469,4 @@ function initChat(){
     if(e.matches) document.body.classList.add('reduced');
     else if(CONTENT.reduced_motion!=='true') document.body.classList.remove('reduced');
   });
-  setTimeout(finishPreloader, 900);
 })();
