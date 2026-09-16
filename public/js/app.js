@@ -143,6 +143,7 @@ function initSmoothScroll(){
     const LenisCtor=window.Lenis;
     if(!LenisCtor) return;
     const lenis=new LenisCtor({ lerp:.1, smoothWheel:true });
+    window.__lenis=lenis;
     if(window.gsap){
       lenis.on('scroll', ()=>{ try{ window.ScrollTrigger?.update(); }catch{} });
       window.gsap.ticker.add(t=> lenis.raf(t*1000));
@@ -171,10 +172,31 @@ function initGsapReveals(){
     // Hero copy stagger
     window.gsap.fromTo('.hero-copy > *', {y:26,opacity:0}, {y:0,opacity:1,duration:.9,stagger:.1,ease:'power3.out',delay:.15,
       onComplete(){ try{ window.gsap.set('.hero-copy > *',{clearProps:'transform'}); }catch{} }});
-    // Section reveals
+    // --- 3D FLY-THROUGH: each section is a camera stop ---
+    // Entrance: flies in from deep (z, rotationX, blur) like camera arriving.
+    // Exit (scrub): tilts/pans away as camera departs to next stop.
     $$('[data-reveal]').forEach(sec=>{
-      window.gsap.fromTo(sec, {y:36,opacity:.0}, {y:0,opacity:1,duration:.9,ease:'power3.out',
-        scrollTrigger:{trigger:sec,start:'top 86%',once:true}});
+      window.gsap.set(sec, {transformPerspective:1400, transformOrigin:'50% 0%'});
+      window.gsap.fromTo(sec,
+        {y:110, z:-220, rotationX:9, scale:.94, opacity:0, filter:'blur(10px)'},
+        {y:0, z:0, rotationX:0, scale:1, opacity:1, filter:'blur(0px)',
+         duration:1.15, ease:'power3.out',
+         scrollTrigger:{trigger:sec, start:'top 88%', once:true},
+         onComplete(){ try{ window.gsap.set(sec, {clearProps:'filter'}); }catch{} }});
+      // Continuous departure tilt while scrolling past (camera leaving the stop)
+      window.gsap.to(sec, {y:-46, rotationX:-5, scale:.985, ease:'none',
+        scrollTrigger:{trigger:sec, start:'top 45%', end:'bottom top', scrub:1.2}});
+      // Inner content drifts slightly slower = depth parallax inside the stop
+      const inner=sec.querySelector('.container');
+      if(inner){
+        window.gsap.fromTo(inner, {y:26}, {y:-26, ease:'none',
+          scrollTrigger:{trigger:sec, start:'top bottom', end:'bottom top', scrub:1.4}});
+      }
+    });
+    // Stagger cards inside each stop so they pop in 3D as camera arrives
+    $$('.masonry .card, .proof-grid .proof-card, .pricing .price-card, .testi-grid .testi').forEach((el, i)=>{
+      window.gsap.fromTo(el, {z:-120, y:34, opacity:0}, {z:0, y:0, opacity:1, duration:.8, ease:'power3.out',
+        scrollTrigger:{trigger:el, start:'top 92%', once:true}});
     });
     // Parallax on hero visual
     window.gsap.to('#hero-visual', {y:-40,ease:'none',scrollTrigger:{trigger:'#hero',start:'top top',end:'bottom top',scrub:1}});
@@ -358,55 +380,231 @@ function initSpotlight(){
   }, {passive:true});
 }
 
-// Ambient 3D background: lightweight second scene (wireframe shapes + fog,
-// scroll-drifted camera). Falls back to the cheap 2D drift if WebGL fails.
+// ================= CINEMATIC CAMERA JOURNEY =================
+// Fixed WebGL tunnel: every page section owns a camera stop.
+// Scrolling flies the camera from one location to the next
+// (dolly + weave + FOV kick + roll), rings/particles rush past.
 async function initAmbientWebGL(){
   const c=$('#webgl-fixed');
-  if(!c || reducedMotion()){ if(c) c.style.display='none'; return; }
+  if(!c || reducedMotion()){ if(c) c.style.display='none'; $('#cam-hud')?.style.setProperty('display','none'); return; }
   let THREE;
   try{ THREE=await import('three'); }
   catch{ initFixedBackground2D(); return; }
   try{
+    const isMobile=innerWidth<=768;
     const renderer=new THREE.WebGLRenderer({canvas:c, alpha:true, antialias:false, powerPreference:'low-power'});
-    renderer.setPixelRatio(Math.min(devicePixelRatio||1, 1));
+    renderer.setPixelRatio(Math.min(devicePixelRatio||1, isMobile?1:1.5));
     const scene=new THREE.Scene();
-    scene.fog=new THREE.FogExp2(0xffffff, 0.028);
-    const camera=new THREE.PerspectiveCamera(60, 1, .1, 60);
-    camera.position.z=14;
-    scene.add(new THREE.AmbientLight(0x88aaff, .9));
-    const dl=new THREE.DirectionalLight(0x00d1ff, 1.0); dl.position.set(4,6,6); scene.add(dl);
-    const geos=[
-      new THREE.IcosahedronGeometry(1.5, 0),
-      new THREE.TorusGeometry(1.15, .3, 10, 26),
-      new THREE.OctahedronGeometry(1.4, 0),
-      new THREE.TorusKnotGeometry(.85, .26, 64, 10),
-      new THREE.IcosahedronGeometry(1.0, 1)
+    scene.fog=new THREE.FogExp2(0x0b1230, 0.026);
+    const camera=new THREE.PerspectiveCamera(62, 1, .1, 140);
+    camera.position.set(0, .5, 14);
+    scene.add(new THREE.AmbientLight(0x88aaff, 1.0));
+    const dl=new THREE.DirectionalLight(0x00d1ff, 1.2); dl.position.set(4,6,6); scene.add(dl);
+    const dl2=new THREE.DirectionalLight(0x7c3aed, 1.0); dl2.position.set(-5,-3,4); scene.add(dl2);
+    const head=new THREE.PointLight(0x9fd8ff, 12, 30); scene.add(head);
+
+    // --- Stops: one per visible page section, in DOM order ---
+    function collectStops(){
+      const els=[...document.querySelectorAll('main section[data-section], footer[data-section]')]
+        .filter(el=>el.offsetParent!==null);
+      const list=els.length?els:[...document.querySelectorAll('main section[id]')];
+      return list.map((el,i)=>{
+        const key=el.id||el.dataset.section||('stop-'+i);
+        const weave=Math.sin(i*1.25)*3.1;
+        const y=-i*5.2;
+        const z=Math.max(7.2, 14-i*.55);
+        return {
+          id: key,
+          label: (el.querySelector('.eyebrow')?.textContent||key.replace(/_/g,' ')||('Stop '+(i+1))).trim().slice(0,18),
+          el,
+          cam:new THREE.Vector3(weave, y+.5, z),
+          look:new THREE.Vector3(weave*.25, y-.4, -4),
+        };
+      });
+    }
+    let stops=collectStops();
+    const corridorLen=stops.length*5.2+18;
+
+    // --- Shape per stop (camera passes each one) ---
+    const geoMakers=[
+      ()=>new THREE.IcosahedronGeometry(1.5, 0),
+      ()=>new THREE.TorusGeometry(1.15, .3, 10, 26),
+      ()=>new THREE.OctahedronGeometry(1.4, 0),
+      ()=>new THREE.TorusKnotGeometry(.85, .26, 64, 10),
+      ()=>new THREE.IcosahedronGeometry(1.0, 1),
+      ()=>new THREE.TetrahedronGeometry(1.4, 0),
     ];
-    const cols=[0x00d1ff, 0x7c3aed, 0x38bdf8, 0x10b981, 0x7c3aed];
-    const spots=[[-7.5,3.2],[7.5,-1.2],[-6.5,-4],[7,4.2],[0,-5.5]];
-    const shapes=geos.map((g,i)=>{
-      const m=new THREE.Mesh(g, new THREE.MeshStandardMaterial({color:cols[i], wireframe:true, transparent:true, opacity:.32}));
-      m.position.set(spots[i][0], spots[i][1], -2-i);
-      m.userData={sx:.0016+i*.0006, sy:.0022+i*.0004, y0:spots[i][1], ph:i*1.7};
+    const cols=[0x00d1ff,0x7c3aed,0x38bdf8,0x10b981,0xa78bfa,0x00d1ff];
+    const shapes=stops.map((s,i)=>{
+      const m=new THREE.Mesh(
+        geoMakers[i%geoMakers.length](),
+        new THREE.MeshStandardMaterial({color:cols[i%cols.length], wireframe:true, transparent:true, opacity:.3})
+      );
+      const side=(i%2===0?-1:1);
+      m.position.set(side*(3.4+Math.random()*1.4), s.cam.y-.6, -3-(i%3));
+      m.userData={sx:.0016+(i%5)*.0007, sy:.0022+(i%4)*.0005, y0:m.position.y, ph:i*1.7, base:1};
       scene.add(m); return m;
     });
+
+    // --- Tunnel rings rushing past ---
+    const ringGeo=new THREE.TorusGeometry(7.5, .035, 8, 64);
+    const ringMat=new THREE.MeshBasicMaterial({color:0x00d1ff, transparent:true, opacity:.16});
+    const ringMat2=new THREE.MeshBasicMaterial({color:0x7c3aed, transparent:true, opacity:.14});
+    const rings=[];
+    for(let i=0;i<Math.ceil(corridorLen/3.4);i++){
+      const r=new THREE.Mesh(ringGeo, i%2?ringMat:ringMat2);
+      r.position.set(Math.sin(i*.8)*1.2, 4-i*3.4, -4);
+      scene.add(r); rings.push(r);
+    }
+
+    // --- Dust particles along the whole flight path ---
+    const N=isMobile?600:1300;
+    const pos=new Float32Array(N*3);
+    for(let i=0;i<N;i++){
+      pos[i*3]=(Math.random()-.5)*30;
+      pos[i*3+1]=5-Math.random()*corridorLen;
+      pos[i*3+2]=(Math.random()-.5)*18-3;
+    }
+    const pGeo=new THREE.BufferGeometry();
+    pGeo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+    const pts=new THREE.Points(pGeo, new THREE.PointsMaterial({color:0x7dd3fc,size:.07,transparent:true,opacity:.75}));
+    scene.add(pts);
+
     function resize(){
       renderer.setSize(innerWidth, innerHeight, false);
       camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
     }
-    resize(); addEventListener('resize', resize);
-    let sy=0;
-    addEventListener('scroll', ()=>{ sy=window.scrollY; }, {passive:true});
+    resize(); addEventListener('resize', ()=>{ resize(); stops=collectStops(); buildHud(); cacheTops(); });
+
+    // --- Scroll tracking: map viewport center to a float stop index ---
+    let tops=[];
+    function cacheTops(){
+      tops=stops.map(s=>{
+        const r=s.el.getBoundingClientRect();
+        return (window.scrollY+r.top);
+      });
+    }
+    cacheTops();
+    setTimeout(cacheTops, 1200);
+    addEventListener('load', cacheTops);
+    let scrollY=window.scrollY, lastY=scrollY, smoothVel=0;
+    addEventListener('scroll', ()=>{ scrollY=window.scrollY; }, {passive:true});
+
+    function targetProgress(){
+      const center=scrollY+innerHeight*.5;
+      if(!tops.length) return 0;
+      if(center<=tops[0]) return 0;
+      for(let i=0;i<tops.length-1;i++){
+        if(center>=tops[i]&&center<tops[i+1]){
+          const span=Math.max(1, tops[i+1]-tops[i]);
+          const f=Math.min(1, Math.max(0, (center-tops[i])/span));
+          const sm=f*f*(3-2*f); // smoothstep between locations
+          return i+sm;
+        }
+      }
+      return tops.length-1;
+    }
+
+    // --- Camera HUD (location dots) ---
+    const hud=$('#cam-hud');
+    let hudBtns=[];
+    function buildHud(){
+      if(!hud) return;
+      hud.innerHTML='';
+      hudBtns=stops.map((s,i)=>{
+        const b=document.createElement('button');
+        b.setAttribute('aria-label','Fly to '+s.label);
+        b.innerHTML=`<span>${s.label}</span>`;
+        b.addEventListener('click', ()=>{
+          const y=s.el.getBoundingClientRect().top+window.scrollY-70;
+          try{
+            if(window.__lenis) window.__lenis.scrollTo(y, {duration:1.6});
+            else window.scrollTo({top:y, behavior:'smooth'});
+          }catch{ window.scrollTo({top:y, behavior:'smooth'}); }
+        });
+        hud.appendChild(b); return b;
+      });
+      markHud(0);
+    }
+    function markHud(idx){
+      hudBtns.forEach((b,i)=>b.classList.toggle('on', i===idx));
+    }
+    buildHud();
+
+    // --- Mouse parallax (look-around while flying) ---
+    let tx=0, ty=0;
+    addEventListener('pointermove', e=>{
+      tx=(e.clientX/innerWidth-.5); ty=(e.clientY/innerHeight-.5);
+    }, {passive:true});
+
     const clock=new THREE.Clock();
+    const _cp=new THREE.Vector3(), _lk=new THREE.Vector3();
+    const fogA=new THREE.Color(0x0b1230), fogB=new THREE.Color(0x1b1140), _fog=new THREE.Color();
+    const vignette=$('#cam-vignette');
+    let prog=0, lastActive=-1, fovCur=62;
+
+    // expose lenis for HUD clicks
+    try{
+      const LenisCtor=window.Lenis;
+      if(LenisCtor && !window.__lenis){
+        // initSmoothScroll creates its own; HUD falls back to native smooth scroll — fine
+      }
+    }catch{}
+
     (function loop(){
       requestAnimationFrame(loop);
       if(document.hidden) return;
+      const dt=Math.min(.05, clock.getDelta()||.016);
       const t=clock.getElapsedTime();
-      shapes.forEach(m=>{
-        m.rotation.x+=m.userData.sx; m.rotation.y+=m.userData.sy;
+      const target=targetProgress();
+      prog+=(target-prog)*.055; // damped fly — never snaps
+      const vel=(scrollY-lastY)/Math.max(dt, .001); lastY=scrollY;
+      smoothVel+=(vel-smoothVel)*.08;
+      const speed=Math.min(Math.abs(smoothVel), 4000);
+
+      // interpolate camera + lookAt between surrounding stops
+      const i0=Math.max(0, Math.min(stops.length-1, Math.floor(prog)));
+      const i1=Math.max(0, Math.min(stops.length-1, i0+1));
+      const f=Math.min(1, Math.max(0, prog-i0));
+      const A=stops[i0], B=stops[i1];
+      if(A&&B){
+        _cp.copy(A.cam).lerp(B.cam, f);
+        _lk.copy(A.look).lerp(B.look, f);
+        camera.position.x+=((_cp.x+tx*1.4)-camera.position.x)*.06;
+        camera.position.y+=((_cp.y-ty*.9)-camera.position.y)*.06;
+        camera.position.z+=((_cp.z)-camera.position.z)*.06;
+        camera.lookAt(_lk.x+tx*.8, _lk.y-ty*.5, _lk.z);
+        // roll into motion + fog shift per location
+        camera.rotation.z+=THREE.MathUtils.clamp(-smoothVel*.00004-tx*.05, -.14, .14)*.1;
+        _fog.copy(fogA).lerp(fogB, prog/Math.max(1, stops.length-1));
+        scene.fog.color.copy(_fog);
+        scene.background=null;
+      }
+      head.position.copy(camera.position);
+
+      // FOV kick with scroll speed = rushing forward
+      const fovT=62+Math.min(speed*.006, 13);
+      fovCur+=(fovT-fovCur)*.08;
+      if(Math.abs(fovCur-camera.fov)>.05){ camera.fov=fovCur; camera.updateProjectionMatrix(); }
+      if(vignette) vignette.style.opacity=Math.min(speed*.00045, .9).toFixed(2);
+
+      // life: shapes bob/spin, active stop's shape flares
+      const active=Math.round(prog);
+      shapes.forEach((m,i)=>{
+        m.rotation.x+=m.userData.sx*(1+speed*.0006);
+        m.rotation.y+=m.userData.sy*(1+speed*.0006);
         m.position.y=m.userData.y0+Math.sin(t*.5+m.userData.ph)*.35;
+        const on=(i===active);
+        const sT=on?1.35:1;
+        m.userData.base+=(sT-m.userData.base)*.08;
+        m.scale.setScalar(m.userData.base);
+        m.material.opacity+=(((on?.62:.26))-m.material.opacity)*.08;
       });
-      camera.position.y+=((-sy*.0022)-camera.position.y)*.05;
+      rings.forEach((r,i)=>{ r.rotation.z+=.0009+i*.00004+speed*.0000009; });
+      pts.rotation.y=t*.012;
+      pts.position.y=Math.sin(t*.2)*.4;
+
+      if(active!==lastActive){ lastActive=active; markHud(active); }
       renderer.render(scene, camera);
     })();
   }catch{ initFixedBackground2D(); }
@@ -1177,22 +1375,25 @@ function initTestiCarousel(){
   // cleanup previous run (re-render)
   if(__testiTimer){ clearInterval(__testiTimer); __testiTimer=null; }
   track.style.transform='';
-  const cards=[...track.children];
-  // need more cards than visible to loop — else fall back to static grid
   function perView(){ return innerWidth<=640?1:innerWidth<=1024?2:3; }
-  if(cards.length<=perView()){
-    track.classList.remove('testi-track');
-    if(dotsBox) dotsBox.innerHTML='';
-    cards.forEach(c=>c.classList.add('in'));
-    $('#testi-prev')?.style.setProperty('display','none');
-    $('#testi-next')?.style.setProperty('display','none');
-    return;
+  // Always loop: duplicate cards when admin only added 1-2 items (default seed has 2)
+  let originals=[...track.children];
+  if(originals.length===0) return;
+  if(originals.length<=perView()){
+    const need=perView()+2-originals.length;
+    for(let i=0;i<need;i++){
+      const clone=originals[i%originals.length].cloneNode(true);
+      clone.classList.add('in');
+      track.appendChild(clone);
+    }
   }
+  const cards=[...track.children];
   track.classList.add('testi-track');
   $('#testi-prev')?.style.setProperty('display','');
   $('#testi-next')?.style.setProperty('display','');
   cards.forEach(c=>{ c.classList.add('in'); c.classList.remove('reveal'); });
   const total=cards.length;
+  const dotsTotal=originals.length;
   __testiIdx=0;
   function stepW(){
     const first=track.children[0];
@@ -1203,9 +1404,9 @@ function initTestiCarousel(){
   function renderDots(){
     if(!dotsBox) return;
     dotsBox.innerHTML='';
-    for(let i=0;i<total;i++){
+    for(let i=0;i<dotsTotal;i++){
       const d=document.createElement('i');
-      if(i===__testiIdx%total) d.classList.add('on');
+      if(i===__testiIdx%dotsTotal) d.classList.add('on');
       d.addEventListener('click', ()=>{ goTo(i); });
       dotsBox.appendChild(d);
     }
@@ -1226,7 +1427,7 @@ function initTestiCarousel(){
       track.style.transform='translateX(0)';
       void track.offsetWidth; // reflow
       track.style.transition='';
-      __testiIdx=(__testiIdx+1)%total;
+      __testiIdx=(__testiIdx+1)%dotsTotal;
       renderDots();
       animating=false;
     }, 620);
@@ -1244,7 +1445,7 @@ function initTestiCarousel(){
       track.style.transition='transform .6s cubic-bezier(.2,.8,.2,1)';
       track.style.transform='translateX(0)';
       setTimeout(()=>{
-        __testiIdx=(__testiIdx-1+total)%total;
+        __testiIdx=(__testiIdx-1+dotsTotal)%dotsTotal;
         renderDots();
         animating=false;
       }, 620);
@@ -1252,7 +1453,7 @@ function initTestiCarousel(){
   }
   function goTo(i){
     if(animating) return;
-    let diff=(i-__testiIdx+total)%total;
+    let diff=(i-__testiIdx+dotsTotal)%dotsTotal;
     if(diff===0) return;
     // step forward diff times with quick chaining
     (function step(){
@@ -1591,6 +1792,7 @@ function initChat(){
   initMagnetic();
   initSmoothScroll();
   initGsapReveals();
+  setTimeout(()=>{ try{ window.dispatchEvent(new Event('resize')); window.ScrollTrigger?.refresh(); }catch{} }, 900);
   track('pageview','landing');
   window.matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', e=>{
     if(e.matches) document.body.classList.add('reduced');
