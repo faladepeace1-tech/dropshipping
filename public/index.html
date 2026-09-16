@@ -200,7 +200,14 @@
     <div class="eyebrow" id="testimonials-eyebrow">Testimonials</div>
     <h2 class="h2 gradient-text" id="testimonials-title">What Clients Say</h2>
     <p class="sub" id="testimonials-subtitle">Honest feedback from store owners.</p>
-    <div class="testi-grid" id="testi-grid"></div>
+    <div class="testi-carousel-wrap">
+      <button class="testi-nav prev" id="testi-prev" aria-label="Previous testimonials">‹</button>
+      <div class="testi-viewport" id="testi-viewport">
+        <div class="testi-grid testi-track" id="testi-grid"></div>
+      </div>
+      <button class="testi-nav next" id="testi-next" aria-label="Next testimonials">›</button>
+    </div>
+    <div class="testi-dots" id="testi-dots" aria-hidden="true"></div>
   </div>
 </section>
 

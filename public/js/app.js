@@ -836,7 +836,9 @@ async function loadMedia(){
     el.innerHTML=`<q>${sanitize(item.caption||T('testi_fallback','Great experience with Nexatech.'))}</q><div class="who">${media}<div><b>${sanitize(item.alt_text||'Client')}</b><br><small style="color:var(--text-muted)">${sanitize(item.result_stat||T('testi_role_fallback','Verified buyer'))}</small></div></div>`;
     if(isVideo){ const v=el.querySelector('video'); if(v) v.play().catch(()=>{}); }
     tGrid.appendChild(el);
-  });}
+  });
+  try{ initTestiCarousel(); }catch(e){ console.warn('testi carousel', e.message); }
+  }
   try{
     const revR=await fetch('/api/media?type=reviews'); const reviews=await revR.json();
     const rGrid=$('#reviews-grid'); const empty=$('#reviews-empty');
@@ -1161,6 +1163,131 @@ function initChips(){
     idx=(idx+1)%chips.length;
   }
   show(); setInterval(show, 3200);
+}
+
+// Testimonials infinite conveyor — slides 1 card left every 3.4s,
+// then sends that card to the back to fetch the next one (seamless loop).
+// Shows 3-up desktop / 2 tablet / 1 mobile. Pause on hover/touch/offscreen.
+let __testiTimer=null, __testiIdx=0;
+function initTestiCarousel(){
+  const track=$('#testi-grid');
+  const viewport=$('#testi-viewport');
+  const dotsBox=$('#testi-dots');
+  if(!track||!viewport) return;
+  // cleanup previous run (re-render)
+  if(__testiTimer){ clearInterval(__testiTimer); __testiTimer=null; }
+  track.style.transform='';
+  const cards=[...track.children];
+  // need more cards than visible to loop — else fall back to static grid
+  function perView(){ return innerWidth<=640?1:innerWidth<=1024?2:3; }
+  if(cards.length<=perView()){
+    track.classList.remove('testi-track');
+    if(dotsBox) dotsBox.innerHTML='';
+    cards.forEach(c=>c.classList.add('in'));
+    $('#testi-prev')?.style.setProperty('display','none');
+    $('#testi-next')?.style.setProperty('display','none');
+    return;
+  }
+  track.classList.add('testi-track');
+  $('#testi-prev')?.style.setProperty('display','');
+  $('#testi-next')?.style.setProperty('display','');
+  cards.forEach(c=>{ c.classList.add('in'); c.classList.remove('reveal'); });
+  const total=cards.length;
+  __testiIdx=0;
+  function stepW(){
+    const first=track.children[0];
+    if(!first) return 300;
+    const gap=parseFloat(getComputedStyle(track).columnGap||getComputedStyle(track).gap||'16')||16;
+    return first.getBoundingClientRect().width+gap;
+  }
+  function renderDots(){
+    if(!dotsBox) return;
+    dotsBox.innerHTML='';
+    for(let i=0;i<total;i++){
+      const d=document.createElement('i');
+      if(i===__testiIdx%total) d.classList.add('on');
+      d.addEventListener('click', ()=>{ goTo(i); });
+      dotsBox.appendChild(d);
+    }
+  }
+  renderDots();
+  let animating=false, inView=true, hovering=false;
+  new IntersectionObserver(es=>{ es.forEach(e=>{ inView=e.isIntersecting; }); },{threshold:.1}).observe($('#testimonials'));
+  function slideNext(){
+    if(animating||document.hidden||!inView||hovering||reducedMotion()) return;
+    animating=true;
+    const w=stepW();
+    track.style.transition='transform .6s cubic-bezier(.2,.8,.2,1)';
+    track.style.transform=`translateX(${-w}px)`;
+    setTimeout(()=>{
+      // send front card to back to get next one
+      track.appendChild(track.children[0]);
+      track.style.transition='none';
+      track.style.transform='translateX(0)';
+      void track.offsetWidth; // reflow
+      track.style.transition='';
+      __testiIdx=(__testiIdx+1)%total;
+      renderDots();
+      animating=false;
+    }, 620);
+  }
+  function slidePrev(){
+    if(animating) return;
+    animating=true;
+    const w=stepW();
+    // pull last card to front instantly, then slide back to 0
+    track.insertBefore(track.children[track.children.length-1], track.children[0]);
+    track.style.transition='none';
+    track.style.transform=`translateX(${-w}px)`;
+    void track.offsetWidth;
+    requestAnimationFrame(()=>{
+      track.style.transition='transform .6s cubic-bezier(.2,.8,.2,1)';
+      track.style.transform='translateX(0)';
+      setTimeout(()=>{
+        __testiIdx=(__testiIdx-1+total)%total;
+        renderDots();
+        animating=false;
+      }, 620);
+    });
+  }
+  function goTo(i){
+    if(animating) return;
+    let diff=(i-__testiIdx+total)%total;
+    if(diff===0) return;
+    // step forward diff times with quick chaining
+    (function step(){
+      if(diff--<=0) return;
+      slideNext();
+      setTimeout(()=>{ if(diff>0) step(); }, 680);
+    })();
+  }
+  const prevBtn=$('#testi-prev'), nextBtn=$('#testi-next');
+  if(prevBtn) prevBtn.onclick=()=>{ slidePrev(); restart(); };
+  if(nextBtn) nextBtn.onclick=()=>{ slideNext(); restart(); };
+  viewport.onmouseenter=()=>{ hovering=true; };
+  viewport.onmouseleave=()=>{ hovering=false; };
+  viewport.ontouchstart=()=>{ hovering=true; };
+  viewport.ontouchend=()=>{ setTimeout(()=>{ hovering=false; }, 2000); };
+  // swipe
+  let sx=null;
+  viewport.addEventListener('touchstart', e=>{ sx=e.touches[0].clientX; }, {passive:true});
+  viewport.addEventListener('touchend', e=>{
+    if(sx===null) return;
+    const dx=e.changedTouches[0].clientX-sx;
+    if(Math.abs(dx)>40){ dx<0?slideNext():slidePrev(); restart(); }
+    sx=null;
+  }, {passive:true});
+  function restart(){
+    if(__testiTimer) clearInterval(__testiTimer);
+    if(!reducedMotion()) __testiTimer=setInterval(slideNext, 3400);
+  }
+  restart();
+  addEventListener('resize', ()=>{
+    track.style.transition='none';
+    track.style.transform='translateX(0)';
+    void track.offsetWidth;
+    track.style.transition='';
+  });
 }
 
 // Header scroll + drawer + progress
