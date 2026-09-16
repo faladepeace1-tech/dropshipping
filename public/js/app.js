@@ -438,11 +438,18 @@ async function initAmbientWebGL(){
     const shapes=stops.map((s,i)=>{
       const m=new THREE.Mesh(
         geoMakers[i%geoMakers.length](),
-        new THREE.MeshStandardMaterial({color:cols[i%cols.length], wireframe:true, transparent:true, opacity:.3})
+        new THREE.MeshStandardMaterial({color:cols[i%cols.length], wireframe:true, transparent:true, opacity:.34})
       );
       const side=(i%2===0?-1:1);
       m.position.set(side*(3.4+Math.random()*1.4), s.cam.y-.6, -3-(i%3));
       m.userData={sx:.0016+(i%5)*.0007, sy:.0022+(i%4)*.0005, y0:m.position.y, ph:i*1.7, base:1};
+      // solid glowing core inside the wireframe shell = substance, not just lines
+      const core=new THREE.Mesh(
+        new THREE.IcosahedronGeometry(.62, 1),
+        new THREE.MeshStandardMaterial({color:cols[i%cols.length], transparent:true, opacity:.16, roughness:.35, metalness:.2, emissive:cols[i%cols.length], emissiveIntensity:.35, depthWrite:false})
+      );
+      core.scale.setScalar(.9);
+      m.add(core);
       scene.add(m); return m;
     });
 
@@ -498,9 +505,12 @@ async function initAmbientWebGL(){
       scene.add(sp); nebs.push(sp);
     }
     // Flight-path ribbon: glowing route threading every camera stop
+    let flightCurve=null;
+    const gates=[];
     try{
       const pathPts=stops.map(s=>new THREE.Vector3(s.cam.x*.55, s.cam.y-.5, -5.5));
       const curve=new THREE.CatmullRomCurve3(pathPts);
+      flightCurve=curve;
       const tube=new THREE.Mesh(
         new THREE.TubeGeometry(curve, 120, .05, 6, false),
         new THREE.MeshBasicMaterial({color:0x00d1ff, transparent:true, opacity:.22, blending:THREE.AdditiveBlending, depthWrite:false})
@@ -511,6 +521,27 @@ async function initAmbientWebGL(){
         new THREE.MeshBasicMaterial({color:0x7c3aed, transparent:true, opacity:.08, blending:THREE.AdditiveBlending, depthWrite:false})
       );
       scene.add(tube2);
+      // Gate portals: big glowing rings ON the path — the camera flies through them
+      const gateCount=isMobile?6:9;
+      for(let i=0;i<gateCount;i++){
+        const gt=i/(gateCount-1)*.985+.005;
+        const p=curve.getPoint(gt);
+        const ahead=curve.getPoint(Math.min(1, gt+.03));
+        const grp=new THREE.Group();
+        grp.position.copy(p);
+        grp.lookAt(ahead);
+        const inner=new THREE.Mesh(
+          new THREE.TorusGeometry(3.4, .055, 10, 72),
+          new THREE.MeshBasicMaterial({color:i%2?0x7c3aed:0x00d1ff, transparent:true, opacity:.5, blending:THREE.AdditiveBlending, depthWrite:false})
+        );
+        const outer=new THREE.Mesh(
+          new THREE.TorusGeometry(4.1, .028, 8, 72),
+          new THREE.MeshBasicMaterial({color:i%2?0x00d1ff:0xa78bfa, transparent:true, opacity:.3, blending:THREE.AdditiveBlending, depthWrite:false})
+        );
+        grp.add(inner); grp.add(outer);
+        grp.userData={inner, outer, ph:i*1.3};
+        scene.add(grp); gates.push(grp);
+      }
     }catch(e){ console.warn('ribbon off', e.message); }
     // Warp streaks: vertical light rain that accelerates with scroll velocity
     const WN=isMobile?120:260;
@@ -538,6 +569,50 @@ async function initAmbientWebGL(){
     tGeo.setAttribute('position', new THREE.BufferAttribute(tpos,3));
     const twk=new THREE.Points(tGeo, new THREE.PointsMaterial({color:0xffffff,size:.09,transparent:true,opacity:.5}));
     scene.add(twk);
+    // Constellation web: faint lines joining nearby dust motes (grouped so it tumbles with the dust)
+    const dustGroup=new THREE.Group();
+    dustGroup.add(pts);
+    scene.add(dustGroup);
+    try{
+      const linkPts=[];
+      const sample=isMobile?60:110;
+      const P=pGeo.attributes.position.array;
+      for(let a=0;a<sample;a++){
+        const i=Math.floor(Math.random()*(N));
+        const ax=P[i*3], ay=P[i*3+1], az=P[i*3+2];
+        for(let b=a+1;b<sample;b+=7){
+          const j=Math.floor(Math.random()*(N));
+          const dx=ax-P[j*3], dy=ay-P[j*3+1], dz=az-P[j*3+2];
+          if(dx*dx+dy*dy+dz*dz<5.5){ linkPts.push(ax,ay,az, P[j*3],P[j*3+1],P[j*3+2]); break; }
+        }
+      }
+      const lGeo=new THREE.BufferGeometry();
+      lGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(linkPts),3));
+      dustGroup.add(new THREE.LineSegments(lGeo, new THREE.LineBasicMaterial({color:0x38bdf8, transparent:true, opacity:.14})));
+    }catch(e){ console.warn('constellation off', e.message); }
+    // Spiral galaxy: rotating three-arm disc floating mid-flight
+    let galaxy=null;
+    try{
+      const GN=isMobile?350:800;
+      const gpos=new Float32Array(GN*3), gcol=new Float32Array(GN*3);
+      const cA=new THREE.Color(0x00d1ff), cB=new THREE.Color(0x7c3aed), cC=new THREE.Color(0xffffff), _gc=new THREE.Color();
+      for(let i=0;i<GN;i++){
+        const arm=i%3, r=Math.pow(Math.random(), .65)*8.5+.4;
+        const ang=r*1.15+arm*(Math.PI*2/3)+(Math.random()-.5)*.55;
+        gpos[i*3]=Math.cos(ang)*r+(Math.random()-.5)*.8;
+        gpos[i*3+1]=(Math.random()-.5)*1.6;
+        gpos[i*3+2]=Math.sin(ang)*r+(Math.random()-.5)*.8;
+        _gc.copy(r<3?cC:(arm%2?cA:cB)).lerp(cC, Math.random()*.25);
+        gcol[i*3]=_gc.r; gcol[i*3+1]=_gc.g; gcol[i*3+2]=_gc.b;
+      }
+      const gg=new THREE.BufferGeometry();
+      gg.setAttribute('position', new THREE.BufferAttribute(gpos,3));
+      gg.setAttribute('color', new THREE.BufferAttribute(gcol,3));
+      galaxy=new THREE.Points(gg, new THREE.PointsMaterial({size:.13, vertexColors:true, transparent:true, opacity:.8, depthWrite:false, blending:THREE.AdditiveBlending}));
+      galaxy.position.set(1.5, -corridorLen*.45, -11);
+      galaxy.rotation.x=1.05;
+      scene.add(galaxy);
+    }catch(e){ console.warn('galaxy off', e.message); }
     // Tron grid decks: perspective floors spaced down the flight
     const grids=[];
     for(let i=0;i<3;i++){
@@ -690,6 +765,7 @@ async function initAmbientWebGL(){
       shapes.forEach((m,i)=>{
         m.rotation.x+=m.userData.sx*(1+speed*.0006);
         m.rotation.y+=m.userData.sy*(1+speed*.0006);
+        m.material.color.offsetHSL(dt*.008, 0, 0); // slow living hue drift
         m.position.y=m.userData.y0+Math.sin(t*.5+m.userData.ph)*.35;
         const on=(i===active);
         const sT=on?1.35:1;
@@ -698,8 +774,19 @@ async function initAmbientWebGL(){
         m.material.opacity+=(((on?.62:.26))-m.material.opacity)*.08;
       });
       rings.forEach((r,i)=>{ r.rotation.z+=.0009+i*.00004+speed*.0000009; });
-      pts.rotation.y=t*.012;
-      pts.position.y=Math.sin(t*.2)*.4;
+      dustGroup.rotation.y=t*.012;
+      dustGroup.position.y=Math.sin(t*.2)*.4;
+      // gates: spin + flare as the camera nears / passes through
+      gates.forEach((g,i)=>{
+        g.rotation.z+=.002+i*.0003;
+        const d=Math.abs(camera.position.y-g.position.y);
+        const glow=1/(1+d*.35);
+        g.userData.inner.material.opacity=.25+glow*.65;
+        g.userData.outer.material.opacity=.12+glow*.4;
+        const s=1+glow*.18+Math.sin(t*2+g.userData.ph)*.02;
+        g.scale.set(s,s,1);
+      });
+      if(galaxy){ galaxy.rotation.z+=.00045+speed*.0000004; }
       // advanced life: nebulae breathe + drift, twinkles pulse
       nebs.forEach((n,i)=>{
         n.position.x=n.userData.x0+Math.sin(t*.12*n.userData.drift+n.userData.ph)*1.6;
