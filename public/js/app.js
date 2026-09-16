@@ -470,6 +470,103 @@ async function initAmbientWebGL(){
     const pts=new THREE.Points(pGeo, new THREE.PointsMaterial({color:0x7dd3fc,size:.07,transparent:true,opacity:.75}));
     scene.add(pts);
 
+    // --- ADVANCED DRESSING: nebulae, flight ribbon, warp streaks, grids, beacon ---
+    function glowTexture(inner, outer){
+      const cv=document.createElement('canvas'); cv.width=cv.height=256;
+      const g=cv.getContext('2d');
+      const gr=g.createRadialGradient(128,128,0,128,128,128);
+      gr.addColorStop(0, inner); gr.addColorStop(.45, outer); gr.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle=gr; g.fillRect(0,0,256,256);
+      const tx=new THREE.CanvasTexture(cv); return tx;
+    }
+    // Nebula clouds: big soft additive sprites drifting along the corridor
+    const nebCols=[
+      ['rgba(0,209,255,.55)','rgba(0,209,255,.12)'],
+      ['rgba(124,58,237,.55)','rgba(124,58,237,.12)'],
+      ['rgba(56,189,248,.5)','rgba(56,189,248,.10)'],
+      ['rgba(16,185,129,.42)','rgba(16,185,129,.10)'],
+    ];
+    const nebs=[];
+    const nebCount=isMobile?4:7;
+    for(let i=0;i<nebCount;i++){
+      const [a,b]=nebCols[i%nebCols.length];
+      const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(a,b), transparent:true, opacity:.5, depthWrite:false, blending:THREE.AdditiveBlending}));
+      const s=14+Math.random()*16;
+      sp.scale.set(s, s*.7, 1);
+      sp.position.set((Math.random()-.5)*22, 4-Math.random()*corridorLen, -9-Math.random()*6);
+      sp.userData={ph:Math.random()*6.28, drift:.2+Math.random()*.4, x0:sp.position.x};
+      scene.add(sp); nebs.push(sp);
+    }
+    // Flight-path ribbon: glowing route threading every camera stop
+    try{
+      const pathPts=stops.map(s=>new THREE.Vector3(s.cam.x*.55, s.cam.y-.5, -5.5));
+      const curve=new THREE.CatmullRomCurve3(pathPts);
+      const tube=new THREE.Mesh(
+        new THREE.TubeGeometry(curve, 120, .05, 6, false),
+        new THREE.MeshBasicMaterial({color:0x00d1ff, transparent:true, opacity:.22, blending:THREE.AdditiveBlending, depthWrite:false})
+      );
+      scene.add(tube);
+      const tube2=new THREE.Mesh(
+        new THREE.TubeGeometry(curve, 120, .12, 6, false),
+        new THREE.MeshBasicMaterial({color:0x7c3aed, transparent:true, opacity:.08, blending:THREE.AdditiveBlending, depthWrite:false})
+      );
+      scene.add(tube2);
+    }catch(e){ console.warn('ribbon off', e.message); }
+    // Warp streaks: vertical light rain that accelerates with scroll velocity
+    const WN=isMobile?120:260;
+    const wpos=new Float32Array(WN*3);
+    const wspd=new Float32Array(WN);
+    for(let i=0;i<WN;i++){
+      wpos[i*3]=(Math.random()-.5)*26;
+      wpos[i*3+1]=5-Math.random()*corridorLen;
+      wpos[i*3+2]=(Math.random()-.5)*14-2;
+      wspd[i]=.6+Math.random()*1.6;
+    }
+    const wGeo=new THREE.BufferGeometry();
+    wGeo.setAttribute('position', new THREE.BufferAttribute(wpos,3));
+    const warp=new THREE.Points(wGeo, new THREE.PointsMaterial({color:0xbfe9ff,size:.11,transparent:true,opacity:.0}));
+    scene.add(warp);
+    // Twinkle layer: second star field pulsing out of phase
+    const TN=isMobile?150:350;
+    const tpos=new Float32Array(TN*3);
+    for(let i=0;i<TN;i++){
+      tpos[i*3]=(Math.random()-.5)*30;
+      tpos[i*3+1]=5-Math.random()*corridorLen;
+      tpos[i*3+2]=(Math.random()-.5)*16-4;
+    }
+    const tGeo=new THREE.BufferGeometry();
+    tGeo.setAttribute('position', new THREE.BufferAttribute(tpos,3));
+    const twk=new THREE.Points(tGeo, new THREE.PointsMaterial({color:0xffffff,size:.09,transparent:true,opacity:.5}));
+    scene.add(twk);
+    // Tron grid decks: perspective floors spaced down the flight
+    const grids=[];
+    for(let i=0;i<3;i++){
+      const gr=new THREE.GridHelper(40, 28, 0x00d1ff, 0x7c3aed);
+      gr.position.set(0, 2.5-i*(corridorLen/2.4), -6);
+      gr.material.transparent=true; gr.material.opacity=.13;
+      scene.add(gr); grids.push(gr);
+    }
+    // Satellites: tiny orbiters around each stop shape
+    const satGeo=new THREE.TetrahedronGeometry(.22, 0);
+    const sats=shapes.map((m,i)=>{
+      const s=new THREE.Mesh(satGeo, new THREE.MeshBasicMaterial({color:cols[(i+2)%cols.length], transparent:true, opacity:.85}));
+      s.userData={a:Math.random()*6.28, r:2.1+Math.random()*.7, s:.6+Math.random()*.8, parent:m};
+      scene.add(s); return s;
+    });
+    // Beacon: glowing marker + light that hops to the active stop
+    const beacon=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture('rgba(255,255,255,.9)','rgba(0,209,255,.25)'), transparent:true, depthWrite:false, blending:THREE.AdditiveBlending}));
+    beacon.scale.set(3.4,3.4,1);
+    scene.add(beacon);
+    const beaconLight=new THREE.PointLight(0x00d1ff, 20, 14);
+    scene.add(beaconLight);
+    const _bv=new THREE.Vector3();
+    // Shooting star: occasional dart across the view
+    const shoot=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture('rgba(255,255,255,.95)','rgba(124,58,237,.3)'), transparent:true, opacity:0, depthWrite:false, blending:THREE.AdditiveBlending}));
+    shoot.scale.set(2.6,.7,1);
+    scene.add(shoot);
+    let shootT=4+Math.random()*4, shootLife=-1;
+    const _s0=new THREE.Vector3(), _s1=new THREE.Vector3();
+
     function resize(){
       renderer.setSize(innerWidth, innerHeight, false);
       camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
@@ -603,6 +700,64 @@ async function initAmbientWebGL(){
       rings.forEach((r,i)=>{ r.rotation.z+=.0009+i*.00004+speed*.0000009; });
       pts.rotation.y=t*.012;
       pts.position.y=Math.sin(t*.2)*.4;
+      // advanced life: nebulae breathe + drift, twinkles pulse
+      nebs.forEach((n,i)=>{
+        n.position.x=n.userData.x0+Math.sin(t*.12*n.userData.drift+n.userData.ph)*1.6;
+        n.position.y+=Math.sin(t*.1+n.userData.ph)*.004;
+        n.material.opacity=.38+Math.sin(t*.35+n.userData.ph)*.14;
+      });
+      twk.material.opacity=.32+Math.sin(t*1.4)*.2;
+      twk.rotation.y=-t*.008;
+      // warp streaks fall faster the quicker you scroll
+      {
+        const arr=wGeo.attributes.position.array;
+        const fall=(2.2+speed*.012);
+        for(let i=0;i<WN;i++){
+          arr[i*3+1]-=wspd[i]*fall*dt*3;
+          if(arr[i*3+1]<6-corridorLen){ arr[i*3+1]=6; arr[i*3]=(Math.random()-.5)*26; }
+        }
+        wGeo.attributes.position.needsUpdate=true;
+        const warpT=Math.min(.85, speed*.0004);
+        warp.material.opacity+=(warpT-warp.material.opacity)*.06;
+        warp.position.y=Math.sin(t*.3)*.3;
+      }
+      // grids shimmer + slow march for depth reference
+      grids.forEach((gr,i)=>{ gr.position.z=-6+Math.sin(t*.25+i*2)*.5; gr.material.opacity=.10+Math.sin(t*.5+i)*.04; });
+      // satellites orbit their stop shapes
+      sats.forEach((s,i)=>{
+        const u=s.userData, p=u.parent;
+        u.a+=.008*u.s*(1+speed*.0004);
+        s.position.set(p.position.x+Math.cos(u.a)*u.r, p.position.y+Math.sin(u.a*1.3)*.9, p.position.z+Math.sin(u.a)*u.r*.5);
+        s.rotation.x+=.02; s.rotation.y+=.025;
+      });
+      // beacon glides to the active stop and pulses
+      {
+        const am=shapes[active]||shapes[0];
+        if(am){
+          _bv.set(am.position.x, am.position.y, am.position.z+1.2);
+          beacon.position.lerp(_bv, .07);
+          beaconLight.position.copy(beacon.position);
+          const pulse=1+Math.sin(t*3)*.12;
+          beacon.scale.set(3.4*pulse, 3.4*pulse, 1);
+          beaconLight.intensity=16+Math.sin(t*3)*6+Math.min(speed*.01, 20);
+        }
+      }
+      // shooting star every few seconds
+      shootT-=dt;
+      if(shootT<=0 && shootLife<0){
+        shootLife=0;
+        _s0.set((Math.random()-.5)*16, camera.position.y+4+Math.random()*4, -6);
+        _s1.set(_s0.x+(Math.random()>.5?8:-8), _s0.y-7-Math.random()*3, -6);
+        shootT=6+Math.random()*7;
+      }
+      if(shootLife>=0){
+        shootLife+=dt*1.4;
+        if(shootLife>=1){ shootLife=-1; shoot.material.opacity=0; }
+        else{
+          shoot.position.lerpVectors(_s0, _s1, shootLife);
+          shoot.material.opacity=Math.sin(shootLife*Math.PI)*.9;
+        }
+      }
 
       if(active!==lastActive){ lastActive=active; markHud(active); }
       renderer.render(scene, camera);

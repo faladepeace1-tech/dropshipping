@@ -53,12 +53,19 @@ button{font:inherit}
 #webgl-fixed{position:fixed;inset:0;width:100%;height:100%;z-index:0;opacity:1;pointer-events:none}
 .ambient-orbs{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
 main, .footer{position:relative;z-index:1}
-/* Translucent sections so the flying camera stays visible while scrolling */
-.section{background:rgba(255,255,255,.82);backdrop-filter:blur(14px) saturate(1.2);-webkit-backdrop-filter:blur(14px) saturate(1.2)}
-.section-alt{background:linear-gradient(180deg,rgba(246,248,252,.86),rgba(255,255,255,.82));backdrop-filter:blur(14px) saturate(1.2);-webkit-backdrop-filter:blur(14px) saturate(1.2)}
+/* Translucent glass sections so the flying camera shows through — cards stay solid for readability */
+.section{background:rgba(255,255,255,.58);backdrop-filter:blur(10px) saturate(1.3);-webkit-backdrop-filter:blur(10px) saturate(1.3);border-top:1px solid rgba(255,255,255,.5)}
+.section-alt{background:linear-gradient(180deg,rgba(246,248,252,.62),rgba(255,255,255,.55));backdrop-filter:blur(10px) saturate(1.3);-webkit-backdrop-filter:blur(10px) saturate(1.3);border-top:1px solid rgba(255,255,255,.5)}
+.section .h2{text-shadow:0 2px 26px rgba(255,255,255,.9),0 0 2px rgba(255,255,255,.9)}
+.section .sub{text-shadow:0 1px 14px rgba(255,255,255,.85)}
+.section .container{position:relative;z-index:1}
+/* Keep content cards readable over the 3D flight */
+.card,.proof-card,.price-card,.testi,.team-card,.step,.faq-item,.mentorship{background-color:rgba(255,255,255,.94)}
+.form-body{background:rgba(255,255,255,.94)}
+.form-head{background:linear-gradient(180deg,rgba(255,255,255,.96),rgba(248,250,252,.94))}
 /* 3D fly-through: each section is a camera stop */
 .section[data-reveal], section[data-section]{transform-style:preserve-3d;will-change:transform,opacity,filter}
-.strip{position:relative;z-index:1;background:rgba(255,255,255,.8);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.strip{position:relative;z-index:1;background:rgba(255,255,255,.6);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
 /* Cinematic speed vignette — opacity driven by scroll velocity (JS) */
 #cam-vignette{position:fixed;inset:0;z-index:2;pointer-events:none;opacity:0;background:radial-gradient(120% 100% at 50% 50%,transparent 55%,rgba(0,209,255,.14) 82%,rgba(124,58,237,.22) 100%);transition:opacity .25s}
 /* Camera location HUD — shows which stop the camera is at */
