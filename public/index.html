@@ -14,6 +14,7 @@
 <link rel="icon" id="favicon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800;900&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/style.css">
 <script type="importmap">
@@ -26,7 +27,6 @@
 </script>
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js" defer></script>
-<script src="https://cdn.jsdelivr.net/npm/lenis@1.1.14/dist/lenis.min.js" defer></script>
 </head>
 <body class="nx-3d">
 <a class="skip-link" href="#hero">Skip to content</a>
@@ -36,11 +36,11 @@
 <div id="cursor-dot" aria-hidden="true"></div>
 <div id="cursor-ring" aria-hidden="true"></div>
 
-<!-- Global ambient 3D background : cinematic camera rig -->
-<canvas id="webgl-fixed" aria-hidden="true"></canvas>
-<div class="ambient-orbs" aria-hidden="true"><span></span><span></span><span></span></div>
-<div id="cam-vignette" aria-hidden="true"></div>
-<nav id="cam-hud" aria-label="Camera locations"></nav>
+<!-- Global ambient 3D background : disabled for fast load (see initAmbientWebGL) -->
+<canvas id="webgl-fixed" aria-hidden="true" style="display:none"></canvas>
+<div class="ambient-orbs" aria-hidden="true" style="display:none"><span></span><span></span><span></span></div>
+<div id="cam-vignette" aria-hidden="true" style="display:none"></div>
+<nav id="cam-hud" aria-label="Camera locations" style="display:none"></nav>
 
 <!-- Header -->
 <header class="header glass" id="header">
@@ -102,7 +102,7 @@
       <div class="tilt spotlight" data-tilt data-tilt-max="10">
         <div class="browser-bar"><i style="background:#FF5F56"></i><i style="background:#FFBD2E"></i><i style="background:#27CA3F"></i><span id="hero-visual-domain" style="margin-left:auto;font-size:12px;color:var(--text-muted);font-weight:700">nexatech.store</span></div>
         <div class="mock-img">
-          <img id="hero-mock-img" src="https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=900" alt="Store mockup" loading="eager">
+          <img id="hero-mock-img" src="https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=900" alt="Store mockup" loading="eager" decoding="async" fetchpriority="high">
           <div class="chip float-3d" id="chip-1"><span style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#00D1FF,#7C3AED);display:grid;place-items:center;color:#fff">$</span><div><b id="chip-1-t">New Sale $450</b><br><small id="chip-1-s">Elégance Mode • just now</small></div></div>
           <div class="chip float-3d" id="chip-2"><span style="width:36px;height:36px;border-radius:10px;background:#10B981;display:grid;place-items:center;color:#fff">✓</span><div><b id="chip-2-t">Order #1029 Shipped</b><br><small id="chip-2-s">GlowLab • 2m ago</small></div></div>
           <div class="chip float-3d" id="chip-3"><span style="width:36px;height:36px;border-radius:10px;background:#0B1220;display:grid;place-items:center;color:#fff">◉</span><div><b id="chip-3-t">3.2% Conversion Rate</b><br><small id="chip-3-s">TechNest • today</small></div></div>

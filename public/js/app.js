@@ -67,156 +67,82 @@ function track(event_type, element_id, metadata={}){
 
 // ================= 3D CHROME: cursor / progress =================
 function initCursor(){
-  if(window.matchMedia('(hover: none)').matches) return;
-  const dot=$('#cursor-dot'), ring=$('#cursor-ring');
-  if(!dot||!ring) return;
-  let mx=innerWidth/2,my=innerHeight/2,rx=mx,ry=my;
-  addEventListener('mousemove', e=>{
-    mx=e.clientX; my=e.clientY;
-    dot.style.transform=`translate(${mx}px,${my}px) translate(-50%,-50%)`;
-  }, {passive:true});
-  (function loop(){
-    rx+=(mx-rx)*.16; ry+=(my-ry)*.16;
-    ring.style.transform=`translate(${rx}px,${ry}px) translate(-50%,-50%)`;
-    requestAnimationFrame(loop);
-  })();
-  document.querySelectorAll('a,.btn,.pill,.card,.faq-q').forEach(el=>{
-    el.addEventListener('mouseenter', ()=>{ ring.style.width='56px'; ring.style.height='56px'; ring.style.borderColor='rgba(124,58,237,.9)'; });
-    el.addEventListener('mouseleave', ()=>{ ring.style.width='36px'; ring.style.height='36px'; ring.style.borderColor='rgba(0,209,255,.7)'; });
-  });
+  // Disabled: custom cursor ring ran a permanent rAF loop + transform on every
+  // mousemove for little benefit. Native cursor is instant.
+  try{ $('#cursor-dot')?.style.setProperty('display','none'); $('#cursor-ring')?.style.setProperty('display','none'); }catch{}
+  return;
 }
 function initScrollProgress(){
   const fill=$('#scroll-progress-fill');
-  const orbs=document.querySelector('.ambient-orbs');
+  if(!fill) return;
+  let ticking=false;
   const onScroll=()=>{
-    const h=document.documentElement;
-    const max=h.scrollHeight-h.clientHeight;
-    if(fill) fill.style.width=(max>0? (h.scrollTop/max)*100 : 0)+'%';
-    if(orbs && !reducedMotion()) orbs.style.transform=`translateY(${h.scrollTop*.06}px)`;
+    if(ticking) return;
+    ticking=true;
+    requestAnimationFrame(()=>{
+      ticking=false;
+      const h=document.documentElement;
+      const max=h.scrollHeight-h.clientHeight;
+      fill.style.width=(max>0? (h.scrollTop/max)*100 : 0)+'%';
+    });
   };
   addEventListener('scroll', onScroll, {passive:true}); onScroll();
 }
 function initMagnetic(){
-  if(reducedMotion() || window.matchMedia('(hover: none)').matches) return;
-  $$('.magnetic').forEach(el=>{
-    el.addEventListener('mousemove', e=>{
-      const r=el.getBoundingClientRect();
-      const x=e.clientX-r.left-r.width/2, y=e.clientY-r.top-r.height/2;
-      el.style.transform=`translate(${x*.12}px,${y*.18}px)`;
-    });
-    el.addEventListener('mouseleave', ()=>{ el.style.transform=''; });
-  });
+  // Disabled: magnetic buttons added motion on every mousemove. Native hover is faster.
+  return;
 }
-// 3D tilt on [data-tilt] cards — pointer-driven rotateX/rotateY with glare-safe limits
+// 3D tilt — disabled (cards no longer carry data-tilt; tilt caused repaint jank on scroll)
 function initTilt(){
-  if(reducedMotion()) return;
-  const els=$$('[data-tilt]');
-  const fine=window.matchMedia('(hover: hover) and (pointer: fine)').matches;
-  els.forEach(el=>{
-    const max=parseFloat(el.dataset.tiltMax||'8');
-    let raf=null;
-    function apply(rx,ry){
-      el.style.transform=`perspective(1000px) rotateX(${rx}deg) rotateY(${ry}deg) translateZ(0)`;
-    }
-    if(!fine){
-      // touch: subtle idle float handled by CSS; skip listeners
-      return;
-    }
-    el.addEventListener('pointermove', e=>{
-      const r=el.getBoundingClientRect();
-      const px=(e.clientX-r.left)/r.width-.5, py=(e.clientY-r.top)/r.height-.5;
-      if(raf) cancelAnimationFrame(raf);
-      raf=requestAnimationFrame(()=> apply((-py*max).toFixed(2), (px*max).toFixed(2)));
-    });
-    el.addEventListener('pointerleave', ()=>{
-      if(raf) cancelAnimationFrame(raf);
-      el.style.transition='transform .5s cubic-bezier(.2,.8,.2,1)';
-      apply(0,0);
-      setTimeout(()=>{ el.style.transition=''; }, 500);
-    });
-  });
+  return;
 }
-// Lenis smooth scroll synced to GSAP ticker (best-practice 2026 stack)
+// Lenis smooth scroll — DISABLED by default for fast native scroll + less motion.
+// Native scrolling is instant and cheaper. Keep function as no-op so init() stays safe.
 function initSmoothScroll(){
-  try{
-    if(reducedMotion()) return;
-    const LenisCtor=window.Lenis;
-    if(!LenisCtor) return;
-    const lenis=new LenisCtor({ lerp:.1, smoothWheel:true });
-    window.__lenis=lenis;
-    if(window.gsap){
-      lenis.on('scroll', ()=>{ try{ window.ScrollTrigger?.update(); }catch{} });
-      window.gsap.ticker.add(t=> lenis.raf(t*1000));
-      window.gsap.ticker.lagSmoothing(0);
-    } else {
-      const raf=t=>{ lenis.raf(t); requestAnimationFrame(raf); };
-      requestAnimationFrame(raf);
-    }
-    // anchor links through lenis
-    $$('a[href^="#"]').forEach(a=>{
-      a.addEventListener('click', e=>{
-        const id=a.getAttribute('href');
-        if(id.length>1){
-          const target=document.querySelector(id);
-          if(target){ e.preventDefault(); lenis.scrollTo(target, {offset:-70}); $('#drawer')?.classList.remove('open'); }
-        }
-      });
-    });
-  }catch(e){ console.warn('smooth scroll off', e.message); }
+  return;
 }
 function initGsapReveals(){
+  // Lite reveals only: tiny fade-up, no 3D fly-through / scrub / blur.
+  // Heavy version (z:-220, rotationX, blur 10px, departure scrub, inner parallax)
+  // is what made sections feel spaced-out + janky — removed for speed.
   try{
     if(!window.gsap || !window.ScrollTrigger) return;
     window.gsap.registerPlugin(window.ScrollTrigger);
     if(reducedMotion()) return;
-    // Hero copy stagger
-    window.gsap.fromTo('.hero-copy > *', {y:26,opacity:0}, {y:0,opacity:1,duration:.9,stagger:.1,ease:'power3.out',delay:.15,
-      onComplete(){ try{ window.gsap.set('.hero-copy > *',{clearProps:'transform'}); }catch{} }});
-    // --- 3D FLY-THROUGH: each section is a camera stop ---
-    // Entrance: flies in from deep (z, rotationX, blur) like camera arriving.
-    // Exit (scrub): tilts/pans away as camera departs to next stop.
     $$('[data-reveal]').forEach(sec=>{
-      window.gsap.set(sec, {transformPerspective:1400, transformOrigin:'50% 0%'});
       window.gsap.fromTo(sec,
-        {y:110, z:-220, rotationX:9, scale:.94, opacity:0, filter:'blur(10px)'},
-        {y:0, z:0, rotationX:0, scale:1, opacity:1, filter:'blur(0px)',
-         duration:1.15, ease:'power3.out',
-         scrollTrigger:{trigger:sec, start:'top 88%', once:true},
-         onComplete(){ try{ window.gsap.set(sec, {clearProps:'filter'}); }catch{} }});
-      // Continuous departure tilt while scrolling past (camera leaving the stop)
-      window.gsap.to(sec, {y:-46, rotationX:-5, scale:.985, ease:'none',
-        scrollTrigger:{trigger:sec, start:'top 45%', end:'bottom top', scrub:1.2}});
-      // Inner content drifts slightly slower = depth parallax inside the stop
-      const inner=sec.querySelector('.container');
-      if(inner){
-        window.gsap.fromTo(inner, {y:26}, {y:-26, ease:'none',
-          scrollTrigger:{trigger:sec, start:'top bottom', end:'bottom top', scrub:1.4}});
-      }
+        {y:22, opacity:0},
+        {y:0, opacity:1, duration:.55, ease:'power2.out',
+         scrollTrigger:{trigger:sec, start:'top 92%', once:true},
+         onComplete(){ try{ window.gsap.set(sec, {clearProps:'all'}); }catch{} }});
     });
-    // Stagger cards inside each stop so they pop in 3D as camera arrives
-    $$('.masonry .card, .proof-grid .proof-card, .pricing .price-card, .testi-grid .testi').forEach((el, i)=>{
-      window.gsap.fromTo(el, {z:-120, y:34, opacity:0}, {z:0, y:0, opacity:1, duration:.8, ease:'power3.out',
-        scrollTrigger:{trigger:el, start:'top 92%', once:true}});
-    });
-    // Parallax on hero visual
-    window.gsap.to('#hero-visual', {y:-40,ease:'none',scrollTrigger:{trigger:'#hero',start:'top top',end:'bottom top',scrub:1}});
-    // Progress line scrub
     const pl=$('#progress-line');
-    if(pl){ window.gsap.fromTo(pl,{scaleX:0},{scaleX:1,ease:'none',scrollTrigger:{trigger:'#how-it-works',start:'top 80%',end:'bottom 60%',scrub:1}}); }
+    if(pl){ pl.style.transform='scaleX(1)'; pl.classList.add('on'); }
   }catch(e){ console.warn('gsap reveals off', e.message); }
 }
 
-// ================= THREE.JS HERO (dynamic import, gated render loop) =================
+// ================= THREE.JS HERO (lite, deferred, desktop-only) =================
+// Was: 160-seg torus knot + 1400 particles + holos, loaded immediately on all
+// devices. Now: skipped on mobile / save-data / reduced-motion, three.js only
+// fetched after first paint via requestIdleCallback, geometry + particles cut ~70%.
 async function initHeroWebGL(){
   const canvas=$('#hero-webgl');
-  if(!canvas || reducedMotion()){ if(canvas) canvas.style.display='none'; return; }
+  if(!canvas){ return; }
+  try{
+    if(reducedMotion()){ canvas.style.display='none'; return; }
+    if(innerWidth<=768){ canvas.style.display='none'; return; }
+    if(navigator.connection && (navigator.connection.saveData || /2g/.test(navigator.connection.effectiveType||''))){ canvas.style.display='none'; return; }
+  }catch{}
+  // Defer until browser is idle so content + portfolio paint first
+  try{ await new Promise(res=>{ if('requestIdleCallback' in window) requestIdleCallback(res,{timeout:2500}); else setTimeout(res,1200); }); }catch{}
+  if(document.hidden){ canvas.style.display='none'; return; }
   let THREE;
   try{ THREE=await import('three'); }
   catch(e){ console.warn('three.js unavailable, hero falls back to CSS/2D', e.message); canvas.style.display='none'; return; }
   try{
-    const isMobile=innerWidth<=768;
-    const renderer=new THREE.WebGLRenderer({canvas, alpha:true, antialias:!isMobile, powerPreference:'high-performance'});
-    const DPR=Math.min(devicePixelRatio||1, isMobile?1.5:2);
+    const isMobile=false;
+    const renderer=new THREE.WebGLRenderer({canvas, alpha:true, antialias:false, powerPreference:'low-power'});
+    const DPR=Math.min(devicePixelRatio||1, 1);
     renderer.setPixelRatio(DPR);
     const scene=new THREE.Scene();
     scene.fog=new THREE.FogExp2(0x05070f, 0.055);
@@ -229,26 +155,26 @@ async function initHeroWebGL(){
     // Core group: torus knot (store "engine") + orbiting icosahedrons + particle field
     const group=new THREE.Group(); scene.add(group);
     const knot=new THREE.Mesh(
-      new THREE.TorusKnotGeometry(2.1, .55, isMobile?90:160, isMobile?12:22),
+      new THREE.TorusKnotGeometry(2.1, .55, 48, 8),
       new THREE.MeshStandardMaterial({color:0x0e1a33, metalness:.85, roughness:.25, emissive:0x0a2540, emissiveIntensity:.6, wireframe:false})
     );
     group.add(knot);
     const wire=new THREE.Mesh(
-      new THREE.TorusKnotGeometry(2.1, .55, isMobile?60:120, 10),
+      new THREE.TorusKnotGeometry(2.1, .55, 32, 6),
       new THREE.MeshBasicMaterial({color:0x00d1ff, wireframe:true, transparent:true, opacity:.22})
     );
     wire.scale.setScalar(1.002); group.add(wire);
-    const satGeo=new THREE.IcosahedronGeometry(.5, 1);
+    const satGeo=new THREE.IcosahedronGeometry(.5, 0);
     const sats=[];
     const satCols=[0x00d1ff,0x7c3aed,0x38bdf8,0x10b981];
-    for(let i=0;i<(isMobile?5:8);i++){
+    for(let i=0;i<4;i++){
       const m=new THREE.Mesh(satGeo, new THREE.MeshStandardMaterial({color:satCols[i%satCols.length], metalness:.7, roughness:.3, emissive:satCols[i%satCols.length], emissiveIntensity:.35}));
-      const a=(i/(isMobile?5:8))*Math.PI*2;
+      const a=(i/4)*Math.PI*2;
       m.userData={a, r:3.6+Math.random()*1.4, s:.5+Math.random()*.9, y:(Math.random()-.5)*3};
       group.add(m); sats.push(m);
     }
-    // Starfield particles
-    const N=isMobile?500:1400;
+    // Starfield particles (lite)
+    const N=350;
     const pos=new Float32Array(N*3);
     for(let i=0;i<N;i++){ pos[i*3]=(Math.random()-.5)*30; pos[i*3+1]=(Math.random()-.5)*18; pos[i*3+2]=(Math.random()-.5)*20-2; }
     const pGeo=new THREE.BufferGeometry();
@@ -273,10 +199,10 @@ async function initHeroWebGL(){
       g.fillStyle=accent; g.beginPath(); g.arc(52,72,16,0,Math.PI*2); g.fill();
       g.fillStyle='#fff'; g.font='700 46px Inter, sans-serif'; g.textBaseline='middle';
       g.fillText(text, 84, 76);
-      const tex=new THREE.CanvasTexture(cv); tex.anisotropy=4; return tex;
+      const tex=new THREE.CanvasTexture(cv); tex.anisotropy=1; return tex;
     }
     const holos=[];
-    [['$450 New Sale','#00d1ff'],['Order #1029 Shipped','#10b981'],['3.2% Conversion','#a78bfa']].forEach(([txt,col],i)=>{
+    [['$450 New Sale','#00d1ff'],['3.2% Conversion','#a78bfa']].forEach(([txt,col],i)=>{
       const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:makeLabel(txt,col), transparent:true, depthWrite:false}));
       sp.scale.set(3.2,.9,1);
       sp.userData={a:i*2.15, r:4.7+i*.55, y:.9-i*1.25, s:.5+i*.22};
@@ -333,523 +259,29 @@ async function initHeroWebGL(){
 }
 // Cheap ambient 2D drift fallback (used when WebGL/three is unavailable)
 function initFixedBackground2D(){
-  const c=$('#webgl-fixed');
-  if(!c || reducedMotion()){ if(c) c.style.display='none'; return; }
-  const ctx=c.getContext('2d');
-  const DPR=Math.min(devicePixelRatio||1, 1.5);
-  let w,h, dots=[];
-  function resize(){ w=c.clientWidth||innerWidth; h=c.clientHeight||innerHeight; c.width=w*DPR; c.height=h*DPR; ctx.setTransform(DPR,0,0,DPR,0,0); }
-  function seed(){
-    dots=[];
-    const n=innerWidth<=768?26:60;
-    for(let i=0;i<n;i++) dots.push({x:Math.random()*w,y:Math.random()*h,r:1+Math.random()*2.2,vx:(Math.random()-.5)*.25,vy:(Math.random()-.5)*.25,hue:Math.random()>.5});
-  }
-  resize(); seed(); addEventListener('resize', ()=>{ resize(); seed(); });
-  let vis=true;
-  new IntersectionObserver(es=>{ es.forEach(e=>{ vis=e.isIntersecting; }); }).observe(document.body);
-  (function loop(){
-    requestAnimationFrame(loop);
-    if(document.hidden) return;
-    ctx.clearRect(0,0,w,h);
-    dots.forEach(d=>{
-      d.x+=d.vx; d.y+=d.vy;
-      if(d.x<0||d.x>w) d.vx*=-1;
-      if(d.y<0||d.y>h) d.vy*=-1;
-      ctx.beginPath(); ctx.arc(d.x,d.y,d.r,0,Math.PI*2);
-      ctx.fillStyle=d.hue?'rgba(0,209,255,.20)':'rgba(124,58,237,.20)';
-      ctx.fill();
-    });
-  })();
+  // Disabled with the ambient tunnel (canvas hidden in initAmbientWebGL).
+  try{ $('#webgl-fixed')?.style.setProperty('display','none'); }catch{}
+  return;
 }
 
-// 3D spotlight: card glow follows the cursor (cheap CSS-var driven)
+// 3D spotlight — disabled (glow ::before removed in CSS; this listener did
+// getBoundingClientRect on every card per pointermove = scroll jank).
 function initSpotlight(){
-  if(reducedMotion() || window.matchMedia('(hover: none)').matches) return;
-  let queued=false;
-  document.addEventListener('pointermove', e=>{
-    const x=e.clientX, y=e.clientY;
-    if(!queued){ queued=true; requestAnimationFrame(()=>{
-      queued=false;
-      $$('.spotlight').forEach(el=>{
-        const r=el.getBoundingClientRect();
-        if(x<r.left||x>r.right||y<r.top||y>r.bottom) return;
-        el.style.setProperty('--mx', ((x-r.left)/r.width*100).toFixed(1)+'%');
-        el.style.setProperty('--my', ((y-r.top)/r.height*100).toFixed(1)+'%');
-      });
-    });}
-  }, {passive:true});
+  return;
 }
 
 // ================= CINEMATIC CAMERA JOURNEY =================
-// Fixed WebGL tunnel: every page section owns a camera stop.
-// Scrolling flies the camera from one location to the next
-// (dolly + weave + FOV kick + roll), rings/particles rush past.
+// DISABLED by default: the fixed WebGL tunnel (rings, galaxy, nebulae, gates,
+// warp streaks, per-frame scroll interpolation) was the #1 load + motion cost.
+// Sections now use solid backgrounds, so the tunnel added nothing visible.
+// Canvas + HUD are hidden instantly — no three.js download, instant first paint.
 async function initAmbientWebGL(){
   const c=$('#webgl-fixed');
-  if(!c || reducedMotion()){ if(c) c.style.display='none'; $('#cam-hud')?.style.setProperty('display','none'); return; }
-  let THREE;
-  try{ THREE=await import('three'); }
-  catch{ initFixedBackground2D(); return; }
-  try{
-    const isMobile=innerWidth<=768;
-    const renderer=new THREE.WebGLRenderer({canvas:c, alpha:true, antialias:false, powerPreference:'low-power'});
-    renderer.setPixelRatio(Math.min(devicePixelRatio||1, isMobile?1:1.5));
-    const scene=new THREE.Scene();
-    scene.fog=new THREE.FogExp2(0x0b1230, 0.026);
-    const camera=new THREE.PerspectiveCamera(62, 1, .1, 140);
-    camera.position.set(0, .5, 14);
-    scene.add(new THREE.AmbientLight(0x88aaff, 1.0));
-    const dl=new THREE.DirectionalLight(0x00d1ff, 1.2); dl.position.set(4,6,6); scene.add(dl);
-    const dl2=new THREE.DirectionalLight(0x7c3aed, 1.0); dl2.position.set(-5,-3,4); scene.add(dl2);
-    const head=new THREE.PointLight(0x9fd8ff, 12, 30); scene.add(head);
-
-    // --- Stops: one per visible page section, in DOM order ---
-    function collectStops(){
-      const els=[...document.querySelectorAll('main section[data-section], footer[data-section]')]
-        .filter(el=>el.offsetParent!==null);
-      const list=els.length?els:[...document.querySelectorAll('main section[id]')];
-      return list.map((el,i)=>{
-        const key=el.id||el.dataset.section||('stop-'+i);
-        const weave=Math.sin(i*1.25)*3.1;
-        const y=-i*5.2;
-        const z=Math.max(7.2, 14-i*.55);
-        return {
-          id: key,
-          label: (el.querySelector('.eyebrow')?.textContent||key.replace(/_/g,' ')||('Stop '+(i+1))).trim().slice(0,18),
-          el,
-          cam:new THREE.Vector3(weave, y+.5, z),
-          look:new THREE.Vector3(weave*.25, y-.4, -4),
-        };
-      });
-    }
-    let stops=collectStops();
-    const corridorLen=stops.length*5.2+18;
-
-    // --- Shape per stop (camera passes each one) ---
-    const geoMakers=[
-      ()=>new THREE.IcosahedronGeometry(1.5, 0),
-      ()=>new THREE.TorusGeometry(1.15, .3, 10, 26),
-      ()=>new THREE.OctahedronGeometry(1.4, 0),
-      ()=>new THREE.TorusKnotGeometry(.85, .26, 64, 10),
-      ()=>new THREE.IcosahedronGeometry(1.0, 1),
-      ()=>new THREE.TetrahedronGeometry(1.4, 0),
-    ];
-    const cols=[0x00d1ff,0x7c3aed,0x38bdf8,0x10b981,0xa78bfa,0x00d1ff];
-    const shapes=stops.map((s,i)=>{
-      const m=new THREE.Mesh(
-        geoMakers[i%geoMakers.length](),
-        new THREE.MeshStandardMaterial({color:cols[i%cols.length], wireframe:true, transparent:true, opacity:.34})
-      );
-      const side=(i%2===0?-1:1);
-      m.position.set(side*(3.4+Math.random()*1.4), s.cam.y-.6, -3-(i%3));
-      m.userData={sx:.0016+(i%5)*.0007, sy:.0022+(i%4)*.0005, y0:m.position.y, ph:i*1.7, base:1};
-      // solid glowing core inside the wireframe shell = substance, not just lines
-      const core=new THREE.Mesh(
-        new THREE.IcosahedronGeometry(.62, 1),
-        new THREE.MeshStandardMaterial({color:cols[i%cols.length], transparent:true, opacity:.16, roughness:.35, metalness:.2, emissive:cols[i%cols.length], emissiveIntensity:.35, depthWrite:false})
-      );
-      core.scale.setScalar(.9);
-      m.add(core);
-      scene.add(m); return m;
-    });
-
-    // --- Tunnel rings rushing past ---
-    const ringGeo=new THREE.TorusGeometry(7.5, .035, 8, 64);
-    const ringMat=new THREE.MeshBasicMaterial({color:0x00d1ff, transparent:true, opacity:.16});
-    const ringMat2=new THREE.MeshBasicMaterial({color:0x7c3aed, transparent:true, opacity:.14});
-    const rings=[];
-    for(let i=0;i<Math.ceil(corridorLen/3.4);i++){
-      const r=new THREE.Mesh(ringGeo, i%2?ringMat:ringMat2);
-      r.position.set(Math.sin(i*.8)*1.2, 4-i*3.4, -4);
-      scene.add(r); rings.push(r);
-    }
-
-    // --- Dust particles along the whole flight path ---
-    const N=isMobile?600:1300;
-    const pos=new Float32Array(N*3);
-    for(let i=0;i<N;i++){
-      pos[i*3]=(Math.random()-.5)*30;
-      pos[i*3+1]=5-Math.random()*corridorLen;
-      pos[i*3+2]=(Math.random()-.5)*18-3;
-    }
-    const pGeo=new THREE.BufferGeometry();
-    pGeo.setAttribute('position', new THREE.BufferAttribute(pos,3));
-    const pts=new THREE.Points(pGeo, new THREE.PointsMaterial({color:0x7dd3fc,size:.07,transparent:true,opacity:.75}));
-    scene.add(pts);
-
-    // --- ADVANCED DRESSING: nebulae, flight ribbon, warp streaks, grids, beacon ---
-    function glowTexture(inner, outer){
-      const cv=document.createElement('canvas'); cv.width=cv.height=256;
-      const g=cv.getContext('2d');
-      const gr=g.createRadialGradient(128,128,0,128,128,128);
-      gr.addColorStop(0, inner); gr.addColorStop(.45, outer); gr.addColorStop(1, 'rgba(0,0,0,0)');
-      g.fillStyle=gr; g.fillRect(0,0,256,256);
-      const tx=new THREE.CanvasTexture(cv); return tx;
-    }
-    // Nebula clouds: big soft additive sprites drifting along the corridor
-    const nebCols=[
-      ['rgba(0,209,255,.55)','rgba(0,209,255,.12)'],
-      ['rgba(124,58,237,.55)','rgba(124,58,237,.12)'],
-      ['rgba(56,189,248,.5)','rgba(56,189,248,.10)'],
-      ['rgba(16,185,129,.42)','rgba(16,185,129,.10)'],
-    ];
-    const nebs=[];
-    const nebCount=isMobile?4:7;
-    for(let i=0;i<nebCount;i++){
-      const [a,b]=nebCols[i%nebCols.length];
-      const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(a,b), transparent:true, opacity:.5, depthWrite:false, blending:THREE.AdditiveBlending}));
-      const s=14+Math.random()*16;
-      sp.scale.set(s, s*.7, 1);
-      sp.position.set((Math.random()-.5)*22, 4-Math.random()*corridorLen, -9-Math.random()*6);
-      sp.userData={ph:Math.random()*6.28, drift:.2+Math.random()*.4, x0:sp.position.x};
-      scene.add(sp); nebs.push(sp);
-    }
-    // Flight-path ribbon: glowing route threading every camera stop
-    let flightCurve=null;
-    const gates=[];
-    try{
-      const pathPts=stops.map(s=>new THREE.Vector3(s.cam.x*.55, s.cam.y-.5, -5.5));
-      const curve=new THREE.CatmullRomCurve3(pathPts);
-      flightCurve=curve;
-      const tube=new THREE.Mesh(
-        new THREE.TubeGeometry(curve, 120, .05, 6, false),
-        new THREE.MeshBasicMaterial({color:0x00d1ff, transparent:true, opacity:.22, blending:THREE.AdditiveBlending, depthWrite:false})
-      );
-      scene.add(tube);
-      const tube2=new THREE.Mesh(
-        new THREE.TubeGeometry(curve, 120, .12, 6, false),
-        new THREE.MeshBasicMaterial({color:0x7c3aed, transparent:true, opacity:.08, blending:THREE.AdditiveBlending, depthWrite:false})
-      );
-      scene.add(tube2);
-      // Gate portals: big glowing rings ON the path — the camera flies through them
-      const gateCount=isMobile?6:9;
-      for(let i=0;i<gateCount;i++){
-        const gt=i/(gateCount-1)*.985+.005;
-        const p=curve.getPoint(gt);
-        const ahead=curve.getPoint(Math.min(1, gt+.03));
-        const grp=new THREE.Group();
-        grp.position.copy(p);
-        grp.lookAt(ahead);
-        const inner=new THREE.Mesh(
-          new THREE.TorusGeometry(3.4, .055, 10, 72),
-          new THREE.MeshBasicMaterial({color:i%2?0x7c3aed:0x00d1ff, transparent:true, opacity:.5, blending:THREE.AdditiveBlending, depthWrite:false})
-        );
-        const outer=new THREE.Mesh(
-          new THREE.TorusGeometry(4.1, .028, 8, 72),
-          new THREE.MeshBasicMaterial({color:i%2?0x00d1ff:0xa78bfa, transparent:true, opacity:.3, blending:THREE.AdditiveBlending, depthWrite:false})
-        );
-        grp.add(inner); grp.add(outer);
-        grp.userData={inner, outer, ph:i*1.3};
-        scene.add(grp); gates.push(grp);
-      }
-    }catch(e){ console.warn('ribbon off', e.message); }
-    // Warp streaks: vertical light rain that accelerates with scroll velocity
-    const WN=isMobile?120:260;
-    const wpos=new Float32Array(WN*3);
-    const wspd=new Float32Array(WN);
-    for(let i=0;i<WN;i++){
-      wpos[i*3]=(Math.random()-.5)*26;
-      wpos[i*3+1]=5-Math.random()*corridorLen;
-      wpos[i*3+2]=(Math.random()-.5)*14-2;
-      wspd[i]=.6+Math.random()*1.6;
-    }
-    const wGeo=new THREE.BufferGeometry();
-    wGeo.setAttribute('position', new THREE.BufferAttribute(wpos,3));
-    const warp=new THREE.Points(wGeo, new THREE.PointsMaterial({color:0xbfe9ff,size:.11,transparent:true,opacity:.0}));
-    scene.add(warp);
-    // Twinkle layer: second star field pulsing out of phase
-    const TN=isMobile?150:350;
-    const tpos=new Float32Array(TN*3);
-    for(let i=0;i<TN;i++){
-      tpos[i*3]=(Math.random()-.5)*30;
-      tpos[i*3+1]=5-Math.random()*corridorLen;
-      tpos[i*3+2]=(Math.random()-.5)*16-4;
-    }
-    const tGeo=new THREE.BufferGeometry();
-    tGeo.setAttribute('position', new THREE.BufferAttribute(tpos,3));
-    const twk=new THREE.Points(tGeo, new THREE.PointsMaterial({color:0xffffff,size:.09,transparent:true,opacity:.5}));
-    scene.add(twk);
-    // Constellation web: faint lines joining nearby dust motes (grouped so it tumbles with the dust)
-    const dustGroup=new THREE.Group();
-    dustGroup.add(pts);
-    scene.add(dustGroup);
-    try{
-      const linkPts=[];
-      const sample=isMobile?60:110;
-      const P=pGeo.attributes.position.array;
-      for(let a=0;a<sample;a++){
-        const i=Math.floor(Math.random()*(N));
-        const ax=P[i*3], ay=P[i*3+1], az=P[i*3+2];
-        for(let b=a+1;b<sample;b+=7){
-          const j=Math.floor(Math.random()*(N));
-          const dx=ax-P[j*3], dy=ay-P[j*3+1], dz=az-P[j*3+2];
-          if(dx*dx+dy*dy+dz*dz<5.5){ linkPts.push(ax,ay,az, P[j*3],P[j*3+1],P[j*3+2]); break; }
-        }
-      }
-      const lGeo=new THREE.BufferGeometry();
-      lGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(linkPts),3));
-      dustGroup.add(new THREE.LineSegments(lGeo, new THREE.LineBasicMaterial({color:0x38bdf8, transparent:true, opacity:.14})));
-    }catch(e){ console.warn('constellation off', e.message); }
-    // Spiral galaxy: rotating three-arm disc floating mid-flight
-    let galaxy=null;
-    try{
-      const GN=isMobile?350:800;
-      const gpos=new Float32Array(GN*3), gcol=new Float32Array(GN*3);
-      const cA=new THREE.Color(0x00d1ff), cB=new THREE.Color(0x7c3aed), cC=new THREE.Color(0xffffff), _gc=new THREE.Color();
-      for(let i=0;i<GN;i++){
-        const arm=i%3, r=Math.pow(Math.random(), .65)*8.5+.4;
-        const ang=r*1.15+arm*(Math.PI*2/3)+(Math.random()-.5)*.55;
-        gpos[i*3]=Math.cos(ang)*r+(Math.random()-.5)*.8;
-        gpos[i*3+1]=(Math.random()-.5)*1.6;
-        gpos[i*3+2]=Math.sin(ang)*r+(Math.random()-.5)*.8;
-        _gc.copy(r<3?cC:(arm%2?cA:cB)).lerp(cC, Math.random()*.25);
-        gcol[i*3]=_gc.r; gcol[i*3+1]=_gc.g; gcol[i*3+2]=_gc.b;
-      }
-      const gg=new THREE.BufferGeometry();
-      gg.setAttribute('position', new THREE.BufferAttribute(gpos,3));
-      gg.setAttribute('color', new THREE.BufferAttribute(gcol,3));
-      galaxy=new THREE.Points(gg, new THREE.PointsMaterial({size:.13, vertexColors:true, transparent:true, opacity:.8, depthWrite:false, blending:THREE.AdditiveBlending}));
-      galaxy.position.set(1.5, -corridorLen*.45, -11);
-      galaxy.rotation.x=1.05;
-      scene.add(galaxy);
-    }catch(e){ console.warn('galaxy off', e.message); }
-    // Tron grid decks: perspective floors spaced down the flight
-    const grids=[];
-    for(let i=0;i<3;i++){
-      const gr=new THREE.GridHelper(40, 28, 0x00d1ff, 0x7c3aed);
-      gr.position.set(0, 2.5-i*(corridorLen/2.4), -6);
-      gr.material.transparent=true; gr.material.opacity=.13;
-      scene.add(gr); grids.push(gr);
-    }
-    // Satellites: tiny orbiters around each stop shape
-    const satGeo=new THREE.TetrahedronGeometry(.22, 0);
-    const sats=shapes.map((m,i)=>{
-      const s=new THREE.Mesh(satGeo, new THREE.MeshBasicMaterial({color:cols[(i+2)%cols.length], transparent:true, opacity:.85}));
-      s.userData={a:Math.random()*6.28, r:2.1+Math.random()*.7, s:.6+Math.random()*.8, parent:m};
-      scene.add(s); return s;
-    });
-    // Beacon: glowing marker + light that hops to the active stop
-    const beacon=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture('rgba(255,255,255,.9)','rgba(0,209,255,.25)'), transparent:true, depthWrite:false, blending:THREE.AdditiveBlending}));
-    beacon.scale.set(3.4,3.4,1);
-    scene.add(beacon);
-    const beaconLight=new THREE.PointLight(0x00d1ff, 20, 14);
-    scene.add(beaconLight);
-    const _bv=new THREE.Vector3();
-    // Shooting star: occasional dart across the view
-    const shoot=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture('rgba(255,255,255,.95)','rgba(124,58,237,.3)'), transparent:true, opacity:0, depthWrite:false, blending:THREE.AdditiveBlending}));
-    shoot.scale.set(2.6,.7,1);
-    scene.add(shoot);
-    let shootT=4+Math.random()*4, shootLife=-1;
-    const _s0=new THREE.Vector3(), _s1=new THREE.Vector3();
-
-    function resize(){
-      renderer.setSize(innerWidth, innerHeight, false);
-      camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
-    }
-    resize(); addEventListener('resize', ()=>{ resize(); stops=collectStops(); buildHud(); cacheTops(); });
-
-    // --- Scroll tracking: map viewport center to a float stop index ---
-    let tops=[];
-    function cacheTops(){
-      tops=stops.map(s=>{
-        const r=s.el.getBoundingClientRect();
-        return (window.scrollY+r.top);
-      });
-    }
-    cacheTops();
-    setTimeout(cacheTops, 1200);
-    addEventListener('load', cacheTops);
-    let scrollY=window.scrollY, lastY=scrollY, smoothVel=0;
-    addEventListener('scroll', ()=>{ scrollY=window.scrollY; }, {passive:true});
-
-    function targetProgress(){
-      const center=scrollY+innerHeight*.5;
-      if(!tops.length) return 0;
-      if(center<=tops[0]) return 0;
-      for(let i=0;i<tops.length-1;i++){
-        if(center>=tops[i]&&center<tops[i+1]){
-          const span=Math.max(1, tops[i+1]-tops[i]);
-          const f=Math.min(1, Math.max(0, (center-tops[i])/span));
-          const sm=f*f*(3-2*f); // smoothstep between locations
-          return i+sm;
-        }
-      }
-      return tops.length-1;
-    }
-
-    // --- Camera HUD (location dots) ---
-    const hud=$('#cam-hud');
-    let hudBtns=[];
-    function buildHud(){
-      if(!hud) return;
-      hud.innerHTML='';
-      hudBtns=stops.map((s,i)=>{
-        const b=document.createElement('button');
-        b.setAttribute('aria-label','Fly to '+s.label);
-        b.innerHTML=`<span>${s.label}</span>`;
-        b.addEventListener('click', ()=>{
-          const y=s.el.getBoundingClientRect().top+window.scrollY-70;
-          try{
-            if(window.__lenis) window.__lenis.scrollTo(y, {duration:1.6});
-            else window.scrollTo({top:y, behavior:'smooth'});
-          }catch{ window.scrollTo({top:y, behavior:'smooth'}); }
-        });
-        hud.appendChild(b); return b;
-      });
-      markHud(0);
-    }
-    function markHud(idx){
-      hudBtns.forEach((b,i)=>b.classList.toggle('on', i===idx));
-    }
-    buildHud();
-
-    // --- Mouse parallax (look-around while flying) ---
-    let tx=0, ty=0;
-    addEventListener('pointermove', e=>{
-      tx=(e.clientX/innerWidth-.5); ty=(e.clientY/innerHeight-.5);
-    }, {passive:true});
-
-    const clock=new THREE.Clock();
-    const _cp=new THREE.Vector3(), _lk=new THREE.Vector3();
-    const fogA=new THREE.Color(0x0b1230), fogB=new THREE.Color(0x1b1140), _fog=new THREE.Color();
-    const vignette=$('#cam-vignette');
-    let prog=0, lastActive=-1, fovCur=62;
-
-    // expose lenis for HUD clicks
-    try{
-      const LenisCtor=window.Lenis;
-      if(LenisCtor && !window.__lenis){
-        // initSmoothScroll creates its own; HUD falls back to native smooth scroll — fine
-      }
-    }catch{}
-
-    (function loop(){
-      requestAnimationFrame(loop);
-      if(document.hidden) return;
-      const dt=Math.min(.05, clock.getDelta()||.016);
-      const t=clock.getElapsedTime();
-      const target=targetProgress();
-      prog+=(target-prog)*.055; // damped fly — never snaps
-      const vel=(scrollY-lastY)/Math.max(dt, .001); lastY=scrollY;
-      smoothVel+=(vel-smoothVel)*.08;
-      const speed=Math.min(Math.abs(smoothVel), 4000);
-
-      // interpolate camera + lookAt between surrounding stops
-      const i0=Math.max(0, Math.min(stops.length-1, Math.floor(prog)));
-      const i1=Math.max(0, Math.min(stops.length-1, i0+1));
-      const f=Math.min(1, Math.max(0, prog-i0));
-      const A=stops[i0], B=stops[i1];
-      if(A&&B){
-        _cp.copy(A.cam).lerp(B.cam, f);
-        _lk.copy(A.look).lerp(B.look, f);
-        camera.position.x+=((_cp.x+tx*1.4)-camera.position.x)*.06;
-        camera.position.y+=((_cp.y-ty*.9)-camera.position.y)*.06;
-        camera.position.z+=((_cp.z)-camera.position.z)*.06;
-        camera.lookAt(_lk.x+tx*.8, _lk.y-ty*.5, _lk.z);
-        // roll into motion + fog shift per location
-        camera.rotation.z+=THREE.MathUtils.clamp(-smoothVel*.00004-tx*.05, -.14, .14)*.1;
-        _fog.copy(fogA).lerp(fogB, prog/Math.max(1, stops.length-1));
-        scene.fog.color.copy(_fog);
-        scene.background=null;
-      }
-      head.position.copy(camera.position);
-
-      // FOV kick with scroll speed = rushing forward
-      const fovT=62+Math.min(speed*.006, 13);
-      fovCur+=(fovT-fovCur)*.08;
-      if(Math.abs(fovCur-camera.fov)>.05){ camera.fov=fovCur; camera.updateProjectionMatrix(); }
-      if(vignette) vignette.style.opacity=Math.min(speed*.00045, .9).toFixed(2);
-
-      // life: shapes bob/spin, active stop's shape flares
-      const active=Math.round(prog);
-      shapes.forEach((m,i)=>{
-        m.rotation.x+=m.userData.sx*(1+speed*.0006);
-        m.rotation.y+=m.userData.sy*(1+speed*.0006);
-        m.material.color.offsetHSL(dt*.008, 0, 0); // slow living hue drift
-        m.position.y=m.userData.y0+Math.sin(t*.5+m.userData.ph)*.35;
-        const on=(i===active);
-        const sT=on?1.35:1;
-        m.userData.base+=(sT-m.userData.base)*.08;
-        m.scale.setScalar(m.userData.base);
-        m.material.opacity+=(((on?.62:.26))-m.material.opacity)*.08;
-      });
-      rings.forEach((r,i)=>{ r.rotation.z+=.0009+i*.00004+speed*.0000009; });
-      dustGroup.rotation.y=t*.012;
-      dustGroup.position.y=Math.sin(t*.2)*.4;
-      // gates: spin + flare as the camera nears / passes through
-      gates.forEach((g,i)=>{
-        g.rotation.z+=.002+i*.0003;
-        const d=Math.abs(camera.position.y-g.position.y);
-        const glow=1/(1+d*.35);
-        g.userData.inner.material.opacity=.25+glow*.65;
-        g.userData.outer.material.opacity=.12+glow*.4;
-        const s=1+glow*.18+Math.sin(t*2+g.userData.ph)*.02;
-        g.scale.set(s,s,1);
-      });
-      if(galaxy){ galaxy.rotation.z+=.00045+speed*.0000004; }
-      // advanced life: nebulae breathe + drift, twinkles pulse
-      nebs.forEach((n,i)=>{
-        n.position.x=n.userData.x0+Math.sin(t*.12*n.userData.drift+n.userData.ph)*1.6;
-        n.position.y+=Math.sin(t*.1+n.userData.ph)*.004;
-        n.material.opacity=.38+Math.sin(t*.35+n.userData.ph)*.14;
-      });
-      twk.material.opacity=.32+Math.sin(t*1.4)*.2;
-      twk.rotation.y=-t*.008;
-      // warp streaks fall faster the quicker you scroll
-      {
-        const arr=wGeo.attributes.position.array;
-        const fall=(2.2+speed*.012);
-        for(let i=0;i<WN;i++){
-          arr[i*3+1]-=wspd[i]*fall*dt*3;
-          if(arr[i*3+1]<6-corridorLen){ arr[i*3+1]=6; arr[i*3]=(Math.random()-.5)*26; }
-        }
-        wGeo.attributes.position.needsUpdate=true;
-        const warpT=Math.min(.85, speed*.0004);
-        warp.material.opacity+=(warpT-warp.material.opacity)*.06;
-        warp.position.y=Math.sin(t*.3)*.3;
-      }
-      // grids shimmer + slow march for depth reference
-      grids.forEach((gr,i)=>{ gr.position.z=-6+Math.sin(t*.25+i*2)*.5; gr.material.opacity=.10+Math.sin(t*.5+i)*.04; });
-      // satellites orbit their stop shapes
-      sats.forEach((s,i)=>{
-        const u=s.userData, p=u.parent;
-        u.a+=.008*u.s*(1+speed*.0004);
-        s.position.set(p.position.x+Math.cos(u.a)*u.r, p.position.y+Math.sin(u.a*1.3)*.9, p.position.z+Math.sin(u.a)*u.r*.5);
-        s.rotation.x+=.02; s.rotation.y+=.025;
-      });
-      // beacon glides to the active stop and pulses
-      {
-        const am=shapes[active]||shapes[0];
-        if(am){
-          _bv.set(am.position.x, am.position.y, am.position.z+1.2);
-          beacon.position.lerp(_bv, .07);
-          beaconLight.position.copy(beacon.position);
-          const pulse=1+Math.sin(t*3)*.12;
-          beacon.scale.set(3.4*pulse, 3.4*pulse, 1);
-          beaconLight.intensity=16+Math.sin(t*3)*6+Math.min(speed*.01, 20);
-        }
-      }
-      // shooting star every few seconds
-      shootT-=dt;
-      if(shootT<=0 && shootLife<0){
-        shootLife=0;
-        _s0.set((Math.random()-.5)*16, camera.position.y+4+Math.random()*4, -6);
-        _s1.set(_s0.x+(Math.random()>.5?8:-8), _s0.y-7-Math.random()*3, -6);
-        shootT=6+Math.random()*7;
-      }
-      if(shootLife>=0){
-        shootLife+=dt*1.4;
-        if(shootLife>=1){ shootLife=-1; shoot.material.opacity=0; }
-        else{
-          shoot.position.lerpVectors(_s0, _s1, shootLife);
-          shoot.material.opacity=Math.sin(shootLife*Math.PI)*.9;
-        }
-      }
-
-      if(active!==lastActive){ lastActive=active; markHud(active); }
-      renderer.render(scene, camera);
-    })();
-  }catch{ initFixedBackground2D(); }
+  try{ if(c) c.style.display='none'; }catch{}
+  try{ $('#cam-hud')?.style.setProperty('display','none'); }catch{}
+  try{ $('#cam-vignette')?.style.setProperty('display','none'); }catch{}
+  try{ document.querySelector('.ambient-orbs')?.style.setProperty('display','none'); }catch{}
+  return;
 }
 
 // ================= THEME / CONTENT =================
@@ -1126,9 +558,13 @@ function renderPortfolio(filter){
     grid.innerHTML='<p class="sub">'+sanitize(T('portfolio_empty','No stores in this category yet — check back soon or view All.'))+'</p>';
     return;
   }
-  filtered.forEach((item, idx)=>{
-    const card=document.createElement('div'); card.className='card spotlight'; card.setAttribute('data-tilt',''); card.dataset.tiltMax='6';
-    card.style.animationDelay=(idx*60)+'ms';
+  // Fast path: cards + shadows render instantly (class 'in' from the start).
+  // No stagger delays, no per-card observers — old version waited 30+idx*40ms
+  // per card + an IntersectionObserver before painting shadow, so the grid
+  // felt like it "loaded slowly".
+  const frag=document.createDocumentFragment();
+  filtered.forEach((item)=>{
+    const card=document.createElement('div'); card.className='card in';
     const kind = mediaKind(item.url);
     const isVideo = kind==='video';
     const isEmbed = kind==='youtube'||kind==='vimeo'||kind==='drive';
@@ -1136,25 +572,19 @@ function renderPortfolio(filter){
     const media = isEmbed
       ? `<iframe src="${embedSrc}" style="width:100%;height:100%;border:0" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe><span style="position:absolute;right:10px;top:10px;background:rgba(0,0,0,.6);color:#fff;padding:4px 8px;border-radius:999px;font-size:10px">VIDEO</span>`
       : isVideo
-        ? `<video src="${item.url}" muted loop playsinline preload="metadata" poster=""></video><span style="position:absolute;right:10px;top:10px;background:rgba(0,0,0,.6);color:#fff;padding:4px 8px;border-radius:999px;font-size:10px">VIDEO</span>`
-        : `<img src="${item.url}" alt="${sanitize(item.alt_text||item.caption)}" loading="lazy" onerror="this.style.opacity=.25">`;
+        ? `<video src="${item.url}" muted loop playsinline preload="none" poster=""></video><span style="position:absolute;right:10px;top:10px;background:rgba(0,0,0,.6);color:#fff;padding:4px 8px;border-radius:999px;font-size:10px">VIDEO</span>`
+        : `<img src="${item.url}" alt="${sanitize(item.alt_text||item.caption)}" loading="lazy" decoding="async" fetchpriority="low" onerror="this.style.opacity=.25">`;
     card.innerHTML=`<div class="card-media">${media}<div class="overlay"><span class="tag">${sanitize(item.category||'Store')}</span><div class="result">${sanitize(item.result_stat||'')}</div><div style="font-size:13px;font-weight:700;margin-top:4px">${sanitize(item.caption||'')}</div><div class="view">${sanitize(T('modal_view_case','View Case Study'))} →</div></div></div>`;
-    requestAnimationFrame(()=> setTimeout(()=>card.classList.add('in'), 30+idx*40));
     card.addEventListener('click', ()=> openModal(item, filtered));
     if(isVideo){
       const v=card.querySelector('video');
-      card.addEventListener('mouseenter', ()=> v.play().catch(()=>{}));
-      card.addEventListener('mouseleave', ()=> {v.pause(); v.currentTime=0;});
-      const io=new IntersectionObserver(es=>{ es.forEach(e=>{ if(e.isIntersecting) v.play().catch(()=>{}); else v.pause(); })},{threshold:.6});
-      io.observe(card);
+      // Load + play only on hover/tap — no autoplay observers per card (was N observers).
+      card.addEventListener('mouseenter', ()=> { try{ v.preload='metadata'; v.play().catch(()=>{}); }catch{} });
+      card.addEventListener('mouseleave', ()=> { try{ v.pause(); }catch{} });
     }
-    if(!reducedMotion()){
-      const io2=new IntersectionObserver(es=>{ es.forEach(e=>{ if(e.isIntersecting) card.classList.add('in'); })},{threshold:.15});
-      io2.observe(card);
-    } else card.classList.add('in');
-    grid.appendChild(card);
+    frag.appendChild(card);
   });
-  initTilt();
+  grid.appendChild(frag);
 }
 document.addEventListener('click', e=>{
   const pill=e.target?.closest?.('.pill');
@@ -1253,28 +683,33 @@ document.addEventListener('touchend', e=>{
 
 // Proof & Testimonials & Team & Reviews & Certificates
 async function loadMedia(){
-  const proofR=await fetch('/api/media?type=sales_proof'); const proof=await proofR.json();
+  // Fast: all 5 feeds in parallel (was 5 sequential round-trips).
+  const [proof, testi, reviews, certs, team] = await Promise.all([
+    fetch('/api/media?type=sales_proof').then(r=>r.json()).catch(()=>[]),
+    fetch('/api/media?type=testimonials').then(r=>r.json()).catch(()=>[]),
+    fetch('/api/media?type=reviews').then(r=>r.json()).catch(()=>[]),
+    fetch('/api/media?type=certificates').then(r=>r.json()).catch(()=>[]),
+    fetch('/api/team').then(r=>r.json()).catch(()=>[]),
+  ]);
   const pGrid=$('#proof-grid'); if(pGrid){ pGrid.innerHTML='';
   proof.forEach(item=>{
-    const c=document.createElement('div'); c.className='proof-card reveal spotlight'; c.setAttribute('data-tilt','');
+    const c=document.createElement('div'); c.className='proof-card in';
     const k=mediaKind(item.url);
     if(k==='youtube') c.innerHTML=`<iframe src="${youTubeEmbed(item.url)}" style="width:100%;aspect-ratio:16/10;border:0;border-radius:12px" loading="lazy" allowfullscreen></iframe><p>${sanitize(item.caption||T('proof_caption_fallback','Verified sales proof'))}</p>`;
     else if(k==='vimeo') c.innerHTML=`<iframe src="${vimeoEmbed(item.url)}" style="width:100%;aspect-ratio:16/10;border:0;border-radius:12px" loading="lazy" allowfullscreen></iframe><p>${sanitize(item.caption||T('proof_caption_fallback','Verified sales proof'))}</p>`;
     else if(k==='drive') c.innerHTML=`<iframe src="${driveEmbed(item.url)}" style="width:100%;aspect-ratio:16/10;border:0;border-radius:12px" loading="lazy" allowfullscreen></iframe><p>${sanitize(item.caption||T('proof_caption_fallback','Verified sales proof'))}</p>`;
-    else if(k==='video') c.innerHTML=`<video src="${item.url}" controls muted loop playsinline preload="metadata" style="width:100%;border-radius:12px;background:#05070f"></video><p>${sanitize(item.caption||T('proof_caption_fallback','Verified sales proof'))}</p>`;
-    else c.innerHTML=`<img src="${item.url}" alt="${sanitize(item.alt_text||'proof')}" loading="lazy" onerror="this.style.opacity=.25"><p>${sanitize(item.caption||T('proof_caption_fallback','Verified sales proof'))}</p>`;
+    else if(k==='video') c.innerHTML=`<video src="${item.url}" controls muted loop playsinline preload="none" style="width:100%;border-radius:12px;background:#05070f"></video><p>${sanitize(item.caption||T('proof_caption_fallback','Verified sales proof'))}</p>`;
+    else c.innerHTML=`<img src="${item.url}" alt="${sanitize(item.alt_text||'proof')}" loading="lazy" decoding="async" onerror="this.style.opacity=.25"><p>${sanitize(item.caption||T('proof_caption_fallback','Verified sales proof'))}</p>`;
     pGrid.appendChild(c);
   });}
-  const testiR=await fetch('/api/media?type=testimonials'); const testi=await testiR.json();
   const tGrid=$('#testi-grid'); if(tGrid){ tGrid.innerHTML='';
   testi.forEach(item=>{
     const k=mediaKind(item.url);
     const isVideo=k==='video';
     const isEmbed=k==='youtube'||k==='vimeo'||k==='drive';
-    const media=isEmbed?`<div style="width:42px;height:42px;border-radius:50%;background:#0B1220;color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px">▶</div>`:(isVideo?`<video src="${item.url}" muted loop playsinline preload="metadata" style="width:42px;height:42px;border-radius:50%;object-fit:cover"></video>`:`<img src="${item.url}" alt="" onerror="this.style.opacity=.25">`);
-    const el=document.createElement('div'); el.className='testi reveal spotlight';
+    const media=isEmbed?`<div style="width:42px;height:42px;border-radius:50%;background:#0B1220;color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px">▶</div>`:(isVideo?`<video src="${item.url}" muted loop playsinline preload="none" style="width:42px;height:42px;border-radius:50%;object-fit:cover"></video>`:`<img src="${item.url}" alt="" loading="lazy" decoding="async" onerror="this.style.opacity=.25">`);
+    const el=document.createElement('div'); el.className='testi in';
     el.innerHTML=`<q>${sanitize(item.caption||T('testi_fallback','Great experience with Nexatech.'))}</q><div class="who">${media}<div><b>${sanitize(item.alt_text||'Client')}</b><br><small style="color:var(--text-muted)">${sanitize(item.result_stat||T('testi_role_fallback','Verified buyer'))}</small></div></div>`;
-    if(isVideo){ const v=el.querySelector('video'); if(v) v.play().catch(()=>{}); }
     tGrid.appendChild(el);
   });
   try{ initTestiCarousel(); }catch(e){ console.warn('testi carousel', e.message); }
@@ -1293,13 +728,12 @@ async function loadMedia(){
           const isVideo=kind==='video';
           const isEmbed=kind==='youtube'||kind==='vimeo'||kind==='drive';
           const embedSrc=isEmbed?(kind==='youtube'?youTubeEmbed(item.url):kind==='vimeo'?vimeoEmbed(item.url):driveEmbed(item.url)):'';
-          const card=document.createElement('div'); card.className='reviews-card reveal' + (isVideo ? ' portrait' : '');
-          card.style.transitionDelay=(idx*50)+'ms';
+          const card=document.createElement('div'); card.className='reviews-card in' + (isVideo ? ' portrait' : '');
           card.innerHTML = isEmbed
             ? `<iframe src="${embedSrc}" style="width:100%;aspect-ratio:16/10;border:0" loading="lazy" allowfullscreen></iframe><div class="play-badge"><span>▶</span></div><div class="caption">${sanitize(item.caption||T('review_video_label','Video Review'))}</div>`
             : isVideo
-            ? `<video src="${item.url}" muted loop playsinline preload="metadata" poster=""></video><div class="play-badge"><span>▶</span></div><div class="caption">${sanitize(item.caption||T('review_video_label','Video Review'))}</div>`
-            : `<img src="${item.url}" alt="${sanitize(item.alt_text||item.caption||T('review_caption_fallback','Customer Review'))}" loading="lazy" onerror="this.style.opacity=.25"><div class="caption">${sanitize(item.caption||T('review_caption_fallback','Customer Review'))}</div>`;
+            ? `<video src="${item.url}" muted loop playsinline preload="none" poster=""></video><div class="play-badge"><span>▶</span></div><div class="caption">${sanitize(item.caption||T('review_video_label','Video Review'))}</div>`
+            : `<img src="${item.url}" alt="${sanitize(item.alt_text||item.caption||T('review_caption_fallback','Customer Review'))}" loading="lazy" decoding="async" onerror="this.style.opacity=.25"><div class="caption">${sanitize(item.caption||T('review_caption_fallback','Customer Review'))}</div>`;
           card.addEventListener('click', ()=>{
             MODAL_ITEMS=reviews; MODAL_INDEX=reviews.findIndex(x=>x.id===item.id);
             updateModal();
@@ -1309,17 +743,15 @@ async function loadMedia(){
           });
           if(isVideo){
             const v=card.querySelector('video');
-            card.addEventListener('mouseenter', ()=> v.play().catch(()=>{}));
-            card.addEventListener('mouseleave', ()=> {v.pause(); v.currentTime=0;});
+            card.addEventListener('mouseenter', ()=> { try{ v.preload='metadata'; v.play().catch(()=>{}); }catch{} });
+            card.addEventListener('mouseleave', ()=> { try{ v.pause(); }catch{} });
           }
           rGrid.appendChild(card);
-          setTimeout(()=> card.classList.add('in'), 80+idx*60);
         });
       }
     }
   }catch(e){ console.error('reviews load',e); }
   try{
-    const certR=await fetch('/api/media?type=certificates'); const certs=await certR.json();
     const cGrid=$('#certs-grid'); const cEmpty=$('#certs-empty');
     if(cGrid){
       cGrid.innerHTML='';
@@ -1327,10 +759,9 @@ async function loadMedia(){
         if(cEmpty) { cEmpty.textContent=T('certs_empty','No certificates uploaded yet — add them in Admin → Media Manager → Certificates & Awards.'); cEmpty.classList.remove('hidden'); }
       } else {
         if(cEmpty) cEmpty.classList.add('hidden');
-        certs.forEach((item, idx)=>{
-          const card=document.createElement('div'); card.className='certs-card reveal';
-          card.style.transitionDelay=(idx*50)+'ms';
-          card.innerHTML=`<img src="${item.url}" alt="${sanitize(item.alt_text||item.caption||T('cert_caption_fallback','Certificate'))}" loading="lazy"><div class="caption">${sanitize(item.caption||T('cert_caption_fallback','Certificate'))}</div>`;
+        certs.forEach((item)=>{
+          const card=document.createElement('div'); card.className='certs-card in';
+          card.innerHTML=`<img src="${item.url}" alt="${sanitize(item.alt_text||item.caption||T('cert_caption_fallback','Certificate'))}" loading="lazy" decoding="async"><div class="caption">${sanitize(item.caption||T('cert_caption_fallback','Certificate'))}</div>`;
           card.addEventListener('click', ()=>{
             MODAL_ITEMS=certs; MODAL_INDEX=certs.findIndex(x=>x.id===item.id);
             updateModal();
@@ -1339,23 +770,19 @@ async function loadMedia(){
             track('certificate_view', String(item.id));
           });
           cGrid.appendChild(card);
-          setTimeout(()=> card.classList.add('in'), 80+idx*60);
         });
       }
     }
   }catch(e){ console.error('certs load',e); }
-  const teamR=await fetch('/api/team'); const team=await teamR.json();
   const tGrid2=$('#team-grid'); if(tGrid2){ tGrid2.innerHTML='';
   let teamExpanded=false;
   function renderTeamList(){
     tGrid2.innerHTML='';
     const vis=teamExpanded?team:team.slice(0,4);
-    vis.forEach((m,idx)=>{
-      const card=document.createElement('div'); card.className='team-card in spotlight';
-      card.style.transitionDelay=(idx*80)+'ms';
-      card.innerHTML=`<img src="${m.photo_url||'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200'}" alt="${sanitize(m.name)}"><div><h4>${sanitize(m.name)}</h4><small>${sanitize(m.role)}</small><p>${sanitize(m.credibility_note)}</p>${m.social_url?`<a href="${m.social_url}" target="_blank" style="font-size:12px;color:var(--accent-2)">LinkedIn →</a>`:''}</div>`;
+    vis.forEach((m)=>{
+      const card=document.createElement('div'); card.className='team-card in';
+      card.innerHTML=`<img src="${m.photo_url||'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200'}" alt="${sanitize(m.name)}" loading="lazy" decoding="async"><div><h4>${sanitize(m.name)}</h4><small>${sanitize(m.role)}</small><p>${sanitize(m.credibility_note)}</p>${m.social_url?`<a href="${m.social_url}" target="_blank" style="font-size:12px;color:var(--accent-2)">LinkedIn →</a>`:''}</div>`;
       tGrid2.appendChild(card);
-      setTimeout(()=>card.classList.add('in'), 200+idx*120);
     });
     const more=$('#view-full-team');
     if(more){
@@ -1368,7 +795,6 @@ async function loadMedia(){
   renderTeamList();
   $('#view-full-team')?.addEventListener('click', e=>{ e.preventDefault(); teamExpanded=!teamExpanded; renderTeamList(); document.getElementById('experts')?.scrollIntoView({behavior:'smooth'}); });
   }
-  initTilt();
 }
 
 // Pricing
@@ -1382,12 +808,11 @@ function renderPricing(){
   grid.innerHTML='';
   const waNum=CONTENT.whatsapp_number||'2348123456789';
   tiers.forEach(t=>{
-    const el=document.createElement('div'); el.className='price-card spotlight'+(t.popular?' popular':''); el.setAttribute('data-tilt','');
+    const el=document.createElement('div'); el.className='price-card'+(t.popular?' popular':'');
     el.innerHTML=`${t.popular?'<span class="popular-badge">'+sanitize(T('pricing_popular_badge','Most Popular'))+'</span>':''}<div class="eyebrow" style="margin:0">${sanitize(t.name)}</div><div class="price">${sanitize(t.price)}</div><ul>${t.features.map(f=>`<li>${sanitize(f)}</li>`).join('')}</ul><a class="btn ${t.popular?'btn-primary btn-glow':'btn-ghost'}" href="${whatsappLink(waNum, t.wa||('Hi Nexatech! I want the '+t.name+' plan ('+t.price+').'))}" target="_blank" style="margin-top:auto">${sanitize(T('pricing_cta_template','Choose {name}').replace('{name}', t.name))} →</a>`;
     const a=el.querySelector('a'); a.addEventListener('click',()=>track('cta_click','pricing-'+t.key,{price:t.price}));
     grid.appendChild(el);
   });
-  initTilt();
 }
 function renderMentorship(){
   const bullets=parseJSON(CONTENT.mentorship_bullets, ["Weekly 1:1 strategy calls until first sale","Ad account setup & first campaign launch together","Product testing framework & kill/scale rules","Store CRO audits & A/B tests"]);
@@ -1519,15 +944,14 @@ function initLeadForm(){
   showStep(1);
 }
 
-// Hero 2D particle network (kept as depth layer under WebGL)
+// Hero 2D particle network (lite: fewer dots, no line-mesh, pauses offscreen)
 function initParticles(){
   const canvas=$('#hero-particles'); if(!canvas) return;
-  if(reducedMotion()) { canvas.style.display='none'; return; }
+  if(reducedMotion() || innerWidth<=768) { canvas.style.display='none'; return; }
   const ctx=canvas.getContext('2d');
-  const dpr=Math.min(window.devicePixelRatio||1, 2);
-  let w,h, particles=[], raf, hidden=false;
-  const isMobile = window.innerWidth<=768;
-  const count = isMobile? 16 : 34;
+  const dpr=1;
+  let w,h, particles=[], raf=0, hidden=false, heroVisible=true;
+  const count = 16;
   function resize(){
     w=canvas.clientWidth||canvas.parentElement.clientWidth; h=canvas.clientHeight||canvas.parentElement.clientHeight;
     canvas.width=w*dpr; canvas.height=h*dpr;
@@ -1540,56 +964,31 @@ function initParticles(){
       particles.push({x:rand(0,w), y:rand(0,h), vx:rand(-.25,.25), vy:rand(-.25,.25), r:rand(1.2,2.2)});
     }
   }
-  let mouse={x:.5,y:.5, active:false};
-  document.addEventListener('mousemove', e=>{
-    if(window.innerWidth<=768) return;
-    const rect=canvas.getBoundingClientRect();
-    mouse.x=(e.clientX-rect.left)/rect.width - .5;
-    mouse.y=(e.clientY-rect.top)/rect.height - .5;
-    mouse.active=true;
-  });
   document.addEventListener('visibilitychange', ()=>{
     hidden=document.hidden;
-    if(hidden) cancelAnimationFrame(raf);
-    else if(!hidden) loop();
+    if(!hidden && heroVisible) loop();
+    else cancelAnimationFrame(raf);
   });
-  let scrollY=0;
-  window.addEventListener('scroll', ()=>{ scrollY=window.scrollY; }, {passive:true});
+  try{ new IntersectionObserver(es=>{ es.forEach(e=>{ heroVisible=e.isIntersecting; if(heroVisible && !hidden) loop(); else cancelAnimationFrame(raf); }); },{threshold:.05}).observe($('#hero')); }catch{}
   function loop(){
-    if(hidden) return;
+    if(hidden || !heroVisible) return;
+    cancelAnimationFrame(raf);
+    raf=requestAnimationFrame(loop);
     ctx.clearRect(0,0,w,h);
-    const parX= mouse.active ? mouse.x*6 : 0;
-    const parY= mouse.active ? mouse.y*6 : 0;
-    const sPar= Math.min(scrollY*0.04, 12);
     for(let i=0;i<particles.length;i++){
       const p=particles[i];
       p.x+=p.vx; p.y+=p.vy;
       if(p.x<0||p.x>w) p.vx*=-1;
       if(p.y<0||p.y>h) p.vy*=-1;
-      const px=p.x + parX * (0.5 + (p.r/2));
-      const py=p.y + parY * (0.5 + (p.r/2)) - sPar*0.2;
-      for(let j=i+1;j<particles.length;j++){
-        const q=particles[j];
-        const qx=q.x + parX*0.5, qy=q.y + parY*0.5 - sPar*0.2;
-        const dx=px-qx, dy=py-qy; const dist=Math.hypot(dx,dy);
-        if(dist<110){
-          ctx.strokeStyle=`rgba(0,209,255,${(1-dist/110)*0.20})`;
-          ctx.lineWidth=0.7;
-          ctx.beginPath(); ctx.moveTo(px,py); ctx.lineTo(qx,qy); ctx.stroke();
-        }
-      }
     }
     particles.forEach(p=>{
-      const px=p.x + parX*0.8, py=p.y + parY*0.8 - sPar*0.15;
-      ctx.beginPath(); ctx.arc(px,py,p.r,0,Math.PI*2);
-      ctx.fillStyle='rgba(124,58,237,0.6)';
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+      ctx.fillStyle='rgba(0,209,255,.7)';
       ctx.fill();
-      ctx.beginPath(); ctx.arc(px,py,p.r*0.45,0,Math.PI*2); ctx.fillStyle='rgba(0,209,255,0.95)'; ctx.fill();
     });
-    raf=requestAnimationFrame(loop);
   }
   resize(); init(); loop();
-  window.addEventListener('resize', ()=>{ resize(); init(); });
+  addEventListener('resize', ()=>{ resize(); init(); });
 }
 
 // Chips loop
@@ -1736,52 +1135,23 @@ function initTestiCarousel(){
 // Header scroll + drawer + progress
 function initHeader(){
   const h=$('#header');
-  const hero=$('#hero');
   window.addEventListener('scroll', ()=>{
     h.classList.toggle('scrolled', window.scrollY>16);
-    if(reducedMotion()) return;
-    const y=window.scrollY;
-    if(hero){
-      const aur=hero.querySelector('.aurora');
-      if(aur) aur.style.transform=`translateY(${y*0.06}px)`;
-    }
   }, {passive:true});
   $('#hamburger')?.addEventListener('click', ()=> $('#drawer').classList.add('open'));
   $('#drawer-close')?.addEventListener('click', ()=> $('#drawer').classList.remove('open'));
   $('#drawer')?.addEventListener('click', e=>{ if(e.target.id==='drawer') e.currentTarget.classList.remove('open'); });
 }
 
-// Reveal observer — steps always visible; CSS/GSAP enhance the rest
+// Reveal — everything visible instantly (CSS has no hidden state anymore).
+// Old version kept a 2s setInterval + 1200ms fallback timer running forever.
 function initReveal(){
-  const stepsEls = document.querySelectorAll('.step');
-  stepsEls.forEach(s=> s.classList.add('in'));
-  const plInit = $('#progress-line');
-  if(plInit){ plInit.style.transform='scaleX(1)'; plInit.classList.add('on'); }
-  const stepsContainer = document.querySelector('.steps');
-  if(stepsContainer){ stepsContainer.style.opacity='1'; stepsContainer.style.visibility='visible'; }
-  const els=$$('.reveal, .proof-card, .testi, .team-card');
-  if(reducedMotion()){
-    els.forEach(el=>el.classList.add('in'));
-    return;
-  }
-  const io=new IntersectionObserver(es=>{
-    es.forEach(e=>{ if(e.isIntersecting) e.target.classList.add('in'); });
-  },{threshold:.18});
-  els.forEach(el=>io.observe(el));
-  setTimeout(()=>{
-    document.querySelectorAll('.step').forEach(s=>s.classList.add('in'));
+  try{
+    document.querySelectorAll('.step').forEach(s=> s.classList.add('in'));
     const pl = $('#progress-line');
     if(pl){ pl.style.transform='scaleX(1)'; pl.classList.add('on'); }
-    $$('.reveal, .proof-card, .testi, .team-card').forEach(el=>{
-      if(!el.classList.contains('in')) el.classList.add('in');
-    });
-  }, 1200);
-  setInterval(()=>{
-    const s = document.querySelectorAll('.step');
-    let missing=false;
-    s.forEach(el=>{ if(!el.classList.contains('in')) missing=true; el.classList.add('in'); });
-    if(missing){ const p=$('#progress-line'); if(p){ p.style.transform='scaleX(1)'; p.classList.add('on'); } }
-  }, 2000);
+    $$('.reveal, .proof-card, .testi, .team-card, .card').forEach(el=> el.classList.add('in'));
+  }catch{}
 }
 
 // Chatbot — persists reload (sessionStorage), new tab fresh, with New/Recent/WhatsApp
@@ -2013,28 +1383,33 @@ function initChat(){
   newBtn?.addEventListener('click', ()=>{ try{ notifyChatFinished('new'); }catch{} try{ if(idleTimer) clearTimeout(idleTimer); }catch{} try{ sessionStorage.removeItem(FINISH_KEY + sessionId); }catch{} resetIdleTimer(); }, true);
 }
 
-// Init all
+// Init all — content first, feeds in parallel, 3D last (deferred)
 (async function init(){
   initCursor();
   initScrollProgress();
   initAmbientWebGL();
-  try{ await loadContent(); }catch(e){ console.error('content load failed',e); }
-  renderMarquee();
-  try{ await loadPortfolio(); }catch(e){ console.error(e); }
-  try{ await loadMedia(); }catch(e){ console.error(e); }
-  initLeadForm();
-  initParticles();
-  initHeroWebGL();
-  initChips();
   initHeader();
+  initLeadForm();
   initReveal();
   initChat();
+  initChips();
+  try{ await loadContent(); }catch(e){ console.error('content load failed',e); }
+  renderMarquee();
+  initReveal();
+  // Portfolio + all media feeds concurrently (was sequential awaits)
+  await Promise.allSettled([loadPortfolio(), loadMedia()]);
+  initReveal();
   initTilt();
   initSpotlight();
   initMagnetic();
   initSmoothScroll();
   initGsapReveals();
-  setTimeout(()=>{ try{ window.dispatchEvent(new Event('resize')); window.ScrollTrigger?.refresh(); }catch{} }, 900);
+  // Heavy/deferred layers run after first paint so they never block content
+  try{
+    if('requestIdleCallback' in window) requestIdleCallback(()=>{ initParticles(); initHeroWebGL(); }, {timeout:2000});
+    else setTimeout(()=>{ initParticles(); initHeroWebGL(); }, 800);
+  }catch{ setTimeout(()=>{ try{ initParticles(); initHeroWebGL(); }catch{} }, 800); }
+  setTimeout(()=>{ try{ window.ScrollTrigger?.refresh(); }catch{} }, 900);
   track('pageview','landing');
   window.matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', e=>{
     if(e.matches) document.body.classList.add('reduced');
