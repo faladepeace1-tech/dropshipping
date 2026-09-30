@@ -723,7 +723,7 @@ export async function initDb() {
       ['theme_preview_label', 'Preview', 'text'],
       ['theme_buy_label', 'Buy Now', 'text'],
       ['theme_badge', 'Instant Download', 'text'],
-      ['cryptomus_merchant_uuid', '', 'text'],
+      ['cryptomus_merchant_uuid', '852e8f5e-c366-4138-980e-17466ab6b693', 'text'],
       ['cryptomus_api_key', '', 'text'],
       ['cryptomus_testmode', 'true', 'boolean'],
       ['checkout_title', 'Secure Checkout', 'text'],
@@ -1182,7 +1182,17 @@ export async function initDb() {
       await db.prepare('INSERT INTO sections (key,visible,display_order,animation_enabled) VALUES (?,?,?,?)').run('themes',1,8,1);
       console.log('Migrated: added themes section at order 8');
     }
-    await ensure('cryptomus_merchant_uuid','','text');
+    await ensure('cryptomus_merchant_uuid','852e8f5e-c366-4138-980e-17466ab6b693','text');
+    // Adopt the default merchant ID when the field is still empty (or still
+    // holds the account User ID instead of a merchant UUID). Any other
+    // explicitly saved value is left untouched.
+    try{
+      const cur = (await db.prepare("SELECT value FROM content WHERE key='cryptomus_merchant_uuid'").get())?.value;
+      if(!String(cur || '').trim() || String(cur).trim() === '247d5692-5b22-45fb-a77a-4fa6bf8461e8'){
+        await db.prepare("UPDATE content SET value=? WHERE key='cryptomus_merchant_uuid'").run('852e8f5e-c366-4138-980e-17466ab6b693');
+        console.log('Migrated: default Cryptomus merchant UUID applied');
+      }
+    }catch{}
     await ensure('cryptomus_api_key','','text');
     await ensure('cryptomus_testmode','true','boolean');
   } catch(e){ console.error('migration error', e); }
