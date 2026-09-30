@@ -942,6 +942,72 @@ app.get('/api/admin/orders', requireAuth, async (req, res) => {
   params.push(Math.min(parseInt(limit, 10) || 50, 200));
   res.json(await db.prepare(sql).all(...params));
 });
+// --- Admin: checkout self-diagnostics (runs each Pay step, reports timings) ---
+// Open logged-in as admin: /api/admin/checkout-diag?kind=plan&ref=pro
+// Add &invoice=1 to also attempt a REAL test invoice via Cryptomus.
+app.get('/api/admin/checkout-diag', requireAuth, async (req, res) => {
+  const steps = [];
+  const step = async (name, fn) => {
+    const t0 = Date.now();
+    try{
+      const detail = await fn();
+      steps.push({ name, ok: true, ms: Date.now() - t0, detail: detail === undefined ? null : detail });
+    }catch(e){ steps.push({ name, ok: false, ms: Date.now() - t0, error: (e.name || 'Error') + ': ' + e.message }); }
+  };
+  const kind = req.query.kind || 'plan', ref = req.query.ref || 'pro';
+  let item = null, pay = null, testRef = null;
+  await step('resolve_item', async () => {
+    item = await getCheckoutItem(kind, ref);
+    if(item.error) throw new Error(item.error);
+    return { name: item.name, amount_cents: item.amount_cents, currency: item.currency };
+  });
+  await step('db_insert_order', async () => {
+    testRef = 'DIAG-' + Date.now().toString(36).toUpperCase();
+    await db.prepare("INSERT INTO orders (order_ref,kind,item_ref,item_name,amount_cents,currency,customer_name,customer_email,customer_whatsapp,status) VALUES (?,?,?,?,?,?,?,?,?,?)")
+      .run(testRef, 'plan', 'starter', 'Diag Probe', 100, 'USD', 'diag', 'diag@test.local', '+10000000000', 'pending');
+    return { testRef };
+  });
+  await step('db_read_order', async () => {
+    const o = await db.prepare('SELECT order_ref,status FROM orders WHERE order_ref=?').get(testRef);
+    if(!o) throw new Error('inserted row not readable');
+    return o;
+  });
+  await step('pay_config', async () => {
+    pay = await getPayConfig();
+    return { configured: pay.configured, testmode: pay.testmode, merchant_len: (pay.merchant || '').length, key_len: (pay.apiKey || '').length };
+  });
+  await step('cryptomus_tcp', async () => {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 12000);
+    try{
+      const r = await fetch('https://api.cryptomus.com/', { signal: ctl.signal });
+      await r.text().catch(() => '');
+      return { http: r.status };
+    } finally { clearTimeout(t); }
+  });
+  if(String(req.query.invoice || '') === '1'){
+    await step('cryptomus_invoice', async () => {
+      if(!pay || !pay.configured) throw new Error('skipped: gateway keys not configured');
+      const base = (process.env.PUBLIC_URL || '').trim().replace(/\/$/, '') || (req.protocol + '://' + req.get('host'));
+      const inv = await createCryptomusInvoice({
+        amount: '1.00', currency: 'USD', orderRef: testRef, itemName: 'Diag Probe',
+        returnUrl: base + '/checkout?ref=' + encodeURIComponent(testRef),
+        successUrl: base + '/checkout?ref=' + encodeURIComponent(testRef) + '&status=success',
+        callbackUrl: base + '/api/checkout/webhook/cryptomus',
+        testmode: true, merchant: pay.merchant, apiKey: pay.apiKey
+      });
+      await db.prepare('UPDATE orders SET cryptomus_uuid=?, cryptomus_order_id=?, payment_url=? WHERE order_ref=?')
+        .run(inv.uuid || '', inv.order_id || '', inv.payment_url || '', testRef);
+      return { uuid: inv.uuid || null, has_payment_url: !!(inv.payment_url) };
+    });
+  }
+  await step('db_cleanup', async () => {
+    if(testRef) await db.prepare('DELETE FROM orders WHERE order_ref=?').run(testRef);
+    return 'probe order removed';
+  });
+  const failed = steps.find(s => !s.ok);
+  res.json({ ok: !failed, failed_step: failed ? failed.name : null, steps });
+});
 // --- Admin: payment gateway status (secret key never sent to browser) ---
 app.get('/api/admin/payments', requireAuth, async (req, res) => {
   const pay = await getPayConfig();

@@ -29,17 +29,30 @@ function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
 // or network blips — free-tier hosts sleep and the first request can fail
 // while the server wakes up.
 async function apiFetch(url, options, label){
+  options = options || {};
+  // Client-side timeout: fail fast with a clear message instead of hanging
+  // until the hosting proxy kills the connection with an HTML error page.
+  async function once(timeoutMs){
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), timeoutMs);
+    try{ return await fetch(url, { ...options, signal: ctl.signal }); }
+    finally{ clearTimeout(t); }
+  }
   let res;
   try{
-    res = await fetch(url, options);
+    res = await once(45000);
   }catch(e){
+    if(e && e.name === 'AbortError') throw new Error('The server took too long' + (label ? ' while loading ' + label : '') + ' (45s). It may be waking up — please refresh and try again.');
     await sleep(4000);
-    try{ res = await fetch(url, options); }
-    catch(e2){ throw new Error('Could not reach the server' + (label ? ' while loading ' + label : '') + '. Check your connection and refresh.'); }
+    try{ res = await once(45000); }
+    catch(e2){
+      if(e2 && e2.name === 'AbortError') throw new Error('The server took too long' + (label ? ' while loading ' + label : '') + ' (45s). Please refresh and try again.');
+      throw new Error('Could not reach the server' + (label ? ' while loading ' + label : '') + '. Check your connection and refresh.');
+    }
   }
   if(!res.ok && [502, 503, 504].includes(res.status)){
     await sleep(4000);
-    try{ res = await fetch(url, options); }catch{}
+    try{ res = await once(45000); }catch{}
   }
   return res;
 }
