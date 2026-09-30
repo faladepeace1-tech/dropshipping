@@ -12,13 +12,24 @@ function show(id){
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 function waLink(msg){ return 'https://wa.me/' + String(WA_NUM).replace(/\D/g, '') + '?text=' + encodeURIComponent(msg || ''); }
+// Safe JSON reader: if the server returns HTML (old server without the new
+// API routes, or a proxy error page), throw a human message instead of
+// "Unexpected token '<', "<!DOCTYPE "... is not valid JSON".
+async function readJson(res){
+  const text = await res.text();
+  try{ return JSON.parse(text); }
+  catch{
+    if(!res.ok && res.status === 404) throw new Error('Checkout API not found (HTTP 404). The server is running old code — restart it (or wait for redeploy) and refresh.');
+    throw new Error('Server returned an unexpected response (HTTP ' + res.status + '). It may still be updating — wait a minute and refresh.');
+  }
+}
 function setWaFallbacks(){
   $('#co-error-wa').href = waLink('Hi Nexatech! I need help with my checkout.');
 }
 async function loadSiteMeta(){
   try{
     const r = await fetch('/api/content');
-    const j = await r.json();
+    const j = await readJson(r);
     if(j.content && j.content.whatsapp_number) WA_NUM = j.content.whatsapp_number;
   }catch{}
   setWaFallbacks();
@@ -63,7 +74,7 @@ async function createOrder(){
         whatsapp: $('#co-whatsapp').value.trim()
       })
     });
-    const j = await res.json();
+    const j = await readJson(res);
     if(!res.ok) throw new Error(j.error || 'Could not start payment.');
     ORDER_REF = j.order_ref;
     if(j.payment_url){
@@ -93,7 +104,7 @@ function startPolling(paymentUrl){
     try{
       const r = await fetch('/api/checkout/order/' + encodeURIComponent(ORDER_REF));
       if(!r.ok) return;
-      const o = await r.json();
+      const o = await readJson(r);
       if(o.status === 'paid'){ stopPolling(); showSuccess(o); }
       else if(o.status === 'failed' || o.status === 'expired'){
         stopPolling();
@@ -122,7 +133,7 @@ async function resumeByRef(ref){
   try{
     const r = await fetch('/api/checkout/order/' + encodeURIComponent(ref));
     if(!r.ok) throw new Error('Order not found.');
-    const o = await r.json();
+    const o = await readJson(r);
     ORDER_REF = o.order_ref;
     if(o.status === 'paid'){ showSuccess(o); return; }
     if(o.status === 'failed' || o.status === 'expired'){
@@ -155,7 +166,7 @@ function goPending(){
   if(!kind || !item){ showError('Choose a plan or theme first, then come back to pay.'); return; }
   try{
     const r = await fetch('/api/checkout/item?kind=' + encodeURIComponent(kind) + '&ref=' + encodeURIComponent(item));
-    const j = await r.json();
+    const j = await readJson(r);
     if(!r.ok) throw new Error(j.error || 'Item not available.');
     ITEM = j;
     fillSummary();
@@ -169,7 +180,7 @@ function goPending(){
     if(!ORDER_REF) return;
     try{
       const r = await fetch('/api/checkout/order/' + encodeURIComponent(ORDER_REF));
-      const o = await r.json();
+      const o = await readJson(r);
       if(o.status === 'paid'){ stopPolling(); showSuccess(o); }
       else alert('Still waiting for payment. If you paid, give the network a few minutes.');
     }catch{ alert('Could not check status — try again in a moment.'); }
