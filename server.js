@@ -701,7 +701,7 @@ async function createCryptomusInvoice({ amount, currency, orderRef, itemName, re
     console.log('cryptomus invoice POST done in ' + (Date.now() - t0) + 'ms, http=' + resp.status, 'state=' + (j && j.state));
     if(!resp.ok || j.state !== 0 || !j.result){
       const detail = j.message || (j.errors ? JSON.stringify(j.errors) : null) || j.error || ('Cryptomus error (HTTP ' + resp.status + ')');
-      throw new Error(detail);
+      throw new Error(detail + ' raw:' + JSON.stringify(j).slice(0, 300));
     }
     if(j.result.url) j.result.payment_url = j.result.url; // normalize hosted pay-page field
     return j.result; // {uuid, order_id, amount, url (pay page), status, ...}
@@ -991,6 +991,26 @@ app.get('/api/admin/checkout-diag', requireAuth, async (req, res) => {
       const r = await fetch('https://api.cryptomus.com/', { signal: ctl.signal });
       await r.text().catch(() => '');
       return { http: r.status };
+    } finally { clearTimeout(t); }
+  });
+  await step('cryptomus_auth', async () => {
+    if(!pay || !pay.configured) throw new Error('skipped: gateway keys not configured');
+    // Lightweight authenticated call: proves the merchant UUID + payment key
+    // pair is valid WITHOUT creating anything.
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 12000);
+    try{
+      const r = await fetch('https://api.cryptomus.com/v1/payment/services', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'merchant': pay.merchant, 'sign': cryptomusSign({}, pay.apiKey) },
+        body: '{}',
+        signal: ctl.signal
+      });
+      const j = await r.json().catch(() => ({}));
+      if(!r.ok || (j.state !== undefined && j.state !== 0)){
+        throw new Error((j.message || ('HTTP ' + r.status)) + ' raw:' + JSON.stringify(j).slice(0, 300));
+      }
+      return { state: j.state, services: Array.isArray(j.result) ? j.result.length + ' services' : typeof j.result };
     } finally { clearTimeout(t); }
   });
   if(String(req.query.invoice || '') === '1'){
