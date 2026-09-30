@@ -673,6 +673,10 @@ function cryptomusSign(bodyObj, apiKey){
   return crypto.createHash('md5').update(b64 + apiKey).digest('hex');
 }
 async function createCryptomusInvoice({ amount, currency, orderRef, itemName, returnUrl, successUrl, callbackUrl, testmode, merchant, apiKey }){
+  // Official spec: POST https://api.cryptomus.com/v1/payment
+  // (NOT /v1/invoice/create — that path returns HTTP 405).
+  // Response result uses `url` for the hosted pay page. `to_currency` must be
+  // a crypto code or omitted (fiat values are rejected), so it is not sent.
   const body = {
     amount: String(amount),
     currency: String(currency || 'USD').toUpperCase(),
@@ -680,16 +684,14 @@ async function createCryptomusInvoice({ amount, currency, orderRef, itemName, re
     url_return: returnUrl,
     url_success: successUrl,
     url_callback: callbackUrl,
-    is_test: testmode ? 1 : 0,
-    lifetime: 7200,
-    to_currency: String(currency || 'USD').toUpperCase()
+    lifetime: 7200
   };
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), 20000);
   const t0 = Date.now();
   try{
     console.log('cryptomus invoice POST start');
-    const resp = await fetch('https://api.cryptomus.com/v1/invoice/create', {
+    const resp = await fetch('https://api.cryptomus.com/v1/payment', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'merchant': merchant, 'sign': cryptomusSign(body, apiKey) },
       body: JSON.stringify(body),
@@ -697,8 +699,12 @@ async function createCryptomusInvoice({ amount, currency, orderRef, itemName, re
     });
     const j = await resp.json().catch(() => ({}));
     console.log('cryptomus invoice POST done in ' + (Date.now() - t0) + 'ms, http=' + resp.status, 'state=' + (j && j.state));
-    if(!resp.ok || j.state !== 0 || !j.result) throw new Error(j.message || j.error || ('Cryptomus error (HTTP ' + resp.status + ')'));
-    return j.result; // {uuid, order_id, amount, payment_url, status, ...}
+    if(!resp.ok || j.state !== 0 || !j.result){
+      const detail = j.message || (j.errors ? JSON.stringify(j.errors) : null) || j.error || ('Cryptomus error (HTTP ' + resp.status + ')');
+      throw new Error(detail);
+    }
+    if(j.result.url) j.result.payment_url = j.result.url; // normalize hosted pay-page field
+    return j.result; // {uuid, order_id, amount, url (pay page), status, ...}
   } catch(e){
     console.error('cryptomus invoice POST failed after ' + (Date.now() - t0) + 'ms:', e.name + ': ' + e.message);
     throw e;
@@ -800,7 +806,9 @@ app.post('/api/checkout/create', async (req, res) => {
     res.json({ ok: true, order_ref: orderRef, payment_url: inv.payment_url || null });
   }catch(e){
     console.error('checkout create failed:', e.name + ': ' + e.message);
-    if(!res.headersSent) res.status(502).json({ error: 'Could not start payment: ' + e.message });
+    // NOTE: status 422 (not 502) — hosting proxies replace upstream 502
+    // bodies with their own HTML error page, which hides the real message.
+    if(!res.headersSent) res.status(422).json({ error: 'Could not start payment: ' + e.message });
   }
 });
 // --- Cryptomus webhook: blockchain confirms -> unlock product ---
@@ -997,8 +1005,8 @@ app.get('/api/admin/checkout-diag', requireAuth, async (req, res) => {
         testmode: true, merchant: pay.merchant, apiKey: pay.apiKey
       });
       await db.prepare('UPDATE orders SET cryptomus_uuid=?, cryptomus_order_id=?, payment_url=? WHERE order_ref=?')
-        .run(inv.uuid || '', inv.order_id || '', inv.payment_url || '', testRef);
-      return { uuid: inv.uuid || null, has_payment_url: !!(inv.payment_url) };
+        .run(inv.uuid || '', inv.order_id || '', inv.url || inv.payment_url || '', testRef);
+      return { uuid: inv.uuid || null, has_payment_url: !!((inv && (inv.url || inv.payment_url))) };
     });
   }
   await step('db_cleanup', async () => {
