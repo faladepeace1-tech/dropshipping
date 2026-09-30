@@ -685,8 +685,10 @@ async function createCryptomusInvoice({ amount, currency, orderRef, itemName, re
     to_currency: String(currency || 'USD').toUpperCase()
   };
   const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), 25000);
+  const t = setTimeout(() => controller.abort(), 20000);
+  const t0 = Date.now();
   try{
+    console.log('cryptomus invoice POST start');
     const resp = await fetch('https://api.cryptomus.com/v1/invoice/create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'merchant': merchant, 'sign': cryptomusSign(body, apiKey) },
@@ -694,8 +696,12 @@ async function createCryptomusInvoice({ amount, currency, orderRef, itemName, re
       signal: controller.signal
     });
     const j = await resp.json().catch(() => ({}));
+    console.log('cryptomus invoice POST done in ' + (Date.now() - t0) + 'ms, http=' + resp.status, 'state=' + (j && j.state));
     if(!resp.ok || j.state !== 0 || !j.result) throw new Error(j.message || j.error || ('Cryptomus error (HTTP ' + resp.status + ')'));
     return j.result; // {uuid, order_id, amount, payment_url, status, ...}
+  } catch(e){
+    console.error('cryptomus invoice POST failed after ' + (Date.now() - t0) + 'ms:', e.name + ': ' + e.message);
+    throw e;
   } finally { clearTimeout(t); }
 }
 // Resolve anything buyable: a plan (priced via content keys) or a theme.
@@ -793,8 +799,8 @@ app.post('/api/checkout/create', async (req, res) => {
       .run(inv.uuid || '', inv.order_id || '', inv.payment_url || '', orderRef);
     res.json({ ok: true, order_ref: orderRef, payment_url: inv.payment_url || null });
   }catch(e){
-    console.error('checkout create failed:', e.message);
-    res.status(502).json({ error: 'Could not start payment: ' + e.message });
+    console.error('checkout create failed:', e.name + ': ' + e.message);
+    if(!res.headersSent) res.status(502).json({ error: 'Could not start payment: ' + e.message });
   }
 });
 // --- Cryptomus webhook: blockchain confirms -> unlock product ---
