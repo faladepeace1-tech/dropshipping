@@ -765,17 +765,21 @@ app.post('/api/checkout/create', async (req, res) => {
     const item = await getCheckoutItem(kind, ref);
     if(item.error) return res.status(400).json({ error: item.error });
     const orderRef = 'NXT-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 6).toUpperCase();
+    console.log('checkout create:', item.kind + ':' + item.ref, item.amount_cents + item.currency, 'email=' + String(email).trim().slice(0, 60));
     await db.prepare('INSERT INTO orders (order_ref,kind,item_ref,item_name,amount_cents,currency,customer_name,customer_email,customer_whatsapp,status) VALUES (?,?,?,?,?,?,?,?,?,?)')
       .run(orderRef, item.kind, String(item.ref), item.name, item.amount_cents, item.currency,
         String(name).trim().slice(0, 120), String(email).trim().slice(0, 160), String(whatsapp).trim().slice(0, 40), 'pending');
+    console.log('checkout order saved:', orderRef);
     try{ await db.prepare("INSERT INTO events (event_type,element_id,session_id,page_url,metadata) VALUES (?,?,?,?,?)")
       .run('checkout_created', item.kind + ':' + item.ref, '', '', JSON.stringify({ order_ref: orderRef, amount_cents: item.amount_cents })); }catch{}
     const pay = await getPayConfig();
+    console.log('checkout pay configured:', pay.configured, 'testmode:', pay.testmode, 'merchant set:', !!pay.merchant);
     if(!pay.configured){
       return res.json({ ok: true, order_ref: orderRef, payment_url: null,
         message: 'Payment gateway not connected yet — our team will contact you on WhatsApp to complete this order.' });
     }
     const base = (process.env.PUBLIC_URL || '').trim().replace(/\/$/, '') || (req.protocol + '://' + req.get('host'));
+    console.log('checkout creating cryptomus invoice for', orderRef);
     const inv = await createCryptomusInvoice({
       amount: (item.amount_cents / 100).toFixed(2), currency: item.currency, orderRef,
       itemName: item.name,
@@ -784,6 +788,7 @@ app.post('/api/checkout/create', async (req, res) => {
       callbackUrl: base + '/api/checkout/webhook/cryptomus',
       testmode: pay.testmode, merchant: pay.merchant, apiKey: pay.apiKey
     });
+    console.log('checkout invoice ok:', orderRef, 'cryptomus uuid:', inv.uuid || '(none)');
     await db.prepare('UPDATE orders SET cryptomus_uuid=?, cryptomus_order_id=?, payment_url=? WHERE order_ref=?')
       .run(inv.uuid || '', inv.order_id || '', inv.payment_url || '', orderRef);
     res.json({ ok: true, order_ref: orderRef, payment_url: inv.payment_url || null });
