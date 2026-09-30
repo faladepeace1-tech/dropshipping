@@ -370,10 +370,12 @@ function applyMicroCopy(){
   setText('nav-link-portfolio', T('nav_link_portfolio','Portfolio'));
   setText('nav-link-proof', T('nav_link_proof','Proof'));
   setText('nav-link-pricing', T('nav_link_pricing','Pricing'));
+  setText('nav-link-themes', T('nav_link_themes','Themes'));
   setText('nav-link-faq', T('nav_link_faq','FAQ'));
   setText('drawer-link-portfolio', T('nav_link_portfolio','Portfolio'));
   setText('drawer-link-proof', T('nav_link_proof','Proof'));
   setText('drawer-link-pricing', T('nav_link_pricing','Pricing'));
+  setText('drawer-link-themes', T('nav_link_themes','Themes'));
   setText('drawer-link-faq', T('nav_link_faq','FAQ'));
   setText('nav-whatsapp', T('nav_whatsapp_label','WhatsApp Us'));
   setText('nav-book', T('nav_book_label','Book a Call'));
@@ -382,6 +384,7 @@ function applyMicroCopy(){
   setText('footer-link-portfolio', T('nav_link_portfolio','Portfolio'));
   setText('footer-link-proof', T('nav_link_proof','Proof'));
   setText('footer-link-pricing', T('nav_link_pricing','Pricing'));
+  setText('footer-link-themes', T('nav_link_themes','Themes'));
   setText('footer-link-faq', T('nav_link_faq','FAQ'));
   const trust=(id,b,t)=>{ const el=document.getElementById(id); if(el) el.innerHTML='✔ <b>'+sanitize(b)+'</b> '+sanitize(t); };
   trust('trust-1', T('trust_1_bold','7 to 14 Day'), T('trust_1_text','Delivery'));
@@ -399,6 +402,9 @@ function applyMicroCopy(){
   setText('experts-eyebrow', T('experts_eyebrow','Team'));
   setText('how-eyebrow', T('how_eyebrow','Process'));
   setText('pricing-eyebrow', T('pricing_eyebrow','Pricing'));
+  setText('themes-eyebrow', T('themes_eyebrow','Theme Store'));
+  setText('themes-title', T('themes_title','Premium Store Themes'));
+  setText('themes-subtitle', T('themes_subtitle','Ready-made, high-converting themes. Buy once, download instantly, own forever.'));
   setText('mentorship-eyebrow', T('mentorship_eyebrow','Mentorship'));
   setText('testimonials-eyebrow', T('testimonials_eyebrow','Testimonials'));
   setText('reviews-eyebrow', T('reviews_eyebrow','Customer Reviews'));
@@ -806,13 +812,60 @@ function renderPricing(){
     {key:'elite', name:CONTENT.pricing_elite_name||'Elite', price:CONTENT.pricing_elite_price||'$599', features:parseJSON(CONTENT.pricing_elite_features, ["Everything in Pro","20 Winning Products + Creatives","3 Custom Ad Creatives","1-on-1 Growth Call (60 min)","Extended Support (60 days)"]), wa:CONTENT.pricing_elite_whatsapp||'', popular:false},
   ];
   grid.innerHTML='';
-  const waNum=CONTENT.whatsapp_number||'2348123456789';
   tiers.forEach(t=>{
     const el=document.createElement('div'); el.className='price-card'+(t.popular?' popular':'');
-    el.innerHTML=`${t.popular?'<span class="popular-badge">'+sanitize(T('pricing_popular_badge','Most Popular'))+'</span>':''}<div class="eyebrow" style="margin:0">${sanitize(t.name)}</div><div class="price">${sanitize(t.price)}</div><ul>${t.features.map(f=>`<li>${sanitize(f)}</li>`).join('')}</ul><a class="btn ${t.popular?'btn-primary btn-glow':'btn-ghost'}" href="${whatsappLink(waNum, t.wa||('Hi Nexatech! I want the '+t.name+' plan ('+t.price+').'))}" target="_blank" style="margin-top:auto">${sanitize(T('pricing_cta_template','Choose {name}').replace('{name}', t.name))} →</a>`;
+    el.innerHTML=`${t.popular?'<span class="popular-badge">'+sanitize(T('pricing_popular_badge','Most Popular'))+'</span>':''}<div class="eyebrow" style="margin:0">${sanitize(t.name)}</div><div class="price">${sanitize(t.price)}</div><ul>${t.features.map(f=>`<li>${sanitize(f)}</li>`).join('')}</ul><a class="btn ${t.popular?'btn-primary btn-glow':'btn-ghost'}" href="/checkout?kind=plan&item=${t.key}" style="margin-top:auto">${sanitize(T('pricing_cta_template','Choose {name}').replace('{name}', t.name))} →</a>`;
     const a=el.querySelector('a'); a.addEventListener('click',()=>track('cta_click','pricing-'+t.key,{price:t.price}));
     grid.appendChild(el);
   });
+}
+// ---- Themes marketplace ----
+let THEMES=[];
+async function loadThemes(){
+  try{
+    const r=await fetch('/api/themes'); THEMES=await r.json();
+  }catch{ THEMES=[]; }
+  renderThemes();
+}
+function renderThemes(){
+  const grid=$('#themes-grid'); const empty=$('#themes-empty');
+  if(!grid) return;
+  grid.innerHTML='';
+  if(!THEMES.length){
+    if(empty){ empty.textContent=T('themes_empty','No themes available yet — check back soon.'); empty.classList.remove('hidden'); }
+    return;
+  }
+  if(empty) empty.classList.add('hidden');
+  const frag=document.createDocumentFragment();
+  THEMES.forEach((th)=>{
+    const card=document.createElement('div'); card.className='card in theme-card';
+    const badge=T('theme_badge','Instant Download');
+    card.innerHTML=`<div class="card-media">`
+      + (th.preview_url
+        ? `<img src="${th.preview_url}" alt="${sanitize(th.name)}" loading="lazy" decoding="async" onerror="this.style.opacity=.25">`
+        : `<div style="display:grid;place-items:center;height:100%;color:var(--text-muted);font-weight:700">No preview</div>`)
+      + `<div class="overlay"><span class="tag">${sanitize(badge)}</span>`
+      + `<div style="font-size:15px;font-weight:800;margin-top:6px">${sanitize(th.name)}</div>`
+      + `<div class="result" style="font-size:15px">${sanitize(th.price_text||'')}</div></div></div>`
+      + `<div class="theme-body"><p class="theme-desc">${sanitize((th.description||'').slice(0,120))}</p>`
+      + `<div class="theme-actions">`
+      + `<button class="btn btn-ghost theme-preview-btn" type="button">${sanitize(T('theme_preview_label','Preview'))}</button>`
+      + `<a class="btn btn-primary" href="/checkout?kind=theme&item=${encodeURIComponent(th.slug)}">${sanitize(T('theme_buy_label','Buy Now'))} →</a>`
+      + `</div></div>`;
+    card.querySelector('.theme-preview-btn').addEventListener('click', (e)=>{ e.stopPropagation(); openThemeModal(th); });
+    card.querySelector('.theme-actions a').addEventListener('click', ()=>track('cta_click','theme-buy-'+th.slug,{price:th.price_text}));
+    card.addEventListener('click', ()=> openThemeModal(th));
+    frag.appendChild(card);
+  });
+  grid.appendChild(frag);
+}
+function openThemeModal(th){
+  const item={ id:'theme-'+th.slug, category:'Theme', caption:th.name,
+    result_stat:(th.price_text||'')+' • '+T('theme_badge','Instant Download'),
+    case_study_text:th.description||'', url:th.preview_url||'' };
+  openModal(item, [item, ...MODAL_ITEMS.filter(m=>String(m.id).indexOf('theme-')!==0)]);
+  const cta=$('#modal-cta');
+  if(cta){ cta.textContent=T('theme_buy_label','Buy Now')+' →'; cta.target=''; cta.href='/checkout?kind=theme&item='+encodeURIComponent(th.slug); cta.onclick=()=>track('cta_click','theme-modal-buy-'+th.slug); }
 }
 function renderMentorship(){
   const bullets=parseJSON(CONTENT.mentorship_bullets, ["Weekly 1:1 strategy calls until first sale","Ad account setup & first campaign launch together","Product testing framework & kill/scale rules","Store CRO audits & A/B tests"]);
@@ -1397,7 +1450,7 @@ function initChat(){
   renderMarquee();
   initReveal();
   // Portfolio + all media feeds concurrently (was sequential awaits)
-  await Promise.allSettled([loadPortfolio(), loadMedia()]);
+  await Promise.allSettled([loadPortfolio(), loadMedia(), loadThemes()]);
   initReveal();
   initTilt();
   initSpotlight();

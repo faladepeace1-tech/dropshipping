@@ -355,6 +355,41 @@ export async function initDb() {
         dump TEXT NOT NULL,
         created_at TIMESTAMP DEFAULT NOW()
       );
+      CREATE TABLE IF NOT EXISTS themes (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        slug TEXT UNIQUE NOT NULL,
+        description TEXT DEFAULT '',
+        price_cents INTEGER NOT NULL DEFAULT 0,
+        currency TEXT DEFAULT 'USD',
+        preview_url TEXT DEFAULT '',
+        zip_filename TEXT DEFAULT '',
+        zip_size INTEGER DEFAULT 0,
+        published INTEGER DEFAULT 1,
+        display_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS orders (
+        id SERIAL PRIMARY KEY,
+        order_ref TEXT UNIQUE NOT NULL,
+        kind TEXT NOT NULL,
+        item_ref TEXT NOT NULL,
+        item_name TEXT DEFAULT '',
+        amount_cents INTEGER NOT NULL DEFAULT 0,
+        currency TEXT DEFAULT 'USD',
+        customer_name TEXT DEFAULT '',
+        customer_email TEXT DEFAULT '',
+        customer_whatsapp TEXT DEFAULT '',
+        status TEXT DEFAULT 'pending',
+        cryptomus_uuid TEXT DEFAULT '',
+        cryptomus_order_id TEXT DEFAULT '',
+        payment_url TEXT DEFAULT '',
+        download_token TEXT DEFAULT '',
+        created_at TIMESTAMP DEFAULT NOW(),
+        paid_at TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
+      CREATE INDEX IF NOT EXISTS idx_orders_ref ON orders(order_ref);
     `);
   } else {
     db.exec(`
@@ -541,6 +576,41 @@ export async function initDb() {
       dump TEXT NOT NULL,
       created_at TEXT DEFAULT (datetime('now'))
     );
+    CREATE TABLE IF NOT EXISTS themes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      slug TEXT UNIQUE NOT NULL,
+      description TEXT DEFAULT '',
+      price_cents INTEGER NOT NULL DEFAULT 0,
+      currency TEXT DEFAULT 'USD',
+      preview_url TEXT DEFAULT '',
+      zip_filename TEXT DEFAULT '',
+      zip_size INTEGER DEFAULT 0,
+      published INTEGER DEFAULT 1,
+      display_order INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS orders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      order_ref TEXT UNIQUE NOT NULL,
+      kind TEXT NOT NULL,
+      item_ref TEXT NOT NULL,
+      item_name TEXT DEFAULT '',
+      amount_cents INTEGER NOT NULL DEFAULT 0,
+      currency TEXT DEFAULT 'USD',
+      customer_name TEXT DEFAULT '',
+      customer_email TEXT DEFAULT '',
+      customer_whatsapp TEXT DEFAULT '',
+      status TEXT DEFAULT 'pending',
+      cryptomus_uuid TEXT DEFAULT '',
+      cryptomus_order_id TEXT DEFAULT '',
+      payment_url TEXT DEFAULT '',
+      download_token TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now')),
+      paid_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
+    CREATE INDEX IF NOT EXISTS idx_orders_ref ON orders(order_ref);
   `);
   }
 
@@ -645,6 +715,22 @@ export async function initDb() {
       ['pricing_elite_features', '["Everything in Pro","20 Winning Products + Creatives","3 Custom Ad Creatives","1-on-1 Growth Call (60 min)","Extended Support (60 days)"]', 'json'],
       ['pricing_elite_whatsapp', 'Hi Nexatech! I want the Elite package ($599) everything in Pro plus 20 products, ad creatives, growth call, 60-day support. Ready to start!', 'text'],
       ['pricing_mentorship_whatsapp', 'Hi Nexatech! Tell me about the Mentorship (Results Before Payment) what\'s included and how does the pay-after-results model work?', 'text'],
+      ['nav_link_themes', 'Themes', 'text'],
+      ['themes_eyebrow', 'Theme Store', 'text'],
+      ['themes_title', 'Premium Store Themes', 'text'],
+      ['themes_subtitle', 'Ready-made, high-converting themes. Buy once, download instantly, own forever.', 'text'],
+      ['themes_empty', 'No themes available yet — check back soon.', 'text'],
+      ['theme_preview_label', 'Preview', 'text'],
+      ['theme_buy_label', 'Buy Now', 'text'],
+      ['theme_badge', 'Instant Download', 'text'],
+      ['cryptomus_merchant_uuid', '', 'text'],
+      ['cryptomus_api_key', '', 'text'],
+      ['cryptomus_testmode', 'true', 'boolean'],
+      ['checkout_title', 'Secure Checkout', 'text'],
+      ['checkout_subtitle', 'Complete your payment to get instant access.', 'text'],
+      ['checkout_pay_label', 'Pay Now', 'text'],
+      ['checkout_success_title', 'Payment Successful!', 'text'],
+      ['checkout_pending_title', 'Waiting for Payment...', 'text'],
       ['webhook_url', '', 'text'],
       ['webhook_enabled', 'false', 'boolean'],
       ['webhook_chatbot_url', '', 'text'],
@@ -811,7 +897,8 @@ export async function initDb() {
     'gemini_api_key','gemini_api_key_2','gemini_api_key_3','gemini_model',
     'ai_provider','ai_api_key','ai_base_url','ai_model',
     'webhook_url','webhook_enabled','webhook_form_url','webhook_form_enabled','webhook_chatbot_url','webhook_chatbot_enabled',
-    'logo_text','logo_url','favicon_url','logo_position','brand_position','og_image'
+    'logo_text','logo_url','favicon_url','logo_position','brand_position','og_image',
+    'cryptomus_merchant_uuid','cryptomus_api_key','cryptomus_testmode'
   ]);
   if (count === 0 || forceReset) {
     if (forceReset && count !== 0) {
@@ -863,14 +950,15 @@ export async function initDb() {
       ['experts', 1, 5, 1],
       ['how_it_works', 1, 6, 1],
       ['pricing', 1, 7, 1],
-      ['mentorship', 1, 8, 1],
-      ['testimonials', 1, 9, 1],
-      ['reviews', 1, 10, 1],
-      ['certificates', 1, 11, 1],
-      ['faq', 1, 12, 1],
-      ['lead_form', 1, 13, 1],
-      ['cta_band', 1, 14, 1],
-      ['footer', 1, 15, 0]
+      ['themes', 1, 8, 1],
+      ['mentorship', 1, 9, 1],
+      ['testimonials', 1, 10, 1],
+      ['reviews', 1, 11, 1],
+      ['certificates', 1, 12, 1],
+      ['faq', 1, 13, 1],
+      ['lead_form', 1, 14, 1],
+      ['cta_band', 1, 15, 1],
+      ['footer', 1, 16, 0]
   ];
   if (secCount === 0 || forceReset) {
     if (forceReset && secCount !== 0) { try { await db.exec('DELETE FROM sections'); } catch {} }
@@ -1087,7 +1175,33 @@ export async function initDb() {
       // shift faq, lead_form, cta_band, footer by +1
       await db.prepare("UPDATE sections SET display_order = display_order + 1 WHERE key IN ('faq','lead_form','cta_band','footer')").run();
     }
+    // Themes marketplace section (between pricing and mentorship)
+    const hasThemes = await db.prepare('SELECT key FROM sections WHERE key=?').get('themes');
+    if(!hasThemes){
+      await db.prepare("UPDATE sections SET display_order = display_order + 1 WHERE key IN ('mentorship','testimonials','reviews','certificates','faq','lead_form','cta_band','footer')").run();
+      await db.prepare('INSERT INTO sections (key,visible,display_order,animation_enabled) VALUES (?,?,?,?)').run('themes',1,8,1);
+      console.log('Migrated: added themes section at order 8');
+    }
+    await ensure('cryptomus_merchant_uuid','','text');
+    await ensure('cryptomus_api_key','','text');
+    await ensure('cryptomus_testmode','true','boolean');
   } catch(e){ console.error('migration error', e); }
+
+  // Seed sample themes (preview only — admin uploads the zip per theme)
+  try{
+    const themeCount = await getCount('themes');
+    if(themeCount === 0){
+      const samples = [
+        ['Elégance Fashion Theme','elegance-fashion','High-converting fashion theme with lookbook sections, size guide, quick-add cart and UGC reviews wall.',4900,'USD','https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=800',1,0],
+        ['GlowLab Beauty Theme','glowlab-beauty','Skincare/beauty theme with quiz funnel, bundle offers, before-after sliders and subscriptions.',3900,'USD','https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=800',1,1],
+        ['TechNest Gadget Theme','technest-gadget','Gadget theme with comparison tables, high-ticket upsells, video demos and trust badges.',5900,'USD','https://images.unsplash.com/photo-1468495244123-6c6c332eeece?w=800',1,2],
+      ];
+      for(const s of samples){
+        await db.prepare('INSERT INTO themes (name,slug,description,price_cents,currency,preview_url,published,display_order) VALUES (?,?,?,?,?,?,?,?)').run(s[0],s[1],s[2],s[3],s[4],s[5],s[6],s[7]);
+      }
+      console.log(`Seeded ${samples.length} sample themes`);
+    }
+  }catch(e){ console.error('themes seed error', e.message); }
 }
 
 export async function reseedDefaults() {

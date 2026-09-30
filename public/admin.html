@@ -26,6 +26,7 @@
       <button data-tab="brand">Brand / Logo</button>
       <button data-tab="content">Content & Theme</button>
       <button data-tab="media">Media Manager</button>
+      <button data-tab="themes">Themes / Shop</button>
       <button data-tab="team">Experts (Team)</button>
       <button data-tab="sections">Sections & Layout</button>
       <button data-tab="leads">Leads / CRM</button>
@@ -178,6 +179,51 @@
         <div class="card">
           <h3>Media Gallery <small style="color:#64748B"> drag to reorder, toggle publish, edit inline</small></h3>
           <div id="media-gallery" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px"></div>
+        </div>
+      </section>
+
+      <!-- Themes / Shop -->
+      <section data-panel="themes" class="hidden">
+        <div class="card">
+          <h3 id="theme-form-title">Add Theme <small style="font-weight:500;color:#64748B"> preview picture + .zip package + price</small></h3>
+          <form id="theme-form" style="display:grid;gap:10px">
+            <input type="hidden" id="theme-id">
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <label style="flex:2;min-width:200px">Theme Name *<input id="theme-name" required placeholder="Elégance Fashion Theme"></label>
+              <label style="flex:1;min-width:140px">Slug (auto if empty)<input id="theme-slug" placeholder="elegance-fashion"></label>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <label style="flex:1;min-width:120px">Price (USD) *<input id="theme-price" type="number" min="1" step="0.01" required placeholder="49"></label>
+              <label style="flex:1;min-width:120px">Currency<input id="theme-currency" placeholder="USD" value="USD"></label>
+              <label style="align-self:end"><input type="checkbox" id="theme-published" checked> Published (visible in shop)</label>
+            </div>
+            <label>Description<textarea id="theme-desc" rows="3" placeholder="What buyers get, features, compatibility..."></textarea></label>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+              <label>Preview Picture — upload<input type="file" id="theme-preview-file" accept="image/*,.svg"></label>
+              <span style="color:#64748B">or</span>
+              <label style="flex:1">Preview Image URL<input id="theme-preview-url" placeholder="https://..."></label>
+            </div>
+            <div id="theme-preview-wrap" style="display:none;border:1px dashed #CBD5E1;border-radius:12px;padding:10px"><img id="theme-preview-img" style="max-height:180px;border-radius:8px"><div id="theme-zip-status" style="font-size:12px;color:#64748B;margin-top:6px"></div></div>
+            <label>Theme ZIP file — the downloadable package (up to 200MB, stored privately, buyers get it only after payment)<input type="file" id="theme-zip-file" accept=".zip,application/zip"></label>
+            <div id="theme-upload-progress" style="display:none"><div style="height:8px;background:#E2E8F0;border-radius:999px;overflow:hidden"><div id="theme-upload-bar" style="height:100%;width:0%;background:#0B1220;transition:width .2s"></div></div><small id="theme-upload-text" style="color:#64748B">Uploading…</small></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-primary" type="submit" id="theme-submit-btn">Save Theme</button>
+              <button class="btn btn-ghost hidden" type="button" id="theme-cancel-btn">Cancel Edit</button>
+            </div>
+            <div id="theme-msg" style="font-size:13px;min-height:18px"></div>
+          </form>
+        </div>
+        <div class="card">
+          <h3>Themes <small style="color:#64748B"> edit, publish/unpublish, delete</small></h3>
+          <div id="themes-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px"></div>
+        </div>
+        <div class="card">
+          <h3>Recent Orders <small style="color:#64748B"> plans + themes, newest first</small></h3>
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+            <select id="order-status-filter"><option value="">All statuses</option><option value="pending">Pending</option><option value="paid">Paid</option><option value="failed">Failed</option><option value="expired">Expired</option></select>
+            <button class="btn btn-ghost" id="btn-refresh-orders" type="button">Refresh</button>
+          </div>
+          <div id="orders-list" style="display:grid;gap:8px"></div>
         </div>
       </section>
 
@@ -448,6 +494,20 @@
             <button class="btn btn-ghost" id="btn-preview-booking" type="button">Preview Site →</button>
           </div>
           <div id="int-msg" style="font-size:13px;margin-top:8px"></div>
+        </div>
+        <div class="card" style="border-color:rgba(0,209,255,.35)">
+          <h3>Crypto Payments — Cryptomus <small style="font-weight:500;color:#64748B">checkout for plans + themes</small></h3>
+          <p style="font-size:12px;color:#94A3B8">From <a href="https://app.cryptomus.com/" target="_blank" rel="noopener">app.cryptomus.com</a>: paste your <b>User ID</b> as Merchant UUID and your <b>API key</b>. Set your Cryptomus invoice <b>callback URL</b> to <code>https://YOUR-DOMAIN/api/checkout/webhook/cryptomus</code>. Keys are stored permanently and never shown on the public site.</p>
+          <label>Merchant UUID (your Cryptomus User ID)<input id="int-cryptomus-merchant" placeholder="247d5692-5b22-45fb-a77a-4fa6bf8461e8"></label>
+          <label>API Key<input id="int-cryptomus-key" type="password" placeholder="4f44274a8c606efbf0b5eb7318501663630d56c0"></label>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="int-cryptomus-test" checked> Test mode (uncheck for live payments)</label>
+            <button class="btn btn-ghost" id="btn-show-cryptomus-key" type="button" style="padding:6px 10px;font-size:11px">Show</button>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+            <button class="btn btn-primary" id="btn-save-payments">Save Payment Keys</button>
+          </div>
+          <div id="pay-msg" style="font-size:13px;margin-top:8px"></div>
         </div>
         <div class="card" style="border-color:rgba(16,185,129,.3)">
           <h3>Google Sheets Direct (Append row) — matches n8n node <small style="font-weight:500;color:#64748B" id="google-summary-status">checking...</small></h3>

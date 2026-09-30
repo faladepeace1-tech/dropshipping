@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Secure Checkout — Nexatech</title>
+<meta name="description" content="Complete your Nexatech purchase securely with crypto. Instant access after payment.">
+<meta name="theme-color" content="#05070f">
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800;900&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<a class="skip-link" href="#co-main">Skip to checkout</a>
+
+<header class="co-header">
+  <div class="container co-header-inner">
+    <a class="logo" href="/"><span id="co-logo">NEXATECH</span></a>
+    <a class="btn btn-ghost" href="/">← Back to site</a>
+  </div>
+</header>
+
+<main class="container co-wrap" id="co-main">
+  <!-- Loading -->
+  <div id="co-loading" class="co-card co-center">
+    <div class="co-spinner" aria-hidden="true"></div>
+    <p class="sub" style="margin:0">Loading your order…</p>
+  </div>
+
+  <!-- Checkout form + summary -->
+  <div id="co-form-view" class="hidden">
+    <div class="eyebrow">Secure Checkout</div>
+    <h1 class="h2 gradient-text" id="co-title">Complete Your Purchase</h1>
+    <p class="sub" id="co-subtitle">Pay securely with crypto. You get instant access the moment payment confirms.</p>
+    <div class="co-grid">
+      <form class="co-card" id="co-form" novalidate>
+        <h3 style="margin:0 0 4px">Your details</h3>
+        <p class="sub" style="margin:0 0 14px;font-size:13px">We send your receipt and download link here.</p>
+        <div class="field"><label for="co-name">Full Name *</label><input id="co-name" name="name" required placeholder="Ada Lovelace" autocomplete="name"><small>Required</small></div>
+        <div class="field"><label for="co-email">Email *</label><input id="co-email" name="email" type="email" required placeholder="you@example.com" autocomplete="email"><small>Enter a valid email</small></div>
+        <div class="field"><label for="co-whatsapp">WhatsApp number *</label><input id="co-whatsapp" name="whatsapp" required placeholder="+234 812 345 6789" inputmode="tel" autocomplete="tel"><small>Enter a valid WhatsApp number</small></div>
+        <div id="co-form-msg" class="co-msg" role="alert"></div>
+        <button type="submit" class="btn btn-primary btn-glow co-pay-btn" id="co-pay-btn">Pay <span id="co-pay-amount"></span> →</button>
+        <div class="co-trust">
+          <span>🔒 Secure crypto payment</span>
+          <span>⚡ Instant access</span>
+          <span>✔ 100% ownership</span>
+        </div>
+      </form>
+      <aside class="co-card co-summary" id="co-summary">
+        <h3 style="margin:0 0 10px">Order summary</h3>
+        <img id="co-item-img" class="co-item-img hidden" alt="">
+        <div class="co-kind" id="co-item-kind">Plan</div>
+        <div class="co-item-name" id="co-item-name">—</div>
+        <p class="co-item-desc" id="co-item-desc"></p>
+        <div class="co-total"><span>Total</span><strong id="co-item-price">—</strong></div>
+        <div class="co-note">One-time payment. No subscription.</div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- Redirecting to payment -->
+  <div id="co-redirect-view" class="co-card co-center hidden">
+    <div class="co-spinner" aria-hidden="true"></div>
+    <h2 class="h2" style="margin:12px 0 6px">Opening secure payment…</h2>
+    <p class="sub" style="margin:0 0 14px">Order <b id="co-redirect-ref"></b> created. If nothing opens, tap below.</p>
+    <a class="btn btn-primary btn-glow" id="co-pay-link" href="#" target="_blank" rel="noopener">Continue to Payment →</a>
+    <button class="btn btn-ghost" id="co-iredirect-check" type="button" style="margin-top:10px">I already paid — check status</button>
+  </div>
+
+  <!-- Waiting for payment -->
+  <div id="co-pending-view" class="co-card co-center hidden">
+    <div class="co-spinner" aria-hidden="true"></div>
+    <h2 class="h2" style="margin:12px 0 6px">Waiting for payment…</h2>
+    <p class="sub" style="margin:0 0 6px">Order <b id="co-pending-ref"></b>. Complete payment in the opened tab — this page updates automatically.</p>
+    <p class="sub" style="margin:0 0 14px;font-size:12px">Crypto confirmations can take a few minutes.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
+      <a class="btn btn-ghost" id="co-pending-pay" href="#" target="_blank" rel="noopener">Reopen payment page</a>
+      <button class="btn btn-primary" id="co-pending-check" type="button">Check status now</button>
+    </div>
+  </div>
+
+  <!-- Success -->
+  <div id="co-success-view" class="co-card co-center hidden">
+    <div class="co-check" aria-hidden="true">✓</div>
+    <h2 class="h2 gradient-text" style="margin:12px 0 6px">Payment successful!</h2>
+    <p class="sub" style="margin:0 0 6px">Order <b id="co-success-ref"></b> confirmed. Receipt sent to <b id="co-success-email"></b>.</p>
+    <div id="co-download-wrap" class="hidden" style="margin-top:14px">
+      <a class="btn btn-primary btn-glow" id="co-download" href="#">Download Theme (.zip) ↓</a>
+      <p class="sub" style="margin:10px 0 0;font-size:12px">Keep this page bookmarked — this link is your access key.</p>
+    </div>
+    <div id="co-plan-wrap" class="hidden" style="margin-top:14px">
+      <p class="sub" style="margin:0 0 12px">Our team will reach out on WhatsApp within 24 hours to kick off your build.</p>
+      <a class="btn btn-primary btn-glow" id="co-plan-wa" href="#" target="_blank" rel="noopener">Chat on WhatsApp →</a>
+    </div>
+  </div>
+
+  <!-- Error -->
+  <div id="co-error-view" class="co-card co-center hidden">
+    <div class="co-check co-check-err" aria-hidden="true">!</div>
+    <h2 class="h2" style="margin:12px 0 6px">Something went wrong</h2>
+    <p class="sub" style="margin:0 0 14px" id="co-error-msg">Could not load this checkout.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
+      <a class="btn btn-ghost" href="/">Back to Home</a>
+      <a class="btn btn-primary" id="co-error-wa" href="#" target="_blank" rel="noopener">Chat on WhatsApp</a>
+    </div>
+  </div>
+</main>
+
+<footer class="co-footer">
+  <div class="container">© <span id="co-year"></span> Nexatech Dropshipping Store · Secure crypto checkout · <a href="/">Home</a> · <a href="/privacy.html">Privacy</a> · <a href="/terms.html">Terms</a></div>
+</footer>
+
+<script src="/js/checkout.js" type="module"></script>
+</body>
+</html>

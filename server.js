@@ -128,7 +128,7 @@ app.use('/api/', generalLimiter);
 // browsers and CDNs can never serve stale code after you publish backend edits.
 const ASSET_VER = (()=>{ try{
   const h = crypto.createHash('md5');
-  for(const f of ['public/js/app.js','public/js/admin.js','public/css/style.css','public/css/admin.css','public/index.html','public/admin.html']){
+  for(const f of ['public/js/app.js','public/js/admin.js','public/js/checkout.js','public/css/style.css','public/css/admin.css','public/index.html','public/admin.html','public/checkout.html']){
     try{ const st = fs.statSync(path.join(__dirname, f)); h.update(f + ':' + st.mtimeMs + ':' + st.size); }catch{}
   }
   return h.digest('hex').slice(0,8);
@@ -137,6 +137,7 @@ function versionedHtml(file){
   let html = fs.readFileSync(path.join(__dirname, 'public', file), 'utf8');
   html = html.split('/js/app.js').join('/js/app.js?v='+ASSET_VER)
              .split('/js/admin.js').join('/js/admin.js?v='+ASSET_VER)
+             .split('/js/checkout.js').join('/js/checkout.js?v='+ASSET_VER)
              .split('/css/style.css').join('/css/style.css?v='+ASSET_VER)
              .split('/css/admin.css').join('/css/admin.css?v='+ASSET_VER);
   return html;
@@ -144,6 +145,10 @@ function versionedHtml(file){
 app.use((req, res, next)=>{ if(req.query && req.query.v) res.set('Cache-Control','public, max-age=31536000, immutable'); next(); });
 app.get(['/', '/index.html'], (req, res)=> res.type('html').send(versionedHtml('index.html')));
 app.get('/admin', (req, res)=> res.type('html').send(versionedHtml('admin.html')));
+app.get(['/checkout', '/checkout.html'], (req, res)=>{
+  try { return res.type('html').send(versionedHtml('checkout.html')); }
+  catch(e){ return res.status(500).type('html').send('<h1>Checkout unavailable</h1><p><a href="/">Back to Home</a></p>'); }
+});
 app.get(['/privacy.html', '/privacy', '/terms.html', '/terms'], (req, res)=>{
   const file = req.path.startsWith('/terms') ? 'terms.html' : 'privacy.html';
   try { return res.type('html').send(versionedHtml(file)); }
@@ -284,9 +289,14 @@ function uploadErrorHandler(err, req, res, next){
   if(err.code === 'LIMIT_FILE_SIZE'){
     if(req.path && req.path.startsWith('/api/media/chunk'))
       return res.status(413).json({ error: 'Chunk too large — client must send ~4MB pieces.' });
+    if(req.path && req.path.startsWith('/api/admin/themes'))
+      return res.status(413).json({ error: 'Theme zip too large — limit is ' + Math.round(MAX_ZIP_BYTES/1024/1024) + 'MB.' });
     return res.status(413).json({ error: 'File too large — limit is ' + Math.round(MAX_UPLOAD_BYTES/1024/1024) + 'MB. For big videos the uploader sends 4MB pieces automatically — reload the admin page and retry.' });
   }
   if(err.message && /only image\/video/i.test(err.message)){
+    return res.status(400).json({ error: err.message });
+  }
+  if(err.message && /only \.zip files allowed|preview must be an image/i.test(err.message)){
     return res.status(400).json({ error: err.message });
   }
   if(err.type === 'entity.too.large'){
@@ -304,7 +314,7 @@ app.get('/api/content', async (req, res) => {
   const rows = await db.prepare('SELECT key,value,type FROM content').all();
   const obj = {};
   // Never expose credentials/tokens publicly (admin reads them via authed endpoints)
-  const SENSITIVE = new Set(['gemini_api_key', 'gemini_api_key_2', 'gemini_api_key_3', 'ai_api_key', 'GEMINI_API_KEY', 'GOOGLE_API_KEY']);
+  const SENSITIVE = new Set(['gemini_api_key', 'gemini_api_key_2', 'gemini_api_key_3', 'ai_api_key', 'GEMINI_API_KEY', 'GOOGLE_API_KEY', 'cryptomus_merchant_uuid', 'cryptomus_api_key', 'CRYPTOMUS_MERCHANT', 'CRYPTOMUS_API_KEY']);
   rows.forEach(r => {
     if (SENSITIVE.has(r.key)) return; // hide secrets from public
     if (r.key.startsWith('google_') || r.key.startsWith('gmail_')) return; // OAuth tokens + connected Gmail
@@ -547,6 +557,394 @@ app.post('/api/admin/upload', requireAuth, upload.single('file'), async (req, re
   if (!req.file) return res.status(400).json({ error: 'file required' });
   const url = await persistUpload(req.file);
   res.json({ ok: true, url, filename: req.file.filename, original: req.file.originalname });
+});
+
+// ================= THEMES MARKETPLACE + CHECKOUT (Cryptomus) =================
+// Themes: name/price/preview-pic managed in Admin -> Themes. The .zip lives in
+// PRIVATE storage (disk theme-files/ locally, media_blobs on Postgres/Render)
+// and is NEVER a public URL — buyers download via a paid-order token link.
+// Checkout covers both plans (Starter/Pro/Elite, priced via content keys) and
+// themes. Payment = Cryptomus invoice (crypto) + webhook -> order paid.
+const THEME_ZIP_DIR = path.join(process.env.DATA_DIR && process.env.DATA_DIR.trim() ? process.env.DATA_DIR.trim() : __dirname, 'theme-files');
+try { if (!fs.existsSync(THEME_ZIP_DIR)) fs.mkdirSync(THEME_ZIP_DIR, { recursive: true }); } catch(e){ console.error('theme dir', e.message); }
+const MAX_ZIP_BYTES = 200 * 1024 * 1024;
+const zipUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, THEME_ZIP_DIR),
+    filename: (req, file, cb) => cb(null, 'theme-' + Date.now() + '-' + Math.round(Math.random()*1e9) + '.zip')
+  }),
+  limits: { fileSize: MAX_ZIP_BYTES },
+  fileFilter: (req, file, cb) => {
+    if (/\.zip$/i.test(file.originalname || '')) cb(null, true);
+    else cb(new Error('Only .zip files allowed for theme packages'));
+  }
+});
+// theme form carries an image preview + the zip together
+const themeForm = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, file.fieldname === 'zipfile' ? THEME_ZIP_DIR : UPLOAD_DIR),
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname || (file.fieldname === 'zipfile' ? '.zip' : '.bin'));
+      const prefix = file.fieldname === 'zipfile' ? 'theme-' : '';
+      cb(null, prefix + Date.now() + '-' + Math.round(Math.random()*1e9) + ext);
+    }
+  }),
+  limits: { fileSize: MAX_ZIP_BYTES },
+  fileFilter: (req, file, cb) => {
+    if (file.fieldname === 'zipfile') {
+      if (/\.zip$/i.test(file.originalname || '')) cb(null, true);
+      else cb(new Error('Only .zip files allowed for theme packages'));
+    } else if (/^(image)\//.test(file.mimetype || '') || /\.(png|jpe?g|webp|gif|bmp|avif|ico|svg)$/i.test(file.originalname || '')) cb(null, true);
+    else cb(new Error('Preview must be an image (png, jpg, webp, gif, svg)'));
+  }
+});
+// Persist a theme zip privately: Postgres -> media_blobs (survives redeploys),
+// otherwise keep the disk file. Returns {filename, size}.
+async function persistThemeZip(file){
+  const size = fs.statSync(file.path).size;
+  if(!usePg) return { filename: file.filename, size };
+  try{
+    const buf = fs.readFileSync(file.path);
+    await db.prepare("INSERT INTO media_blobs (filename,mime,data) VALUES (?,?,?) ON CONFLICT(filename) DO UPDATE SET mime=excluded.mime, data=excluded.data").run(file.filename, 'application/zip', buf);
+    try{ fs.unlinkSync(file.path); }catch{}
+  }catch(e){ console.error('theme zip persist failed, keeping disk file:', e.message); }
+  return { filename: file.filename, size };
+}
+async function readThemeZip(filename){
+  const fname = path.basename(String(filename || ''));
+  if(!fname) return null;
+  if(usePg){
+    try{
+      const row = await db.prepare('SELECT mime, data FROM media_blobs WHERE filename=?').get(fname);
+      if(!row || !row.data) return null;
+      return { buffer: Buffer.isBuffer(row.data) ? row.data : Buffer.from(row.data), size: (row.data && row.data.length) || 0 };
+    }catch{ return null; }
+  }
+  try{
+    const fp = path.join(THEME_ZIP_DIR, fname);
+    if(!fs.existsSync(fp)) return null;
+    return { buffer: fs.readFileSync(fp), size: fs.statSync(fp).size };
+  }catch{ return null; }
+}
+async function deleteThemeZip(filename){
+  const fname = path.basename(String(filename || ''));
+  if(!fname) return;
+  try{ await db.prepare('DELETE FROM media_blobs WHERE filename=?').run(fname); }catch{}
+  try{ const fp = path.join(THEME_ZIP_DIR, fname); if(fs.existsSync(fp)) fs.unlinkSync(fp); }catch{}
+}
+function slugifyTheme(name){
+  return String(name || 'theme').toLowerCase().trim()
+    .replace(/[^a-z0-9\s-]/g, '').replace(/[\s_]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 80) || ('theme-' + Date.now());
+}
+// "$149" / "1,299.99" / "49" -> cents int. Plans store display prices as text.
+function parsePriceToCents(str){
+  const n = parseFloat(String(str == null ? '' : str).replace(/[^0-9.]/g, ''));
+  if(!Number.isFinite(n) || n <= 0) return 0;
+  return Math.round(n * 100);
+}
+function formatCents(cents, currency){
+  const v = (Number(cents) || 0) / 100;
+  const sym = String(currency || 'USD').toUpperCase() === 'USD' ? '$' : String(currency || 'USD').toUpperCase() + ' ';
+  return sym + (Number.isInteger(v) ? v.toLocaleString('en-US') : v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+}
+function publicTheme(row){
+  if(!row) return null;
+  return {
+    id: row.id, name: row.name, slug: row.slug,
+    description: row.description || '',
+    price_cents: row.price_cents, currency: row.currency || 'USD',
+    price_text: formatCents(row.price_cents, row.currency),
+    preview_url: row.preview_url || '',
+    has_zip: !!(row.zip_filename),
+    published: row.published, display_order: row.display_order
+  };
+}
+async function getPayConfig(){
+  const get = async (k) => (await db.prepare('SELECT value FROM content WHERE key=?').get(k))?.value || '';
+  const merchant = (process.env.CRYPTOMUS_MERCHANT_UUID || process.env.CRYPTOMUS_USER_ID || await get('cryptomus_merchant_uuid') || '').trim();
+  const apiKey = (process.env.CRYPTOMUS_API_KEY || await get('cryptomus_api_key') || '').trim();
+  const testRow = await get('cryptomus_testmode');
+  const testmode = String(testRow === '' ? 'true' : testRow).toLowerCase() === 'true';
+  return { merchant, apiKey, testmode, configured: !!(merchant && apiKey) };
+}
+// Cryptomus auth: sign = md5(base64(json_body) + api_key); headers merchant + sign.
+function cryptomusSign(bodyObj, apiKey){
+  const b64 = Buffer.from(JSON.stringify(bodyObj), 'utf8').toString('base64');
+  return crypto.createHash('md5').update(b64 + apiKey).digest('hex');
+}
+async function createCryptomusInvoice({ amount, currency, orderRef, itemName, returnUrl, successUrl, callbackUrl, testmode, merchant, apiKey }){
+  const body = {
+    amount: String(amount),
+    currency: String(currency || 'USD').toUpperCase(),
+    order_id: String(orderRef),
+    url_return: returnUrl,
+    url_success: successUrl,
+    url_callback: callbackUrl,
+    is_test: testmode ? 1 : 0,
+    lifetime: 7200,
+    to_currency: String(currency || 'USD').toUpperCase()
+  };
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), 25000);
+  try{
+    const resp = await fetch('https://api.cryptomus.com/v1/invoice/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'merchant': merchant, 'sign': cryptomusSign(body, apiKey) },
+      body: JSON.stringify(body),
+      signal: controller.signal
+    });
+    const j = await resp.json().catch(() => ({}));
+    if(!resp.ok || j.state !== 0 || !j.result) throw new Error(j.message || j.error || ('Cryptomus error (HTTP ' + resp.status + ')'));
+    return j.result; // {uuid, order_id, amount, payment_url, status, ...}
+  } finally { clearTimeout(t); }
+}
+// Resolve anything buyable: a plan (priced via content keys) or a theme.
+async function getCheckoutItem(kind, ref){
+  const k = String(kind || '').toLowerCase();
+  if(k === 'plan'){
+    const r = String(ref || '').toLowerCase();
+    if(!['starter', 'pro', 'elite'].includes(r)) return { error: 'Unknown plan. Choose Starter, Pro or Elite.' };
+    const get = async (key, fb) => {
+      const row = await db.prepare('SELECT value,type FROM content WHERE key=?').get(key);
+      if(!row) return fb;
+      let v = row.value;
+      if(row.type === 'json'){ try{ const p = JSON.parse(v); v = Array.isArray(p) ? p : fb; }catch{ v = fb; } }
+      return v;
+    };
+    const name = await get('pricing_' + r + '_name', r);
+    const priceText = String(await get('pricing_' + r + '_price', ''));
+    const features = await get('pricing_' + r + '_features', []);
+    const cents = parsePriceToCents(priceText);
+    if(!cents) return { error: 'This plan has no price set yet.' };
+    return { kind: 'plan', ref: r, name: String(name) + ' Plan', price_text: priceText, amount_cents: cents, currency: 'USD',
+      description: Array.isArray(features) ? features.join(' • ') : '' };
+  }
+  if(k === 'theme'){
+    const row = await db.prepare('SELECT * FROM themes WHERE slug=? AND published=1').get(String(ref || ''));
+    if(!row) return { error: 'Theme not found or unpublished.' };
+    if(!row.price_cents || row.price_cents <= 0) return { error: 'This theme has no price set yet.' };
+    const t = publicTheme(row);
+    return { kind: 'theme', ref: t.slug, name: t.name, price_text: t.price_text, amount_cents: t.price_cents,
+      currency: t.currency, description: t.description, preview_url: t.preview_url, has_zip: t.has_zip };
+  }
+  return { error: 'Unknown item kind.' };
+}
+
+// --- Public: list published themes ---
+app.get('/api/themes', async (req, res) => {
+  try{
+    const rows = await db.prepare('SELECT * FROM themes WHERE published=1 ORDER BY display_order ASC, id ASC').all();
+    res.json(rows.map(publicTheme));
+  }catch(e){ res.status(500).json({ error: 'themes unavailable' }); }
+});
+// --- Public: checkout item preview (price/name for the checkout page) ---
+app.get('/api/checkout/item', async (req, res) => {
+  const item = await getCheckoutItem(req.query.kind, req.query.ref || req.query.item);
+  if(item.error) return res.status(404).json({ error: item.error });
+  res.json(item);
+});
+// --- Public: order status (for success page polling + download link) ---
+app.get('/api/checkout/order/:ref', async (req, res) => {
+  const o = await db.prepare('SELECT order_ref,kind,item_ref,item_name,amount_cents,currency,status,payment_url,download_token,created_at,paid_at FROM orders WHERE order_ref=?').get(String(req.params.ref || ''));
+  if(!o) return res.status(404).json({ error: 'order not found' });
+  const out = { order_ref: o.order_ref, kind: o.kind, item_ref: o.item_ref, item_name: o.item_name,
+    amount_text: formatCents(o.amount_cents, o.currency), currency: o.currency, status: o.status,
+    payment_url: o.status === 'pending' ? (o.payment_url || '') : '', created_at: o.created_at, paid_at: o.paid_at };
+  if(o.status === 'paid' && o.kind === 'theme' && o.download_token){
+    out.download_url = '/api/themes/' + encodeURIComponent(o.item_ref) + '/download?token=' + encodeURIComponent(o.download_token);
+  }
+  res.json(out);
+});
+// --- Public: create order + Cryptomus invoice ---
+app.post('/api/checkout/create', async (req, res) => {
+  try{
+    const { kind, ref, name, email, whatsapp } = req.body || {};
+    if(!name || String(name).trim().length < 2) return res.status(400).json({ error: 'Please enter your name.' });
+    if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim())) return res.status(400).json({ error: 'Please enter a valid email.' });
+    if(!whatsapp || String(whatsapp).replace(/\D/g, '').length < 7) return res.status(400).json({ error: 'Please enter a valid WhatsApp number.' });
+    const item = await getCheckoutItem(kind, ref);
+    if(item.error) return res.status(400).json({ error: item.error });
+    const orderRef = 'NXT-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 6).toUpperCase();
+    await db.prepare('INSERT INTO orders (order_ref,kind,item_ref,item_name,amount_cents,currency,customer_name,customer_email,customer_whatsapp,status) VALUES (?,?,?,?,?,?,?,?,?,?)')
+      .run(orderRef, item.kind, String(item.ref), item.name, item.amount_cents, item.currency,
+        String(name).trim().slice(0, 120), String(email).trim().slice(0, 160), String(whatsapp).trim().slice(0, 40), 'pending');
+    try{ await db.prepare("INSERT INTO events (event_type,element_id,session_id,page_url,metadata) VALUES (?,?,?,?,?)")
+      .run('checkout_created', item.kind + ':' + item.ref, '', '', JSON.stringify({ order_ref: orderRef, amount_cents: item.amount_cents })); }catch{}
+    const pay = await getPayConfig();
+    if(!pay.configured){
+      return res.json({ ok: true, order_ref: orderRef, payment_url: null,
+        message: 'Payment gateway not connected yet — our team will contact you on WhatsApp to complete this order.' });
+    }
+    const base = (process.env.PUBLIC_URL || '').trim().replace(/\/$/, '') || (req.protocol + '://' + req.get('host'));
+    const inv = await createCryptomusInvoice({
+      amount: (item.amount_cents / 100).toFixed(2), currency: item.currency, orderRef,
+      itemName: item.name,
+      returnUrl: base + '/checkout?ref=' + encodeURIComponent(orderRef),
+      successUrl: base + '/checkout?ref=' + encodeURIComponent(orderRef) + '&status=success',
+      callbackUrl: base + '/api/checkout/webhook/cryptomus',
+      testmode: pay.testmode, merchant: pay.merchant, apiKey: pay.apiKey
+    });
+    await db.prepare('UPDATE orders SET cryptomus_uuid=?, cryptomus_order_id=?, payment_url=? WHERE order_ref=?')
+      .run(inv.uuid || '', inv.order_id || '', inv.payment_url || '', orderRef);
+    res.json({ ok: true, order_ref: orderRef, payment_url: inv.payment_url || null });
+  }catch(e){
+    console.error('checkout create failed:', e.message);
+    res.status(502).json({ error: 'Could not start payment: ' + e.message });
+  }
+});
+// --- Cryptomus webhook: blockchain confirms -> unlock product ---
+app.post('/api/checkout/webhook/cryptomus', async (req, res) => {
+  try{
+    const data = req.body || {};
+    const pay = await getPayConfig();
+    if(pay.configured && data.sign){
+      const { sign, ...rest } = data;
+      const expected = cryptomusSign(rest, pay.apiKey);
+      if(String(sign).toLowerCase() !== String(expected).toLowerCase()){
+        console.error('cryptomus webhook bad sign for', data.order_id);
+        return res.status(403).json({ error: 'bad signature' });
+      }
+    }
+    const orderRef = String(data.order_id || '');
+    const status = String(data.payment_status || data.status || '').toLowerCase();
+    if(!orderRef) return res.status(400).json({ error: 'order_id required' });
+    const order = await db.prepare('SELECT * FROM orders WHERE order_ref=?').get(orderRef);
+    if(!order) return res.status(404).json({ error: 'order not found' });
+    if(['paid', 'paid_over'].includes(status)){
+      const token = order.kind === 'theme' ? crypto.randomBytes(24).toString('hex') : (order.download_token || '');
+      await db.prepare("UPDATE orders SET status='paid', paid_at=datetime('now'), cryptomus_uuid=COALESCE(NULLIF(cryptomus_uuid,''),?), download_token=? WHERE order_ref=?")
+        .run(String(data.uuid || order.cryptomus_uuid || ''), token, orderRef);
+      try{ await db.prepare("INSERT INTO events (event_type,element_id,session_id,page_url,metadata) VALUES (?,?,?,?,?)")
+        .run('checkout_paid', order.kind + ':' + order.item_ref, '', '', JSON.stringify({ order_ref: orderRef })); }catch{}
+    } else if(['fail', 'cancel', 'wrong_amount', 'wrong_amount_waiting'].includes(status)){
+      await db.prepare("UPDATE orders SET status='failed' WHERE order_ref=? AND status='pending'").run(orderRef);
+    } else if(status === 'expired'){
+      await db.prepare("UPDATE orders SET status='expired' WHERE order_ref=? AND status='pending'").run(orderRef);
+    }
+    res.json({ ok: true });
+  }catch(e){
+    console.error('cryptomus webhook failed:', e.message);
+    res.status(500).json({ error: 'webhook error' });
+  }
+});
+// --- Secure theme download (paid order token only — zip is never public) ---
+app.get('/api/themes/:slug/download', async (req, res) => {
+  const slug = String(req.params.slug || '');
+  const token = String(req.query.token || '');
+  if(!token) return res.status(401).json({ error: 'download token required' });
+  const theme = await db.prepare('SELECT * FROM themes WHERE slug=? AND published=1').get(slug);
+  if(!theme || !theme.zip_filename) return res.status(404).json({ error: 'file not available' });
+  const order = await db.prepare("SELECT id FROM orders WHERE kind='theme' AND item_ref=? AND download_token=? AND status='paid'").get(slug, token);
+  if(!order) return res.status(403).json({ error: 'payment not verified for this download' });
+  const file = await readThemeZip(theme.zip_filename);
+  if(!file) return res.status(404).json({ error: 'file missing on server — contact support' });
+  res.setHeader('Content-Type', 'application/zip');
+  res.setHeader('Content-Disposition', 'attachment; filename="' + slug + '.zip"');
+  res.setHeader('Content-Length', String(file.buffer.length));
+  res.send(file.buffer);
+});
+
+// --- Admin: list all themes (incl. unpublished + zip status) ---
+app.get('/api/admin/themes', requireAuth, async (req, res) => {
+  const rows = await db.prepare('SELECT * FROM themes ORDER BY display_order ASC, id ASC').all();
+  res.json(rows.map(r => ({ ...publicTheme(r), zip_filename: r.zip_filename || '', zip_size: r.zip_size || 0 })));
+});
+// --- Admin: create theme (multipart: preview image + zipfile + fields) ---
+app.post('/api/admin/themes', requireAuth, themeForm.fields([{ name: 'preview', maxCount: 1 }, { name: 'zipfile', maxCount: 1 }]), async (req, res) => {
+  try{
+    const { name, slug, description, price, currency, preview_url, published, display_order } = req.body || {};
+    if(!name || !String(name).trim()) return res.status(400).json({ error: 'name required' });
+    const dollars = parseFloat(String(price == null ? '' : price).replace(/[^0-9.]/g, ''));
+    if(!Number.isFinite(dollars) || dollars <= 0) return res.status(400).json({ error: 'price (USD) must be greater than 0' });
+    let finalSlug = slugifyTheme(slug || name);
+    const clash = await db.prepare('SELECT id FROM themes WHERE slug=?').get(finalSlug);
+    if(clash) finalSlug = finalSlug + '-' + Date.now().toString(36);
+    let previewUrl = String(preview_url || '').trim();
+    if(req.files && req.files.preview && req.files.preview[0]) previewUrl = await persistUpload(req.files.preview[0]);
+    let zipFilename = '', zipSize = 0;
+    if(req.files && req.files.zipfile && req.files.zipfile[0]){
+      const saved = await persistThemeZip(req.files.zipfile[0]);
+      zipFilename = saved.filename; zipSize = saved.size;
+    }
+    const maxRow = await db.prepare('SELECT COALESCE(MAX(display_order),-1)+1 as n FROM themes').get();
+    const info = await db.prepare('INSERT INTO themes (name,slug,description,price_cents,currency,preview_url,zip_filename,zip_size,published,display_order) VALUES (?,?,?,?,?,?,?,?,?,?)')
+      .run(String(name).trim().slice(0, 160), finalSlug, String(description || '').slice(0, 2000),
+        Math.round(dollars * 100), String(currency || 'USD').toUpperCase().slice(0, 8) || 'USD',
+        previewUrl.slice(0, 500), zipFilename, zipSize, parseBool(published ?? 1), parseInt(display_order, 10) || (maxRow ? maxRow.n : 0));
+    res.json(await db.prepare('SELECT * FROM themes WHERE id=?').get(info.lastInsertRowid));
+  }catch(e){ res.status(500).json({ error: 'could not save theme: ' + e.message }); }
+});
+// --- Admin: update theme ---
+app.patch('/api/admin/themes/:id', requireAuth, themeForm.fields([{ name: 'preview', maxCount: 1 }, { name: 'zipfile', maxCount: 1 }]), async (req, res) => {
+  try{
+    const ex = await db.prepare('SELECT * FROM themes WHERE id=?').get(req.params.id);
+    if(!ex) return res.status(404).json({ error: 'theme not found' });
+    let previewUrl = req.body.preview_url !== undefined ? String(req.body.preview_url || '').trim() : ex.preview_url;
+    if(req.files && req.files.preview && req.files.preview[0]) previewUrl = await persistUpload(req.files.preview[0]);
+    let zipFilename = ex.zip_filename, zipSize = ex.zip_size;
+    if(req.files && req.files.zipfile && req.files.zipfile[0]){
+      const saved = await persistThemeZip(req.files.zipfile[0]);
+      if(ex.zip_filename && ex.zip_filename !== saved.filename) await deleteThemeZip(ex.zip_filename);
+      zipFilename = saved.filename; zipSize = saved.size;
+    }
+    let slug = ex.slug;
+    if(req.body.slug !== undefined && String(req.body.slug).trim()){
+      const s = slugifyTheme(req.body.slug);
+      const clash = await db.prepare('SELECT id FROM themes WHERE slug=? AND id<>?').get(s, ex.id);
+      slug = clash ? s + '-' + Date.now().toString(36) : s;
+    }
+    let cents = ex.price_cents;
+    if(req.body.price !== undefined && String(req.body.price).trim() !== ''){
+      const d = parseFloat(String(req.body.price).replace(/[^0-9.]/g, ''));
+      if(!Number.isFinite(d) || d <= 0) return res.status(400).json({ error: 'price (USD) must be greater than 0' });
+      cents = Math.round(d * 100);
+    }
+    const fields = {
+      name: req.body.name !== undefined && String(req.body.name).trim() ? String(req.body.name).trim().slice(0, 160) : ex.name,
+      slug,
+      description: req.body.description !== undefined ? String(req.body.description).slice(0, 2000) : ex.description,
+      price_cents: cents,
+      currency: req.body.currency !== undefined ? (String(req.body.currency).toUpperCase().slice(0, 8) || 'USD') : ex.currency,
+      preview_url: (previewUrl || '').slice(0, 500),
+      published: req.body.published !== undefined ? parseBool(req.body.published) : ex.published,
+      display_order: req.body.display_order !== undefined ? (parseInt(req.body.display_order, 10) || 0) : ex.display_order
+    };
+    await db.prepare('UPDATE themes SET name=?,slug=?,description=?,price_cents=?,currency=?,preview_url=?,zip_filename=?,zip_size=?,published=?,display_order=? WHERE id=?')
+      .run(fields.name, fields.slug, fields.description, fields.price_cents, fields.currency, fields.preview_url, zipFilename, zipSize, fields.published, fields.display_order, ex.id);
+    res.json(await db.prepare('SELECT * FROM themes WHERE id=?').get(ex.id));
+  }catch(e){ res.status(500).json({ error: 'could not update theme: ' + e.message }); }
+});
+// --- Admin: delete theme (+ its private zip) ---
+app.delete('/api/admin/themes/:id', requireAuth, async (req, res) => {
+  const ex = await db.prepare('SELECT zip_filename FROM themes WHERE id=?').get(req.params.id);
+  if(ex && ex.zip_filename) await deleteThemeZip(ex.zip_filename);
+  await db.prepare('DELETE FROM themes WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+// --- Admin: orders ---
+app.get('/api/admin/orders', requireAuth, async (req, res) => {
+  const { status, limit } = req.query;
+  let sql = 'SELECT id,order_ref,kind,item_ref,item_name,amount_cents,currency,customer_name,customer_email,customer_whatsapp,status,cryptomus_uuid,payment_url,created_at,paid_at FROM orders';
+  const params = [];
+  if(status){ sql += ' WHERE status=?'; params.push(String(status)); }
+  sql += ' ORDER BY id DESC LIMIT ?';
+  params.push(Math.min(parseInt(limit, 10) || 50, 200));
+  res.json(await db.prepare(sql).all(...params));
+});
+// --- Admin: payment gateway status (secret key never sent to browser) ---
+app.get('/api/admin/payments', requireAuth, async (req, res) => {
+  const pay = await getPayConfig();
+  res.json({ merchant: pay.merchant, key_set: !!pay.apiKey, testmode: pay.testmode, configured: pay.configured });
+});
+app.patch('/api/admin/orders/:id', requireAuth, async (req, res) => {
+  const ex = await db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
+  if(!ex) return res.status(404).json({ error: 'order not found' });
+  const st = String(req.body.status || '').toLowerCase();
+  if(!['pending', 'paid', 'failed', 'expired'].includes(st)) return res.status(400).json({ error: 'status must be pending|paid|failed|expired' });
+  const token = (st === 'paid' && ex.kind === 'theme' && !ex.download_token) ? crypto.randomBytes(24).toString('hex') : ex.download_token;
+  if(st === 'paid') await db.prepare("UPDATE orders SET status='paid', paid_at=COALESCE(paid_at,datetime('now')), download_token=? WHERE id=?").run(token, ex.id);
+  else await db.prepare('UPDATE orders SET status=? WHERE id=?').run(st, ex.id);
+  res.json(await db.prepare('SELECT * FROM orders WHERE id=?').get(ex.id));
 });
 
 // --- Chunked upload: large videos go up in small (~4MB) pieces so proxies / slow

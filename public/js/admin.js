@@ -127,6 +127,8 @@ $$('.side-nav button').forEach(b=> b.addEventListener('click', ()=>{
   if(tab==='campaigns'){ loadCampaigns(); loadTemplates(); loadGmailStatus(); loadOutbox(); }
   if(tab==='chats') loadChats();
   if(tab==='overview') loadOverview();
+  if(tab==='themes'){ loadThemesAdmin(); loadOrdersAdmin(); }
+  if(tab==='settings') fillPaymentsForm();
 }));
 $$('[data-tab-jump]').forEach(b=> b.addEventListener('click', ()=>{
   const t=b.dataset.tabJump;
@@ -2505,3 +2507,219 @@ async function loadAll(){
 }
 
 // Save integrations already handled
+
+// ================= THEMES / SHOP + PAYMENTS (Cryptomus) =================
+let THEMES_ADMIN = [], EDITING_THEME_ID = null;
+
+async function fillPaymentsForm(){
+  try{
+    const r = await fetch('/api/admin/payments', { headers: authHeaders() });
+    const j = await r.json();
+    if($('#int-cryptomus-merchant') && !$('#int-cryptomus-merchant').value) $('#int-cryptomus-merchant').value = j.merchant || '';
+    if($('#int-cryptomus-test')) $('#int-cryptomus-test').checked = j.testmode !== false;
+    if($('#int-cryptomus-key')) $('#int-cryptomus-key').placeholder = j.key_set ? 'Saved ✓ (leave empty to keep)' : '4f44274a8c606efbf0b5eb7318501663630d56c0';
+  }catch{}
+}
+$('#btn-show-cryptomus-key')?.addEventListener('click', ()=>{
+  const el = $('#int-cryptomus-key');
+  if(el) el.type = el.type === 'password' ? 'text' : 'password';
+});
+$('#btn-save-payments')?.addEventListener('click', async ()=>{
+  const btn = $('#btn-save-payments'), msg = $('#pay-msg');
+  if(btn){ btn.disabled = true; btn.textContent = 'Saving...'; }
+  if(msg){ msg.textContent = 'Saving...'; msg.style.color = '#64748B'; }
+  try{
+    const payload = {
+      cryptomus_merchant_uuid: $('#int-cryptomus-merchant')?.value?.trim() || '',
+      cryptomus_testmode: String($('#int-cryptomus-test')?.checked !== false)
+    };
+    const keyVal = $('#int-cryptomus-key')?.value?.trim() || '';
+    if(keyVal) payload.cryptomus_api_key = keyVal; // empty = keep existing
+    const r = await fetch('/api/content', { method: 'PUT', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(payload) });
+    const j = await r.json().catch(() => ({}));
+    if(!r.ok) throw new Error(j.error || 'Save failed');
+    if(msg){ msg.textContent = 'Saved ✓ — checkout will now create live crypto invoices.'; msg.style.color = '#10B981'; }
+    if($('#int-cryptomus-key')) $('#int-cryptomus-key').value = '';
+    await loadContent(); fillPaymentsForm();
+  }catch(e){ if(msg){ msg.textContent = 'Error: ' + e.message; msg.style.color = '#F87171'; } }
+  finally{ if(btn){ btn.disabled = false; btn.textContent = 'Save Payment Keys'; } }
+});
+
+function themeMoney(cents, cur){
+  const v = (Number(cents) || 0) / 100;
+  const sym = String(cur || 'USD').toUpperCase() === 'USD' ? '$' : String(cur || 'USD') + ' ';
+  return sym + (Number.isInteger(v) ? v.toLocaleString('en-US') : v.toFixed(2));
+}
+async function loadThemesAdmin(){
+  const list = $('#themes-list');
+  try{
+    const r = await fetch('/api/admin/themes', { headers: authHeaders() });
+    THEMES_ADMIN = await r.json();
+    if(!list) return;
+    list.innerHTML = '';
+    if(!THEMES_ADMIN.length){ list.innerHTML = '<p style="color:#64748B;font-size:13px">No themes yet — add your first one above.</p>'; return; }
+    THEMES_ADMIN.forEach(t => {
+      const d = document.createElement('div');
+      d.style.cssText = 'border:1px solid #E2E8F0;border-radius:12px;overflow:hidden;background:#fff';
+      d.innerHTML =
+        (t.preview_url ? `<img src="${escAttr(t.preview_url)}" style="width:100%;aspect-ratio:16/10;object-fit:cover" loading="lazy">` : `<div style="aspect-ratio:16/10;display:grid;place-items:center;background:#F1F5F9;color:#94A3B8;font-size:12px">No preview</div>`) +
+        `<div style="padding:10px"><b>${escAttr(t.name)}</b><br>` +
+        `<small style="color:#64748B">/${escAttr(t.slug)} · ${escAttr(themeMoney(t.price_cents, t.currency))} · ${t.published ? '<span style="color:#10B981">LIVE</span>' : '<span style="color:#F59E0B">DRAFT</span>'}</small><br>` +
+        `<small style="color:#64748B">${t.zip_filename ? '📦 ZIP ' + escAttr(fmtSize(t.zip_size)) : '⚠️ no ZIP uploaded'}</small>` +
+        `<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">` +
+        `<button class="btn btn-ghost" data-act="edit" style="padding:5px 10px;font-size:11px">Edit</button>` +
+        `<button class="btn btn-ghost" data-act="toggle" style="padding:5px 10px;font-size:11px">${t.published ? 'Unpublish' : 'Publish'}</button>` +
+        `<button class="btn btn-ghost" data-act="del" style="padding:5px 10px;font-size:11px;color:#F87171">Delete</button>` +
+        `</div></div>`;
+      d.querySelector('[data-act="edit"]').addEventListener('click', () => editThemeAdmin(t.id));
+      d.querySelector('[data-act="toggle"]').addEventListener('click', async () => {
+        await fetch('/api/admin/themes/' + t.id, { method: 'PATCH', headers: authHeaders(), body: (() => { const f = new FormData(); f.append('published', t.published ? '0' : '1'); return f; })() });
+        loadThemesAdmin();
+      });
+      d.querySelector('[data-act="del"]').addEventListener('click', async () => {
+        if(!confirm('Delete "' + t.name + '" and its ZIP file?')) return;
+        await fetch('/api/admin/themes/' + t.id, { method: 'DELETE', headers: authHeaders() });
+        loadThemesAdmin();
+      });
+      list.appendChild(d);
+    });
+  }catch(e){ if(list) list.innerHTML = '<p style="color:#F87171">Failed to load themes: ' + escAttr(e.message) + '</p>'; }
+}
+function editThemeAdmin(id){
+  const t = THEMES_ADMIN.find(x => x.id === id);
+  if(!t) return;
+  EDITING_THEME_ID = id;
+  $('#theme-id').value = id;
+  $('#theme-name').value = t.name || '';
+  $('#theme-slug').value = t.slug || '';
+  $('#theme-price').value = ((Number(t.price_cents) || 0) / 100).toFixed(2).replace(/\.00$/, '');
+  $('#theme-currency').value = t.currency || 'USD';
+  $('#theme-desc').value = t.description || '';
+  $('#theme-preview-url').value = t.preview_url || '';
+  $('#theme-published').checked = !!t.published;
+  updateThemePreview();
+  $('#theme-form-title').innerHTML = 'Edit Theme <small style="font-weight:500;color:#64748B">/' + escAttr(t.slug) + '</small>';
+  $('#theme-submit-btn').textContent = 'Update Theme';
+  $('#theme-cancel-btn')?.classList.remove('hidden');
+  document.querySelector('[data-panel="themes"]')?.scrollIntoView({ behavior: 'smooth' });
+}
+function resetThemeForm(){
+  EDITING_THEME_ID = null;
+  $('#theme-form')?.reset();
+  $('#theme-id').value = '';
+  $('#theme-currency').value = 'USD';
+  $('#theme-published').checked = true;
+  $('#theme-preview-wrap').style.display = 'none';
+  $('#theme-zip-status').textContent = '';
+  $('#theme-form-title').innerHTML = 'Add Theme <small style="font-weight:500;color:#64748B"> preview picture + .zip package + price</small>';
+  $('#theme-submit-btn').textContent = 'Save Theme';
+  $('#theme-cancel-btn')?.classList.add('hidden');
+}
+$('#theme-cancel-btn')?.addEventListener('click', resetThemeForm);
+function updateThemePreview(){
+  const url = $('#theme-preview-url')?.value?.trim() || '';
+  const file = $('#theme-preview-file')?.files?.[0];
+  const wrap = $('#theme-preview-wrap'), img = $('#theme-preview-img');
+  const cur = EDITING_THEME_ID ? (THEMES_ADMIN.find(x => x.id === EDITING_THEME_ID) || {}) : {};
+  if(file){
+    img.src = URL.createObjectURL(file);
+    wrap.style.display = 'block';
+  } else if(url){
+    img.src = url;
+    wrap.style.display = 'block';
+  } else { wrap.style.display = 'none'; }
+  const zipName = $('#theme-zip-file')?.files?.[0]?.name;
+  $('#theme-zip-status').textContent = zipName
+    ? 'New ZIP selected: ' + zipName
+    : (cur.zip_filename ? 'Current ZIP: ' + cur.zip_filename + (cur.zip_size ? ' (' + fmtSize(cur.zip_size) + ')' : '') : 'No ZIP yet — buyers cannot download until you upload one.');
+}
+$('#theme-preview-file')?.addEventListener('change', updateThemePreview);
+$('#theme-preview-url')?.addEventListener('input', updateThemePreview);
+$('#theme-zip-file')?.addEventListener('change', updateThemePreview);
+$('#theme-form')?.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const msg = $('#theme-msg'), bar = $('#theme-upload-bar'), pwrap = $('#theme-upload-progress'), ptxt = $('#theme-upload-text');
+  const btn = $('#theme-submit-btn');
+  msg.textContent = ''; msg.style.color = '#64748B';
+  const name = $('#theme-name').value.trim();
+  const price = $('#theme-price').value.trim();
+  if(!name){ msg.textContent = 'Theme name is required.'; msg.style.color = '#F87171'; return; }
+  if(!price || !(parseFloat(price) > 0)){ msg.textContent = 'Price (USD) must be greater than 0.'; msg.style.color = '#F87171'; return; }
+  const fd = new FormData();
+  fd.append('name', name);
+  fd.append('slug', $('#theme-slug').value.trim());
+  fd.append('price', price);
+  fd.append('currency', $('#theme-currency').value.trim() || 'USD');
+  fd.append('description', $('#theme-desc').value);
+  fd.append('preview_url', $('#theme-preview-url').value.trim());
+  fd.append('published', $('#theme-published').checked ? '1' : '0');
+  const pf = $('#theme-preview-file').files[0];
+  if(pf) fd.append('preview', pf);
+  const zf = $('#theme-zip-file').files[0];
+  if(zf){
+    if(!/\.zip$/i.test(zf.name)){ msg.textContent = 'Theme package must be a .zip file.'; msg.style.color = '#F87171'; return; }
+    if(zf.size > 200 * 1024 * 1024){ msg.textContent = 'ZIP too large — limit is 200MB.'; msg.style.color = '#F87171'; return; }
+    fd.append('zipfile', zf);
+  }
+  const url = EDITING_THEME_ID ? '/api/admin/themes/' + EDITING_THEME_ID : '/api/admin/themes';
+  const method = EDITING_THEME_ID ? 'PATCH' : 'POST';
+  btn.disabled = true; btn.textContent = 'Saving...';
+  pwrap.style.display = 'block'; bar.style.width = '5%'; ptxt.textContent = 'Uploading…';
+  const xhr = new XMLHttpRequest();
+  xhr.open(method, url);
+  const tok = localStorage.getItem('nexatech_admin_token');
+  if(tok) xhr.setRequestHeader('Authorization', 'Bearer ' + tok);
+  xhr.upload.onprogress = (ev) => {
+    if(ev.lengthComputable){
+      const pct = Math.round(ev.loaded / ev.total * 100);
+      bar.style.width = pct + '%'; ptxt.textContent = 'Uploading… ' + pct + '%';
+    }
+  };
+  xhr.onload = () => {
+    btn.disabled = false; btn.textContent = EDITING_THEME_ID ? 'Update Theme' : 'Save Theme';
+    pwrap.style.display = 'none';
+    try{
+      const j = JSON.parse(xhr.responseText);
+      if(xhr.status >= 200 && xhr.status < 300){
+        msg.textContent = 'Saved ✓'; msg.style.color = '#10B981';
+        resetThemeForm(); loadThemesAdmin();
+      } else { msg.textContent = 'Error: ' + (j.error || ('HTTP ' + xhr.status)); msg.style.color = '#F87171'; }
+    }catch{ msg.textContent = 'Error: bad server response.'; msg.style.color = '#F87171'; }
+  };
+  xhr.onerror = () => { btn.disabled = false; pwrap.style.display = 'none'; msg.textContent = 'Upload failed — check connection and retry.'; msg.style.color = '#F87171'; };
+  xhr.send(fd);
+});
+async function loadOrdersAdmin(){
+  const list = $('#orders-list');
+  const status = $('#order-status-filter')?.value || '';
+  try{
+    const r = await fetch('/api/admin/orders' + (status ? '?status=' + encodeURIComponent(status) : ''), { headers: authHeaders() });
+    const rows = await r.json();
+    if(!list) return;
+    list.innerHTML = '';
+    if(!rows.length){ list.innerHTML = '<p style="color:#64748B;font-size:13px">No orders yet.</p>'; return; }
+    const pill = (s) => {
+      const c = s === 'paid' ? '#10B981' : s === 'pending' ? '#F59E0B' : '#F87171';
+      return `<span style="font-size:11px;font-weight:800;color:${c};border:1px solid ${c};border-radius:999px;padding:2px 8px">${escAttr(s.toUpperCase())}</span>`;
+    };
+    rows.forEach(o => {
+      const amt = themeMoney(o.amount_cents, o.currency);
+      const d = document.createElement('div');
+      d.style.cssText = 'border:1px solid #E2E8F0;border-radius:10px;padding:10px;display:flex;gap:10px;justify-content:space-between;align-items:center;flex-wrap:wrap;background:#fff';
+      d.innerHTML = `<div><b>${escAttr(o.order_ref)}</b> ${pill(o.status)}<br>` +
+        `<small style="color:#64748B">${escAttr(o.kind)}: ${escAttr(o.item_name)} · ${escAttr(amt)} ${escAttr(o.currency || '')}</small><br>` +
+        `<small style="color:#64748B">${escAttr(o.customer_name)} · ${escAttr(o.customer_email)} · ${escAttr(o.customer_whatsapp)}</small><br>` +
+        `<small style="color:#94A3B8">${escAttr(o.created_at || '')}${o.paid_at ? ' · paid ' + escAttr(o.paid_at) : ''}</small></div>` +
+        (o.status === 'pending' ? `<button class="btn btn-ghost" style="padding:5px 10px;font-size:11px">Mark Paid</button>` : '');
+      const b = d.querySelector('button');
+      if(b) b.addEventListener('click', async () => {
+        if(!confirm('Mark order ' + o.order_ref + ' as PAID? (Use when webhook missed but payment confirmed.)')) return;
+        await fetch('/api/admin/orders/' + o.id, { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ status: 'paid' }) });
+        loadOrdersAdmin();
+      });
+      list.appendChild(d);
+    });
+  }catch(e){ if(list) list.innerHTML = '<p style="color:#F87171">Failed to load orders: ' + escAttr(e.message) + '</p>'; }
+}
+$('#btn-refresh-orders')?.addEventListener('click', loadOrdersAdmin);
+$('#order-status-filter')?.addEventListener('change', loadOrdersAdmin);
