@@ -398,6 +398,24 @@ function applyMicroCopy(){
   setText('chip-3-t', T('chip_3_title','3.2% Conversion Rate'));
   setText('chip-3-s', T('chip_3_sub','TechNest - today'));
   setText('portfolio-eyebrow', T('portfolio_eyebrow','Portfolio'));
+  setText('dropshipping-eyebrow', T('dropshipping_eyebrow','Founder Explains'));
+  setText('dropshipping-title', T('dropshipping_title','Dropshipping Explanation by Akinyemi Ifeoluwa'));
+  setText('dropshipping-subtitle', T('dropshipping_subtitle','What dropshipping really is — in simple English, no big grammar.'));
+  setText('ds-step1', T('dropshipping_step1','Someone buys something from your shop.'));
+  setText('ds-step2', T('dropshipping_step2','You send that order to another company (the supplier).'));
+  setText('ds-step3', T('dropshipping_step3','The supplier packs it and sends it straight to your customer.'));
+  setText('ds-step4', T('dropshipping_step4','You never see or touch the item yourself.'));
+  setText('dropshipping-job', T('dropshipping_job',"Your job is just to bring customers and sell. The supplier's job is to send the product."));
+  setText('dropshipping-profit-title', T('dropshipping_profit_title','How you make profit'));
+  setText('dropshipping-profit-text', T('dropshipping_profit_text',"You find a product that costs, say, $100 from the supplier. You sell it in your shop for $250. The supplier gets their $100, you keep the $150 difference. That's your profit. You don't pay for the product until someone actually buys it — so there's no risk of buying things that won't sell."));
+  setText('dropshipping-name', T('dropshipping_name','Akinyemi Ifeoluwa'));
+  setText('dropshipping-role', T('dropshipping_role','Founder, Nexatech'));
+  setText('dropshipping-cta', T('dropshipping_cta','Start Your Own Store')+' →');
+  try{
+    const di = document.getElementById('dropshipping-img');
+    const du = T('dropshipping_image_url','').trim();
+    if(di && du) di.src = du;
+  }catch{}
   setText('proof-eyebrow', T('proof_eyebrow','Proof'));
   setText('experts-eyebrow', T('experts_eyebrow','Team'));
   setText('how-eyebrow', T('how_eyebrow','Process'));

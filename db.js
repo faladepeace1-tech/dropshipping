@@ -796,6 +796,20 @@ export async function initDb() {
       ['filter_home', 'Home', 'text'],
       ['filter_eco', 'Eco Friendly', 'text'],
       ['portfolio_empty', 'No stores in this category yet check back soon or view All.', 'text'],
+      ['dropshipping_eyebrow', 'Founder Explains', 'text'],
+      ['dropshipping_title', 'Dropshipping Explanation by Akinyemi Ifeoluwa', 'text'],
+      ['dropshipping_subtitle', 'What dropshipping really is — in simple English, no big grammar.', 'text'],
+      ['dropshipping_step1', 'Someone buys something from your shop.', 'text'],
+      ['dropshipping_step2', 'You send that order to another company (the supplier).', 'text'],
+      ['dropshipping_step3', 'The supplier packs it and sends it straight to your customer.', 'text'],
+      ['dropshipping_step4', 'You never see or touch the item yourself.', 'text'],
+      ['dropshipping_job', "Your job is just to bring customers and sell. The supplier's job is to send the product.", 'text'],
+      ['dropshipping_profit_title', 'How you make profit', 'text'],
+      ['dropshipping_profit_text', "You find a product that costs, say, $100 from the supplier. You sell it in your shop for $250. The supplier gets their $100, you keep the $150 difference. That's your profit. You don't pay for the product until someone actually buys it — so there's no risk of buying things that won't sell.", 'text'],
+      ['dropshipping_image_url', 'https://dropshippingstore.dpdns.org/uploads/1788949090415-102669406.webp', 'text'],
+      ['dropshipping_name', 'Akinyemi Ifeoluwa', 'text'],
+      ['dropshipping_role', 'Founder, Nexatech', 'text'],
+      ['dropshipping_cta', 'Start Your Own Store', 'text'],
       ['modal_view_case', 'View Case Study', 'text'],
       ['modal_cta', 'Start a Store Like This', 'text'],
       ['modal_fallback_desc', 'A fully-configured dropshipping store built for conversions premium theme, winning products, and automated fulfillment.', 'text'],
@@ -957,19 +971,20 @@ export async function initDb() {
       ['hero', 1, 1, 1],
       ['social_proof', 1, 2, 1],
       ['portfolio', 1, 3, 1],
-      ['sales_proof', 1, 4, 1],
-      ['experts', 1, 5, 1],
-      ['how_it_works', 1, 6, 1],
-      ['pricing', 1, 7, 1],
-      ['themes', 1, 8, 1],
-      ['mentorship', 1, 9, 1],
-      ['testimonials', 1, 10, 1],
-      ['reviews', 1, 11, 1],
-      ['certificates', 1, 12, 1],
-      ['faq', 1, 13, 1],
-      ['lead_form', 1, 14, 1],
-      ['cta_band', 1, 15, 1],
-      ['footer', 1, 16, 0]
+      ['dropshipping', 1, 4, 1],
+      ['sales_proof', 1, 5, 1],
+      ['experts', 1, 6, 1],
+      ['how_it_works', 1, 7, 1],
+      ['pricing', 1, 8, 1],
+      ['themes', 1, 9, 1],
+      ['mentorship', 1, 10, 1],
+      ['testimonials', 1, 11, 1],
+      ['reviews', 1, 12, 1],
+      ['certificates', 1, 13, 1],
+      ['faq', 1, 14, 1],
+      ['lead_form', 1, 15, 1],
+      ['cta_band', 1, 16, 1],
+      ['footer', 1, 17, 0]
   ];
   if (secCount === 0 || forceReset) {
     if (forceReset && secCount !== 0) { try { await db.exec('DELETE FROM sections'); } catch {} }
@@ -1195,6 +1210,13 @@ export async function initDb() {
       await db.prepare('INSERT INTO sections (key,visible,display_order,animation_enabled) VALUES (?,?,?,?)').run('certificates',1,11,1);
       // shift faq, lead_form, cta_band, footer by +1
       await db.prepare("UPDATE sections SET display_order = display_order + 1 WHERE key IN ('faq','lead_form','cta_band','footer')").run();
+    }
+    // Founder dropshipping explainer (right after portfolio)
+    const hasDs = await db.prepare('SELECT key FROM sections WHERE key=?').get('dropshipping');
+    if(!hasDs){
+      await db.prepare("UPDATE sections SET display_order = display_order + 1 WHERE key IN ('sales_proof','experts','how_it_works','pricing','themes','mentorship','testimonials','reviews','certificates','faq','lead_form','cta_band','footer')").run();
+      await db.prepare('INSERT INTO sections (key,visible,display_order,animation_enabled) VALUES (?,?,?,?)').run('dropshipping',1,4,1);
+      console.log('Migrated: added dropshipping section at order 4');
     }
     // Themes marketplace section (between pricing and mentorship)
     const hasThemes = await db.prepare('SELECT key FROM sections WHERE key=?').get('themes');

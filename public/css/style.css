@@ -199,6 +199,22 @@ main, .footer{position:relative;z-index:1}
 .card-media{position:relative;aspect-ratio:4/3;overflow:hidden;background:var(--bg-alt)}
 .card-media img,.card-media video{width:100%;height:100%;object-fit:cover}
 .card:hover .card-media img,.card:hover .card-media video{transform:scale(1.03)}
+/* ---------- Founder explainer (text left, photo right) ---------- */
+.duo{display:grid;grid-template-columns:1.05fr .95fr;gap:20px;align-items:center;margin-top:4px}
+@media(max-width:900px){.duo{grid-template-columns:1fr}}
+.ds-steps{display:grid;gap:10px;margin-bottom:12px}
+.ds-step{display:flex;gap:12px;align-items:flex-start;background:#fff;border:1px solid var(--border);border-radius:16px;padding:12px 14px;box-shadow:var(--shadow)}
+.ds-step p{margin:0;font-size:14px;line-height:1.55}
+.ds-step .step-num{margin-bottom:0;flex:0 0 auto}
+.ds-job{font-weight:700;font-size:15px;margin:0 0 14px}
+.ds-profit{background:linear-gradient(135deg,#f5f3ff,#eff6ff);border:1px solid var(--border);border-radius:18px;padding:16px 18px;box-shadow:var(--shadow)}
+.ds-profit b{font-family:var(--display);font-size:16px}
+.ds-profit p{margin:8px 0 0;color:var(--text);font-size:14px;line-height:1.65}
+.duo-media{position:relative}
+.duo-media img{width:100%;border-radius:22px;border:1px solid var(--border);box-shadow:var(--shadow-lg);aspect-ratio:4/5;object-fit:cover;background:var(--bg-alt)}
+.duo-card{position:absolute;left:14px;right:14px;bottom:14px;background:rgba(255,255,255,.96);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);padding:12px 14px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.duo-card b{font-family:var(--display);font-size:15px}
+.duo-card small{color:var(--accent-2);font-weight:800;letter-spacing:.06em;text-transform:uppercase;font-size:11px}
 /* ---------- Themes marketplace ---------- */
 .theme-card .card-media{aspect-ratio:16/10}
 .theme-body{padding:14px 16px 16px}
