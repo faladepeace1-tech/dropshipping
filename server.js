@@ -1887,10 +1887,10 @@ function normalizeHeader(h){
   return String(h||'').trim().toLowerCase().replace(/[_]+/g,' ').replace(/\s+/g,' ').trim();
 }
 async function getGoogleConfig(){
-  const get = async (k) => (await db.prepare('SELECT value FROM content WHERE key=?').get(k))?.value?.trim() || '';
+  const get = async (k, env) => (await db.prepare('SELECT value FROM content WHERE key=?').get(k))?.value?.trim() || (env ? (process.env[env] || '').trim() : '');
   return {
-    clientId: await get('google_client_id'),
-    clientSecret: await get('google_client_secret'),
+    clientId: await get('google_client_id', 'GOOGLE_CLIENT_ID'),
+    clientSecret: await get('google_client_secret', 'GOOGLE_CLIENT_SECRET'),
     docId: await get('google_sheets_doc_id'),
     sheetName: await get('google_sheets_sheet_name') || 'Sheet1',
     refreshToken: await get('google_refresh_token'),
@@ -2298,6 +2298,12 @@ function buildLeadRowForHeaders(lead, headers){
     return '';
   });
 }
+// Quote sheet names for A1 notation: names with spaces/special chars must be
+// wrapped in single quotes or the Sheets API rejects the range.
+function sheetRange(name, range){
+  const clean = String(name || 'Sheet1').replace(/'/g, '');
+  return `'${clean}'!${range}`;
+}
 async function appendToGoogleSheet(lead){
   const cfg = await getGoogleConfig();
   if(!cfg.clientId || !cfg.clientSecret || !cfg.docId || !cfg.refreshToken) return { ok:false, error:'Google Sheets not fully configured (need Client ID/Secret, Doc ID, and OAuth connect)' };
@@ -2306,7 +2312,7 @@ async function appendToGoogleSheet(lead){
     // Try to detect current headers to map columns correctly; fallback to EXPECTED if sheet empty
     let headers = EXPECTED_SHEET_HEADERS;
     try{
-      const hdrRes = await sheets.spreadsheets.values.get({ spreadsheetId: curCfg.docId, range: `${curCfg.sheetName}!1:1` });
+      const hdrRes = await sheets.spreadsheets.values.get({ spreadsheetId: curCfg.docId, range: sheetRange(curCfg.sheetName, '1:1') });
       const vals = hdrRes.data.values;
       if(vals && vals[0] && vals[0].length) headers = vals[0];
       else {
@@ -2314,7 +2320,7 @@ async function appendToGoogleSheet(lead){
         try{
           await sheets.spreadsheets.values.update({
             spreadsheetId: curCfg.docId,
-            range: `${curCfg.sheetName}!A1`,
+            range: sheetRange(curCfg.sheetName, 'A1'),
             valueInputOption: 'USER_ENTERED',
             requestBody: { values: [EXPECTED_SHEET_HEADERS] }
           });
@@ -2325,7 +2331,7 @@ async function appendToGoogleSheet(lead){
     const row = buildLeadRowForHeaders(lead, headers);
     await sheets.spreadsheets.values.append({
       spreadsheetId: curCfg.docId,
-      range: `${curCfg.sheetName}!A:Z`,
+      range: sheetRange(curCfg.sheetName, 'A:Z'),
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [row] }
     });
