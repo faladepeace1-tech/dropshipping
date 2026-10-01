@@ -1891,7 +1891,7 @@ async function getGoogleConfig(){
   return {
     clientId: await get('google_client_id', 'GOOGLE_CLIENT_ID'),
     clientSecret: await get('google_client_secret', 'GOOGLE_CLIENT_SECRET'),
-    docId: await get('google_sheets_doc_id'),
+    docId: await get('google_sheets_doc_id', 'GOOGLE_SHEETS_DOC_ID'),
     sheetName: await get('google_sheets_sheet_name') || 'Sheet1',
     refreshToken: await get('google_refresh_token'),
     accessToken: await get('google_access_token'),

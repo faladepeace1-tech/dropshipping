@@ -744,6 +744,8 @@ export async function initDb() {
       ['gemini_api_key', '', 'text'],
       ['gemini_api_key_2', '', 'text'],
       ['gemini_api_key_3', '', 'text'],
+      ['google_sheets_doc_id', '1PMhEO20uV0uKbOABzKKXCfMiwkPAKPQLBoE1dyRLQiI', 'text'],
+      ['google_sheets_sheet_name', 'Sheet1', 'text'],
       ['ai_provider', 'gemini', 'text'],
       ['ai_api_key', '', 'text'],
       ['ai_base_url', '', 'text'],
@@ -1119,6 +1121,16 @@ export async function initDb() {
     await ensure('gmail_connected_email','','text');
     await ensure('gmail_sender_name','','text');
     await ensure('gmail_last_sync','','text');
+    await ensure('google_sheets_doc_id','1PMhEO20uV0uKbOABzKKXCfMiwkPAKPQLBoE1dyRLQiI','text');
+    await ensure('google_sheets_sheet_name','Sheet1','text');
+    // Adopt the default sheet when none was ever set (never overwrites a set value)
+    try{
+      const cur = (await db.prepare("SELECT value FROM content WHERE key='google_sheets_doc_id'").get())?.value;
+      if(!String(cur || '').trim()){
+        await db.prepare("UPDATE content SET value=? WHERE key='google_sheets_doc_id'").run('1PMhEO20uV0uKbOABzKKXCfMiwkPAKPQLBoE1dyRLQiI');
+        console.log('Migrated: default Google Sheet adopted');
+      }
+    }catch{}
     await ensure('logo_position','logo_first','text');
     await ensure('brand_position','logo_first','text');
     await ensure('privacy_title','Privacy Policy','text');
