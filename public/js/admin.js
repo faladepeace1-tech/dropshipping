@@ -128,7 +128,7 @@ $$('.side-nav button').forEach(b=> b.addEventListener('click', ()=>{
   if(tab==='chats') loadChats();
   if(tab==='overview') loadOverview();
   if(tab==='themes'){ loadThemesAdmin(); loadOrdersAdmin(); }
-  if(tab==='settings') fillPaymentsForm();
+  if(tab==='settings'){ fillPaymentsForm(); fillNotifyForm(); }
 }));
 $$('[data-tab-jump]').forEach(b=> b.addEventListener('click', ()=>{
   const t=b.dataset.tabJump;
@@ -2524,6 +2524,51 @@ async function fillPaymentsForm(){
 $('#btn-show-paystack-key')?.addEventListener('click', ()=>{
   const el = $('#int-paystack-secret');
   if(el) el.type = el.type === 'password' ? 'text' : 'password';
+});
+async function fillNotifyForm(){
+  try{
+    const r = await fetch('/api/content', { headers: authHeaders() });
+    const j = await r.json();
+    const c = j.content || {};
+    if($('#int-owner-email') && !$('#int-owner-email').value) $('#int-owner-email').value = c.owner_notify_email || c.footer_email || '';
+    if($('#int-owner-whatsapp') && !$('#int-owner-whatsapp').value) $('#int-owner-whatsapp').value = c.owner_whatsapp || c.whatsapp_number || '';
+  }catch{}
+}
+$('#btn-show-callmebot-key')?.addEventListener('click', ()=>{
+  const el = $('#int-callmebot-key');
+  if(el) el.type = el.type === 'password' ? 'text' : 'password';
+});
+$('#btn-save-notify')?.addEventListener('click', async ()=>{
+  const btn = $('#btn-save-notify'), msg = $('#notify-msg');
+  if(btn){ btn.disabled = true; btn.textContent = 'Saving...'; }
+  if(msg){ msg.textContent = 'Saving...'; msg.style.color = '#64748B'; }
+  try{
+    const payload = {
+      owner_notify_email: $('#int-owner-email')?.value?.trim() || '',
+      owner_whatsapp: $('#int-owner-whatsapp')?.value?.trim() || ''
+    };
+    const cbKey = $('#int-callmebot-key')?.value?.trim() || '';
+    if(cbKey) payload.callmebot_api_key = cbKey; // empty = keep existing
+    const r = await fetch('/api/content', { method: 'PUT', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(payload) });
+    const j = await r.json().catch(() => ({}));
+    if(!r.ok) throw new Error(j.error || 'Save failed');
+    if(msg){ msg.textContent = 'Saved ✓ — alerts will now go to ' + (payload.owner_notify_email || 'your email') + '.'; msg.style.color = '#10B981'; }
+    if($('#int-callmebot-key')) $('#int-callmebot-key').value = '';
+    await loadContent(); fillNotifyForm();
+  }catch(e){ if(msg){ msg.textContent = 'Error: ' + e.message; msg.style.color = '#F87171'; } }
+  finally{ if(btn){ btn.disabled = false; btn.textContent = 'Save Notifications'; } }
+});
+$('#btn-test-notify')?.addEventListener('click', async ()=>{
+  const btn = $('#btn-test-notify'), msg = $('#notify-msg');
+  if(btn){ btn.disabled = true; btn.textContent = 'Sending...'; }
+  if(msg){ msg.textContent = 'Sending test alert...'; msg.style.color = '#64748B'; }
+  try{
+    const r = await fetch('/api/admin/notify-test', { method: 'POST', headers: authHeaders() });
+    const j = await r.json().catch(() => ({}));
+    if(!r.ok) throw new Error(j.error || 'Test failed');
+    if(msg){ msg.textContent = 'Test alert sent ✓ — check your email' + (j.whatsapp ? ' and WhatsApp.' : ' (WhatsApp needs the CallMeBot key).'); msg.style.color = '#10B981'; }
+  }catch(e){ if(msg){ msg.textContent = 'Error: ' + e.message; msg.style.color = '#F87171'; } }
+  finally{ if(btn){ btn.disabled = false; btn.textContent = 'Send Test Alert →'; } }
 });
 $('#btn-save-payments')?.addEventListener('click', async ()=>{
   const btn = $('#btn-save-payments'), msg = $('#pay-msg');

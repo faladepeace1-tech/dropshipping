@@ -318,7 +318,7 @@ app.get('/api/content', async (req, res) => {
   const rows = await db.prepare('SELECT key,value,type FROM content').all();
   const obj = {};
   // Never expose credentials/tokens publicly (admin reads them via authed endpoints)
-  const SENSITIVE = new Set(['gemini_api_key', 'gemini_api_key_2', 'gemini_api_key_3', 'ai_api_key', 'GEMINI_API_KEY', 'GOOGLE_API_KEY', 'cryptomus_merchant_uuid', 'cryptomus_api_key', 'CRYPTOMUS_MERCHANT', 'CRYPTOMUS_API_KEY', 'paystack_secret_key', 'paystack_public_key', 'PAYSTACK_SECRET_KEY', 'PAYSTACK_PUBLIC_KEY']);
+  const SENSITIVE = new Set(['gemini_api_key', 'gemini_api_key_2', 'gemini_api_key_3', 'ai_api_key', 'GEMINI_API_KEY', 'GOOGLE_API_KEY', 'cryptomus_merchant_uuid', 'cryptomus_api_key', 'CRYPTOMUS_MERCHANT', 'CRYPTOMUS_API_KEY', 'paystack_secret_key', 'paystack_public_key', 'PAYSTACK_SECRET_KEY', 'PAYSTACK_PUBLIC_KEY', 'callmebot_api_key', 'CALLMEBOT_API_KEY']);
   rows.forEach(r => {
     if (SENSITIVE.has(r.key)) return; // hide secrets from public
     if (r.key.startsWith('google_') || r.key.startsWith('gmail_')) return; // OAuth tokens + connected Gmail
@@ -756,6 +756,12 @@ async function markOrderPaid(orderRef, paystackRef){
     .run(String(paystackRef || order.cryptomus_order_id || ''), token, String(orderRef));
   try{ await db.prepare("INSERT INTO events (event_type,element_id,session_id,page_url,metadata) VALUES (?,?,?,?,?)")
     .run('checkout_paid', order.kind + ':' + order.item_ref, '', '', JSON.stringify({ order_ref: String(orderRef) })); }catch{}
+  // owner alert: money in (fire-and-forget)
+  notifyOwner({
+    subject: `💰 Payment received: ${order.item_name} — ${formatCents(order.amount_cents, order.currency)}`,
+    html: `<div style="font-family:Inter,sans-serif;line-height:1.6"><h3>💰 Payment received</h3><p><b>Item:</b> ${escapeHtml(order.item_name)} (${escapeHtml(order.kind)})<br><b>Amount:</b> ${escapeHtml(formatCents(order.amount_cents, order.currency))} ${escapeHtml(order.currency || '')}<br><b>Order:</b> ${escapeHtml(order.order_ref)}<br><b>Buyer:</b> ${escapeHtml(order.customer_name)}<br><b>Email:</b> ${escapeHtml(order.customer_email)}<br><b>WhatsApp:</b> ${escapeHtml(order.customer_whatsapp)}</p><p>View in Admin → Themes / Shop → Recent Orders.</p></div>`,
+    text: `Payment received: ${order.item_name} ${formatCents(order.amount_cents, order.currency)} — order ${order.order_ref}, buyer ${order.customer_name} (${order.customer_whatsapp}).`
+  });
   return await db.prepare('SELECT * FROM orders WHERE order_ref=?').get(String(orderRef));
 }
 // Resolve anything buyable: a plan (priced via content keys) or a theme.
@@ -1151,6 +1157,18 @@ app.get('/api/admin/checkout-diag', requireAuth, async (req, res) => {
   const failed = steps.find(s => !s.ok);
   res.json({ ok: !failed, failed_step: failed ? failed.name : null, steps });
 });
+// --- Admin: send a test owner alert (verifies email + WhatsApp wiring) ---
+app.post('/api/admin/notify-test', requireAuth, async (req, res) => {
+  try{
+    const cfg = await getOwnerNotifyConfig();
+    notifyOwner({
+      subject: '✅ Nexatech alerts working',
+      html: '<div style="font-family:Inter,sans-serif"><h3>✅ Alerts working</h3><p>This is a test — leads, payments and new chats will notify you here.</p></div>',
+      text: 'Test alert: leads, payments and new chats will notify you here.'
+    });
+    res.json({ ok: true, whatsapp: !!(cfg.whatsapp && cfg.callmebotKey) });
+  }catch(e){ res.status(500).json({ error: e.message }); }
+});
 // --- Admin: payment gateway status (secret key never sent to browser) ---
 app.get('/api/admin/payments', requireAuth, async (req, res) => {
   const pay = await getPayConfig();
@@ -1468,6 +1486,12 @@ app.post('/api/leads', leadLimiter, async (req, res) => {
 
   // also log event
   try { await db.prepare('INSERT INTO events (event_type,element_id,session_id,page_url,metadata) VALUES (?,?,?,?,?)').run('lead_submitted', 'lead_form', sessionId||'', pageUrl||'', JSON.stringify({ leadId, niche: preferredNiche })); } catch {}
+  // owner alert: new lead (fire-and-forget)
+  notifyOwner({
+    subject: `🔔 New lead: ${name} — ${preferredNiche} (${investmentRange})`,
+    html: `<div style="font-family:Inter,sans-serif;line-height:1.6"><h3>🔔 New store application</h3><p><b>Name:</b> ${escapeHtml(name)}<br><b>Store:</b> ${escapeHtml(storeName)}<br><b>Niche:</b> ${escapeHtml(preferredNiche)}<br><b>Plan:</b> ${escapeHtml(investmentRange)}<br><b>WhatsApp:</b> ${escapeHtml(whatsapp)}<br><b>Email:</b> ${escapeHtml(email)}<br><b>Status:</b> ${escapeHtml(storeStatus)} · <b>Scammed before:</b> ${escapeHtml(wasScammed)}</p><p>View in Admin → Leads / CRM.</p></div>`,
+    text: `New lead: ${name} (${storeName}) — ${preferredNiche} / ${investmentRange}. WhatsApp: ${whatsapp}, Email: ${email}.`
+  });
 
   // Instant AI follow-up email (HTML + WhatsApp + opt-out, logged to CRM) — fire-and-forget so response stays instant
   try{
@@ -2017,6 +2041,54 @@ async function sendGmailRaw({ to, subject, html, text, fromName, fromEmail, repl
   return { messageId: res.data.id, threadId: res.data.threadId, from };
 }
 
+// ==================== Owner notifications (email + WhatsApp) ====================
+// Fires on: new lead, paid order, first chat message. Never throws, never
+// blocks responses — all sends are fire-and-forget.
+// Email: uses the already-connected Gmail (Admin → Integrations → Google).
+// WhatsApp: free CallMeBot gateway. One-time setup: from the OWNER's phone,
+// send "I allow callmebot to send me messages" to +34 644 10 55 84, then
+// paste the apikey CallMeBot replies with into Admin → Integrations.
+async function getOwnerNotifyConfig(){
+  const get = async (k) => (await db.prepare('SELECT value FROM content WHERE key=?').get(k))?.value?.trim() || '';
+  const footerEmail = await get('footer_email');
+  return {
+    email: (await get('owner_notify_email')) || footerEmail || 'saheednexatech@gmail.com',
+    whatsapp: ((await get('owner_whatsapp')) || (await get('whatsapp_number')) || '19283825389').replace(/\D/g, ''),
+    callmebotKey: (await get('callmebot_api_key')) || ''
+  };
+}
+async function notifyOwnerEmail(subject, html, text){
+  try{
+    const cfg = await getOwnerNotifyConfig();
+    if(!cfg.email) return;
+    await sendGmailRaw({ to: cfg.email, subject, html, text, fromName: 'Nexatech Alerts' });
+    console.log('owner email sent:', subject.slice(0, 60));
+  }catch(e){ console.error('owner email failed:', e.message); }
+}
+async function notifyOwnerWhatsApp(text){
+  try{
+    const cfg = await getOwnerNotifyConfig();
+    if(!cfg.whatsapp || !cfg.callmebotKey) return;
+    const url = 'https://api.callmebot.com/whatsapp.php?phone=' + encodeURIComponent(cfg.whatsapp)
+      + '&text=' + encodeURIComponent(String(text || '').slice(0, 1000))
+      + '&apikey=' + encodeURIComponent(cfg.callmebotKey);
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 15000);
+    try{
+      const r = await fetch(url, { signal: ctl.signal });
+      const body = await r.text().catch(() => '');
+      console.log('owner whatsapp sent:', r.status, body.slice(0, 80));
+    } finally { clearTimeout(t); }
+  }catch(e){ console.error('owner whatsapp failed:', e.message); }
+}
+function notifyOwner({ subject, html, text }){
+  // Fire-and-forget: never delay the buyer-facing response.
+  setImmediate(() => {
+    notifyOwnerEmail(subject, html, text).catch(() => {});
+    notifyOwnerWhatsApp((subject ? subject + '\n' : '') + (text || '')).catch(() => {});
+  });
+}
+
 // ==================== Auto AI Follow-ups — instant (form + chat) + daily, via same Gmail Client ID/Secret ====================
 // Requirements covered:
 // - After name+email from form OR chatbot, send AI-generated follow-up based on their request / chat transcript
@@ -2367,6 +2439,17 @@ app.post('/api/chat', async (req, res) => {
   }catch(e){ console.error('chat session upsert failed', e.message); }
   // Log user message immediately (so count works even if AI fails)
   await logChatMessage(sid, 'user', message, pageUrl);
+  // owner alert: first message of a new chat session (fire-and-forget)
+  try{
+    const prior = await db.prepare("SELECT COUNT(*) as c FROM chat_messages WHERE session_id=? AND role='user'").get(sid);
+    if(parseInt(prior?.c ?? 0, 10) <= 1){
+      notifyOwner({
+        subject: `💬 New chat: ${name} — “${String(message).slice(0, 50)}”`,
+        html: `<div style="font-family:Inter,sans-serif;line-height:1.6"><h3>💬 New chatbot conversation</h3><p><b>Name:</b> ${escapeHtml(name)}<br><b>Email:</b> ${escapeHtml(email)}<br><b>First message:</b> ${escapeHtml(String(message).slice(0, 500))}</p><p>View in Admin → Chatbot.</p></div>`,
+        text: `New chat from ${name} (${email}): ${String(message).slice(0, 200)}`
+      });
+    }
+  }catch(e){ console.error('chat owner-notify check failed', e.message); }
   // AI provider check (Gemini rotation across saved keys)
   const ready = await aiReady().catch(()=> ({ ready:false }));
   if(!ready.ready){

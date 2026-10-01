@@ -730,6 +730,9 @@ export async function initDb() {
       ['paystack_public_key', '', 'text'],
       ['paystack_testmode', 'true', 'boolean'],
       ['paystack_usd_ngn_rate', '1500', 'text'],
+      ['owner_notify_email', 'saheednexatech@gmail.com', 'text'],
+      ['owner_whatsapp', '19283825389', 'text'],
+      ['callmebot_api_key', '', 'text'],
       ['checkout_title', 'Secure Checkout', 'text'],
       ['checkout_subtitle', 'Complete your payment to get instant access.', 'text'],
       ['checkout_pay_label', 'Pay Now', 'text'],
@@ -905,7 +908,8 @@ export async function initDb() {
     'webhook_url','webhook_enabled','webhook_form_url','webhook_form_enabled','webhook_chatbot_url','webhook_chatbot_enabled',
     'logo_text','logo_url','favicon_url','logo_position','brand_position','og_image',
     'cryptomus_merchant_uuid','cryptomus_api_key','cryptomus_testmode',
-    'paystack_secret_key','paystack_public_key','paystack_testmode','paystack_usd_ngn_rate'
+    'paystack_secret_key','paystack_public_key','paystack_testmode','paystack_usd_ngn_rate',
+    'owner_notify_email','owner_whatsapp','callmebot_api_key'
   ]);
   if (count === 0 || forceReset) {
     if (forceReset && count !== 0) {
@@ -1203,6 +1207,9 @@ export async function initDb() {
     await ensure('paystack_public_key','','text');
     await ensure('paystack_testmode','true','boolean');
     await ensure('paystack_usd_ngn_rate','1500','text');
+    await ensure('owner_notify_email','saheednexatech@gmail.com','text');
+    await ensure('owner_whatsapp','19283825389','text');
+    await ensure('callmebot_api_key','','text');
     await ensure('cryptomus_merchant_uuid','852e8f5e-c366-4138-980e-17466ab6b693','text');
     // Adopt the default merchant ID when the field is still empty (or still
     // holds the account User ID instead of a merchant UUID). Any other
