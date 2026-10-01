@@ -2566,7 +2566,13 @@ $('#btn-test-notify')?.addEventListener('click', async ()=>{
     const r = await fetch('/api/admin/notify-test', { method: 'POST', headers: authHeaders() });
     const j = await r.json().catch(() => ({}));
     if(!r.ok) throw new Error(j.error || 'Test failed');
-    if(msg){ msg.textContent = 'Test alert sent ✓ — check your email' + (j.whatsapp ? ' and WhatsApp.' : ' (WhatsApp needs the CallMeBot key).'); msg.style.color = '#10B981'; }
+    if(msg){
+      const problems = [];
+      if(!j.gmail_connected) problems.push('EMAIL will NOT send — Google is not connected. Add nexatechdropshipping@gmail.com as a test user in Google Cloud → OAuth consent screen → Audience, then click Connect Google Sheets in Integrations.');
+      if(!j.callmebot_set) problems.push('WHATSAPP will NOT send — paste your CallMeBot apikey and Save first.');
+      if(problems.length){ msg.textContent = 'Test fired, but: ' + problems.join(' '); msg.style.color = '#F59E0B'; }
+      else { msg.textContent = 'Test alert sent ✓ — check ' + (j.owner_email || 'your email') + ' and WhatsApp (' + (j.owner_whatsapp || '') + ').'; msg.style.color = '#10B981'; }
+    }
   }catch(e){ if(msg){ msg.textContent = 'Error: ' + e.message; msg.style.color = '#F87171'; } }
   finally{ if(btn){ btn.disabled = false; btn.textContent = 'Send Test Alert →'; } }
 });

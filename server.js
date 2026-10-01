@@ -1161,12 +1161,19 @@ app.get('/api/admin/checkout-diag', requireAuth, async (req, res) => {
 app.post('/api/admin/notify-test', requireAuth, async (req, res) => {
   try{
     const cfg = await getOwnerNotifyConfig();
+    const rt = (await db.prepare("SELECT value FROM content WHERE key='google_refresh_token'").get())?.value || '';
+    // Fire the test through the real paths (results arrive async)
     notifyOwner({
       subject: '✅ Nexatech alerts working',
       html: '<div style="font-family:Inter,sans-serif"><h3>✅ Alerts working</h3><p>This is a test — leads, payments and new chats will notify you here.</p></div>',
       text: 'Test alert: leads, payments and new chats will notify you here.'
     });
-    res.json({ ok: true, whatsapp: !!(cfg.whatsapp && cfg.callmebotKey) });
+    res.json({
+      ok: true,
+      owner_email: cfg.email, owner_whatsapp: cfg.whatsapp,
+      gmail_connected: !!String(rt).trim(),   // email needs Google OAuth connected
+      callmebot_set: !!cfg.callmebotKey        // whatsapp needs the CallMeBot key
+    });
   }catch(e){ res.status(500).json({ error: e.message }); }
 });
 // --- Admin: payment gateway status (secret key never sent to browser) ---

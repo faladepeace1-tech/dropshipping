@@ -730,7 +730,7 @@ export async function initDb() {
       ['paystack_public_key', '', 'text'],
       ['paystack_testmode', 'true', 'boolean'],
       ['paystack_usd_ngn_rate', '1500', 'text'],
-      ['owner_notify_email', 'saheednexatech@gmail.com', 'text'],
+      ['owner_notify_email', 'nexatechdropshipping@gmail.com', 'text'],
       ['owner_whatsapp', '19283825389', 'text'],
       ['callmebot_api_key', '', 'text'],
       ['checkout_title', 'Secure Checkout', 'text'],
@@ -1207,7 +1207,15 @@ export async function initDb() {
     await ensure('paystack_public_key','','text');
     await ensure('paystack_testmode','true','boolean');
     await ensure('paystack_usd_ngn_rate','1500','text');
-    await ensure('owner_notify_email','saheednexatech@gmail.com','text');
+    await ensure('owner_notify_email','nexatechdropshipping@gmail.com','text');
+    // Adopt the new Gmail when the field is still empty or holds the previous default
+    try{
+      const cur = (await db.prepare("SELECT value FROM content WHERE key='owner_notify_email'").get())?.value;
+      if(!String(cur || '').trim() || String(cur).trim() === 'saheednexatech@gmail.com'){
+        await db.prepare("UPDATE content SET value=? WHERE key='owner_notify_email'").run('nexatechdropshipping@gmail.com');
+        console.log('Migrated: owner notify email -> nexatechdropshipping@gmail.com');
+      }
+    }catch{}
     await ensure('owner_whatsapp','19283825389','text');
     await ensure('callmebot_api_key','','text');
     await ensure('cryptomus_merchant_uuid','852e8f5e-c366-4138-980e-17466ab6b693','text');
