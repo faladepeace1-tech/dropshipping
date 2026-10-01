@@ -411,6 +411,18 @@ function applyMicroCopy(){
   setText('dropshipping-name', T('dropshipping_name','Akinyemi Ifeoluwa'));
   setText('dropshipping-role', T('dropshipping_role','Founder, Nexatech'));
   setText('dropshipping-cta', T('dropshipping_cta','Start Your Own Store')+' →');
+  setText('whatwedo-eyebrow', T('whatwedo_eyebrow','What We Do'));
+  setText('whatwedo-title', T('whatwedo_title','What We Do at NexaTech'));
+  setText('whatwedo-subtitle', T('whatwedo_subtitle','We help people start and run an online store through dropshipping, without needing any tech skills.'));
+  setText('whatwedo-note-title', T('whatwedo_note_title','Your part is simple'));
+  setText('whatwedo-note-text', T('whatwedo_note_text','Check in on how the store is doing, and work with us on marketing to bring in customers.'));
+  setText('whatwedo-cta', T('whatwedo_cta','See Our Packages')+' →');
+  try{
+    const wi = document.getElementById('whatwedo-img');
+    const wu = T('whatwedo_logo_url','').trim() || T('logo_url','').trim();
+    if(wi && wu) wi.src = wu;
+    else if(wi) wi.closest('.duo-media').style.display = 'none';
+  }catch{}
   try{
     const di = document.getElementById('dropshipping-img');
     const du = T('dropshipping_image_url','').trim();
@@ -511,6 +523,7 @@ async function loadContent(){
   applySections();
   renderPricing();
   renderMentorship();
+  renderWhatWeDo();
   renderFAQ();
 }
 function applySections(){
@@ -886,6 +899,28 @@ function openThemeModal(th){
   openModal(item, [item, ...MODAL_ITEMS.filter(m=>String(m.id).indexOf('theme-')!==0)]);
   const cta=$('#modal-cta');
   if(cta){ cta.textContent=T('theme_buy_label','Buy Now')+' →'; cta.target=''; cta.href='/checkout?kind=theme&item='+encodeURIComponent(th.slug); cta.onclick=()=>track('cta_click','theme-modal-buy-'+th.slug); }
+}
+function renderWhatWeDo(){
+  const list = $('#whatwedo-list'); if(!list) return;
+  const fallback = [
+    { t: 'We build your store', d: 'A full online shop, set up and ready to sell.' },
+    { t: 'We pick your products', d: "Researching what actually sells, so you're not guessing." },
+    { t: 'We connect you with suppliers', d: 'The people who make and ship the products.' },
+    { t: 'We set up the theme/design', d: 'Making the store look professional (theme cost depends on your budget).' },
+    { t: 'We handle SEO', d: 'So your store can be found on Google.' },
+    { t: 'We manage the day-to-day running', d: "You don't have to do the technical work." }
+  ];
+  const items = parseJSON(CONTENT.whatwedo_items, fallback);
+  const rows = (Array.isArray(items) && items.length ? items : fallback).slice(0, 8);
+  list.innerHTML = '';
+  rows.forEach((it, i) => {
+    const t = typeof it === 'string' ? it : (it.t || it.title || '');
+    const d = typeof it === 'string' ? '' : (it.d || it.desc || '');
+    const div = document.createElement('div');
+    div.className = 'ds-step';
+    div.innerHTML = `<div class="step-num">0${i + 1}</div><p><b>${sanitize(t)}</b>${d ? `<span>${sanitize(d)}</span>` : ''}</p>`;
+    list.appendChild(div);
+  });
 }
 function renderMentorship(){
   const bullets=parseJSON(CONTENT.mentorship_bullets, ["Weekly 1:1 strategy calls until first sale","Ad account setup & first campaign launch together","Product testing framework & kill/scale rules","Store CRO audits & A/B tests"]);

@@ -796,6 +796,21 @@ export async function initDb() {
       ['filter_home', 'Home', 'text'],
       ['filter_eco', 'Eco Friendly', 'text'],
       ['portfolio_empty', 'No stores in this category yet check back soon or view All.', 'text'],
+      ['whatwedo_eyebrow', 'What We Do', 'text'],
+      ['whatwedo_title', 'What We Do at NexaTech', 'text'],
+      ['whatwedo_subtitle', 'We help people start and run an online store through dropshipping, without needing any tech skills.', 'text'],
+      ['whatwedo_items', JSON.stringify([
+        { t: 'We build your store', d: 'A full online shop, set up and ready to sell.' },
+        { t: 'We pick your products', d: "Researching what actually sells, so you're not guessing." },
+        { t: 'We connect you with suppliers', d: 'The people who make and ship the products.' },
+        { t: 'We set up the theme/design', d: 'Making the store look professional (theme cost depends on your budget).' },
+        { t: 'We handle SEO', d: 'So your store can be found on Google.' },
+        { t: 'We manage the day-to-day running', d: "You don't have to do the technical work." }
+      ]), 'json'],
+      ['whatwedo_note_title', 'Your part is simple', 'text'],
+      ['whatwedo_note_text', 'Check in on how the store is doing, and work with us on marketing to bring in customers.', 'text'],
+      ['whatwedo_logo_url', '', 'text'],
+      ['whatwedo_cta', 'See Our Packages', 'text'],
       ['dropshipping_eyebrow', 'Founder Explains', 'text'],
       ['dropshipping_title', 'Dropshipping Explanation by Akinyemi Ifeoluwa', 'text'],
       ['dropshipping_subtitle', 'What dropshipping really is — in simple English, no big grammar.', 'text'],
@@ -973,18 +988,19 @@ export async function initDb() {
       ['portfolio', 1, 3, 1],
       ['dropshipping', 1, 4, 1],
       ['sales_proof', 1, 5, 1],
-      ['experts', 1, 6, 1],
-      ['how_it_works', 1, 7, 1],
-      ['pricing', 1, 8, 1],
-      ['themes', 1, 9, 1],
-      ['mentorship', 1, 10, 1],
-      ['testimonials', 1, 11, 1],
-      ['reviews', 1, 12, 1],
-      ['certificates', 1, 13, 1],
-      ['faq', 1, 14, 1],
-      ['lead_form', 1, 15, 1],
-      ['cta_band', 1, 16, 1],
-      ['footer', 1, 17, 0]
+      ['whatwedo', 1, 6, 1],
+      ['experts', 1, 7, 1],
+      ['how_it_works', 1, 8, 1],
+      ['pricing', 1, 9, 1],
+      ['themes', 1, 10, 1],
+      ['mentorship', 1, 11, 1],
+      ['testimonials', 1, 12, 1],
+      ['reviews', 1, 13, 1],
+      ['certificates', 1, 14, 1],
+      ['faq', 1, 15, 1],
+      ['lead_form', 1, 16, 1],
+      ['cta_band', 1, 17, 1],
+      ['footer', 1, 18, 0]
   ];
   if (secCount === 0 || forceReset) {
     if (forceReset && secCount !== 0) { try { await db.exec('DELETE FROM sections'); } catch {} }
@@ -1210,6 +1226,13 @@ export async function initDb() {
       await db.prepare('INSERT INTO sections (key,visible,display_order,animation_enabled) VALUES (?,?,?,?)').run('certificates',1,11,1);
       // shift faq, lead_form, cta_band, footer by +1
       await db.prepare("UPDATE sections SET display_order = display_order + 1 WHERE key IN ('faq','lead_form','cta_band','footer')").run();
+    }
+    // What We Do at NexaTech (right after Revenue Wall / sales_proof)
+    const hasWwd = await db.prepare('SELECT key FROM sections WHERE key=?').get('whatwedo');
+    if(!hasWwd){
+      await db.prepare("UPDATE sections SET display_order = display_order + 1 WHERE key IN ('experts','how_it_works','pricing','themes','mentorship','testimonials','reviews','certificates','faq','lead_form','cta_band','footer')").run();
+      await db.prepare('INSERT INTO sections (key,visible,display_order,animation_enabled) VALUES (?,?,?,?)').run('whatwedo',1,6,1);
+      console.log('Migrated: added whatwedo section at order 6');
     }
     // Founder dropshipping explainer (right after portfolio)
     const hasDs = await db.prepare('SELECT key FROM sections WHERE key=?').get('dropshipping');

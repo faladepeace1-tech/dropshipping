@@ -220,6 +220,16 @@ const CONTENT_SCHEMA = {
     {key:'proof_eyebrow', label:'Proof Eyebrow'},
     {key:'proof_caption_fallback', label:'Fallback Caption (no caption uploaded)'},
   ],
+  whatwedo: [
+    {key:'whatwedo_eyebrow', label:'Eyebrow'},
+    {key:'whatwedo_title', label:'Title'},
+    {key:'whatwedo_subtitle', label:'Intro Subtitle', type:'textarea'},
+    {key:'whatwedo_items', label:'Service Items (JSON: [{"t":"Title","d":"Desc"}])', type:'textarea'},
+    {key:'whatwedo_note_title', label:'Note Box Title'},
+    {key:'whatwedo_note_text', label:'Note Box Text', type:'textarea'},
+    {key:'whatwedo_logo_url', label:'Logo Image URL (leave empty to reuse site logo)', type:'image_upload'},
+    {key:'whatwedo_cta', label:'Button Label'},
+  ],
   experts: [
     {key:'experts_title', label:'Experts Title'},
     {key:'experts_subtitle', label:'Experts Subtitle', type:'textarea'},

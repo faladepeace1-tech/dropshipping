@@ -213,6 +213,12 @@ main, .footer{position:relative;z-index:1}
 .duo-media{position:relative}
 .duo-media img{width:100%;border-radius:22px;border:1px solid var(--border);box-shadow:var(--shadow-lg);aspect-ratio:4/5;object-fit:cover;background:var(--bg-alt)}
 .duo-card{position:absolute;left:14px;right:14px;bottom:14px;background:rgba(255,255,255,.96);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);padding:12px 14px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.duo.rev{grid-template-columns:.9fr 1.1fr}
+.duo-logo img{aspect-ratio:1/1;object-fit:contain;padding:32px;background:linear-gradient(135deg,#0B1220,#132238)}
+.wwd-handle{font-weight:800;font-size:15px;margin:0 0 4px}
+.wwd-list{display:grid;gap:10px;margin:10px 0 14px}
+.wwd-list .ds-step p b{display:block;font-size:14px}
+.wwd-list .ds-step p span{color:var(--text-muted);font-size:13px}
 .duo-card b{font-family:var(--display);font-size:15px}
 .duo-card small{color:var(--accent-2);font-weight:800;letter-spacing:.06em;text-transform:uppercase;font-size:11px}
 /* ---------- Themes marketplace ---------- */
