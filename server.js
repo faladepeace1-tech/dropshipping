@@ -34,6 +34,7 @@ STYLE RULES:
 - Keep replies short — around 5 sentences max.
 - After a short answer, end with a line like "Want me to break that down further?" before giving the full, detailed explanation. Only go long if they say yes.
 - Be accurate. Never guess, invent numbers, or claim things about Shopify, ad platforms, or NexaTech's services that you're not sure of. If unsure, say so plainly instead of making something up.
+- PRICES ARE LIVE DATA: plan and theme prices change. ALWAYS quote prices ONLY from the PRICING section of the live site knowledge below (the same numbers shown on the website and checkout). NEVER state a price from memory or training — if PRICING doesn't list it, say the current pricing is on the site and offer to continue on WhatsApp.
 - Sound like a knowledgeable person, not a corporate script. No excessive emojis, no hard selling every message.
 - CRITICAL CONVERSATION MEMORY: Before every reply, you MUST read the ENTIRE conversation history above in order, especially the last 3 user+assistant turns. The user's "yes" always means "yes, break down the topic you just offered to break down" — never restart with a greeting. The user's "i mean X" is a correction — you MUST switch to X. Example: If you just offered to break down Pro and user says "yes", you MUST give Pro details (10 products, ad angles, branding, cart, 30 days), NOT Mentorship. If user says "i mean pro" after you gave mentorship, you MUST correct to Pro. Never give Mentorship when user asked for Pro, and never say "missing context" when history is clearly there — use the history.
 
@@ -41,7 +42,7 @@ WHEN TO HAND OFF (IMPORTANT):
 The moment a visitor signals they're ready to get started, want to hire NexaTech, want the mentorship, or ask something like "how do I start"/"how much"/"how do we begin" — do NOT try to close the deal yourself. Do NOT send a raw https://wa.me link yourself. Instead, end your reply naturally with one short line like: "Let's continue this on WhatsApp with Ifeoluwa directly — tap the button below." The website frontend will automatically render a WhatsApp button that includes the user's last message as the prefilled text (e.g. if user asked "how do i get started", the button will open WhatsApp with "Hi Nexatech 👋, how do i get started").
 Never include a raw wa.me URL in your reply. Never hardcode the Mentorship plan text into the link — the button text is dynamic from what the client asked.
 
-For reference (mention only if it's relevant to the conversation), the $200 Mentorship Plan includes: results/sales before paying, 1-on-1 store review, winning product research, ad strategy & scaling, supplier & order automation, and lifetime support — but do NOT auto-send it unless the user explicitly asks for Mentorship.
+For reference (mention only if it's relevant to the conversation), the Mentorship uses a pay-after-results model — quote ONLY the current terms and price from the PRICING section of the live site knowledge below. It generally includes: results/sales before paying, 1-on-1 store review, winning product research, ad strategy & scaling, supplier & order automation, and lifetime support — but do NOT auto-send it unless the user explicitly asks for Mentorship.
 
 Do not repeat a link mid-explanation — only signal handoff once, with the short line above. The button UI handles the link.
 
@@ -65,7 +66,7 @@ async function buildSiteKnowledge(){
     parts.push(`CONTACT: WhatsApp=${m.whatsapp_number||'19283825389'} (https://wa.me/${(m.whatsapp_number||'19283825389').replace(/\D/g,'')}), Email=${m.footer_email||'saheednexatech@gmail.com'}, Phone=${m.footer_phone||'+1 928 382 5389'}, Calendly=${m.calendly_url||''}, Address=${m.footer_address||''}`);
     parts.push(`HERO: ${m.hero_title||''} | ${m.hero_subtitle||''} | Badge=${m.hero_badge||''} | CTA1=${m.hero_cta_primary||''} CTA2=${m.hero_cta_secondary||''}`);
     parts.push(`HOW IT WORKS: ${m.how_it_works_title||''} - ${m.how_it_works_subtitle||''} | 1) ${m.how_it_works_step1_title||''}: ${m.how_it_works_step1_desc||''} | 2) ${m.how_it_works_step2_title||''}: ${m.how_it_works_step2_desc||''} | 3) ${m.how_it_works_step3_title||''}: ${m.how_it_works_step3_desc||''} | 4) ${m.how_it_works_step4_title||''}: ${m.how_it_works_step4_desc||''}`);
-    parts.push(`PRICING: Starter ${m.pricing_starter_price||'$149'} (${m.pricing_starter_features||''}) | Pro ${m.pricing_pro_price||'$299'} (${m.pricing_pro_features||''}) | Elite ${m.pricing_elite_price||'$599'} (${m.pricing_elite_features||''}) | Mentorship ${m.mentorship_price||'Pay After Results'}: ${m.mentorship_title||''} - ${m.mentorship_subtitle||''} Bullets=${m.mentorship_bullets||''}`);
+    parts.push(`PRICING (live — quote these exact names and prices everywhere): ${m.pricing_starter_name||'Starter'} ${m.pricing_starter_price||'$149'} (${m.pricing_starter_features||''}) | ${m.pricing_pro_name||'Pro'} ${m.pricing_pro_price||'$299'} (${m.pricing_pro_features||''}) | ${m.pricing_elite_name||'Elite'} ${m.pricing_elite_price||'$599'} (${m.pricing_elite_features||''}) | Mentorship ${m.mentorship_price||'Pay After Results'}: ${m.mentorship_title||''} - ${m.mentorship_subtitle||''} Bullets=${m.mentorship_bullets||''}`);
     if(media.length) parts.push(`PORTFOLIO/PROOF: ${media.map(x=>`${x.type}:${x.category||''}-${x.caption||''} ${x.result_stat||''}`).join(' | ')}`);
     if(team.length) parts.push(`TEAM: ${team.map(t=>`${t.name} (${t.role}) - ${t.credibility_note||''}`).join(' | ')}`);
     if(certs.length) parts.push(`CERTIFICATES: ${certs.map(c=>c.caption).join(' | ')}`);
@@ -107,6 +108,29 @@ try {
     console.log('Seeded editable chatbot_system_prompt');
   }
 } catch(e){ console.error('chatbot prompt seed error', e.message); }
+// Price-tally migration: the old seeded prompt hardcoded "$200 Mentorship Plan".
+// Replace that stale sentence in the stored prompt (custom admin wording around
+// it is preserved) so the chatbot quotes live PRICING knowledge like the page.
+try {
+  const row = await db.prepare('SELECT value FROM content WHERE key=?').get('chatbot_system_prompt');
+  const oldFrag = 'the $200 Mentorship Plan includes:';
+  if(row && String(row.value || '').includes(oldFrag)){
+    const fixed = String(row.value).split(oldFrag).join('the Mentorship uses a pay-after-results model — quote ONLY the current terms and price from the PRICING section of the live site knowledge below. It generally includes:');
+    await db.prepare("UPDATE content SET value=?, updated_at=datetime('now') WHERE key='chatbot_system_prompt'").run(fixed);
+    console.log('Migrated: removed hardcoded $200 from chatbot prompt (now uses live pricing)');
+  }
+  // Also inject the live-pricing authority rule into previously seeded prompts
+  try {
+    const row2 = await db.prepare('SELECT value FROM content WHERE key=?').get('chatbot_system_prompt');
+    const anchor = 'instead of making something up.';
+    const rule = '\n- PRICES ARE LIVE DATA: plan and theme prices change. ALWAYS quote prices ONLY from the PRICING section of the live site knowledge below (the same numbers shown on the website and checkout). NEVER state a price from memory or training — if PRICING doesn\'t list it, say the current pricing is on the site and offer to continue on WhatsApp.';
+    if(row2 && String(row2.value || '').includes(anchor) && !String(row2.value).includes('PRICES ARE LIVE DATA')){
+      const fixed2 = String(row2.value).split(anchor).join(anchor + rule);
+      await db.prepare("UPDATE content SET value=?, updated_at=datetime('now') WHERE key='chatbot_system_prompt'").run(fixed2);
+      console.log('Migrated: injected live-pricing rule into chatbot prompt');
+    }
+  } catch(e){ console.error('chatbot rule migration error', e.message); }
+} catch(e){ console.error('chatbot price migration error', e.message); }
 
 const app = express();
 app.set('trust proxy', 1); // Required for Render + Cloudflare (X-Forwarded-For) + express-rate-limit
