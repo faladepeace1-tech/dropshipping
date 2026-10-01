@@ -33,7 +33,7 @@
   <div id="co-form-view" class="hidden">
     <div class="eyebrow">Secure Checkout</div>
     <h1 class="h2 gradient-text" id="co-title">Complete Your Purchase</h1>
-    <p class="sub" id="co-subtitle">Pay securely with crypto. You get instant access the moment payment confirms.</p>
+    <p class="sub" id="co-subtitle">Pay securely with your card right here — no redirects, no popups. You get instant access the moment payment confirms.</p>
     <div class="co-grid">
       <form class="co-card" id="co-form" novalidate>
         <h3 style="margin:0 0 4px">Your details</h3>
@@ -42,9 +42,9 @@
         <div class="field"><label for="co-email">Email *</label><input id="co-email" name="email" type="email" required placeholder="you@example.com" autocomplete="email"><small>Enter a valid email</small></div>
         <div class="field"><label for="co-whatsapp">WhatsApp number *</label><input id="co-whatsapp" name="whatsapp" required placeholder="+234 812 345 6789" inputmode="tel" autocomplete="tel"><small>Enter a valid WhatsApp number</small></div>
         <div id="co-form-msg" class="co-msg" role="alert"></div>
-        <button type="submit" class="btn btn-primary btn-glow co-pay-btn" id="co-pay-btn">Pay <span id="co-pay-amount"></span> →</button>
+        <button type="submit" class="btn btn-primary btn-glow co-pay-btn" id="co-pay-btn">Continue to Payment →</button>
         <div class="co-trust">
-          <span>🔒 Secure crypto payment</span>
+          <span>🔒 Secured by Paystack</span>
           <span>⚡ Instant access</span>
           <span>✔ 100% ownership</span>
         </div>
@@ -59,6 +59,41 @@
         <div class="co-note">One-time payment. No subscription.</div>
       </aside>
     </div>
+  </div>
+
+  <!-- Card payment (inline, no redirect / no popup) -->
+  <div id="co-card-view" class="hidden">
+    <div class="co-grid">
+      <form class="co-card" id="co-card-form" novalidate>
+        <h3 style="margin:0 0 4px">Card details</h3>
+        <p class="sub" style="margin:0 0 14px;font-size:13px">Order <b id="co-card-ref"></b> · charged securely, never stored.</p>
+        <div class="field"><label for="co-cc-num">Card Number *</label><input id="co-cc-num" inputmode="numeric" placeholder="4084 0840 8408 4081" autocomplete="cc-number" maxlength="23"><small>Enter a valid card number</small></div>
+        <div class="co-row">
+          <div class="field"><label for="co-cc-exp">Expiry (MM/YY) *</label><input id="co-cc-exp" inputmode="numeric" placeholder="12/30" autocomplete="cc-exp" maxlength="7"><small>Invalid expiry</small></div>
+          <div class="field"><label for="co-cc-cvc">CVC *</label><input id="co-cc-cvc" inputmode="numeric" placeholder="408" autocomplete="cc-csc" maxlength="4"><small>Invalid CVC</small></div>
+        </div>
+        <div id="co-card-msg" class="co-msg" role="alert"></div>
+        <button type="submit" class="btn btn-primary btn-glow co-pay-btn" id="co-card-pay-btn">Pay <span id="co-card-amount"></span> →</button>
+        <div class="co-trust"><span>🔒 256-bit encrypted</span><span>💳 Verve · Mastercard · Visa</span></div>
+      </form>
+      <aside class="co-card co-summary" id="co-summary-2">
+        <h3 style="margin:0 0 10px">Order summary</h3>
+        <div class="co-kind" id="co-card-kind">Plan</div>
+        <div class="co-item-name" id="co-card-name">—</div>
+        <div class="co-total"><span>Total</span><strong id="co-card-price">—</strong></div>
+        <div class="co-note">One-time payment. No subscription.</div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- Bank verification step (OTP / PIN) -->
+  <div id="co-otp-view" class="co-card co-center hidden">
+    <div class="co-spinner" id="co-otp-spinner" style="display:none" aria-hidden="true"></div>
+    <h2 class="h2" style="margin:12px 0 6px" id="co-otp-title">Enter your OTP</h2>
+    <p class="sub" style="margin:0 0 14px" id="co-otp-desc">Your bank sent a one-time code — enter it below to complete payment.</p>
+    <div class="field" style="max-width:320px;margin:0 auto;text-align:left"><label for="co-otp-input" id="co-otp-label">One-time code *</label><input id="co-otp-input" inputmode="numeric" placeholder="123456" style="text-align:center;letter-spacing:.3em;font-size:18px"></div>
+    <div id="co-otp-msg" class="co-msg" role="alert"></div>
+    <button class="btn btn-primary btn-glow" id="co-otp-btn" type="button" style="margin-top:12px">Confirm Payment →</button>
   </div>
 
   <!-- Redirecting to payment -->

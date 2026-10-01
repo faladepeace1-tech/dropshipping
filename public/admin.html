@@ -496,13 +496,14 @@
           <div id="int-msg" style="font-size:13px;margin-top:8px"></div>
         </div>
         <div class="card" style="border-color:rgba(0,209,255,.35)">
-          <h3>Crypto Payments — Cryptomus <small style="font-weight:500;color:#64748B">checkout for plans + themes</small></h3>
-          <p style="font-size:12px;color:#94A3B8">From <a href="https://app.cryptomus.com/" target="_blank" rel="noopener">app.cryptomus.com</a>: paste your <b>User ID</b> as Merchant UUID and your <b>API key</b>. Set your Cryptomus invoice <b>callback URL</b> to <code>https://YOUR-DOMAIN/api/checkout/webhook/cryptomus</code>. Keys are stored permanently and never shown on the public site.</p>
-          <label>Merchant UUID (your Cryptomus User ID)<input id="int-cryptomus-merchant" placeholder="247d5692-5b22-45fb-a77a-4fa6bf8461e8"></label>
-          <label>API Key<input id="int-cryptomus-key" type="password" placeholder="4f44274a8c606efbf0b5eb7318501663630d56c0"></label>
+          <h3>Card Payments — Paystack <small style="font-weight:500;color:#64748B">buyers pay inside the checkout page</small></h3>
+          <p style="font-size:12px;color:#94A3B8">From <a href="https://dashboard.paystack.com/" target="_blank" rel="noopener">dashboard.paystack.com</a> → Settings → API Keys: paste your <b>Secret</b> + <b>Public</b> keys (test keys start with <code>sk_test_</code> / <code>pk_test_</code>). In Paystack → Settings → API Keys & Webhooks set:<br>Callback URL <code>https://dropshippingstore.dpdns.org/checkout</code> · Webhook URL <code>https://dropshippingstore.dpdns.org/api/checkout/webhook/paystack</code><br>Keys are stored permanently and never shown on the public site. Test card: <code>4084 0840 8408 4081</code>, any future expiry, any CVV, PIN <code>0000</code>, OTP <code>123456</code>.</p>
+          <label>Secret Key<input id="int-paystack-secret" type="password" placeholder="sk_test_... (paste whole key)"></label>
+          <label>Public Key<input id="int-paystack-public" placeholder="pk_test_..."></label>
+          <label>USD → NGN rate (USD prices are charged in Naira at this rate)<input id="int-paystack-rate" type="number" min="1" step="1" placeholder="1500"></label>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="int-cryptomus-test" checked> Test mode (uncheck for live payments)</label>
-            <button class="btn btn-ghost" id="btn-show-cryptomus-key" type="button" style="padding:6px 10px;font-size:11px">Show</button>
+            <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="int-paystack-test" checked> Test mode (uncheck for live payments)</label>
+            <button class="btn btn-ghost" id="btn-show-paystack-key" type="button" style="padding:6px 10px;font-size:11px">Show</button>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
             <button class="btn btn-primary" id="btn-save-payments">Save Payment Keys</button>

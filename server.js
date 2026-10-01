@@ -113,7 +113,11 @@ app.set('trust proxy', 1); // Required for Render + Cloudflare (X-Forwarded-For)
 // Security & middleware
 app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
 app.use(cors({ origin: true, credentials: true }));
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '50mb', verify: (req, res, buf) => {
+  // Keep the raw bytes for Paystack webhook HMAC verification (re-stringified
+  // JSON can differ in spacing/key order and would break the signature).
+  if(req.path && req.path.indexOf('/webhook/paystack') !== -1) req.rawBody = Buffer.from(buf);
+} }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(cookieParser());
 
@@ -314,7 +318,7 @@ app.get('/api/content', async (req, res) => {
   const rows = await db.prepare('SELECT key,value,type FROM content').all();
   const obj = {};
   // Never expose credentials/tokens publicly (admin reads them via authed endpoints)
-  const SENSITIVE = new Set(['gemini_api_key', 'gemini_api_key_2', 'gemini_api_key_3', 'ai_api_key', 'GEMINI_API_KEY', 'GOOGLE_API_KEY', 'cryptomus_merchant_uuid', 'cryptomus_api_key', 'CRYPTOMUS_MERCHANT', 'CRYPTOMUS_API_KEY']);
+  const SENSITIVE = new Set(['gemini_api_key', 'gemini_api_key_2', 'gemini_api_key_3', 'ai_api_key', 'GEMINI_API_KEY', 'GOOGLE_API_KEY', 'cryptomus_merchant_uuid', 'cryptomus_api_key', 'CRYPTOMUS_MERCHANT', 'CRYPTOMUS_API_KEY', 'paystack_secret_key', 'paystack_public_key', 'PAYSTACK_SECRET_KEY', 'PAYSTACK_PUBLIC_KEY']);
   rows.forEach(r => {
     if (SENSITIVE.has(r.key)) return; // hide secrets from public
     if (r.key.startsWith('google_') || r.key.startsWith('gmail_')) return; // OAuth tokens + connected Gmail
@@ -661,54 +665,98 @@ function publicTheme(row){
 }
 async function getPayConfig(){
   const get = async (k) => (await db.prepare('SELECT value FROM content WHERE key=?').get(k))?.value || '';
-  const merchant = (process.env.CRYPTOMUS_MERCHANT_UUID || process.env.CRYPTOMUS_USER_ID || await get('cryptomus_merchant_uuid') || '').trim();
-  const apiKey = (process.env.CRYPTOMUS_API_KEY || await get('cryptomus_api_key') || '').trim();
-  const testRow = await get('cryptomus_testmode');
+  const secret = (process.env.PAYSTACK_SECRET_KEY || await get('paystack_secret_key') || '').trim();
+  const pub = (process.env.PAYSTACK_PUBLIC_KEY || await get('paystack_public_key') || '').trim();
+  const testRow = await get('paystack_testmode');
   const testmode = String(testRow === '' ? 'true' : testRow).toLowerCase() === 'true';
-  return { merchant, apiKey, testmode, configured: !!(merchant && apiKey) };
+  const rateRow = await get('paystack_usd_ngn_rate');
+  const usdNgn = parseFloat(String(rateRow || '1500').replace(/[^0-9.]/g, '')) || 1500;
+  return { provider: 'paystack', secret, pub, testmode, usdNgn, configured: !!secret };
 }
-// Cryptomus auth: sign = md5(base64(json_body) + api_key); headers merchant + sign.
-function cryptomusSign(bodyObj, apiKey){
-  const b64 = Buffer.from(JSON.stringify(bodyObj), 'utf8').toString('base64');
-  return crypto.createHash('md5').update(b64 + apiKey).digest('hex');
+// Convert a USD-priced item to the currency Paystack will actually charge.
+// Merchants that can't charge USD (typical NG accounts) are charged the NGN
+// equivalent at the admin-set rate. Returns {amount (minor units), currency, text}.
+function paystackChargeAmount(amountCents, currency, usdNgn){
+  const cur = String(currency || 'USD').toUpperCase();
+  if(cur === 'NGN') return { amount: Math.round(Number(amountCents) || 0), currency: 'NGN', text: null };
+  if(cur === 'USD'){
+    const ngn = Math.round((Number(amountCents) || 0) / 100 * (Number(usdNgn) || 1500));
+    return { amount: ngn * 100, currency: 'NGN', text: '≈ ₦' + ngn.toLocaleString('en-US') };
+  }
+  return { amount: Math.round(Number(amountCents) || 0), currency: cur, text: null };
 }
-async function createCryptomusInvoice({ amount, currency, orderRef, itemName, returnUrl, successUrl, callbackUrl, testmode, merchant, apiKey }){
-  // Official spec: POST https://api.cryptomus.com/v1/payment
-  // (NOT /v1/invoice/create — that path returns HTTP 405).
-  // Response result uses `url` for the hosted pay page. `to_currency` must be
-  // a crypto code or omitted (fiat values are rejected), so it is not sent.
-  const body = {
-    amount: String(amount),
-    currency: String(currency || 'USD').toUpperCase(),
-    order_id: String(orderRef),
-    url_return: returnUrl,
-    url_success: successUrl,
-    url_callback: callbackUrl,
-    lifetime: 7200
-  };
+// Paystack INLINE charge: card details are collected in OUR checkout form and
+// charged directly — no redirect, no popup. Card data is held in memory only:
+// never logged, never stored (only Paystack's returned reference is saved).
+// Docs: POST https://api.paystack.co/charge
+// data.status: success | send_pin | send_otp | send_phone | open_url | failed
+async function paystackPost(path, body, secret, label){
   const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), 20000);
+  const t = setTimeout(() => controller.abort(), 25000);
   const t0 = Date.now();
   try{
-    console.log('cryptomus invoice POST start');
-    const resp = await fetch('https://api.cryptomus.com/v1/payment', {
+    const resp = await fetch('https://api.paystack.co' + path, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'merchant': merchant, 'sign': cryptomusSign(body, apiKey) },
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + secret },
       body: JSON.stringify(body),
       signal: controller.signal
     });
     const j = await resp.json().catch(() => ({}));
-    console.log('cryptomus invoice POST done in ' + (Date.now() - t0) + 'ms, http=' + resp.status, 'state=' + (j && j.state));
-    if(!resp.ok || j.state !== 0 || !j.result){
-      const detail = j.message || (j.errors ? JSON.stringify(j.errors) : null) || j.error || ('Cryptomus error (HTTP ' + resp.status + ')');
-      throw new Error(detail + ' raw:' + JSON.stringify(j).slice(0, 300));
+    console.log('paystack ' + label + ' done in ' + (Date.now() - t0) + 'ms, http=' + resp.status,
+      'status=' + (j && j.status), 'data.status=' + (j && j.data && j.data.status));
+    if(!resp.ok || j.status !== true || !j.data){
+      throw new Error((j && j.message) || ('Paystack error (HTTP ' + resp.status + ')'));
     }
-    if(j.result.url) j.result.payment_url = j.result.url; // normalize hosted pay-page field
-    return j.result; // {uuid, order_id, amount, url (pay page), status, ...}
+    return j.data;
   } catch(e){
-    console.error('cryptomus invoice POST failed after ' + (Date.now() - t0) + 'ms:', e.name + ': ' + e.message);
+    console.error('paystack ' + label + ' failed after ' + (Date.now() - t0) + 'ms:', e.name + ': ' + e.message);
     throw e;
   } finally { clearTimeout(t); }
+}
+async function paystackCharge({ email, amountCents, currency, usdNgn, orderRef, card, pin, secret }){
+  const chg = paystackChargeAmount(amountCents, currency, usdNgn);
+  console.log('checkout charging', chg.currency, chg.amount, 'for', orderRef);
+  const num = String(card.number || '').replace(/\D/g, '');
+  const exp = String(card.expiry || '').replace(/\D/g, ''); // MMYY or MMYYYY
+  let expMonth = exp.slice(0, 2), expYear = exp.slice(2);
+  if(expYear.length === 2) expYear = '20' + expYear;
+  if(!/^\d{13,19}$/.test(num)) throw new Error('Card number looks incomplete.');
+  if(!/^(0[1-9]|1[0-2])$/.test(expMonth) || !/^20\d{2}$/.test(expYear)) throw new Error('Card expiry looks invalid (MM/YY).');
+  if(!/^\d{3,4}$/.test(String(card.cvc || ''))) throw new Error('Card CVC looks invalid.');
+  const body = {
+    email: String(email),
+    amount: String(chg.amount),
+    currency: chg.currency,
+    reference: String(orderRef),
+    card: { number: num, cvv: String(card.cvc), expiry_month: expMonth, expiry_year: expYear },
+    metadata: { order_ref: String(orderRef) }
+  };
+  if(pin) body.pin = String(pin);
+  return paystackPost('/charge', body, secret, 'charge');
+}
+// Paystack: verify a transaction by reference. Returns {paid:boolean, detail}.
+async function paystackVerify(reference, secret){
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), 20000);
+  try{
+    const resp = await fetch('https://api.paystack.co/transaction/verify/' + encodeURIComponent(String(reference)), {
+      headers: { 'Authorization': 'Bearer ' + secret },
+      signal: controller.signal
+    });
+    const j = await resp.json().catch(() => ({}));
+    const ok = resp.ok && j.status === true && j.data && j.data.status === 'success';
+    return { paid: !!ok, detail: j && j.data ? { status: j.data.status, amount: j.data.amount, currency: j.data.currency } : { message: (j && j.message) || ('HTTP ' + resp.status) } };
+  } finally { clearTimeout(t); }
+}
+async function markOrderPaid(orderRef, paystackRef){
+  const order = await db.prepare('SELECT * FROM orders WHERE order_ref=?').get(String(orderRef));
+  if(!order || order.status === 'paid') return order;
+  const token = order.kind === 'theme' ? crypto.randomBytes(24).toString('hex') : (order.download_token || '');
+  await db.prepare("UPDATE orders SET status='paid', paid_at=datetime('now'), cryptomus_order_id=?, download_token=? WHERE order_ref=?")
+    .run(String(paystackRef || order.cryptomus_order_id || ''), token, String(orderRef));
+  try{ await db.prepare("INSERT INTO events (event_type,element_id,session_id,page_url,metadata) VALUES (?,?,?,?,?)")
+    .run('checkout_paid', order.kind + ':' + order.item_ref, '', '', JSON.stringify({ order_ref: String(orderRef) })); }catch{}
+  return await db.prepare('SELECT * FROM orders WHERE order_ref=?').get(String(orderRef));
 }
 // Resolve anything buyable: a plan (priced via content keys) or a theme.
 async function getCheckoutItem(kind, ref){
@@ -753,6 +801,11 @@ app.get('/api/themes', async (req, res) => {
 app.get('/api/checkout/item', async (req, res) => {
   const item = await getCheckoutItem(req.query.kind, req.query.ref || req.query.item);
   if(item.error) return res.status(404).json({ error: item.error });
+  try{
+    const pay = await getPayConfig();
+    const chg = paystackChargeAmount(item.amount_cents, item.currency, pay.usdNgn);
+    if(chg.text) item.charge_text = chg.text;
+  }catch{}
   res.json(item);
 });
 // --- Public: order status (for success page polling + download link) ---
@@ -761,6 +814,7 @@ app.get('/api/checkout/order/:ref', async (req, res) => {
   if(!o) return res.status(404).json({ error: 'order not found' });
   const out = { order_ref: o.order_ref, kind: o.kind, item_ref: o.item_ref, item_name: o.item_name,
     amount_text: formatCents(o.amount_cents, o.currency), currency: o.currency, status: o.status,
+    email: o.customer_email || '', provider: 'paystack',
     payment_url: o.status === 'pending' ? (o.payment_url || '') : '', created_at: o.created_at, paid_at: o.paid_at };
   if(o.status === 'paid' && o.kind === 'theme' && o.download_token){
     out.download_url = '/api/themes/' + encodeURIComponent(o.item_ref) + '/download?token=' + encodeURIComponent(o.download_token);
@@ -778,32 +832,22 @@ app.post('/api/checkout/create', async (req, res) => {
     if(item.error) return res.status(400).json({ error: item.error });
     const orderRef = 'NXT-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 6).toUpperCase();
     console.log('checkout create:', item.kind + ':' + item.ref, item.amount_cents + item.currency, 'email=' + String(email).trim().slice(0, 60));
-    await db.prepare('INSERT INTO orders (order_ref,kind,item_ref,item_name,amount_cents,currency,customer_name,customer_email,customer_whatsapp,status) VALUES (?,?,?,?,?,?,?,?,?,?)')
+    await db.prepare("INSERT INTO orders (order_ref,kind,item_ref,item_name,amount_cents,currency,customer_name,customer_email,customer_whatsapp,status) VALUES (?,?,?,?,?,?,?,?,?,'pending')")
       .run(orderRef, item.kind, String(item.ref), item.name, item.amount_cents, item.currency,
-        String(name).trim().slice(0, 120), String(email).trim().slice(0, 160), String(whatsapp).trim().slice(0, 40), 'pending');
+        String(name).trim().slice(0, 120), String(email).trim().slice(0, 160), String(whatsapp).trim().slice(0, 40));
     console.log('checkout order saved:', orderRef);
     try{ await db.prepare("INSERT INTO events (event_type,element_id,session_id,page_url,metadata) VALUES (?,?,?,?,?)")
       .run('checkout_created', item.kind + ':' + item.ref, '', '', JSON.stringify({ order_ref: orderRef, amount_cents: item.amount_cents })); }catch{}
     const pay = await getPayConfig();
-    console.log('checkout pay configured:', pay.configured, 'testmode:', pay.testmode, 'merchant set:', !!pay.merchant);
+    console.log('checkout pay configured:', pay.configured, 'testmode:', pay.testmode, 'secret set:', !!pay.secret);
     if(!pay.configured){
-      return res.json({ ok: true, order_ref: orderRef, payment_url: null,
+      return res.json({ ok: true, order_ref: orderRef, payment_url: null, inline: false,
         message: 'Payment gateway not connected yet — our team will contact you on WhatsApp to complete this order.' });
     }
-    const base = (process.env.PUBLIC_URL || '').trim().replace(/\/$/, '') || (req.protocol + '://' + req.get('host'));
-    console.log('checkout creating cryptomus invoice for', orderRef);
-    const inv = await createCryptomusInvoice({
-      amount: (item.amount_cents / 100).toFixed(2), currency: item.currency, orderRef,
-      itemName: item.name,
-      returnUrl: base + '/checkout?ref=' + encodeURIComponent(orderRef),
-      successUrl: base + '/checkout?ref=' + encodeURIComponent(orderRef) + '&status=success',
-      callbackUrl: base + '/api/checkout/webhook/cryptomus',
-      testmode: pay.testmode, merchant: pay.merchant, apiKey: pay.apiKey
-    });
-    console.log('checkout invoice ok:', orderRef, 'cryptomus uuid:', inv.uuid || '(none)');
-    await db.prepare('UPDATE orders SET cryptomus_uuid=?, cryptomus_order_id=?, payment_url=? WHERE order_ref=?')
-      .run(inv.uuid || '', inv.order_id || '', inv.payment_url || '', orderRef);
-    res.json({ ok: true, order_ref: orderRef, payment_url: inv.payment_url || null });
+    // Inline flow: order is ready — the buyer now pays with their card inside
+    // the checkout page (charge endpoint below). No redirect, no popup.
+    await db.prepare('UPDATE orders SET cryptomus_order_id=? WHERE order_ref=?').run(orderRef, orderRef);
+    res.json({ ok: true, order_ref: orderRef, payment_url: null, inline: true, provider: 'paystack' });
   }catch(e){
     console.error('checkout create failed:', e.name + ': ' + e.message);
     // NOTE: status 422 (not 502) — hosting proxies replace upstream 502
@@ -811,38 +855,113 @@ app.post('/api/checkout/create', async (req, res) => {
     if(!res.headersSent) res.status(422).json({ error: 'Could not start payment: ' + e.message });
   }
 });
-// --- Cryptomus webhook: blockchain confirms -> unlock product ---
-app.post('/api/checkout/webhook/cryptomus', async (req, res) => {
+// --- Inline card charge: buyer pays inside the checkout page ---
+// Body: {order_ref*, card:{number,expiry,cvc}*, pin?} — card data is used for
+// this single Paystack call only, never logged or stored.
+app.post('/api/checkout/paystack/charge', async (req, res) => {
   try{
-    const data = req.body || {};
+    const { order_ref, card, pin } = req.body || {};
+    const order = await db.prepare('SELECT * FROM orders WHERE order_ref=?').get(String(order_ref || ''));
+    if(!order) return res.status(404).json({ error: 'order not found' });
+    if(order.status === 'paid') return res.json({ ok: true, status: 'success' });
+    if(!card) return res.status(400).json({ error: 'card details required' });
     const pay = await getPayConfig();
-    if(pay.configured && data.sign){
-      const { sign, ...rest } = data;
-      const expected = cryptomusSign(rest, pay.apiKey);
-      if(String(sign).toLowerCase() !== String(expected).toLowerCase()){
-        console.error('cryptomus webhook bad sign for', data.order_id);
+    if(!pay.configured) return res.status(422).json({ error: 'Payment gateway not connected yet.' });
+    const data = await paystackCharge({
+      email: order.customer_email, amountCents: order.amount_cents, currency: order.currency,
+      usdNgn: pay.usdNgn, orderRef: order.order_ref, card, pin, secret: pay.secret
+    });
+    if(data.status === 'success'){
+      await markOrderPaid(order.order_ref, data.reference || order.order_ref);
+      return res.json({ ok: true, status: 'success' });
+    }
+    // Next actions for the page: send_pin | send_otp | send_phone | open_url | failed
+    res.json({ ok: true, status: data.status || 'failed',
+      message: data.gateway_response || data.message || '',
+      url: data.url || '', reference: data.reference || order.order_ref });
+  }catch(e){
+    console.error('paystack charge failed:', e.name + ': ' + e.message);
+    if(!res.headersSent) res.status(422).json({ error: e.message || 'Card charge failed.' });
+  }
+});
+// --- Inline OTP / PIN / phone follow-ups ---
+app.post('/api/checkout/paystack/otp', async (req, res) => {
+  try{
+    const { order_ref, otp } = req.body || {};
+    if(!otp) return res.status(400).json({ error: 'OTP required.' });
+    const order = await db.prepare('SELECT * FROM orders WHERE order_ref=?').get(String(order_ref || ''));
+    if(!order) return res.status(404).json({ error: 'order not found' });
+    const pay = await getPayConfig();
+    if(!pay.configured) return res.status(422).json({ error: 'Payment gateway not connected yet.' });
+    const data = await paystackPost('/charge/submit_otp', { otp: String(otp).trim(), reference: order.cryptomus_order_id || order.order_ref }, pay.secret, 'submit_otp');
+    if(data.status === 'success'){
+      await markOrderPaid(order.order_ref, data.reference || order.order_ref);
+      return res.json({ ok: true, status: 'success' });
+    }
+    res.json({ ok: true, status: data.status || 'failed', message: data.gateway_response || data.message || '' });
+  }catch(e){
+    console.error('paystack otp failed:', e.message);
+    if(!res.headersSent) res.status(422).json({ error: e.message || 'OTP verification failed.' });
+  }
+});
+app.post('/api/checkout/paystack/pin', async (req, res) => {
+  try{
+    const { order_ref, pin } = req.body || {};
+    if(!pin) return res.status(400).json({ error: 'PIN required.' });
+    const order = await db.prepare('SELECT * FROM orders WHERE order_ref=?').get(String(order_ref || ''));
+    if(!order) return res.status(404).json({ error: 'order not found' });
+    const pay = await getPayConfig();
+    if(!pay.configured) return res.status(422).json({ error: 'Payment gateway not connected yet.' });
+    const data = await paystackPost('/charge/submit_pin', { pin: String(pin), reference: order.cryptomus_order_id || order.order_ref }, pay.secret, 'submit_pin');
+    if(data.status === 'success'){
+      await markOrderPaid(order.order_ref, data.reference || order.order_ref);
+      return res.json({ ok: true, status: 'success' });
+    }
+    res.json({ ok: true, status: data.status || 'send_otp', message: data.gateway_response || data.message || '' });
+  }catch(e){
+    console.error('paystack pin failed:', e.message);
+    if(!res.headersSent) res.status(422).json({ error: e.message || 'PIN verification failed.' });
+  }
+});
+// --- Re-check a pending order against Paystack (resume/3DS fallback) ---
+app.post('/api/checkout/paystack/verify', async (req, res) => {
+  try{
+    const { order_ref } = req.body || {};
+    const order = await db.prepare('SELECT * FROM orders WHERE order_ref=?').get(String(order_ref || ''));
+    if(!order) return res.status(404).json({ error: 'order not found' });
+    if(order.status === 'paid') return res.json({ ok: true, status: 'paid' });
+    const pay = await getPayConfig();
+    if(!pay.configured) return res.status(422).json({ error: 'Payment gateway not connected yet.' });
+    const v = await paystackVerify(order.cryptomus_order_id || order.order_ref, pay.secret);
+    if(v.paid){ await markOrderPaid(order.order_ref, order.cryptomus_order_id || order.order_ref); return res.json({ ok: true, status: 'paid' }); }
+    res.json({ ok: true, status: 'pending', detail: v.detail });
+  }catch(e){
+    if(!res.headersSent) res.status(422).json({ error: e.message || 'Verification failed.' });
+  }
+});
+// --- Paystack webhook: charge.success -> unlock product ---
+// Signature: HMAC-SHA512 of the RAW body with the secret key.
+app.post('/api/checkout/webhook/paystack', async (req, res) => {
+  try{
+    const pay = await getPayConfig();
+    if(pay.configured && pay.secret){
+      const sig = String(req.headers['x-paystack-signature'] || '');
+      const raw = req.rawBody ? Buffer.from(req.rawBody) : Buffer.from(JSON.stringify(req.body || {}));
+      const expected = crypto.createHmac('sha512', pay.secret).update(raw).digest('hex');
+      if(!sig || sig !== expected){
+        console.error('paystack webhook bad signature');
         return res.status(403).json({ error: 'bad signature' });
       }
     }
-    const orderRef = String(data.order_id || '');
-    const status = String(data.payment_status || data.status || '').toLowerCase();
-    if(!orderRef) return res.status(400).json({ error: 'order_id required' });
-    const order = await db.prepare('SELECT * FROM orders WHERE order_ref=?').get(orderRef);
-    if(!order) return res.status(404).json({ error: 'order not found' });
-    if(['paid', 'paid_over'].includes(status)){
-      const token = order.kind === 'theme' ? crypto.randomBytes(24).toString('hex') : (order.download_token || '');
-      await db.prepare("UPDATE orders SET status='paid', paid_at=datetime('now'), cryptomus_uuid=COALESCE(NULLIF(cryptomus_uuid,''),?), download_token=? WHERE order_ref=?")
-        .run(String(data.uuid || order.cryptomus_uuid || ''), token, orderRef);
-      try{ await db.prepare("INSERT INTO events (event_type,element_id,session_id,page_url,metadata) VALUES (?,?,?,?,?)")
-        .run('checkout_paid', order.kind + ':' + order.item_ref, '', '', JSON.stringify({ order_ref: orderRef })); }catch{}
-    } else if(['fail', 'cancel', 'wrong_amount', 'wrong_amount_waiting'].includes(status)){
-      await db.prepare("UPDATE orders SET status='failed' WHERE order_ref=? AND status='pending'").run(orderRef);
-    } else if(status === 'expired'){
-      await db.prepare("UPDATE orders SET status='expired' WHERE order_ref=? AND status='pending'").run(orderRef);
+    const data = req.body || {};
+    if(data.event === 'charge.success' && data.data && data.data.status === 'success'){
+      const ref = String(data.data.reference || '');
+      const order = await db.prepare('SELECT * FROM orders WHERE cryptomus_order_id=? OR order_ref=?').get(ref, ref);
+      if(order && order.status !== 'paid') await markOrderPaid(order.order_ref, ref);
     }
     res.json({ ok: true });
   }catch(e){
-    console.error('cryptomus webhook failed:', e.message);
+    console.error('paystack webhook failed:', e.message);
     res.status(500).json({ error: 'webhook error' });
   }
 });
@@ -984,49 +1103,45 @@ app.get('/api/admin/checkout-diag', requireAuth, async (req, res) => {
     pay = await getPayConfig();
     return { configured: pay.configured, testmode: pay.testmode, merchant_len: (pay.merchant || '').length, key_len: (pay.apiKey || '').length };
   });
-  await step('cryptomus_tcp', async () => {
+  await step('paystack_tcp', async () => {
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), 12000);
     try{
-      const r = await fetch('https://api.cryptomus.com/', { signal: ctl.signal });
+      const r = await fetch('https://api.paystack.co/', { signal: ctl.signal });
       await r.text().catch(() => '');
       return { http: r.status };
     } finally { clearTimeout(t); }
   });
-  await step('cryptomus_auth', async () => {
+  await step('paystack_auth', async () => {
     if(!pay || !pay.configured) throw new Error('skipped: gateway keys not configured');
-    // Lightweight authenticated call: proves the merchant UUID + payment key
-    // pair is valid WITHOUT creating anything.
+    // Lightweight authenticated call (bank list): proves the SECRET key is
+    // valid WITHOUT moving any money.
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), 12000);
     try{
-      const r = await fetch('https://api.cryptomus.com/v1/payment/services', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'merchant': pay.merchant, 'sign': cryptomusSign({}, pay.apiKey) },
-        body: '{}',
+      const r = await fetch('https://api.paystack.co/bank?currency=NGN', {
+        headers: { 'Authorization': 'Bearer ' + pay.secret },
         signal: ctl.signal
       });
       const j = await r.json().catch(() => ({}));
-      if(!r.ok || (j.state !== undefined && j.state !== 0)){
-        throw new Error((j.message || ('HTTP ' + r.status)) + ' raw:' + JSON.stringify(j).slice(0, 300));
+      if(!r.ok || j.status !== true){
+        throw new Error((j.message || ('HTTP ' + r.status)) + ' raw:' + JSON.stringify(j).slice(0, 200));
       }
-      return { state: j.state, services: Array.isArray(j.result) ? j.result.length + ' services' : typeof j.result };
+      return { key_valid: true, banks: Array.isArray(j.data) ? j.data.length + ' banks' : typeof j.data };
     } finally { clearTimeout(t); }
   });
-  if(String(req.query.invoice || '') === '1'){
-    await step('cryptomus_invoice', async () => {
+  if(String(req.query.charge || req.query.invoice || '') === '1'){
+    await step('paystack_test_charge', async () => {
       if(!pay || !pay.configured) throw new Error('skipped: gateway keys not configured');
-      const base = (process.env.PUBLIC_URL || '').trim().replace(/\/$/, '') || (req.protocol + '://' + req.get('host'));
-      const inv = await createCryptomusInvoice({
-        amount: '1.00', currency: 'USD', orderRef: testRef, itemName: 'Diag Probe',
-        returnUrl: base + '/checkout?ref=' + encodeURIComponent(testRef),
-        successUrl: base + '/checkout?ref=' + encodeURIComponent(testRef) + '&status=success',
-        callbackUrl: base + '/api/checkout/webhook/cryptomus',
-        testmode: true, merchant: pay.merchant, apiKey: pay.apiKey
+      // Real ₦1,500 test charge attempt with Paystack's published test card.
+      // Expecting `send_pin` — that alone proves live charging works.
+      // Nothing is completed (no PIN submitted), nothing is captured.
+      const data = await paystackCharge({
+        email: 'diagprobe.test@gmail.com', amountCents: 150000, currency: 'NGN', orderRef: testRef,
+        card: { number: '4084084084084081', expiry: '12/30', cvc: '408' },
+        secret: pay.secret
       });
-      await db.prepare('UPDATE orders SET cryptomus_uuid=?, cryptomus_order_id=?, payment_url=? WHERE order_ref=?')
-        .run(inv.uuid || '', inv.order_id || '', inv.url || inv.payment_url || '', testRef);
-      return { uuid: inv.uuid || null, has_payment_url: !!((inv && (inv.url || inv.payment_url))) };
+      return { paystack_status: data.status, message: data.gateway_response || data.message || '' };
     });
   }
   await step('db_cleanup', async () => {
@@ -1039,7 +1154,8 @@ app.get('/api/admin/checkout-diag', requireAuth, async (req, res) => {
 // --- Admin: payment gateway status (secret key never sent to browser) ---
 app.get('/api/admin/payments', requireAuth, async (req, res) => {
   const pay = await getPayConfig();
-  res.json({ merchant: pay.merchant, key_set: !!pay.apiKey, testmode: pay.testmode, configured: pay.configured });
+  res.json({ provider: 'paystack', public_key: pay.pub || '', secret_set: !!pay.secret, testmode: pay.testmode, usd_ngn: String(pay.usdNgn || 1500), configured: pay.configured,
+    callback_url: '/checkout', webhook_url: '/api/checkout/webhook/paystack' });
 });
 app.patch('/api/admin/orders/:id', requireAuth, async (req, res) => {
   const ex = await db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);

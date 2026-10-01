@@ -1,20 +1,19 @@
 // ============================================================
-// Nexatech Checkout — plans + themes, Cryptomus crypto payment
-// Flow: item preview -> buyer details -> POST /api/checkout/create ->
-// redirect to Cryptomus payment_url -> poll order -> success/download.
+// Nexatech Checkout — plans + themes, Paystack INLINE card payment.
+// Everything happens inside this page: details -> card form ->
+// bank OTP/PIN (if required) -> success/download. No redirect, no popup.
 // ============================================================
 const $ = s => document.querySelector(s);
-let ITEM = null, ORDER_REF = '', POLL_N = 0, POLL_TIMER = null, WA_NUM = '19283825389';
-const VIEWS = ['co-loading', 'co-form-view', 'co-redirect-view', 'co-pending-view', 'co-success-view', 'co-error-view'];
+let ITEM = null, ORDER_REF = '', BUYER_EMAIL = '', OTP_MODE = 'otp', POLL_N = 0, POLL_TIMER = null, WA_NUM = '19283825389';
+const VIEWS = ['co-loading', 'co-form-view', 'co-card-view', 'co-otp-view', 'co-redirect-view', 'co-pending-view', 'co-success-view', 'co-error-view'];
 
 function show(id){
   VIEWS.forEach(v => $('#' + v)?.classList.toggle('hidden', v !== id));
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 function waLink(msg){ return 'https://wa.me/' + String(WA_NUM).replace(/\D/g, '') + '?text=' + encodeURIComponent(msg || ''); }
-// Safe JSON reader: if the server returns HTML (old server without the new
-// API routes, or a proxy error page), throw a human message instead of
-// "Unexpected token '<', "<!DOCTYPE "... is not valid JSON".
+// Safe JSON reader: if the server returns HTML (proxy error page), throw a
+// human message instead of "Unexpected token '<'...".
 async function readJson(res, label){
   const text = await res.text();
   try{ return JSON.parse(text); }
@@ -25,13 +24,9 @@ async function readJson(res, label){
   }
 }
 function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
-// API fetch with one automatic retry on gateway/proxy hiccups (502/503/504)
-// or network blips — free-tier hosts sleep and the first request can fail
-// while the server wakes up.
+// API fetch with 45s timeout + one retry on gateway hiccups.
 async function apiFetch(url, options, label){
   options = options || {};
-  // Client-side timeout: fail fast with a clear message instead of hanging
-  // until the hosting proxy kills the connection with an HTML error page.
   async function once(timeoutMs){
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), timeoutMs);
@@ -50,11 +45,14 @@ async function apiFetch(url, options, label){
       throw new Error('Could not reach the server' + (label ? ' while loading ' + label : '') + '. Check your connection and refresh.');
     }
   }
-  if(!res.ok && [502, 503, 504].includes(res.status)){
+  if(res && !res.ok && [502, 503, 504].includes(res.status)){
     await sleep(4000);
     try{ res = await once(45000); }catch{}
   }
   return res;
+}
+function postJson(url, body, label){
+  return apiFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) }, label);
 }
 function setWaFallbacks(){
   $('#co-error-wa').href = waLink('Hi Nexatech! I need help with my checkout.');
@@ -76,7 +74,6 @@ function fillSummary(){
   $('#co-item-name').textContent = ITEM.name || '';
   $('#co-item-desc').textContent = ITEM.description || '';
   $('#co-item-price').textContent = ITEM.price_text || '';
-  $('#co-pay-amount').textContent = ITEM.price_text || '';
   const img = $('#co-item-img');
   if(ITEM.preview_url){ img.src = ITEM.preview_url; img.alt = ITEM.name || ''; img.classList.remove('hidden'); }
   else img.classList.add('hidden');
@@ -91,46 +88,158 @@ function validate(){
   mark(wa, /^\+?[0-9\s\-()]{7,20}$/.test(wa.value.trim()) && wa.value.replace(/\D/g, '').length >= 7);
   return ok;
 }
+// ---- Step 1: create the order, then show the inline card form ----
 async function createOrder(){
   const msg = $('#co-form-msg');
   msg.textContent = '';
   if(!validate()) return;
   const btn = $('#co-pay-btn');
-  btn.disabled = true; btn.textContent = 'Creating secure payment…';
+  btn.disabled = true; btn.textContent = 'Creating your order…';
   try{
-    const res = await apiFetch('/api/checkout/create', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        kind: ITEM.kind, ref: ITEM.ref,
-        name: $('#co-name').value.trim(),
-        email: $('#co-email').value.trim(),
-        whatsapp: $('#co-whatsapp').value.trim()
-      })
-    }, 'payment start');
-    const j = await readJson(res, 'payment start');
-    if(!res.ok) throw new Error(j.error || 'Could not start payment.');
+    const res = await postJson('/api/checkout/create', {
+      kind: ITEM.kind, ref: ITEM.ref,
+      name: $('#co-name').value.trim(),
+      email: $('#co-email').value.trim(),
+      whatsapp: $('#co-whatsapp').value.trim()
+    }, 'order');
+    const j = await readJson(res, 'order');
+    if(!res.ok) throw new Error(j.error || 'Could not create order.');
     ORDER_REF = j.order_ref;
-    if(j.payment_url){
+    BUYER_EMAIL = $('#co-email').value.trim();
+    if(j.inline){
+      showCardView();
+    } else if(j.payment_url){
       $('#co-redirect-ref').textContent = ORDER_REF;
       $('#co-pay-link').href = j.payment_url;
       show('co-redirect-view');
-      try{ window.open(j.payment_url, '_blank', 'noopener'); }catch{}
-      startPolling(j.payment_url);
-      setTimeout(()=>{ if(!$('#co-pending-view').classList.contains('hidden') || !$('#co-redirect-view').classList.contains('hidden')){ /* stay */ } }, 0);
+      startPolling();
     } else {
-      // Gateway not connected — order saved, hand off to WhatsApp
       showError((j.message || 'Payment gateway not connected yet.') + ' Your order ' + ORDER_REF + ' is saved — tap below and we will complete it with you.');
       $('#co-error-wa').href = waLink('Hi Nexatech! I just created order ' + ORDER_REF + ' (' + ITEM.name + ' ' + ITEM.price_text + '). How do I pay?');
     }
   }catch(e){
     msg.textContent = e.message || 'Something went wrong. Please try again.';
   }finally{
-    btn.disabled = false; btn.innerHTML = 'Pay <span id="co-pay-amount">' + (ITEM.price_text || '') + '</span> →';
+    btn.disabled = false; btn.textContent = 'Continue to Payment →';
   }
 }
-function startPolling(paymentUrl){
+// ---- Step 2: inline card form ----
+function showCardView(){
+  $('#co-card-ref').textContent = ORDER_REF;
+  $('#co-card-kind').textContent = ITEM.kind === 'theme' ? 'Theme · Instant Download' : 'Launch Package';
+  $('#co-card-name').textContent = ITEM.name || '';
+  $('#co-card-price').textContent = ITEM.price_text || '';
+  const charge = ITEM.charge_text || ITEM.price_text || '';
+  $('#co-card-amount').textContent = charge;
+  const btn = $('#co-card-pay-btn');
+  if(btn) btn.dataset.amount = charge;
+  $('#co-card-msg').textContent = '';
+  show('co-card-view');
+}
+function validateCard(){
+  let ok = true;
+  const num = $('#co-cc-num'), exp = $('#co-cc-exp'), cvc = $('#co-cc-cvc');
+  const mark = (el, valid) => { el.closest('.field')?.classList.toggle('invalid', !valid); if(!valid) ok = false; };
+  mark(num, num.value.replace(/\D/g, '').length >= 13 && num.value.replace(/\D/g, '').length <= 19);
+  const d = exp.value.replace(/\D/g, '');
+  const mm = d.slice(0, 2);
+  mark(exp, /^(0[1-9]|1[0-2])$/.test(mm) && (d.length === 4 || d.length === 6));
+  mark(cvc, /^\d{3,4}$/.test(cvc.value.trim()));
+  return ok;
+}
+async function payWithCard(pin){
+  const msg = $('#co-card-msg');
+  msg.textContent = '';
+  if(!pin && !validateCard()) return;
+  const btn = $('#co-card-pay-btn');
+  btn.disabled = true; btn.textContent = 'Processing payment…';
+  try{
+    const body = { order_ref: ORDER_REF };
+    if(pin) body.pin = pin;
+    else body.card = { number: $('#co-cc-num').value, expiry: $('#co-cc-exp').value, cvc: $('#co-cc-cvc').value };
+    const res = await postJson('/api/checkout/paystack/charge', body, 'card payment');
+    const j = await readJson(res, 'card payment');
+    if(!res.ok) throw new Error(j.error || 'Card charge failed.');
+    if(j.status === 'success'){
+      await finishPaid();
+    } else if(j.status === 'send_otp'){
+      showOtpView('otp', j.message || 'Your bank sent a one-time code — enter it below to complete payment.');
+    } else if(j.status === 'send_pin'){
+      showOtpView('pin', j.message || 'Your card needs its PIN — enter it below to continue.');
+    } else if(j.status === 'send_phone'){
+      showError('Your bank needs phone verification. ' + (j.message || '') + ' Complete it, then return here and use “Check status”.');
+    } else if(j.status === 'open_url' && j.url){
+      $('#co-redirect-ref').textContent = ORDER_REF;
+      $('#co-pay-link').href = j.url;
+      show('co-redirect-view');
+      startPolling();
+    } else {
+      throw new Error(j.message || 'Card was declined. Try another card or contact your bank.');
+    }
+  }catch(e){
+    msg.textContent = e.message || 'Payment failed. Please try again.';
+  }finally{
+    btn.disabled = false; btn.innerHTML = 'Pay <span id="co-card-amount">' + (btn.dataset.amount || ITEM.price_text || '') + '</span> →';
+  }
+}
+// ---- Step 3 (if bank requires): OTP / PIN ----
+function showOtpView(mode, desc){
+  OTP_MODE = mode;
+  $('#co-otp-spinner').style.display = 'none';
+  if(mode === 'pin'){
+    $('#co-otp-title').textContent = 'Enter your card PIN';
+    $('#co-otp-label').textContent = 'Card PIN *';
+    $('#co-otp-input').value = '';
+    $('#co-otp-input').placeholder = '••••';
+    $('#co-otp-input').maxLength = 12;
+  } else {
+    $('#co-otp-title').textContent = 'Enter your OTP';
+    $('#co-otp-label').textContent = 'One-time code *';
+    $('#co-otp-input').value = '';
+    $('#co-otp-input').placeholder = '123456';
+    $('#co-otp-input').maxLength = 12;
+  }
+  $('#co-otp-desc').textContent = desc;
+  $('#co-otp-msg').textContent = '';
+  show('co-otp-view');
+  setTimeout(() => { try{ $('#co-otp-input').focus(); }catch{} }, 150);
+}
+async function submitOtp(){
+  const msg = $('#co-otp-msg'), btn = $('#co-otp-btn'), input = $('#co-otp-input');
+  const val = input.value.trim();
+  if(!val){ msg.textContent = OTP_MODE === 'pin' ? 'Please enter your PIN.' : 'Please enter the code.'; return; }
+  msg.textContent = '';
+  btn.disabled = true; btn.textContent = 'Verifying…';
+  $('#co-otp-spinner').style.display = 'block';
+  try{
+    const path = OTP_MODE === 'pin' ? '/api/checkout/paystack/pin' : '/api/checkout/paystack/otp';
+    const key = OTP_MODE === 'pin' ? 'pin' : 'otp';
+    const res = await postJson(path, { order_ref: ORDER_REF, [key]: val }, 'verification');
+    const j = await readJson(res, 'verification');
+    if(!res.ok) throw new Error(j.error || 'Verification failed.');
+    if(j.status === 'success'){
+      await finishPaid();
+    } else if(j.status === 'send_otp'){
+      showOtpView('otp', j.message || 'Enter the code your bank sent.');
+    } else {
+      throw new Error(j.message || 'Verification failed. Please try again.');
+    }
+  }catch(e){
+    msg.textContent = e.message || 'Verification failed. Please try again.';
+  }finally{
+    btn.disabled = false; btn.textContent = 'Confirm Payment →';
+    $('#co-otp-spinner').style.display = 'none';
+  }
+}
+async function finishPaid(){
+  const r = await apiFetch('/api/checkout/order/' + encodeURIComponent(ORDER_REF), {}, 'order status');
+  const o = await readJson(r, 'order status');
+  stopPolling();
+  showSuccess(o);
+}
+// ---- Polling (3DS fallback / slow confirmations) ----
+function startPolling(){
   stopPolling(); POLL_N = 0;
-  if(paymentUrl) $('#co-pending-pay').href = paymentUrl;
   POLL_TIMER = setInterval(async ()=>{
     POLL_N++;
     if(POLL_N > 100){ stopPolling(); return; }
@@ -150,7 +259,7 @@ function startPolling(paymentUrl){
 function stopPolling(){ if(POLL_TIMER){ clearInterval(POLL_TIMER); POLL_TIMER = null; } }
 function showSuccess(o){
   $('#co-success-ref').textContent = o.order_ref;
-  $('#co-success-email').textContent = '';
+  $('#co-success-email').textContent = o.email || BUYER_EMAIL || '';
   if(o.kind === 'theme' && o.download_url){
     $('#co-download-wrap').classList.remove('hidden');
     $('#co-plan-wrap').classList.add('hidden');
@@ -162,38 +271,82 @@ function showSuccess(o){
   }
   show('co-success-view');
 }
+// ---- Resume: returning buyer re-checks with Paystack, or retries card ----
 async function resumeByRef(ref){
+  try{
+    const vres = await postJson('/api/checkout/paystack/verify', { order_ref: ref }, 'payment check');
+    const v = await readJson(vres, 'payment check');
+    if(vres.ok && v.status === 'paid'){
+      ORDER_REF = ref;
+      const r = await apiFetch('/api/checkout/order/' + encodeURIComponent(ref), {}, 'order details');
+      showSuccess(await readJson(r, 'order details'));
+      return;
+    }
+  }catch{}
   try{
     const r = await apiFetch('/api/checkout/order/' + encodeURIComponent(ref), {}, 'order details');
     if(!r.ok) throw new Error('Order not found.');
     const o = await readJson(r, 'order details');
     ORDER_REF = o.order_ref;
+    BUYER_EMAIL = o.email || '';
     if(o.status === 'paid'){ showSuccess(o); return; }
     if(o.status === 'failed' || o.status === 'expired'){
       showError('This payment ' + o.status + '. Please start a new checkout from the site.');
       return;
     }
-    $('#co-pending-ref').textContent = o.order_ref;
-    if(o.payment_url) $('#co-pending-pay').href = o.payment_url;
-    else $('#co-pending-pay').style.display = 'none';
-    show('co-pending-view');
-    startPolling(o.payment_url || '');
+    const ir = await apiFetch('/api/checkout/item?kind=' + encodeURIComponent(o.kind) + '&ref=' + encodeURIComponent(o.item_ref), {}, 'item details');
+    const ij = await readJson(ir, 'item details');
+    if(!ir.ok) throw new Error(ij.error || 'Item not available.');
+    ITEM = ij;
+    showCardView();
   }catch{
     showError('We could not find that order. It may have expired — please check out again.');
   }
 }
-function goPending(){
-  $('#co-pending-ref').textContent = ORDER_REF;
-  const url = $('#co-pay-link').href;
-  if(url && url !== '#') $('#co-pending-pay').href = url;
-  show('co-pending-view');
+function formatCardInputs(){
+  const num = $('#co-cc-num');
+  num?.addEventListener('input', ()=>{
+    const d = num.value.replace(/\D/g, '').slice(0, 19);
+    num.value = d.replace(/(.{4})/g, '$1 ').trim();
+  });
+  const exp = $('#co-cc-exp');
+  exp?.addEventListener('input', ()=>{
+    let d = exp.value.replace(/\D/g, '').slice(0, 6);
+    exp.value = d.length > 2 ? d.slice(0, 2) + '/' + d.slice(2) : d;
+  });
+  $('#co-cc-cvc')?.addEventListener('input', ()=>{
+    const c = $('#co-cc-cvc');
+    c.value = c.value.replace(/\D/g, '').slice(0, 4);
+  });
+  $('#co-otp-input')?.addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); submitOtp(); } });
 }
 (async function init(){
   $('#co-year').textContent = new Date().getFullYear();
   await loadSiteMeta();
   try{ fetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_type: 'pageview', element_id: 'checkout', session_id: '', page_url: location.href, utm: {}, metadata: {} }) }).catch(()=>{}); }catch{}
+  formatCardInputs();
+  $('#co-form')?.addEventListener('submit', e => { e.preventDefault(); createOrder(); });
+  $('#co-card-form')?.addEventListener('submit', e => { e.preventDefault(); payWithCard(); });
+  $('#co-otp-btn')?.addEventListener('click', submitOtp);
+  $('#co-iredirect-check')?.addEventListener('click', async ()=>{
+    $('#co-pending-ref').textContent = ORDER_REF;
+    show('co-pending-view');
+    startPolling();
+  });
+  $('#co-pending-check')?.addEventListener('click', async ()=>{
+    if(!ORDER_REF) return;
+    try{
+      const vres = await postJson('/api/checkout/paystack/verify', { order_ref: ORDER_REF }, 'payment check');
+      const v = await readJson(vres, 'payment check');
+      if(vres.ok && v.status === 'paid'){
+        const r = await apiFetch('/api/checkout/order/' + encodeURIComponent(ORDER_REF), {}, 'order status');
+        stopPolling(); showSuccess(await readJson(r, 'order status'));
+      }
+      else alert('Still waiting for payment. If you paid, give it a few minutes, then check again.');
+    }catch{ alert('Could not check status — try again in a moment.'); }
+  });
   const q = new URLSearchParams(location.search);
-  const ref = (q.get('ref') || '').trim();
+  const ref = (q.get('ref') || q.get('reference') || q.get('trxref') || '').trim();
   if(ref){ await resumeByRef(ref); return; }
   const kind = (q.get('kind') || '').trim(), item = (q.get('item') || '').trim();
   if(!kind || !item){ showError('Choose a plan or theme first, then come back to pay.'); return; }
@@ -207,15 +360,4 @@ function goPending(){
   }catch(e){
     showError(e.message);
   }
-  $('#co-form')?.addEventListener('submit', e => { e.preventDefault(); createOrder(); });
-  $('#co-iredirect-check')?.addEventListener('click', goPending);
-  $('#co-pending-check')?.addEventListener('click', async ()=>{
-    if(!ORDER_REF) return;
-    try{
-      const r = await fetch('/api/checkout/order/' + encodeURIComponent(ORDER_REF));
-      const o = await readJson(r, 'order status');
-      if(o.status === 'paid'){ stopPolling(); showSuccess(o); }
-      else alert('Still waiting for payment. If you paid, give the network a few minutes.');
-    }catch{ alert('Could not check status — try again in a moment.'); }
-  });
 })();

@@ -2515,13 +2515,14 @@ async function fillPaymentsForm(){
   try{
     const r = await fetch('/api/admin/payments', { headers: authHeaders() });
     const j = await r.json();
-    if($('#int-cryptomus-merchant') && !$('#int-cryptomus-merchant').value) $('#int-cryptomus-merchant').value = j.merchant || '';
-    if($('#int-cryptomus-test')) $('#int-cryptomus-test').checked = j.testmode !== false;
-    if($('#int-cryptomus-key')) $('#int-cryptomus-key').placeholder = j.key_set ? 'Saved ✓ (leave empty to keep)' : '4f44274a8c606efbf0b5eb7318501663630d56c0';
+    if($('#int-paystack-public') && !$('#int-paystack-public').value) $('#int-paystack-public').value = j.public_key || '';
+    if($('#int-paystack-rate') && !$('#int-paystack-rate').value) $('#int-paystack-rate').value = j.usd_ngn || '1500';
+    if($('#int-paystack-test')) $('#int-paystack-test').checked = j.testmode !== false;
+    if($('#int-paystack-secret')) $('#int-paystack-secret').placeholder = j.secret_set ? 'Saved ✓ (leave empty to keep)' : 'sk_test_... (paste whole key)';
   }catch{}
 }
-$('#btn-show-cryptomus-key')?.addEventListener('click', ()=>{
-  const el = $('#int-cryptomus-key');
+$('#btn-show-paystack-key')?.addEventListener('click', ()=>{
+  const el = $('#int-paystack-secret');
   if(el) el.type = el.type === 'password' ? 'text' : 'password';
 });
 $('#btn-save-payments')?.addEventListener('click', async ()=>{
@@ -2530,16 +2531,17 @@ $('#btn-save-payments')?.addEventListener('click', async ()=>{
   if(msg){ msg.textContent = 'Saving...'; msg.style.color = '#64748B'; }
   try{
     const payload = {
-      cryptomus_merchant_uuid: $('#int-cryptomus-merchant')?.value?.trim() || '',
-      cryptomus_testmode: String($('#int-cryptomus-test')?.checked !== false)
+      paystack_public_key: $('#int-paystack-public')?.value?.trim() || '',
+      paystack_usd_ngn_rate: $('#int-paystack-rate')?.value?.trim() || '1500',
+      paystack_testmode: String($('#int-paystack-test')?.checked !== false)
     };
-    const keyVal = $('#int-cryptomus-key')?.value?.trim() || '';
-    if(keyVal) payload.cryptomus_api_key = keyVal; // empty = keep existing
+    const keyVal = $('#int-paystack-secret')?.value?.trim() || '';
+    if(keyVal) payload.paystack_secret_key = keyVal; // empty = keep existing
     const r = await fetch('/api/content', { method: 'PUT', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(payload) });
     const j = await r.json().catch(() => ({}));
     if(!r.ok) throw new Error(j.error || 'Save failed');
-    if(msg){ msg.textContent = 'Saved ✓ — checkout will now create live crypto invoices.'; msg.style.color = '#10B981'; }
-    if($('#int-cryptomus-key')) $('#int-cryptomus-key').value = '';
+    if(msg){ msg.textContent = 'Saved ✓ — checkout now charges cards inline via Paystack.'; msg.style.color = '#10B981'; }
+    if($('#int-paystack-secret')) $('#int-paystack-secret').value = '';
     await loadContent(); fillPaymentsForm();
   }catch(e){ if(msg){ msg.textContent = 'Error: ' + e.message; msg.style.color = '#F87171'; } }
   finally{ if(btn){ btn.disabled = false; btn.textContent = 'Save Payment Keys'; } }
