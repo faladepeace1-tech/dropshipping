@@ -705,15 +705,15 @@ export async function initDb() {
       ['pricing_starter_name', 'Starter', 'text'],
       ['pricing_starter_price', '$149', 'text'],
       ['pricing_starter_features', '["1 Niche Store (Premium Theme)","5 Winning Products Researched","Supplier & Fulfillment Setup","Payment Gateway Integration","Basic Support (14 days)"]', 'json'],
-      ['pricing_starter_whatsapp', 'Hi Nexatech! I want the Starter package ($149) 1 niche store, 5 winning products, supplier setup, payment integration, 14-day support. How do we start?', 'text'],
+      ['pricing_starter_whatsapp', 'Hi Nexatech! I want the {name} plan ({price}). How do we start?', 'text'],
       ['pricing_pro_name', 'Pro', 'text'],
       ['pricing_pro_price', '$299', 'text'],
       ['pricing_pro_features', '["Everything in Starter","10 Winning Products + Ad Angles","Custom Branding & Logo","Abandoned Cart Automation","Priority Support (30 days)"]', 'json'],
-      ['pricing_pro_whatsapp', 'Hi Nexatech! I\'m interested in the Pro package ($299) 10 winning products, custom branding, cart automation, 30-day priority support. Let\'s talk!', 'text'],
+      ['pricing_pro_whatsapp', 'Hi Nexatech! I\'m interested in the {name} package ({price}). Let\'s talk!', 'text'],
       ['pricing_elite_name', 'Elite', 'text'],
       ['pricing_elite_price', '$599', 'text'],
       ['pricing_elite_features', '["Everything in Pro","20 Winning Products + Creatives","3 Custom Ad Creatives","1-on-1 Growth Call (60 min)","Extended Support (60 days)"]', 'json'],
-      ['pricing_elite_whatsapp', 'Hi Nexatech! I want the Elite package ($599) everything in Pro plus 20 products, ad creatives, growth call, 60-day support. Ready to start!', 'text'],
+      ['pricing_elite_whatsapp', 'Hi Nexatech! I want the {name} package ({price}). Ready to start!', 'text'],
       ['pricing_mentorship_whatsapp', 'Hi Nexatech! Tell me about the Mentorship (Results Before Payment) what\'s included and how does the pay-after-results model work?', 'text'],
       ['nav_link_themes', 'Themes', 'text'],
       ['themes_eyebrow', 'Theme Store', 'text'],
@@ -1207,6 +1207,22 @@ export async function initDb() {
     await ensure('paystack_public_key','','text');
     await ensure('paystack_testmode','true','boolean');
     await ensure('paystack_usd_ngn_rate','1500','text');
+    // WhatsApp plan templates: convert exact old hardcoded-price seeds to live
+    // {name}/{price} placeholders (custom admin wording is never touched)
+    try{
+      const waSeeds = [
+        ['pricing_starter_whatsapp', 'Hi Nexatech! I want the Starter package ($149) 1 niche store, 5 winning products, supplier setup, payment integration, 14-day support. How do we start?', 'Hi Nexatech! I want the {name} plan ({price}). How do we start?'],
+        ['pricing_pro_whatsapp', 'Hi Nexatech! I\'m interested in the Pro package ($299) 10 winning products, custom branding, cart automation, 30-day priority support. Let\'s talk!', 'Hi Nexatech! I\'m interested in the {name} package ({price}). Let\'s talk!'],
+        ['pricing_elite_whatsapp', 'Hi Nexatech! I want the Elite package ($599) everything in Pro plus 20 products, ad creatives, growth call, 60-day support. Ready to start!', 'Hi Nexatech! I want the {name} package ({price}). Ready to start!']
+      ];
+      for(const [k, oldText, newText] of waSeeds){
+        const row = await db.prepare('SELECT value FROM content WHERE key=?').get(k);
+        if(row && String(row.value || '') === oldText){
+          await db.prepare("UPDATE content SET value=?, updated_at=datetime('now') WHERE key=?").run(newText, k);
+          console.log('Migrated: live price placeholders for ' + k);
+        }
+      }
+    }catch(e){ console.error('whatsapp template migration error', e.message); }
     await ensure('owner_notify_email','nexatechdropshipping@gmail.com','text');
     // Adopt the new Gmail when the field is still empty or holds the previous default
     try{

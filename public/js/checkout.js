@@ -115,7 +115,7 @@ async function createOrder(){
       startPolling();
     } else {
       showError((j.message || 'Payment gateway not connected yet.') + ' Your order ' + ORDER_REF + ' is saved — tap below and we will complete it with you.');
-      $('#co-error-wa').href = waLink('Hi Nexatech! I just created order ' + ORDER_REF + ' (' + ITEM.name + ' ' + ITEM.price_text + '). How do I pay?');
+      $('#co-error-wa').href = waLink((ITEM.wa_text || ('Hi Nexatech! I just created order ' + ORDER_REF + ' (' + ITEM.name + ' ' + ITEM.price_text + '). How do I pay?')) + ' [Order ' + ORDER_REF + ']');
     }
   }catch(e){
     msg.textContent = e.message || 'Something went wrong. Please try again.';

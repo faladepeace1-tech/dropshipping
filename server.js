@@ -807,7 +807,8 @@ async function getCheckoutItem(kind, ref){
     const cents = parsePriceToCents(priceText);
     if(!cents) return { error: 'This plan has no price set yet.' };
     return { kind: 'plan', ref: r, name: String(name) + ' Plan', price_text: priceText, amount_cents: cents, currency: 'USD',
-      description: Array.isArray(features) ? features.join(' • ') : '' };
+      description: Array.isArray(features) ? features.join(' • ') : '',
+      wa_text: await planWaMsg(r, String(name)).catch(() => '') };
   }
   if(k === 'theme'){
     const row = await db.prepare('SELECT * FROM themes WHERE slug=? AND published=1').get(String(ref || ''));
@@ -2010,6 +2011,73 @@ async function getAuthenticatedGmail(){
   return { gmail, oauth2, cfg, senderEmail };
 }
 // Helper: render template with lead variables {{name}}, {{storeName}}, etc. — HubSpot-like personalization
+// Live prices (single source of truth = content keys). Cached 60s so bulk
+// email sends don't hammer the DB. Used by email placeholders, AI prompts,
+// and WhatsApp templates — change a price once, everything follows.
+let _livePricesCache = null, _livePricesAt = 0;
+async function getLivePrices(){
+  const now = Date.now();
+  if(_livePricesCache && now - _livePricesAt < 60000) return _livePricesCache;
+  const get = async (k, fb) => {
+    try{
+      const row = await db.prepare('SELECT value FROM content WHERE key=?').get(k);
+      const v = String(row?.value ?? '').trim();
+      return v || fb;
+    }catch{ return fb; }
+  };
+  const p = {
+    startername: await get('pricing_starter_name', 'Starter'),
+    starterprice: await get('pricing_starter_price', '$149'),
+    proname: await get('pricing_pro_name', 'Pro'),
+    proprice: await get('pricing_pro_price', '$299'),
+    elitename: await get('pricing_elite_name', 'Elite'),
+    eliteprice: await get('pricing_elite_price', '$599'),
+    mentorshiptitle: await get('mentorship_title', 'Mentorship'),
+    mentorshipprice: await get('mentorship_price', 'Pay After Results')
+  };
+  _livePricesCache = p; _livePricesAt = now;
+  return p;
+}
+// Attach live-price placeholders to any lead-like object before renderTemplate:
+// {{starterPrice}} {{proPrice}} {{elitePrice}} {{mentorshipPrice}} (+Name variants)
+// and {{planPrice}}/{{planName}} resolved from the lead's investmentRange.
+async function withLivePrices(lead){
+  const base = (lead && typeof lead === 'object') ? { ...lead } : {};
+  try{
+    const p = await getLivePrices();
+    Object.assign(base, p);
+    const range = String(base.investmentRange || base.preferredNiche || '').toLowerCase();
+    if(range.includes('starter')){ base.planname = p.startername; base.planprice = p.starterprice; }
+    else if(range.includes('pro') || range.includes('scale')){ base.planname = p.proname; base.planprice = p.proprice; }
+    else if(range.includes('elite')){ base.planname = p.elitename; base.planprice = p.eliteprice; }
+    else if(range.includes('mentor')){ base.planname = p.mentorshiptitle; base.planprice = p.mentorshipprice; }
+    else { base.planname = ''; base.planprice = ''; }
+  }catch{}
+  return base;
+}
+// WhatsApp plan template -> live message. Supports {name}/{price} placeholders;
+// if the stored text still carries a STALE hardcoded $ figure, it is rebuilt
+// from live values so the message can never quote an old price.
+async function planWaMsg(planKey, fallbackName){
+  const p = await getLivePrices().catch(() => null);
+  const k = String(planKey || '').toLowerCase();
+  const name = (p ? (k === 'starter' ? p.startername : k === 'pro' ? p.proname : k === 'elite' ? p.elitename : fallbackName) : fallbackName) || fallbackName || k;
+  const price = p ? (k === 'starter' ? p.starterprice : k === 'pro' ? p.proprice : k === 'elite' ? p.eliteprice : '') : '';
+  let tpl = '';
+  try{
+    const row = await db.prepare('SELECT value FROM content WHERE key=?').get('pricing_' + k + '_whatsapp');
+    tpl = String(row?.value || '');
+  }catch{}
+  if(tpl){
+    let msg = tpl.replace(/\{name\}/gi, name).replace(/\{price\}/gi, price);
+    // stale guard: any $ amount in the text must equal the live price
+    const liveNum = parseFloat(String(price).replace(/[^0-9.]/g, ''));
+    const found = msg.match(/\$\s?[\d,]+(?:\.\d+)?/g) || [];
+    const stale = found.some(f => Math.abs(parseFloat(f.replace(/[^0-9.]/g, '')) - liveNum) > 0.005);
+    if(!stale && msg.trim()) return msg;
+  }
+  return `Hi Nexatech! I want the ${name} plan (${price}). How do we start?`;
+}
 function renderTemplate(str, lead={}){
   if(!str) return '';
   const map = {
@@ -2223,7 +2291,8 @@ async function generateFollowupAI({ lead={}, transcript='', kind='form_instant',
   ].filter(Boolean).join(' | ').slice(0,1200);
   const cleanTranscript = String(transcript||'').slice(0,2500);
   const dayAngle = kind.startsWith('daily') ? `This is Day ${dayNumber} follow-up (angles rotate: Day2 reminder+social proof, Day3 FAQ/objection handling incl. scam-trust, Day4 urgency/slot scarcity, Day5+ mentorship pay-after-results). Keep it fresh, never repeat verbatim.` : 'This is the FIRST instant follow-up (thank them, confirm next step within 24h on WhatsApp).';
-  const prompt = `You are Nexatech email copywriter. Write a short personalized follow-up email.\n${dayAngle}\nLEAD CONTEXT: ${ctxSummary || '(chat-only contact)'}\nCHAT TRANSCRIPT (if any): ${cleanTranscript || '(none — form lead)'}\nRULES:\n- Friendly, human, 120-180 words, 2-3 short paragraphs. Address by first name.\n- Reference their niche/store/request specifically. If scammed=yes, show empathy + trust (100% ownership, video proof).\n- Never invent prices beyond Starter $149 / Pro $299 / Elite $599 / Mentorship pay-after-results.\n- No raw URLs (WhatsApp button + unsubscribe are added separately). No emojis overload (max 1).\n- SUBJECT RULE: include the person's first name plus their store or niche, plain ASCII text only (letters, numbers, basic punctuation - no emoji, no special dashes, no curly quotes). Example: Thanks Ada - your GlowLab fashion store request is in.\n- Return ONLY valid JSON: {"subject":"...","html_inner":"<p>...</p><p>...</p>","text_inner":"..."}`;
+  const livePrices = await getLivePrices().catch(() => ({ starterprice:'$149', proname:'Pro', proprice:'$299', elitename:'Elite', eliteprice:'$599', mentorshipprice:'Pay After Results' }));
+  const prompt = `You are Nexatech email copywriter. Write a short personalized follow-up email.\n${dayAngle}\nLEAD CONTEXT: ${ctxSummary || '(chat-only contact)'}\nCHAT TRANSCRIPT (if any): ${cleanTranscript || '(none — form lead)'}\nRULES:\n- Friendly, human, 120-180 words, 2-3 short paragraphs. Address by first name.\n- Reference their niche/store/request specifically. If scammed=yes, show empathy + trust (100% ownership, video proof).\n- Never invent prices. The ONLY prices you may state: Starter ${livePrices.starterprice} / ${livePrices.proname} ${livePrices.proprice} / ${livePrices.elitename} ${livePrices.eliteprice} / Mentorship ${livePrices.mentorshipprice}. Quote ONLY these exact figures.\n- No raw URLs (WhatsApp button + unsubscribe are added separately). No emojis overload (max 1).\n- SUBJECT RULE: include the person's first name plus their store or niche, plain ASCII text only (letters, numbers, basic punctuation - no emoji, no special dashes, no curly quotes). Example: Thanks Ada - your GlowLab fashion store request is in.\n- Return ONLY valid JSON: {"subject":"...","html_inner":"<p>...</p><p>...</p>","text_inner":"..."}`;
   try{
     const r = await aiGenerate({ contents: [{ role:'user', parts:[{ text: prompt }] }], genConfig: { temperature: 0.8, maxOutputTokens: 700, topP: 0.9 }, timeoutMs: 15000 });
     let text = r.text.replace(/^```json\s*/i,'').replace(/^```\s*/,'').replace(/```\s*$/,'').trim();
@@ -3287,8 +3356,8 @@ app.post('/api/admin/campaigns/:id/test', requireAuth, async (req,res)=>{
   const cfg = await getGoogleConfig();
   const target = (to||cfg.gmailConnectedEmail||'').trim();
   if(!target) return res.status(400).json({ error: 'Provide to email or connect Gmail first' });
-  // render with sample lead
-  const sampleLead = (await db.prepare('SELECT * FROM leads ORDER BY created_at DESC LIMIT 1').get()) || { name:'Test Founder', storeName:'Test Store', preferredNiche:'Fashion', whatsapp:'+19283825389', email: target };
+  // render with sample lead (live prices injected so {{proPrice}} etc. stay current)
+  const sampleLead = await withLivePrices((await db.prepare('SELECT * FROM leads ORDER BY created_at DESC LIMIT 1').get()) || { name:'Test Founder', storeName:'Test Store', preferredNiche:'Fashion', whatsapp:'+19283825389', email: target });
   const subject = renderTemplate(c.subject, sampleLead);
   const html = renderTemplate(c.body_html, sampleLead);
   const text = renderTemplate(c.body_text, sampleLead);
@@ -3330,7 +3399,8 @@ app.post('/api/admin/campaigns/:id/send', requireAuth, async (req,res)=>{
   const batch = withEmail.slice(0, parseInt(limit||500,10)); // cap
   // Update campaign total
   await db.prepare('UPDATE campaigns SET total_recipients=?, status=? WHERE id=?').run(batch.length, 'sending', c.id);
-  for(const lead of batch){
+  for(const rawLead of batch){
+    const lead = await withLivePrices(rawLead);
     const subj = renderTemplate(c.subject, lead);
     const html = renderTemplate(c.body_html, lead);
     const text = renderTemplate(c.body_text, lead);
@@ -3364,7 +3434,7 @@ app.get('/api/admin/campaigns/:id/sends', requireAuth, async (req,res)=>{
 
 // Personal 1:1 email to a lead — looks like HubSpot conversation
 app.post('/api/admin/leads/:id/email', requireAuth, async (req,res)=>{
-  const lead = await db.prepare('SELECT * FROM leads WHERE id=?').get(req.params.id);
+  let lead = await db.prepare('SELECT * FROM leads WHERE id=?').get(req.params.id);
   if(!lead) return res.status(404).json({ error: 'lead not found' });
   if(!lead.email) return res.status(400).json({ error: 'lead has no email' });
   const { subject, body_html, body_text, templateId, from_name, from_email, reply_to } = req.body;
@@ -3374,7 +3444,8 @@ app.post('/api/admin/leads/:id/email', requireAuth, async (req,res)=>{
     if(t){ subj = subj || t.subject; html = html || t.body_html; text = text || t.body_text; }
   }
   if(!subj) return res.status(400).json({ error: 'subject required (or templateId)' });
-  // render personalization
+  // render personalization (live prices injected)
+  lead = await withLivePrices(lead);
   subj = renderTemplate(subj, lead);
   html = renderTemplate(html, lead);
   text = renderTemplate(text, lead);
