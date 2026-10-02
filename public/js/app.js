@@ -1517,26 +1517,35 @@ function initChat(){
 }
 
 // Init all — content first, feeds in parallel, 3D last (deferred)
+// One failing widget must never kill the rest: each initializer is isolated,
+// so a single device-specific error can't take down all buttons at once.
+function safeInit(fn){
+  try{ fn(); }catch(e){ console.error('init step failed:', e && e.message); }
+}
 (async function init(){
-  initCursor();
-  initScrollProgress();
-  initAmbientWebGL();
-  initHeader();
-  initLeadForm();
-  initReveal();
-  initChat();
-  initChips();
+  safeInit(initCursor);
+  safeInit(initScrollProgress);
+  safeInit(initAmbientWebGL);
+  safeInit(initHeader);
+  safeInit(initLeadForm);
+  safeInit(initReveal);
+  safeInit(initChat);
+  safeInit(initChips);
   try{ await loadContent(); }catch(e){ console.error('content load failed',e); }
-  renderMarquee();
-  initReveal();
+  safeInit(renderMarquee);
+  safeInit(initReveal);
   // Portfolio + all media feeds concurrently (was sequential awaits)
-  await Promise.allSettled([loadPortfolio(), loadMedia(), loadThemes()]);
-  initReveal();
-  initTilt();
-  initSpotlight();
-  initMagnetic();
-  initSmoothScroll();
-  initGsapReveals();
+  try{
+    if(Promise.allSettled) await Promise.allSettled([loadPortfolio(), loadMedia(), loadThemes()]);
+    else for(const f of [loadPortfolio, loadMedia, loadThemes]){ try{ await f(); }catch(e){ console.error('feed failed', e && e.message); } }
+  }
+  catch(e){ console.error('feeds failed', e && e.message); }
+  safeInit(initReveal);
+  safeInit(initTilt);
+  safeInit(initSpotlight);
+  safeInit(initMagnetic);
+  safeInit(initSmoothScroll);
+  safeInit(initGsapReveals);
   // Heavy/deferred layers run after first paint so they never block content
   try{
     if('requestIdleCallback' in window) requestIdleCallback(()=>{ initParticles(); initHeroWebGL(); }, {timeout:2000});
@@ -1544,8 +1553,13 @@ function initChat(){
   }catch{ setTimeout(()=>{ try{ initParticles(); initHeroWebGL(); }catch{} }, 800); }
   setTimeout(()=>{ try{ window.ScrollTrigger?.refresh(); }catch{} }, 900);
   track('pageview','landing');
-  window.matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', e=>{
-    if(e.matches) document.body.classList.add('reduced');
-    else if(CONTENT.reduced_motion!=='true') document.body.classList.remove('reduced');
-  });
+  try{
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const onCh = e=>{
+      if(e.matches) document.body.classList.add('reduced');
+      else if(CONTENT.reduced_motion!=='true') document.body.classList.remove('reduced');
+    };
+    if(mq.addEventListener) mq.addEventListener('change', onCh);
+    else if(mq.addListener) mq.addListener(onCh);
+  }catch{}
 })();
