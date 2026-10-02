@@ -623,37 +623,37 @@
 <dialog id="edit-media-dialog" style="border:none;border-radius:16px;max-width:560px;width:92vw;padding:0;overflow:hidden">
   <form method="dialog" style="display:grid;gap:0">
     <div style="padding:16px;border-bottom:1px solid #E2E8F0;display:flex;justify-content:space-between;align-items:center"><b>Edit Media</b><button value="cancel" style="border:none;background:#F1F5F9;border-radius:999px;width:32px;height:32px;cursor:pointer">✕</button></div>
-    <div style="padding:16px;display:grid;gap:10px" id="edit-media-body"></div>
-    <div style="padding:12px 16px;background:#F8FAFC;display:flex;gap:8px;justify-content:flex-end"><button value="cancel" class="btn btn-ghost">Cancel</button><button id="edit-media-save" value="default" class="btn btn-primary">Save</button></div>
+    <div style="padding:16px;display:grid;gap:10px;max-height:62vh;overflow:auto" id="edit-media-body"></div>
+    <div style="padding:12px 16px;background:#F8FAFC;display:flex;gap:8px;justify-content:flex-end"><button value="cancel" class="btn btn-ghost">Cancel</button><button id="edit-media-save" type="button" class="btn btn-primary">Save</button></div>
   </form>
 </dialog>
 
 <dialog id="edit-team-dialog" style="border:none;border-radius:16px;max-width:520px;width:92vw;padding:0;overflow:hidden">
   <form method="dialog" style="display:grid;gap:0">
     <div style="padding:16px;border-bottom:1px solid #E2E8F0;display:flex;justify-content:space-between;align-items:center"><b>Edit Expert</b><button value="cancel" style="border:none;background:#F1F5F9;border-radius:999px;width:32px;height:32px;cursor:pointer">✕</button></div>
-    <div style="padding:16px;display:grid;gap:10px" id="edit-team-body"></div>
-    <div style="padding:12px 16px;background:#F8FAFC;display:flex;gap:8px;justify-content:flex-end"><button value="cancel" class="btn btn-ghost">Cancel</button><button id="edit-team-save" value="default" class="btn btn-primary">Save</button></div>
+    <div style="padding:16px;display:grid;gap:10px;max-height:62vh;overflow:auto" id="edit-team-body"></div>
+    <div style="padding:12px 16px;background:#F8FAFC;display:flex;gap:8px;justify-content:flex-end"><button value="cancel" class="btn btn-ghost">Cancel</button><button id="edit-team-save" type="button" class="btn btn-primary">Save</button></div>
   </form>
 </dialog>
 <!-- Campaign: Personal Email (HubSpot 1:1) -->
 <dialog id="personal-email-dialog" style="border:none;border-radius:16px;max-width:620px;width:94vw;padding:0;overflow:hidden">
   <form method="dialog" style="display:grid;gap:0">
     <div style="padding:16px;border-bottom:1px solid #E2E8F0;display:flex;justify-content:space-between;align-items:center"><b>Send Personal Email <small style="font-weight:500;color:#64748B" id="personal-email-to"></small></b><button value="cancel" style="border:none;background:#F1F5F9;border-radius:999px;width:32px;height:32px;cursor:pointer">✕</button></div>
-    <div style="padding:16px;display:grid;gap:10px">
+    <div style="padding:16px;display:grid;gap:10px;max-height:62vh;overflow:auto">
       <label>Template<select id="personal-tpl"><option value="">— No template —</option></select></label>
       <label>Subject<input id="personal-subject" placeholder="Hi {{name}}!"></label>
       <label>HTML Body<textarea id="personal-html" rows="8" placeholder="<p>Hi {{name}},</p>..."></textarea></label>
       <label>Text fallback<textarea id="personal-text" rows="3"></textarea></label>
       <div style="font-size:11px;color:#94A3B8">Tags: {{name}} {{storeName}} {{preferredNiche}} {{email}} {{whatsapp}} — rendered per lead.</div>
     </div>
-    <div style="padding:12px 16px;background:#F8FAFC;display:flex;gap:8px;justify-content:flex-end"><button value="cancel" class="btn btn-ghost">Cancel</button><button id="personal-send" value="default" class="btn btn-primary">Send via Gmail →</button></div>
+    <div style="padding:12px 16px;background:#F8FAFC;display:flex;gap:8px;justify-content:flex-end"><button value="cancel" class="btn btn-ghost">Cancel</button><button id="personal-send" type="button" class="btn btn-primary">Send via Gmail →</button></div>
   </form>
 </dialog>
 <!-- Template editor -->
 <dialog id="template-dialog" style="border:none;border-radius:16px;max-width:600px;width:94vw;padding:0;overflow:hidden">
   <form method="dialog" style="display:grid;gap:0">
     <div style="padding:16px;border-bottom:1px solid #E2E8F0;display:flex;justify-content:space-between;align-items:center"><b id="template-dialog-title">New Template</b><button value="cancel" style="border:none;background:#F1F5F9;border-radius:999px;width:32px;height:32px;cursor:pointer">✕</button></div>
-    <div style="padding:16px;display:grid;gap:10px">
+    <div style="padding:16px;display:grid;gap:10px;max-height:62vh;overflow:auto">
       <label>Template Name<input id="tpl-name" placeholder="Welcome — New Lead"></label>
       <label>Category<input id="tpl-cat" placeholder="general / followup / nurture"></label>
       <label>Subject<input id="tpl-subject" placeholder="Welcome {{name}}!"></label>
@@ -661,7 +661,7 @@
       <label>Text Body<textarea id="tpl-text" rows="3"></textarea></label>
       <div style="font-size:11px;color:#64748B;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:8px">Live placeholders (filled at send time from current pricing): <code>{{name}}</code> <code>{{storeName}}</code> <code>{{preferredNiche}}</code> <code>{{whatsapp}}</code> <code>{{email}}</code> <code>{{starterPrice}}</code> <code>{{proPrice}}</code> <code>{{elitePrice}}</code> <code>{{mentorshipPrice}}</code> <code>{{planPrice}}</code> <code>{{planName}}</code> — change a price once in Content, every email follows.</div>
     </div>
-    <div style="padding:12px 16px;background:#F8FAFC;display:flex;gap:8px;justify-content:flex-end"><button value="cancel" class="btn btn-ghost">Cancel</button><button id="template-save" value="default" class="btn btn-primary">Save Template</button></div>
+    <div style="padding:12px 16px;background:#F8FAFC;display:flex;gap:8px;justify-content:flex-end"><button value="cancel" class="btn btn-ghost">Cancel</button><button id="template-save" type="button" class="btn btn-primary">Save Template</button></div>
   </form>
 </dialog>
 
