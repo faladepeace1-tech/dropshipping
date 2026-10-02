@@ -214,6 +214,11 @@ main, .footer{position:relative;z-index:1}
 .duo-media img{width:100%;border-radius:22px;border:1px solid var(--border);box-shadow:var(--shadow-lg);aspect-ratio:4/5;object-fit:cover;background:var(--bg-alt)}
 .duo-card{position:absolute;left:14px;right:14px;bottom:14px;background:rgba(255,255,255,.96);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);padding:12px 14px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
 .duo.rev{grid-template-columns:.9fr 1.1fr}
+@media(max-width:900px){
+  /* Mobile: explanation text on top, logo below it */
+  .duo.rev .duo-copy{order:-1}
+  .duo.rev .duo-media{max-width:420px;margin:0 auto;width:100%}
+}
 .duo-logo img{aspect-ratio:1/1;object-fit:contain;padding:32px;background:linear-gradient(135deg,#0B1220,#132238)}
 .wwd-handle{font-weight:800;font-size:15px;margin:0 0 4px}
 .wwd-list{display:grid;gap:10px;margin:10px 0 14px}
