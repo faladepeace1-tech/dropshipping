@@ -421,7 +421,7 @@ function applyMicroCopy(){
     const wi = document.getElementById('whatwedo-img');
     const wu = T('whatwedo_logo_url','').trim() || T('logo_url','').trim();
     if(wi && wu) wi.src = wu;
-    else if(wi) wi.closest('.duo-media').style.display = 'none';
+    else if(wi) wi.closest('.duo-media')?.style.setProperty('display','none');
   }catch{}
   try{
     const di = document.getElementById('dropshipping-img');
