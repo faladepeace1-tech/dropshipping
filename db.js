@@ -870,6 +870,7 @@ export async function initDb() {
       ['form_back', 'Back', 'text'],
       ['form_continue', 'Continue', 'text'],
       ['form_submit', 'Submit Application & Book Strategy Call', 'text'],
+      ['form_incomplete', 'Please fill the highlighted fields to continue →', 'text'],
       ['form_submitting', 'Submitting...', 'text'],
       ['form_required', 'Required', 'text'],
       ['form_email_invalid', 'Enter a valid email', 'text'],

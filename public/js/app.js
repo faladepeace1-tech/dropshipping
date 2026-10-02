@@ -9,7 +9,20 @@ const $$ = s => [...document.querySelectorAll(s)];
 let CONTENT={}, STATS={}, SCARCITY={}, SECTIONS=[];
 let PORTFOLIO=[], MODAL_INDEX=0, MODAL_ITEMS=[];
 function T(key, fb){ const v=CONTENT[key]; if(v===undefined||v===null) return fb; const s=String(v); return s.trim()===''&&typeof fb==='string'&&fb!=='' ? fb : s; }
-let sessionId = localStorage.getItem('nexatech_sid') || (localStorage.setItem('nexatech_sid', Math.random().toString(36).slice(2)+Date.now().toString(36)), localStorage.getItem('nexatech_sid'));
+// Storage can throw (blocked cookies, private-mode webviews, Brave shields).
+// It must NEVER kill the whole script — otherwise every button (including the
+// form's Continue) silently stops working on that device while the page looks
+// fine. Fall back to an in-memory id.
+let sessionId = '';
+try{
+  sessionId = localStorage.getItem('nexatech_sid') || '';
+  if(!sessionId){
+    sessionId = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    try{ localStorage.setItem('nexatech_sid', sessionId); }catch{}
+  }
+}catch{
+  sessionId = 'mem-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
 function getUTM(){
   const p=new URLSearchParams(location.search);
   return {source:p.get('utm_source')||'',medium:p.get('utm_medium')||'',campaign:p.get('utm_campaign')||''};
@@ -989,7 +1002,18 @@ function validateStep(n){
 }
 function initLeadForm(){
   $('#btn-next')?.addEventListener('click', ()=>{
-    if(!validateStep(currentStep)) return;
+    $('#form-msg').textContent = '';
+    if(!validateStep(currentStep)){
+      // Make the problem obvious: jump to the first missing field, focus it.
+      const bad = document.querySelector(`#lead-form [data-step="${currentStep}"] .field.invalid input, #lead-form [data-step="${currentStep}"] .field.invalid select, #lead-form [data-step="${currentStep}"] .field.invalid textarea`);
+      if(bad){
+        try{ bad.scrollIntoView({ behavior: 'smooth', block: 'center' }); }catch{}
+        setTimeout(() => { try{ bad.focus({ preventScroll: true }); }catch{} }, 350);
+      }
+      $('#form-msg').style.color = '#EF4444';
+      $('#form-msg').textContent = T('form_incomplete', 'Please fill the highlighted fields to continue →');
+      return;
+    }
     if(currentStep<totalSteps) { track('form_next', 'step'+currentStep); showStep(currentStep+1); }
   });
   $('#btn-prev')?.addEventListener('click', ()=> showStep(currentStep-1));
@@ -1000,6 +1024,7 @@ function initLeadForm(){
     $('#scam-details-field').classList.toggle('hidden', e.target.value!=='yes');
   });
   let started=false;
+  $('#lead-form')?.addEventListener('input', ()=>{ const m=$('#form-msg'); if(m) m.textContent=''; });
   $('#lead-form')?.addEventListener('focusin', ()=>{
     if(!started){ started=true; track('form_start','lead_form'); }
   });
@@ -1365,13 +1390,13 @@ function initChat(){
     body.querySelector('#chat-gate-name')?.addEventListener('keydown', ev=>{ if(ev.key==='Enter'){ ev.preventDefault(); body.querySelector('#chat-gate-email')?.focus(); } });
     try{ setTimeout(()=> body.querySelector('#chat-gate-name')?.focus(), 100); }catch{}
   }
-  sessionStorage.removeItem(CHAT_KEY);
+  try{ sessionStorage.removeItem(CHAT_KEY); }catch{}
   if(getIdentity()) showGreeting(); else showGate();
   btn.addEventListener('click', ()=> win.classList.toggle('open'));
   close.addEventListener('click', ()=> win.classList.remove('open'));
   newBtn?.addEventListener('click', ()=>{
     archiveCurrent();
-    sessionStorage.removeItem(CHAT_KEY);
+    try{ sessionStorage.removeItem(CHAT_KEY); }catch{}
     if(getIdentity()) showGreeting(); else showGate();
     body.scrollTop=0;
   });
