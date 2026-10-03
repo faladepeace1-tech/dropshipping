@@ -689,11 +689,12 @@ function formatCents(cents, currency){
 }
 function publicTheme(row){
   if(!row) return null;
+  const free = !(Number(row.price_cents) > 0);
   return {
     id: row.id, name: row.name, slug: row.slug,
     description: row.description || '',
     price_cents: row.price_cents, currency: row.currency || 'USD',
-    price_text: formatCents(row.price_cents, row.currency),
+    price_text: free ? 'Free' : formatCents(row.price_cents, row.currency),
     preview_url: row.preview_url || '',
     has_zip: !!(row.zip_filename),
     published: row.published, display_order: row.display_order
@@ -816,8 +817,8 @@ async function getCheckoutItem(kind, ref){
     const name = await get('pricing_' + r + '_name', r);
     const priceText = String(await get('pricing_' + r + '_price', ''));
     const features = await get('pricing_' + r + '_features', []);
-    const cents = parsePriceToCents(priceText);
-    if(!cents) return { error: 'This plan has no price set yet.' };
+    if(!priceText.trim()) return { error: 'This plan has no price set yet.' };
+    const cents = parsePriceToCents(priceText); // 0 = free/test order
     return { kind: 'plan', ref: r, name: String(name) + ' Plan', price_text: priceText, amount_cents: cents, currency: 'USD',
       description: Array.isArray(features) ? features.join(' • ') : '',
       wa_text: await planWaMsg(r, String(name)).catch(() => '') };
@@ -825,7 +826,7 @@ async function getCheckoutItem(kind, ref){
   if(k === 'theme'){
     const row = await db.prepare('SELECT * FROM themes WHERE slug=? AND published=1').get(String(ref || ''));
     if(!row) return { error: 'Theme not found or unpublished.' };
-    if(!row.price_cents || row.price_cents <= 0) return { error: 'This theme has no price set yet.' };
+    if(row.price_cents == null || row.price_cents < 0) return { error: 'This theme has no price set yet.' };
     const t = publicTheme(row);
     return { kind: 'theme', ref: t.slug, name: t.name, price_text: t.price_text, amount_cents: t.price_cents,
       currency: t.currency, description: t.description, preview_url: t.preview_url, has_zip: t.has_zip };
@@ -881,6 +882,12 @@ app.post('/api/checkout/create', async (req, res) => {
     console.log('checkout order saved:', orderRef);
     try{ await db.prepare("INSERT INTO events (event_type,element_id,session_id,page_url,metadata) VALUES (?,?,?,?,?)")
       .run('checkout_created', item.kind + ':' + item.ref, '', '', JSON.stringify({ order_ref: orderRef, amount_cents: item.amount_cents })); }catch{}
+    // $0 items (free/test) complete instantly — no payment step at all.
+    if(!(item.amount_cents > 0)){
+      await markOrderPaid(orderRef, 'FREE');
+      console.log('checkout free order completed:', orderRef);
+      return res.json({ ok: true, order_ref: orderRef, free: true, provider: 'none' });
+    }
     const pay = await getPayConfig();
     console.log('checkout pay configured:', pay.configured, 'testmode:', pay.testmode, 'secret set:', !!pay.secret);
     if(!pay.configured){
@@ -1036,7 +1043,7 @@ app.post('/api/admin/themes', requireAuth, themeForm.fields([{ name: 'preview', 
     const { name, slug, description, price, currency, preview_url, published, display_order } = req.body || {};
     if(!name || !String(name).trim()) return res.status(400).json({ error: 'name required' });
     const dollars = parseFloat(String(price == null ? '' : price).replace(/[^0-9.]/g, ''));
-    if(!Number.isFinite(dollars) || dollars <= 0) return res.status(400).json({ error: 'price (USD) must be greater than 0' });
+    if(!Number.isFinite(dollars) || dollars < 0) return res.status(400).json({ error: 'price (USD) must be 0 or more (0 = free/test)' });
     let finalSlug = slugifyTheme(slug || name);
     const clash = await db.prepare('SELECT id FROM themes WHERE slug=?').get(finalSlug);
     if(clash) finalSlug = finalSlug + '-' + Date.now().toString(36);
@@ -1077,7 +1084,7 @@ app.patch('/api/admin/themes/:id', requireAuth, themeForm.fields([{ name: 'previ
     let cents = ex.price_cents;
     if(req.body.price !== undefined && String(req.body.price).trim() !== ''){
       const d = parseFloat(String(req.body.price).replace(/[^0-9.]/g, ''));
-      if(!Number.isFinite(d) || d <= 0) return res.status(400).json({ error: 'price (USD) must be greater than 0' });
+      if(!Number.isFinite(d) || d < 0) return res.status(400).json({ error: 'price (USD) must be 0 or more (0 = free/test)' });
       cents = Math.round(d * 100);
     }
     const fields = {

@@ -2911,7 +2911,7 @@ $('#theme-form')?.addEventListener('submit', (e) => {
   const name = $('#theme-name').value.trim();
   const price = $('#theme-price').value.trim();
   if(!name){ msg.textContent = 'Theme name is required.'; msg.style.color = '#F87171'; return; }
-  if(!price || !(parseFloat(price) > 0)){ msg.textContent = 'Price (USD) must be greater than 0.'; msg.style.color = '#F87171'; return; }
+  if(price === '' || !(parseFloat(price) >= 0)){ msg.textContent = 'Price (USD) must be 0 or more (0 = free/test).'; msg.style.color = '#F87171'; return; }
   const fd = new FormData();
   fd.append('name', name);
   fd.append('slug', $('#theme-slug').value.trim());

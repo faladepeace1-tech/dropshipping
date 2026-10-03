@@ -106,6 +106,10 @@ async function createOrder(){
     if(!res.ok) throw new Error(j.error || 'Could not create order.');
     ORDER_REF = j.order_ref;
     BUYER_EMAIL = $('#co-email').value.trim();
+    if(j.free){
+      await finishPaid();
+      return;
+    }
     if(j.inline){
       showCardView();
     } else if(j.payment_url){
