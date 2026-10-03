@@ -182,6 +182,18 @@ app.get(['/privacy.html', '/privacy', '/terms.html', '/terms'], (req, res)=>{
   try { return res.type('html').send(versionedHtml(file)); }
   catch(e){ return res.status(500).type('html').send('<h1>Page unavailable</h1><p><a href="/">Back to Home</a></p>'); }
 });
+// Apple Pay domain verification (Paystack): verification file must be served
+// from /.well-known/ with an application/text content-type. express.static
+// ignores dot-folders by default, so this needs an explicit route.
+app.get('/.well-known/apple-developer-merchantid-domain-association', (req, res) => {
+  try{
+    const fp = path.join(__dirname, 'public', '.well-known', 'apple-developer-merchantid-domain-association');
+    const buf = fs.readFileSync(fp);
+    res.setHeader('Content-Type', 'application/text');
+    res.setHeader('Content-Length', String(buf.length));
+    res.send(buf);
+  }catch(e){ res.status(404).type('text').send('verification file not found'); }
+});
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(UPLOAD_DIR));
 // DB media store (Postgres): files uploaded while DATABASE_URL is set live in media_blobs,
