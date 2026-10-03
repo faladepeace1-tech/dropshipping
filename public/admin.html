@@ -27,6 +27,7 @@
       <button data-tab="content">Content & Theme</button>
       <button data-tab="media">Media Manager</button>
       <button data-tab="themes">Themes / Shop</button>
+      <button data-tab="orders">Orders 💰</button>
       <button data-tab="team">Experts (Team)</button>
       <button data-tab="sections">Sections & Layout</button>
       <button data-tab="leads">Leads / CRM</button>
@@ -179,7 +180,16 @@
           </form>
         </div>
         <div class="card">
-          <h3>Media Gallery <small style="color:#64748B"> drag to reorder, toggle publish, edit inline</small></h3>
+          <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap">
+            <h3 style="margin:0">Media Gallery <small style="color:#64748B"> drag to reorder, toggle publish, edit inline</small></h3>
+            <label style="display:flex;gap:6px;align-items:center;font-size:12px"><input type="checkbox" id="media-select-all"> Select all</label>
+          </div>
+          <div id="media-bulkbar" style="display:none;gap:8px;align-items:center;margin:10px 0;flex-wrap:wrap;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:8px 10px">
+            <b id="media-bulkcount" style="font-size:12px">0 selected</b>
+            <button class="btn btn-ghost" data-mbulk="publish" style="padding:5px 10px;font-size:11px">Publish</button>
+            <button class="btn btn-ghost" data-mbulk="unpublish" style="padding:5px 10px;font-size:11px">Unpublish</button>
+            <button class="btn btn-ghost" data-mbulk="delete" style="padding:5px 10px;font-size:11px;color:#F87171">Delete</button>
+          </div>
           <div id="media-gallery" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px"></div>
         </div>
       </section>
@@ -216,16 +226,39 @@
           </form>
         </div>
         <div class="card">
-          <h3>Themes <small style="color:#64748B"> edit, publish/unpublish, delete</small></h3>
+          <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap">
+            <h3 style="margin:0">Themes <small style="color:#64748B"> edit, publish/unpublish, delete</small></h3>
+            <label style="display:flex;gap:6px;align-items:center;font-size:12px"><input type="checkbox" id="themes-select-all"> Select all</label>
+          </div>
+          <div id="themes-bulkbar" style="display:none;gap:8px;align-items:center;margin:10px 0;flex-wrap:wrap;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:8px 10px">
+            <b id="themes-bulkcount" style="font-size:12px">0 selected</b>
+            <button class="btn btn-ghost" data-tbulk="publish" style="padding:5px 10px;font-size:11px">Publish</button>
+            <button class="btn btn-ghost" data-tbulk="unpublish" style="padding:5px 10px;font-size:11px">Unpublish</button>
+            <button class="btn btn-ghost" data-tbulk="delete" style="padding:5px 10px;font-size:11px;color:#F87171">Delete</button>
+          </div>
           <div id="themes-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px"></div>
         </div>
+      </section>
+
+      <!-- Orders -->
+      <section data-panel="orders" class="hidden">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:10px" id="orders-stats"></div>
         <div class="card">
-          <h3>Recent Orders <small style="color:#64748B"> plans + themes, newest first</small></h3>
+          <h3>Manage Orders <small style="color:#64748B"> plans + themes — search, select, bulk update, export</small></h3>
           <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+            <input id="order-search" placeholder="Search ref, item, name, email..." style="flex:1;min-width:160px">
             <select id="order-status-filter"><option value="">All statuses</option><option value="pending">Pending</option><option value="paid">Paid</option><option value="failed">Failed</option><option value="expired">Expired</option></select>
+            <select id="order-kind-filter"><option value="">Plans + Themes</option><option value="plan">Plans only</option><option value="theme">Themes only</option></select>
             <button class="btn btn-ghost" id="btn-refresh-orders" type="button">Refresh</button>
+            <a class="btn btn-ghost" id="btn-export-orders" href="/api/admin/orders/export.csv" download>Export CSV ↓</a>
           </div>
-          <div id="orders-list" style="display:grid;gap:8px"></div>
+          <div id="orders-bulkbar" style="display:none;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:8px 10px">
+            <label style="display:flex;gap:6px;align-items:center;font-size:12px"><input type="checkbox" id="orders-select-all"> <b id="orders-bulkcount">0 selected</b></label>
+            <select id="orders-bulk-status"><option value="paid">Mark Paid</option><option value="pending">Mark Pending</option><option value="failed">Mark Failed</option><option value="expired">Mark Expired</option></select>
+            <button class="btn btn-ghost" id="btn-orders-bulk-status" type="button" style="padding:5px 10px;font-size:11px">Apply Status</button>
+            <button class="btn btn-ghost" id="btn-orders-bulk-del" type="button" style="padding:5px 10px;font-size:11px;color:#F87171">Delete</button>
+          </div>
+          <div style="overflow:auto"><table id="orders-table" style="width:100%;font-size:12px"></table></div>
         </div>
       </section>
 
@@ -247,7 +280,19 @@
             <button class="btn btn-primary" type="submit">Add Expert</button>
           </form>
         </div>
-        <div class="card"><h3>Experts</h3><div id="team-list" style="display:grid;gap:10px"></div></div>
+        <div class="card">
+          <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap">
+            <h3 style="margin:0">Experts</h3>
+            <label style="display:flex;gap:6px;align-items:center;font-size:12px"><input type="checkbox" id="team-select-all"> Select all</label>
+          </div>
+          <div id="team-bulkbar" style="display:none;gap:8px;align-items:center;margin:10px 0;flex-wrap:wrap;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:8px 10px">
+            <b id="team-bulkcount" style="font-size:12px">0 selected</b>
+            <button class="btn btn-ghost" data-tmbulk="publish" style="padding:5px 10px;font-size:11px">Publish</button>
+            <button class="btn btn-ghost" data-tmbulk="unpublish" style="padding:5px 10px;font-size:11px">Unpublish</button>
+            <button class="btn btn-ghost" data-tmbulk="delete" style="padding:5px 10px;font-size:11px;color:#F87171">Delete</button>
+          </div>
+          <div id="team-list" style="display:grid;gap:10px"></div>
+        </div>
       </section>
 
       <!-- Sections -->
@@ -331,6 +376,11 @@
           </div>
           <div id="followup-list" style="display:grid;gap:6px;margin-top:8px;max-height:320px;overflow:auto"></div>
           <div style="margin-top:8px;font-size:11px;color:#94A3B8">Opt-outs: <span id="unsub-count">–</span> • <button id="btn-view-unsubs" class="btn btn-ghost" style="padding:4px 8px;font-size:11px">View opt-outs</button></div>
+          <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;align-items:center">
+            <input id="unsub-add-email" type="email" placeholder="customer@email.com — opt out manually" style="flex:1;min-width:180px;padding:7px 10px;border:1px solid #E2E8F0;border-radius:10px;font-size:12px">
+            <button id="btn-unsub-add" class="btn btn-ghost" type="button" style="padding:6px 10px;font-size:11px">Opt Out Email</button>
+            <button id="btn-unsub-bulk" class="btn btn-ghost hidden" type="button" style="padding:6px 10px;font-size:11px;color:#10B981">Resubscribe Selected</button>
+          </div>
           <div id="unsub-list" style="display:grid;gap:4px;margin-top:6px;max-height:140px;overflow:auto"></div>
         </div>
 
@@ -401,8 +451,9 @@
 
         <div class="card" style="margin-top:12px">
           <h3>Outbox — Recent sends (personal + bulk)</h3>
-          <div style="display:flex;gap:8px;margin-bottom:8px">
+          <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center">
             <button class="btn btn-ghost" id="btn-refresh-outbox" style="padding:6px 10px;font-size:11px">Refresh Outbox</button>
+            <button class="btn btn-ghost hidden" id="btn-delete-outbox-sel" style="padding:6px 10px;font-size:11px;color:#F87171">Delete Selected</button>
             <button class="btn btn-ghost" id="btn-clear-outbox" style="padding:6px 10px;font-size:11px;color:#F87171;border-color:#FECACA">Clear Outbox</button>
             <span id="outbox-count" style="font-size:12px;color:#64748B;align-self:center"></span>
           </div>
@@ -433,7 +484,13 @@
         </div>
         <div class="grid2" style="align-items:start">
           <div class="card">
-            <h3 style="margin:0 0 8px">People <small style="color:#94A3B8;font-weight:500">click to view conversation</small></h3>
+            <div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:8px">
+              <h3 style="margin:0">People <small style="color:#94A3B8;font-weight:500">click to view conversation</small></h3>
+              <div style="display:flex;gap:8px;align-items:center">
+                <label style="display:flex;gap:6px;align-items:center;font-size:11px"><input type="checkbox" id="chats-select-all"> Select all</label>
+                <button class="btn btn-ghost hidden" id="btn-chats-bulk-del" type="button" style="padding:5px 10px;font-size:11px;color:#F87171">Delete Selected</button>
+              </div>
+            </div>
             <div id="chats-list" style="display:grid;gap:8px;max-height:560px;overflow:auto"></div>
           </div>
           <div class="card">

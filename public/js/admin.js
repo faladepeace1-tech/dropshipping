@@ -127,7 +127,8 @@ $$('.side-nav button').forEach(b=> b.addEventListener('click', ()=>{
   if(tab==='campaigns'){ loadCampaigns(); loadTemplates(); loadGmailStatus(); loadOutbox(); }
   if(tab==='chats') loadChats();
   if(tab==='overview') loadOverview();
-  if(tab==='themes'){ loadThemesAdmin(); loadOrdersAdmin(); }
+  if(tab==='themes'){ loadThemesAdmin(); }
+  if(tab==='orders'){ loadOrdersSection(); }
   if(tab==='settings'){ fillPaymentsForm(); fillNotifyForm(); }
 }));
 $$('[data-tab-jump]').forEach(b=> b.addEventListener('click', ()=>{
@@ -1431,9 +1432,11 @@ async function loadOutbox(){
     const div=document.createElement('div');
     div.style.cssText='display:flex;gap:8px;align-items:center;justify-content:space-between;border:1px solid #E2E8F0;border-radius:8px;padding:8px;background:#fff';
     const col=s.status==='sent'?'#10B981': s.status==='failed'?'#F87171':'#94A3B8';
-    div.innerHTML=`<div><b style="font-size:11px">${s.email}</b> <span style="font-size:11px;color:#64748B">${s.campaign_name||'1:1'}</span><div style="font-size:10px;color:#94A3B8">${s.campaign_subject||''} • ${String(s.sent_at||'').slice(0,16)}</div></div><div style="display:flex;gap:6px;align-items:center"><span style="font-size:10px;background:${col};color:#fff;padding:2px 6px;border-radius:999px">${s.status}</span><button data-deloutbox="${s.id}" title="Delete from database" style="font-size:10px;border:none;background:transparent;color:#F87171;cursor:pointer">✕</button></div>`;
+    div.innerHTML=`<input type="checkbox" class="outbox-check" value="${s.id}" style="accent-color:#0B1220"><div style="flex:1"><b style="font-size:11px">${s.email}</b> <span style="font-size:11px;color:#64748B">${s.campaign_name||'1:1'}</span><div style="font-size:10px;color:#94A3B8">${s.campaign_subject||''} • ${String(s.sent_at||'').slice(0,16)}</div></div><div style="display:flex;gap:6px;align-items:center"><span style="font-size:10px;background:${col};color:#fff;padding:2px 6px;border-radius:999px">${s.status}</span><button data-deloutbox="${s.id}" title="Delete from database" style="font-size:10px;border:none;background:transparent;color:#F87171;cursor:pointer">✕</button></div>`;
     wrap.appendChild(div);
   });
+  wrap.querySelectorAll('.outbox-check').forEach(c => c.addEventListener('change', updateOutboxBulk));
+  updateOutboxBulk();
   wrap.querySelectorAll('[data-deloutbox]').forEach(b=> b.addEventListener('click', async()=>{
     if(!confirm('Delete this outbox record from the database?')) return;
     try{
@@ -1444,6 +1447,21 @@ async function loadOutbox(){
     loadOutbox();
   }));
 }
+function selectedOutboxIds(){
+  return [...document.querySelectorAll('.outbox-check:checked')].map(c => parseInt(c.value, 10)).filter(Number.isFinite);
+}
+function updateOutboxBulk(){
+  const btn = $('#btn-delete-outbox-sel');
+  if(btn) btn.classList.toggle('hidden', !selectedOutboxIds().length);
+}
+$('#btn-delete-outbox-sel')?.addEventListener('click', async () => {
+  const ids = selectedOutboxIds();
+  if(!ids.length) return;
+  if(!confirm(`Delete ${ids.length} outbox record(s)?`)) return;
+  try{ const j = await bulkPost('/api/admin/outbox/bulk', 'delete', ids); alert(`Deleted ${j.done}/${j.total}`); }
+  catch(e){ alert('Bulk delete failed: ' + e.message); }
+  loadOutbox();
+});
 $('#btn-refresh-outbox')?.addEventListener('click', loadOutbox);
 $('#btn-clear-outbox')?.addEventListener('click', async()=>{
   if(!confirm('Clear the ENTIRE outbox? Every send record will be deleted from the database. This cannot be undone.')) return;
@@ -1595,6 +1613,7 @@ function renderMediaGallery(){
         ${isEmbed?`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#1E293B;color:#fff;font-size:28px">▶</div><span style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,.6);color:#fff;font-size:10px;padding:4px 6px;border-radius:999px">${kindA.toUpperCase()}</span>`:(isVideo?`<video src="${item.url}" muted preload="metadata" style="width:100%;height:100%;object-fit:cover"></video><span style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,.6);color:#fff;font-size:10px;padding:4px 6px;border-radius:999px">VIDEO</span>`:`<img src="${item.url}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.opacity=.25">`)}
         <span style="position:absolute;left:8px;top:8px;background:${item.published?'#10B981':'#64748B'};color:#fff;font-size:10px;padding:3px 6px;border-radius:999px">${item.published?'LIVE':'DRAFT'}</span>
         ${isActiveHero?'<span style="position:absolute;right:8px;top:8px;background:#7C3AED;color:#fff;font-size:10px;padding:3px 8px;border-radius:999px">ACTIVE HERO</span>':''}
+        <input type="checkbox" class="media-check" value="${item.id}" title="Select for bulk action" style="position:absolute;left:8px;bottom:8px;width:18px;height:18px;accent-color:#0B1220;cursor:pointer">
       </div>
       <div style="padding:10px;display:grid;gap:6px">
         <b style="font-size:13px">${item.caption||'(no caption)'}</b>
@@ -1608,8 +1627,8 @@ function renderMediaGallery(){
         </div>
       </div>
     `;
-    // drag
-    div.addEventListener('dragstart', e=>{ e.dataTransfer.setData('text/plain', item.id); div.classList.add('drag-ghost'); });
+    // drag (never start a drag from the select checkbox)
+    div.addEventListener('dragstart', e=>{ if(e.target && e.target.matches && e.target.matches('input[type=checkbox]')){ e.preventDefault(); return; } e.dataTransfer.setData('text/plain', item.id); div.classList.add('drag-ghost'); });
     div.addEventListener('dragend', ()=> div.classList.remove('drag-ghost'));
     div.addEventListener('dragover', e=> e.preventDefault());
     div.addEventListener('drop', async e=>{
@@ -1626,6 +1645,11 @@ function renderMediaGallery(){
     });
     g.appendChild(div);
   });
+  // selection + bulk bar
+  g.querySelectorAll('.media-check').forEach(c => c.addEventListener('change', updateMediaBulk));
+  updateMediaBulk();
+  const msa = $('#media-select-all');
+  if(msa && !msa.dataset.bound){ msa.dataset.bound = '1'; msa.addEventListener('change', () => { g.querySelectorAll('.media-check').forEach(c => { c.checked = msa.checked; }); updateMediaBulk(); }); }
   // attach edit/delete/toggle
   g.querySelectorAll('[data-edit]').forEach(b=> b.addEventListener('click', ()=> openEditMedia(b.dataset.edit)));
   g.querySelectorAll('[data-sethero]').forEach(b=> b.addEventListener('click', async()=>{
@@ -1660,6 +1684,29 @@ function renderMediaGallery(){
   }));
 }
 
+function selectedMediaIds(){
+  return [...document.querySelectorAll('.media-check:checked')].map(c => parseInt(c.value, 10)).filter(Number.isFinite);
+}
+function updateMediaBulk(){
+  const n = selectedMediaIds().length;
+  const bar = $('#media-bulkbar');
+  if(bar) bar.style.display = n ? 'flex' : 'none';
+  const c = $('#media-bulkcount');
+  if(c) c.textContent = n + ' selected';
+  const all = $('#media-select-all'), boxes = [...document.querySelectorAll('.media-check')];
+  if(all) all.checked = boxes.length > 0 && boxes.every(b => b.checked);
+}
+document.querySelectorAll('[data-mbulk]').forEach(b => b.addEventListener('click', async () => {
+  const ids = selectedMediaIds();
+  if(!ids.length) return;
+  const action = b.dataset.mbulk;
+  if(action === 'delete' && !confirm(`Delete ${ids.length} media item(s)? This cannot be undone.`)) return;
+  b.disabled = true;
+  try{ const j = await bulkPost('/api/admin/media/bulk', action, ids); alert(`${action}: ${j.done}/${j.total}`); }
+  catch(e){ alert('Bulk action failed: ' + e.message); }
+  b.disabled = false;
+  loadMedia();
+}));
 // preview on file select (first file + count) — handles video + shows MB
 $('input[name="file"]').addEventListener('change', e=>{
   const files=[...(e.target.files||[])];
@@ -1889,6 +1936,7 @@ async function loadTeam(){
     div.style.cssText='display:flex;gap:12px;align-items:center;background:#0B1220;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:10px';
     div.draggable=true; div.dataset.id=m.id;
     div.innerHTML=`
+      <input type="checkbox" class="team-check" value="${m.id}" title="Select for bulk action" style="accent-color:#0B1220;width:16px;height:16px;flex:0 0 auto">
       <img src="${m.photo_url||''}" style="width:64px;height:64px;border-radius:10px;object-fit:cover;background:#132238">
       <div style="flex:1">
         <b>${m.name}</b> <small style="color:#94A3B8">  ${m.role||''}</small>
@@ -1901,7 +1949,7 @@ async function loadTeam(){
         <button class="btn btn-ghost" data-tdel="${m.id}" style="padding:6px 10px;font-size:11px;color:#F87171">Delete</button>
       </div>
     `;
-    div.addEventListener('dragstart', e=>{ e.dataTransfer.setData('text/plain', m.id); });
+    div.addEventListener('dragstart', e=>{ if(e.target && e.target.matches && e.target.matches('input[type=checkbox]')){ e.preventDefault(); return; } e.dataTransfer.setData('text/plain', m.id); });
     div.addEventListener('dragover', e=> e.preventDefault());
     div.addEventListener('drop', async e=>{
       e.preventDefault();
@@ -1930,7 +1978,34 @@ async function loadTeam(){
     await fetch('/api/team/'+b.dataset.tdel,{method:'DELETE',headers:authHeaders()});
     loadTeam();
   }));
+  list.querySelectorAll('.team-check').forEach(c => c.addEventListener('change', updateTeamBulk));
+  updateTeamBulk();
+  const tsa = $('#team-select-all');
+  if(tsa && !tsa.dataset.bound){ tsa.dataset.bound = '1'; tsa.addEventListener('change', () => { list.querySelectorAll('.team-check').forEach(c => { c.checked = tsa.checked; }); updateTeamBulk(); }); }
 }
+function selectedTeamIds(){
+  return [...document.querySelectorAll('.team-check:checked')].map(c => parseInt(c.value, 10)).filter(Number.isFinite);
+}
+function updateTeamBulk(){
+  const n = selectedTeamIds().length;
+  const bar = $('#team-bulkbar');
+  if(bar) bar.style.display = n ? 'flex' : 'none';
+  const c = $('#team-bulkcount');
+  if(c) c.textContent = n + ' selected';
+  const all = $('#team-select-all'), boxes = [...document.querySelectorAll('.team-check')];
+  if(all) all.checked = boxes.length > 0 && boxes.every(b => b.checked);
+}
+document.querySelectorAll('[data-tmbulk]').forEach(b => b.addEventListener('click', async () => {
+  const ids = selectedTeamIds();
+  if(!ids.length) return;
+  const action = b.dataset.tmbulk;
+  if(action === 'delete' && !confirm(`Delete ${ids.length} expert(s)? This cannot be undone.`)) return;
+  b.disabled = true;
+  try{ const j = await bulkPost('/api/admin/team/bulk', action, ids); alert(`${action}: ${j.done}/${j.total}`); }
+  catch(e){ alert('Bulk action failed: ' + e.message); }
+  b.disabled = false;
+  loadTeam();
+}));
 $('#team-form').addEventListener('submit', async e=>{
   e.preventDefault();
   const fd=new FormData(e.target);
@@ -2066,15 +2141,49 @@ function renderLeads(){
     });
     kanban.appendChild(col);
   });
-  // table fallback
+  // table fallback (with selection + bulk actions)
   const table=$('#leads-table');
   if(LEADS.length===0) table.innerHTML='<p style="color:#94A3B8">No leads found.</p>';
   else {
-    let html='<table><tr><th>Name</th><th>Store</th><th>Niche</th><th>WhatsApp</th><th>Email</th><th>Status</th><th>Webhook</th><th>Created</th><th></th></tr>';
+    let html = `<div id="leads-bulkbar" style="display:none;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:8px 10px">`
+      + `<b id="leads-bulkcount" style="font-size:12px">0 selected</b>`
+      + `<select id="leads-bulk-stage"><option value="new">New Application</option><option value="contacted">Contacted</option><option value="scheduled">Call Scheduled</option><option value="closed">Client Closed</option><option value="archived">Archived</option></select>`
+      + `<button class="btn btn-ghost" id="btn-leads-bulk-stage" style="padding:5px 10px;font-size:11px">Move Stage</button>`
+      + `<button class="btn btn-ghost" id="btn-leads-bulk-del" style="padding:5px 10px;font-size:11px;color:#F87171">Delete</button></div>`;
+    html+='<table><tr><th><input type="checkbox" id="leads-check-all"></th><th>Name</th><th>Store</th><th>Niche</th><th>WhatsApp</th><th>Email</th><th>Status</th><th>Webhook</th><th>Created</th><th></th></tr>';
     LEADS.forEach(l=>{
-      html+=`<tr><td>${l.name||''} ${l.wasScammed==='yes'?'<span style="background:#F59E0B;color:#fff;padding:2px 6px;border-radius:999px;font-size:10px">High Empathy</span>':''}</td><td>${l.storeName||''}</td><td>${l.preferredNiche||''}</td><td>${l.whatsapp||''}</td><td>${l.email||''}</td><td>${l.pipeline_stage||''}</td><td>${l.webhook_status||''} (${l.webhook_attempts||0})</td><td>${(l.created_at||'').slice(0,16)}</td><td><button class="btn btn-ghost" data-dellead="${l.id}" style="padding:4px 8px;font-size:11px;color:#F87171">Delete</button></td></tr>`;
+      html+=`<tr><td><input type="checkbox" class="lead-check" value="${l.id}"></td><td>${l.name||''} ${l.wasScammed==='yes'?'<span style="background:#F59E0B;color:#fff;padding:2px 6px;border-radius:999px;font-size:10px">High Empathy</span>':''}</td><td>${l.storeName||''}</td><td>${l.preferredNiche||''}</td><td>${l.whatsapp||''}</td><td>${l.email||''}</td><td>${l.pipeline_stage||''}</td><td>${l.webhook_status||''} (${l.webhook_attempts||0})</td><td>${(l.created_at||'').slice(0,16)}</td><td><button class="btn btn-ghost" data-dellead="${l.id}" style="padding:4px 8px;font-size:11px;color:#F87171">Delete</button></td></tr>`;
     });
     html+='</table>'; table.innerHTML=html;
+    const boxes = [...table.querySelectorAll('.lead-check')];
+    const upd = () => {
+      const n = boxes.filter(b => b.checked).length;
+      const bar = $('#leads-bulkbar');
+      if(bar) bar.style.display = n ? 'flex' : 'none';
+      const c = $('#leads-bulkcount');
+      if(c) c.textContent = n + ' selected';
+      const all = $('#leads-check-all');
+      if(all) all.checked = boxes.length > 0 && boxes.every(b => b.checked);
+    };
+    boxes.forEach(b => b.addEventListener('change', upd));
+    $('#leads-check-all')?.addEventListener('change', e => { boxes.forEach(b => { b.checked = e.target.checked; }); upd(); });
+    const selIds = () => boxes.filter(b => b.checked).map(b => parseInt(b.value, 10)).filter(Number.isFinite);
+    $('#btn-leads-bulk-stage')?.addEventListener('click', async () => {
+      const ids = selIds();
+      if(!ids.length) return;
+      const st = $('#leads-bulk-stage')?.value || 'contacted';
+      try{ const j = await bulkPost('/api/admin/leads/bulk', 'stage', ids, { stage: st }); alert(`Moved ${j.done}/${j.total} to ${st}`); }
+      catch(e){ alert('Bulk move failed: ' + e.message); }
+      loadLeads();
+    });
+    $('#btn-leads-bulk-del')?.addEventListener('click', async () => {
+      const ids = selIds();
+      if(!ids.length) return;
+      if(!confirm(`Delete ${ids.length} lead(s)? This cannot be undone.`)) return;
+      try{ const j = await bulkPost('/api/admin/leads/bulk', 'delete', ids); alert(`Deleted ${j.done}/${j.total}`); }
+      catch(e){ alert('Bulk delete failed: ' + e.message); }
+      loadLeads();
+    });
   }
   // bind stage change + resend
   kanban.querySelectorAll('[data-stage]').forEach(sel=> sel.addEventListener('change', async()=>{
@@ -2164,17 +2273,42 @@ function renderChats(){
     const whoEmail=c.email||'no email';
     div.innerHTML=`
       <div style="display:flex;gap:8px;align-items:center;justify-content:space-between">
-        <b style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px">👤 ${escChat(whoName)}</b>
+        <span style="display:flex;gap:6px;align-items:center;min-width:0"><input type="checkbox" class="chat-check" value="${escChat(c.session_id)}" title="Select for bulk delete" style="accent-color:#0B1220;flex:0 0 auto"><b style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px">👤 ${escChat(whoName)}</b></span>
         <span style="font-size:10px;background:#0B1220;color:#fff;padding:2px 8px;border-radius:999px">${c.message_count} msgs</span>
       </div>
       <div style="font-size:11px;color:#7C3AED;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">✉️ ${escChat(whoEmail)}</div>
       <div style="font-size:12px;color:#0B1220;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">“${escChat(c.preview||'(no preview)')}”</div>
       <div style="font-size:11px;color:#64748B">${c.user_count||0} you • ${c.bot_count||0} bot • ${fmtChatTime(c.last_seen)}</div>
       <div style="font-size:10px;color:#94A3B8;font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escChat(c.session_id)}">${escChat(String(c.session_id).slice(0,28))}</div>`;
-    div.addEventListener('click',()=>selectChat(c.session_id));
+    div.addEventListener('click',e=>{
+      if(e.target && e.target.matches && e.target.matches('input[type=checkbox]')) return;
+      selectChat(c.session_id);
+    });
     wrap.appendChild(div);
   });
+  wrap.querySelectorAll('.chat-check').forEach(cb => cb.addEventListener('change', updateChatsBulk));
+  updateChatsBulk();
+  const csa = $('#chats-select-all');
+  if(csa && !csa.dataset.bound){ csa.dataset.bound = '1'; csa.addEventListener('change', () => { wrap.querySelectorAll('.chat-check').forEach(cb => { cb.checked = csa.checked; }); updateChatsBulk(); }); }
 }
+function selectedChatIds(){
+  return [...document.querySelectorAll('.chat-check:checked')].map(c => c.value).filter(v => v);
+}
+function updateChatsBulk(){
+  const n = selectedChatIds().length;
+  const btn = $('#btn-chats-bulk-del');
+  if(btn){ btn.classList.toggle('hidden', !n); btn.textContent = n ? `Delete Selected (${n})` : 'Delete Selected'; }
+  const all = $('#chats-select-all'), boxes = [...document.querySelectorAll('.chat-check')];
+  if(all) all.checked = boxes.length > 0 && boxes.every(b => b.checked);
+}
+$('#btn-chats-bulk-del')?.addEventListener('click', async () => {
+  const ids = selectedChatIds();
+  if(!ids.length) return;
+  if(!confirm(`Delete ${ids.length} conversation(s)? This cannot be undone.`)) return;
+  try{ const j = await bulkPost('/api/admin/chats/bulk', 'delete', ids); alert(`Deleted ${j.done}/${j.total}`); }
+  catch(e){ alert('Bulk delete failed: ' + e.message); }
+  loadChats();
+});
 async function selectChat(sessionId){
   SELECTED_CHAT=sessionId;
   renderChats();
@@ -2328,15 +2462,40 @@ async function loadUnsubs(){
     const wrap=$('#unsub-list');
     if(wrap){
       if(!j.length){ wrap.innerHTML='<small style="color:#94A3B8">No opt-outs.</small>'; return; }
-      wrap.innerHTML = j.map(u=> `<div style="display:flex;gap:8px;align-items:center;font-size:11px;border:1px solid #E2E8F0;border-radius:8px;padding:4px 8px;background:#FFFBEB"><span style="flex:1">${u.email} <small style="color:#94A3B8">${u.created_at||''}</small></span><button data-resub="${u.email}" style="font-size:10px;border:1px solid #10B981;color:#10B981;border-radius:999px;padding:2px 8px;background:#fff;cursor:pointer">Resubscribe</button></div>`).join('');
+      wrap.innerHTML = j.map(u=> `<div style="display:flex;gap:8px;align-items:center;font-size:11px;border:1px solid #E2E8F0;border-radius:8px;padding:4px 8px;background:#FFFBEB"><input type="checkbox" class="unsub-check" value="${u.email}" style="accent-color:#0B1220"><span style="flex:1">${u.email} <small style="color:#94A3B8">${u.created_at||''}</small></span><button data-resub="${u.email}" style="font-size:10px;border:1px solid #10B981;color:#10B981;border-radius:999px;padding:2px 8px;background:#fff;cursor:pointer">Resubscribe</button></div>`).join('');
       wrap.querySelectorAll('[data-resub]').forEach(b=> b.addEventListener('click', async()=>{
         if(!confirm('Resubscribe '+b.dataset.resub+'?')) return;
         await fetch('/api/admin/followups/unsubscribes/'+encodeURIComponent(b.dataset.resub), { method:'DELETE', headers: authHeaders() });
         loadUnsubs(); loadFollowupStatus();
       }));
+      wrap.querySelectorAll('.unsub-check').forEach(c => c.addEventListener('change', () => {
+        const n = document.querySelectorAll('.unsub-check:checked').length;
+        $('#btn-unsub-bulk')?.classList.toggle('hidden', !n);
+      }));
     }
   }catch{}
 }
+$('#btn-unsub-add')?.addEventListener('click', async () => {
+  const input = $('#unsub-add-email');
+  const email = (input?.value || '').trim().toLowerCase();
+  if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return alert('Enter a valid email to opt out.');
+  try{
+    const r = await fetch('/api/admin/followups/unsubscribes', { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ email, reason: 'manual-admin' }) });
+    const j = await r.json().catch(() => ({}));
+    if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    if(input) input.value = '';
+    alert(email + ' opted out ✓ — campaigns, follow-ups and 1:1 emails will skip it.');
+  }catch(e){ alert('Opt-out failed: ' + e.message); }
+  loadUnsubs(); loadFollowupStatus();
+});
+$('#btn-unsub-bulk')?.addEventListener('click', async () => {
+  const emails = [...document.querySelectorAll('.unsub-check:checked')].map(c => c.value).filter(v => v);
+  if(!emails.length) return;
+  if(!confirm(`Resubscribe ${emails.length} email(s)? They will receive emails again.`)) return;
+  try{ const j = await bulkPost('/api/admin/followups/unsubscribes/bulk', 'resubscribe', emails); alert(`Resubscribed ${j.done}/${j.total}`); }
+  catch(e){ alert('Bulk resubscribe failed: ' + e.message); }
+  loadUnsubs(); loadFollowupStatus();
+});
 $('#btn-save-followup')?.addEventListener('click', async()=>{
   const msg=$('#followup-msg');
   if(msg) msg.textContent='Saving...';
@@ -2640,7 +2799,9 @@ async function loadThemesAdmin(){
     THEMES_ADMIN.forEach(t => {
       const d = document.createElement('div');
       d.style.cssText = 'border:1px solid #E2E8F0;border-radius:12px;overflow:hidden;background:#fff';
+      d.style.position = 'relative';
       d.innerHTML =
+        `<input type="checkbox" class="theme-check" value="${t.id}" title="Select for bulk action" style="position:absolute;left:8px;top:8px;width:18px;height:18px;accent-color:#0B1220;cursor:pointer;z-index:2">` +
         (t.preview_url ? `<img src="${escAttr(t.preview_url)}" style="width:100%;aspect-ratio:16/10;object-fit:cover" loading="lazy">` : `<div style="aspect-ratio:16/10;display:grid;place-items:center;background:#F1F5F9;color:#94A3B8;font-size:12px">No preview</div>`) +
         `<div style="padding:10px"><b>${escAttr(t.name)}</b><br>` +
         `<small style="color:#64748B">/${escAttr(t.slug)} · ${escAttr(themeMoney(t.price_cents, t.currency))} · ${t.published ? '<span style="color:#10B981">LIVE</span>' : '<span style="color:#F59E0B">DRAFT</span>'}</small><br>` +
@@ -2662,8 +2823,35 @@ async function loadThemesAdmin(){
       });
       list.appendChild(d);
     });
+    list.querySelectorAll('.theme-check').forEach(c => c.addEventListener('change', updateThemesBulk));
+    updateThemesBulk();
+    const tsa = $('#themes-select-all');
+    if(tsa && !tsa.dataset.bound){ tsa.dataset.bound = '1'; tsa.addEventListener('change', () => { list.querySelectorAll('.theme-check').forEach(c => { c.checked = tsa.checked; }); updateThemesBulk(); }); }
   }catch(e){ if(list) list.innerHTML = '<p style="color:#F87171">Failed to load themes: ' + escAttr(e.message) + '</p>'; }
 }
+function selectedThemeIds(){
+  return [...document.querySelectorAll('.theme-check:checked')].map(c => parseInt(c.value, 10)).filter(Number.isFinite);
+}
+function updateThemesBulk(){
+  const n = selectedThemeIds().length;
+  const bar = $('#themes-bulkbar');
+  if(bar) bar.style.display = n ? 'flex' : 'none';
+  const c = $('#themes-bulkcount');
+  if(c) c.textContent = n + ' selected';
+  const all = $('#themes-select-all'), boxes = [...document.querySelectorAll('.theme-check')];
+  if(all) all.checked = boxes.length > 0 && boxes.every(b => b.checked);
+}
+document.querySelectorAll('[data-tbulk]').forEach(b => b.addEventListener('click', async () => {
+  const ids = selectedThemeIds();
+  if(!ids.length) return;
+  const action = b.dataset.tbulk;
+  if(action === 'delete' && !confirm(`Delete ${ids.length} theme(s) and their ZIP files? This cannot be undone.`)) return;
+  b.disabled = true;
+  try{ const j = await bulkPost('/api/admin/themes/bulk', action, ids); alert(`${action}: ${j.done}/${j.total}`); }
+  catch(e){ alert('Bulk action failed: ' + e.message); }
+  b.disabled = false;
+  loadThemesAdmin();
+}));
 function editThemeAdmin(id){
   const t = THEMES_ADMIN.find(x => x.id === id);
   if(!t) return;
@@ -2768,37 +2956,130 @@ $('#theme-form')?.addEventListener('submit', (e) => {
   xhr.onerror = () => { btn.disabled = false; pwrap.style.display = 'none'; msg.textContent = 'Upload failed — check connection and retry.'; msg.style.color = '#F87171'; };
   xhr.send(fd);
 });
-async function loadOrdersAdmin(){
-  const list = $('#orders-list');
-  const status = $('#order-status-filter')?.value || '';
-  try{
-    const r = await fetch('/api/admin/orders' + (status ? '?status=' + encodeURIComponent(status) : ''), { headers: authHeaders() });
-    const rows = await r.json();
-    if(!list) return;
-    list.innerHTML = '';
-    if(!rows.length){ list.innerHTML = '<p style="color:#64748B;font-size:13px">No orders yet.</p>'; return; }
-    const pill = (s) => {
-      const c = s === 'paid' ? '#10B981' : s === 'pending' ? '#F59E0B' : '#F87171';
-      return `<span style="font-size:11px;font-weight:800;color:${c};border:1px solid ${c};border-radius:999px;padding:2px 8px">${escAttr(s.toUpperCase())}</span>`;
-    };
-    rows.forEach(o => {
-      const amt = themeMoney(o.amount_cents, o.currency);
-      const d = document.createElement('div');
-      d.style.cssText = 'border:1px solid #E2E8F0;border-radius:10px;padding:10px;display:flex;gap:10px;justify-content:space-between;align-items:center;flex-wrap:wrap;background:#fff';
-      d.innerHTML = `<div><b>${escAttr(o.order_ref)}</b> ${pill(o.status)}<br>` +
-        `<small style="color:#64748B">${escAttr(o.kind)}: ${escAttr(o.item_name)} · ${escAttr(amt)} ${escAttr(o.currency || '')}</small><br>` +
-        `<small style="color:#64748B">${escAttr(o.customer_name)} · ${escAttr(o.customer_email)} · ${escAttr(o.customer_whatsapp)}</small><br>` +
-        `<small style="color:#94A3B8">${escAttr(o.created_at || '')}${o.paid_at ? ' · paid ' + escAttr(o.paid_at) : ''}</small></div>` +
-        (o.status === 'pending' ? `<button class="btn btn-ghost" style="padding:5px 10px;font-size:11px">Mark Paid</button>` : '');
-      const b = d.querySelector('button');
-      if(b) b.addEventListener('click', async () => {
-        if(!confirm('Mark order ' + o.order_ref + ' as PAID? (Use when webhook missed but payment confirmed.)')) return;
-        await fetch('/api/admin/orders/' + o.id, { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ status: 'paid' }) });
-        loadOrdersAdmin();
-      });
-      list.appendChild(d);
-    });
-  }catch(e){ if(list) list.innerHTML = '<p style="color:#F87171">Failed to load orders: ' + escAttr(e.message) + '</p>'; }
+// ================= ORDERS MANAGEMENT =================
+let ORDERS_ROWS = [];
+async function bulkPost(url, action, ids, extra){
+  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ action, ids, ...(extra || {}) }) });
+  const j = await r.json().catch(() => ({}));
+  if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+  return j;
 }
-$('#btn-refresh-orders')?.addEventListener('click', loadOrdersAdmin);
-$('#order-status-filter')?.addEventListener('change', loadOrdersAdmin);
+function orderPill(s){
+  const c = s === 'paid' ? '#10B981' : s === 'pending' ? '#F59E0B' : '#F87171';
+  return `<span style="font-size:11px;font-weight:800;color:${c};border:1px solid ${c};border-radius:999px;padding:2px 8px">${escAttr(String(s || '').toUpperCase())}</span>`;
+}
+function ordersQuery(){
+  const q = new URLSearchParams();
+  const s = $('#order-status-filter')?.value || '', k = $('#order-kind-filter')?.value || '', t = $('#order-search')?.value?.trim() || '';
+  if(s) q.set('status', s);
+  if(k) q.set('kind', k);
+  if(t) q.set('search', t);
+  q.set('limit', '200');
+  const qs = q.toString();
+  const exp = $('#btn-export-orders');
+  if(exp) exp.href = '/api/admin/orders/export.csv' + (qs ? '?' + qs : '');
+  return qs ? '?' + qs : '';
+}
+async function loadOrdersSection(){
+  const table = $('#orders-table');
+  try{
+    const r = await fetch('/api/admin/orders' + ordersQuery(), { headers: authHeaders() });
+    ORDERS_ROWS = await r.json();
+    renderOrdersStats();
+    renderOrdersTable();
+  }catch(e){ if(table) table.innerHTML = '<tr><td style="color:#F87171">Failed to load orders: ' + escAttr(e.message) + '</td></tr>'; }
+}
+function renderOrdersStats(){
+  const box = $('#orders-stats');
+  if(!box) return;
+  const paid = ORDERS_ROWS.filter(o => o.status === 'paid');
+  const pend = ORDERS_ROWS.filter(o => o.status === 'pending');
+  const rev = paid.reduce((a, o) => a + (Number(o.amount_cents) || 0), 0);
+  const card = (label, val, color) => `<div class="card" style="margin:0;padding:12px"><small style="color:#64748B">${label}</small><div style="font-size:20px;font-weight:800;color:${color || '#0B1220'}">${val}</div></div>`;
+  box.innerHTML = card('Total Orders', ORDERS_ROWS.length) + card('Pending', pend.length, '#F59E0B') + card('Paid', paid.length, '#10B981') + card('Revenue (paid)', '$' + (rev / 100).toLocaleString('en-US'), '#10B981');
+}
+function renderOrdersTable(){
+  const table = $('#orders-table');
+  if(!table) return;
+  if(!ORDERS_ROWS.length){ table.innerHTML = '<tr><td style="color:#64748B">No orders match.</td></tr>'; updateOrdersBulk(); return; }
+  let html = '<tr><th><input type="checkbox" id="orders-check-all"></th><th>Order</th><th>Item</th><th>Amount</th><th>Customer</th><th>Status</th><th>Created</th><th></th></tr>';
+  ORDERS_ROWS.forEach(o => {
+    const amt = themeMoney(o.amount_cents, o.currency);
+    html += `<tr data-oid="${o.id}">`
+      + `<td><input type="checkbox" class="order-check" value="${o.id}"></td>`
+      + `<td><b>${escAttr(o.order_ref)}</b><br><small style="color:#94A3B8">${escAttr(o.kind)}</small></td>`
+      + `<td>${escAttr(o.item_name)}<br><small style="color:#94A3B8">${escAttr(o.item_ref)}</small></td>`
+      + `<td><b>${escAttr(amt)}</b> <small style="color:#94A3B8">${escAttr(o.currency || '')}</small></td>`
+      + `<td>${escAttr(o.customer_name)}<br><small style="color:#94A3B8">${escAttr(o.customer_email)}<br>${escAttr(o.customer_whatsapp)}</small></td>`
+      + `<td>${orderPill(o.status)}</td>`
+      + `<td><small>${escAttr((o.created_at || '').slice(0, 16))}${o.paid_at ? '<br>paid ' + escAttr(o.paid_at.slice(0, 16)) : ''}</small></td>`
+      + `<td style="white-space:nowrap"><button class="btn btn-ghost" data-odetail="${o.id}" style="padding:4px 8px;font-size:11px">View</button> `
+      + (o.status === 'pending' ? `<button class="btn btn-ghost" data-opaid="${o.id}" style="padding:4px 8px;font-size:11px;color:#10B981">Mark Paid</button> ` : '')
+      + `<button class="btn btn-ghost" data-odel="${o.id}" style="padding:4px 8px;font-size:11px;color:#F87171">Delete</button></td></tr>`
+      + `<tr class="hidden" data-odetailrow="${o.id}"><td colspan="8" style="background:#F8FAFC;font-size:12px">`
+      + `Paystack ref: <b>${escAttr(o.cryptomus_order_id || '—')}</b> · Payment page: ${o.payment_url ? `<a href="${escAttr(o.payment_url)}" target="_blank">open →</a>` : '—'}`
+      + (o.download_token ? ` · Download: <a href="/api/themes/${encodeURIComponent(o.item_ref)}/download?token=${encodeURIComponent(o.download_token)}" target="_blank">zip ↓</a> <button class="btn btn-ghost" data-ocopy="${o.id}" style="padding:2px 8px;font-size:10px">Copy Link</button>` : '')
+      + `</td></tr>`;
+  });
+  table.innerHTML = html;
+  $('#orders-check-all')?.addEventListener('change', e => {
+    table.querySelectorAll('.order-check').forEach(c => { c.checked = e.target.checked; });
+    updateOrdersBulk();
+  });
+  table.querySelectorAll('.order-check').forEach(c => c.addEventListener('change', updateOrdersBulk));
+  table.querySelectorAll('[data-odetail]').forEach(b => b.addEventListener('click', () => {
+    document.querySelector(`[data-odetailrow="${b.dataset.odetail}"]`)?.classList.toggle('hidden');
+  }));
+  table.querySelectorAll('[data-opaid]').forEach(b => b.addEventListener('click', async () => {
+    const o = ORDERS_ROWS.find(x => String(x.id) === b.dataset.opaid);
+    if(!confirm('Mark order ' + (o ? o.order_ref : b.dataset.opaid) + ' as PAID?')) return;
+    await fetch('/api/admin/orders/' + b.dataset.opaid, { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ status: 'paid' }) });
+    loadOrdersSection();
+  }));
+  table.querySelectorAll('[data-odel]').forEach(b => b.addEventListener('click', async () => {
+    const o = ORDERS_ROWS.find(x => String(x.id) === b.dataset.odel);
+    if(!confirm('Delete order ' + (o ? o.order_ref : b.dataset.odel) + '? This cannot be undone.')) return;
+    await fetch('/api/admin/orders/' + b.dataset.odel, { method: 'DELETE', headers: authHeaders() });
+    loadOrdersSection();
+  }));
+  table.querySelectorAll('[data-ocopy]').forEach(b => b.addEventListener('click', async () => {
+    const o = ORDERS_ROWS.find(x => String(x.id) === b.dataset.ocopy);
+    if(!o || !o.download_token) return;
+    const url = location.origin + '/api/themes/' + encodeURIComponent(o.item_ref) + '/download?token=' + encodeURIComponent(o.download_token);
+    try{ await navigator.clipboard.writeText(url); b.textContent = 'Copied ✓'; }catch{ prompt('Copy download link:', url); }
+  }));
+  updateOrdersBulk();
+}
+function selectedOrderIds(){
+  return [...document.querySelectorAll('.order-check:checked')].map(c => parseInt(c.value, 10)).filter(Number.isFinite);
+}
+function updateOrdersBulk(){
+  const n = selectedOrderIds().length;
+  const bar = $('#orders-bulkbar');
+  if(bar) bar.style.display = n ? 'flex' : 'none';
+  const c = $('#orders-bulkcount');
+  if(c) c.textContent = n + ' selected';
+  const all = $('#orders-check-all'), boxes = [...document.querySelectorAll('.order-check')];
+  if(all) all.checked = boxes.length > 0 && boxes.every(b => b.checked);
+}
+$('#btn-refresh-orders')?.addEventListener('click', loadOrdersSection);
+$('#order-status-filter')?.addEventListener('change', loadOrdersSection);
+$('#order-kind-filter')?.addEventListener('change', loadOrdersSection);
+$('#order-search')?.addEventListener('input', (() => { let t = null; return () => { clearTimeout(t); t = setTimeout(loadOrdersSection, 400); }; })());
+$('#btn-orders-bulk-status')?.addEventListener('click', async () => {
+  const ids = selectedOrderIds();
+  if(!ids.length) return;
+  const st = $('#orders-bulk-status')?.value || 'paid';
+  if(!confirm(`Set ${ids.length} order(s) to ${st.toUpperCase()}?`)) return;
+  try{ const j = await bulkPost('/api/admin/orders/bulk', 'status', ids, { status: st }); alert(`Updated ${j.done}/${j.total}`); }
+  catch(e){ alert('Bulk update failed: ' + e.message); }
+  loadOrdersSection();
+});
+$('#btn-orders-bulk-del')?.addEventListener('click', async () => {
+  const ids = selectedOrderIds();
+  if(!ids.length) return;
+  if(!confirm(`Delete ${ids.length} order(s)? This cannot be undone.`)) return;
+  try{ const j = await bulkPost('/api/admin/orders/bulk', 'delete', ids); alert(`Deleted ${j.done}/${j.total}`); }
+  catch(e){ alert('Bulk delete failed: ' + e.message); }
+  loadOrdersSection();
+});

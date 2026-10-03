@@ -1092,13 +1092,48 @@ app.delete('/api/admin/themes/:id', requireAuth, async (req, res) => {
 });
 // --- Admin: orders ---
 app.get('/api/admin/orders', requireAuth, async (req, res) => {
-  const { status, limit } = req.query;
-  let sql = 'SELECT id,order_ref,kind,item_ref,item_name,amount_cents,currency,customer_name,customer_email,customer_whatsapp,status,cryptomus_uuid,payment_url,created_at,paid_at FROM orders';
+  const { status, kind, search, limit } = req.query;
+  let sql = 'SELECT id,order_ref,kind,item_ref,item_name,amount_cents,currency,customer_name,customer_email,customer_whatsapp,status,cryptomus_uuid,payment_url,created_at,paid_at,download_token FROM orders';
   const params = [];
-  if(status){ sql += ' WHERE status=?'; params.push(String(status)); }
+  const conds = [];
+  if(status){ conds.push('status=?'); params.push(String(status)); }
+  if(kind){ conds.push('kind=?'); params.push(String(kind)); }
+  if(search){
+    const s = `%${String(search).slice(0, 60)}%`;
+    conds.push('(order_ref LIKE ? OR item_name LIKE ? OR customer_name LIKE ? OR customer_email LIKE ? OR customer_whatsapp LIKE ?)');
+    params.push(s, s, s, s, s);
+  }
+  if(conds.length) sql += ' WHERE ' + conds.join(' AND ');
   sql += ' ORDER BY id DESC LIMIT ?';
-  params.push(Math.min(parseInt(limit, 10) || 50, 200));
+  params.push(Math.min(parseInt(limit, 10) || 100, 500));
   res.json(await db.prepare(sql).all(...params));
+});
+// Orders CSV export (respects same filters)
+app.get('/api/admin/orders/export.csv', requireAuth, async (req, res) => {
+  const { status, kind, search } = req.query;
+  let sql = 'SELECT order_ref,kind,item_ref,item_name,amount_cents,currency,customer_name,customer_email,customer_whatsapp,status,created_at,paid_at FROM orders';
+  const params = [];
+  const conds = [];
+  if(status){ conds.push('status=?'); params.push(String(status)); }
+  if(kind){ conds.push('kind=?'); params.push(String(kind)); }
+  if(search){
+    const s = `%${String(search).slice(0, 60)}%`;
+    conds.push('(order_ref LIKE ? OR item_name LIKE ? OR customer_name LIKE ? OR customer_email LIKE ? OR customer_whatsapp LIKE ?)');
+    params.push(s, s, s, s, s);
+  }
+  if(conds.length) sql += ' WHERE ' + conds.join(' AND ');
+  sql += ' ORDER BY id DESC LIMIT 2000';
+  const rows = await db.prepare(sql).all(...params);
+  const esc = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const head = 'order_ref,kind,item_ref,item_name,amount,amount_cents,currency,customer_name,customer_email,customer_whatsapp,status,created_at,paid_at';
+  const lines = rows.map(o => [o.order_ref, o.kind, o.item_ref, o.item_name, ((Number(o.amount_cents) || 0) / 100).toFixed(2), o.currency, o.customer_name, o.customer_email, o.customer_whatsapp, o.status, o.created_at, o.paid_at].map(esc).join(','));
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="nexatech-orders.csv"');
+  res.send(head + '\n' + lines.join('\n'));
+});
+app.delete('/api/admin/orders/:id', requireAuth, async (req, res) => {
+  await db.prepare('DELETE FROM orders WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
 });
 // --- Admin: checkout self-diagnostics (runs each Pay step, reports timings) ---
 // Open logged-in as admin: /api/admin/checkout-diag?kind=plan&ref=pro
@@ -1288,8 +1323,10 @@ app.post('/api/admin/leads/bulk', requireAuth, async (req, res) => {
   } else if(action === 'delete'){
     for(const id of ids){
       try{
-        await db.prepare('DELETE FROM campaign_sends WHERE lead_id=?').run(id).catch(() => {});
-        await db.prepare('DELETE FROM followup_logs WHERE lead_id=?').run(id).catch(() => {});
+        // NOTE: db run() is sync on SQLite / async on PG — never chain .catch()
+        // on it; use try/catch blocks so both drivers work.
+        try{ await db.prepare('DELETE FROM campaign_sends WHERE lead_id=?').run(id); }catch{}
+        try{ await db.prepare('DELETE FROM followup_logs WHERE lead_id=?').run(id); }catch{}
         await db.prepare('DELETE FROM leads WHERE id=?').run(id); done++;
       }catch{}
     }
@@ -3543,10 +3580,16 @@ app.post('/api/admin/campaigns/:id/send', requireAuth, async (req,res)=>{
     if(limit) sql+=` LIMIT ${parseInt(limit,10)||100}`;
     leads = await db.prepare(sql).all(...params);
   }
-  // Filter to those with email
-  const withEmail = leads.filter(l=> l.email && l.email.includes('@'));
-  if(!withEmail.length) return res.status(400).json({ error: 'No recipients with email found for filter' });
-  if(dryRun) return res.json({ ok:true, dryRun:true, wouldSend: withEmail.length, emails: withEmail.map(l=> l.email).slice(0,20) });
+  // Filter to those with email AND not opted out (suppression list always wins)
+  const withEmailAll = leads.filter(l=> l.email && l.email.includes('@'));
+  const withEmail = [];
+  let skippedUnsub = 0;
+  for(const l of withEmailAll){
+    if(await isEmailUnsubscribed(l.email)){ skippedUnsub++; continue; }
+    withEmail.push(l);
+  }
+  if(!withEmail.length) return res.status(400).json({ error: skippedUnsub ? `All ${withEmailAll.length} recipient(s) have opted out of emails` : 'No recipients with email found for filter' });
+  if(dryRun) return res.json({ ok:true, dryRun:true, wouldSend: withEmail.length, skippedUnsub, emails: withEmail.map(l=> l.email).slice(0,20) });
 
   // Check Gmail connected
   try{ await getAuthenticatedGmail(); }catch(e){ return res.status(400).json({ error: e.message + ' — reconnect with Gmail scopes (same Client ID/Secret, click Connect Google)' }); }
@@ -3594,6 +3637,7 @@ app.post('/api/admin/leads/:id/email', requireAuth, async (req,res)=>{
   let lead = await db.prepare('SELECT * FROM leads WHERE id=?').get(req.params.id);
   if(!lead) return res.status(404).json({ error: 'lead not found' });
   if(!lead.email) return res.status(400).json({ error: 'lead has no email' });
+  if(await isEmailUnsubscribed(lead.email)) return res.status(400).json({ error: 'This email has opted out — resubscribe it first (Campaigns → Opt-outs).' });
   const { subject, body_html, body_text, templateId, from_name, from_email, reply_to } = req.body;
   let subj = subject||'', html = body_html||'', text = body_text||'';
   if(templateId){
