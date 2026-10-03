@@ -172,6 +172,7 @@ async function payWithCard(pin){
       $('#co-redirect-ref').textContent = ORDER_REF;
       $('#co-pay-link').href = j.url;
       show('co-redirect-view');
+      try{ window.open(j.url, '_blank', 'noopener'); }catch{}
       startPolling();
     } else {
       throw new Error(j.message || 'Card was declined. Try another card or contact your bank.');
@@ -238,23 +239,35 @@ async function finishPaid(){
   showSuccess(o);
 }
 // ---- Polling (3DS fallback / slow confirmations) ----
+// Re-verifies LIVE with Paystack on every tick (not just our DB), so a
+// completed bank-side payment flips to success even if the webhook is
+// delayed or not configured yet.
 function startPolling(){
   stopPolling(); POLL_N = 0;
   POLL_TIMER = setInterval(async ()=>{
     POLL_N++;
     if(POLL_N > 100){ stopPolling(); return; }
     try{
+      let paid = false, failed = '', expired = false;
+      try{
+        const vr = await postJson('/api/checkout/paystack/verify', { order_ref: ORDER_REF }, 'payment check');
+        const v = await readJson(vr, 'payment check');
+        if(vr.ok && v.status === 'paid') paid = true;
+      }catch{}
       const r = await fetch('/api/checkout/order/' + encodeURIComponent(ORDER_REF));
-      if(!r.ok) return;
-      const o = await readJson(r, 'order status');
-      if(o.status === 'paid'){ stopPolling(); showSuccess(o); }
-      else if(o.status === 'failed' || o.status === 'expired'){
+      if(!r.ok && !paid) return;
+      const o = r.ok ? await readJson(r, 'order status') : null;
+      if(paid || (o && o.status === 'paid')){
+        stopPolling();
+        showSuccess(o || { order_ref: ORDER_REF, kind: ITEM ? ITEM.kind : 'plan', item_name: ITEM ? ITEM.name : '' });
+      }
+      else if(o && (o.status === 'failed' || o.status === 'expired')){
         stopPolling();
         showError('This payment ' + o.status + '. No money was taken. Please create a new order or chat with us.');
         $('#co-error-wa').href = waLink('Hi Nexatech! My order ' + ORDER_REF + ' ' + o.status + '. Please help.');
       }
     }catch{}
-  }, 6000);
+  }, 8000);
 }
 function stopPolling(){ if(POLL_TIMER){ clearInterval(POLL_TIMER); POLL_TIMER = null; } }
 function showSuccess(o){
