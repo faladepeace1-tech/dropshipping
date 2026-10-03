@@ -1132,7 +1132,7 @@ app.get('/api/admin/checkout-diag', requireAuth, async (req, res) => {
   });
   await step('pay_config', async () => {
     pay = await getPayConfig();
-    return { configured: pay.configured, testmode: pay.testmode, merchant_len: (pay.merchant || '').length, key_len: (pay.apiKey || '').length };
+    return { configured: pay.configured, testmode: pay.testmode, secret_prefix: (pay.secret || '').slice(0, 7), secret_len: (pay.secret || '').length, pub_prefix: (pay.pub || '').slice(0, 7), usd_ngn: pay.usdNgn };
   });
   await step('paystack_tcp', async () => {
     const ctl = new AbortController();
@@ -1206,6 +1206,163 @@ app.get('/api/admin/payments', requireAuth, async (req, res) => {
   const pay = await getPayConfig();
   res.json({ provider: 'paystack', public_key: pay.pub || '', secret_set: !!pay.secret, testmode: pay.testmode, usd_ngn: String(pay.usdNgn || 1500), configured: pay.configured,
     callback_url: '/checkout', webhook_url: '/api/checkout/webhook/paystack' });
+});
+// ================= BULK ACTIONS (selection + mass operate) =================
+// Shared id-list sanitizer: caps at 200 ids per call.
+function bulkIds(body){
+  const raw = Array.isArray(body?.ids) ? body.ids : [];
+  const out = [];
+  for(const v of raw){
+    const s = String(v ?? '').trim();
+    if(!s || s.length > 160) continue;
+    out.push(/^\d+$/.test(s) ? parseInt(s, 10) : s);
+    if(out.length >= 200) break;
+  }
+  return [...new Set(out)];
+}
+// Media: publish | unpublish | delete
+app.post('/api/admin/media/bulk', requireAuth, async (req, res) => {
+  const ids = bulkIds(req.body).filter(v => typeof v === 'number');
+  const action = String(req.body?.action || '');
+  if(!ids.length) return res.status(400).json({ error: 'no valid ids' });
+  let done = 0;
+  if(action === 'publish' || action === 'unpublish'){
+    const v = action === 'publish' ? 1 : 0;
+    for(const id of ids){ try{ await db.prepare('UPDATE media SET published=? WHERE id=?').run(v, id); done++; }catch{} }
+  } else if(action === 'delete'){
+    for(const id of ids){
+      try{
+        const ex = await db.prepare('SELECT url FROM media WHERE id=?').get(id);
+        if(ex?.url?.startsWith('/uploads/')){ try{ await db.prepare('DELETE FROM media_blobs WHERE filename=?').run(path.basename(ex.url)); }catch{} }
+        await db.prepare('DELETE FROM media WHERE id=?').run(id); done++;
+      }catch{}
+    }
+  } else return res.status(400).json({ error: 'action must be publish|unpublish|delete' });
+  res.json({ ok: true, action, done, total: ids.length });
+});
+// Themes: publish | unpublish | delete (also removes private zips)
+app.post('/api/admin/themes/bulk', requireAuth, async (req, res) => {
+  const ids = bulkIds(req.body).filter(v => typeof v === 'number');
+  const action = String(req.body?.action || '');
+  if(!ids.length) return res.status(400).json({ error: 'no valid ids' });
+  let done = 0;
+  if(action === 'publish' || action === 'unpublish'){
+    const v = action === 'publish' ? 1 : 0;
+    for(const id of ids){ try{ await db.prepare('UPDATE themes SET published=? WHERE id=?').run(v, id); done++; }catch{} }
+  } else if(action === 'delete'){
+    for(const id of ids){
+      try{
+        const ex = await db.prepare('SELECT zip_filename FROM themes WHERE id=?').get(id);
+        if(ex?.zip_filename) await deleteThemeZip(ex.zip_filename);
+        await db.prepare('DELETE FROM themes WHERE id=?').run(id); done++;
+      }catch{}
+    }
+  } else return res.status(400).json({ error: 'action must be publish|unpublish|delete' });
+  res.json({ ok: true, action, done, total: ids.length });
+});
+// Team: publish | unpublish | delete
+app.post('/api/admin/team/bulk', requireAuth, async (req, res) => {
+  const ids = bulkIds(req.body).filter(v => typeof v === 'number');
+  const action = String(req.body?.action || '');
+  if(!ids.length) return res.status(400).json({ error: 'no valid ids' });
+  let done = 0;
+  if(action === 'publish' || action === 'unpublish'){
+    const v = action === 'publish' ? 1 : 0;
+    for(const id of ids){ try{ await db.prepare('UPDATE team SET published=? WHERE id=?').run(v, id); done++; }catch{} }
+  } else if(action === 'delete'){
+    for(const id of ids){ try{ await db.prepare('DELETE FROM team WHERE id=?').run(id); done++; }catch{} }
+  } else return res.status(400).json({ error: 'action must be publish|unpublish|delete' });
+  res.json({ ok: true, action, done, total: ids.length });
+});
+// Leads: stage | delete
+app.post('/api/admin/leads/bulk', requireAuth, async (req, res) => {
+  const ids = bulkIds(req.body).filter(v => typeof v === 'number');
+  const action = String(req.body?.action || '');
+  if(!ids.length) return res.status(400).json({ error: 'no valid ids' });
+  let done = 0;
+  if(action === 'stage'){
+    const stage = String(req.body?.stage || '');
+    const valid = ['new', 'contacted', 'scheduled', 'closed', 'archived'];
+    if(!valid.includes(stage)) return res.status(400).json({ error: 'invalid stage' });
+    for(const id of ids){ try{ await db.prepare('UPDATE leads SET pipeline_stage=? WHERE id=?').run(stage, id); done++; }catch{} }
+  } else if(action === 'delete'){
+    for(const id of ids){
+      try{
+        await db.prepare('DELETE FROM campaign_sends WHERE lead_id=?').run(id).catch(() => {});
+        await db.prepare('DELETE FROM followup_logs WHERE lead_id=?').run(id).catch(() => {});
+        await db.prepare('DELETE FROM leads WHERE id=?').run(id); done++;
+      }catch{}
+    }
+  } else return res.status(400).json({ error: 'action must be stage|delete' });
+  res.json({ ok: true, action, done, total: ids.length });
+});
+// Orders: status | delete
+app.post('/api/admin/orders/bulk', requireAuth, async (req, res) => {
+  const ids = bulkIds(req.body).filter(v => typeof v === 'number');
+  const action = String(req.body?.action || '');
+  if(!ids.length) return res.status(400).json({ error: 'no valid ids' });
+  let done = 0;
+  if(action === 'status'){
+    const st = String(req.body?.status || '').toLowerCase();
+    if(!['pending', 'paid', 'failed', 'expired'].includes(st)) return res.status(400).json({ error: 'invalid status' });
+    for(const id of ids){
+      try{
+        const ex = await db.prepare('SELECT * FROM orders WHERE id=?').get(id);
+        if(!ex) continue;
+        const token = (st === 'paid' && ex.kind === 'theme' && !ex.download_token) ? crypto.randomBytes(24).toString('hex') : ex.download_token;
+        if(st === 'paid') await db.prepare("UPDATE orders SET status='paid', paid_at=COALESCE(paid_at,datetime('now')), download_token=? WHERE id=?").run(token, id);
+        else await db.prepare('UPDATE orders SET status=? WHERE id=?').run(st, id);
+        done++;
+      }catch{}
+    }
+  } else if(action === 'delete'){
+    for(const id of ids){ try{ await db.prepare('DELETE FROM orders WHERE id=?').run(id); done++; }catch{} }
+  } else return res.status(400).json({ error: 'action must be status|delete' });
+  res.json({ ok: true, action, done, total: ids.length });
+});
+// Chats: delete (by session_id)
+app.post('/api/admin/chats/bulk', requireAuth, async (req, res) => {
+  const ids = bulkIds(req.body).map(v => String(v));
+  if(!ids.length) return res.status(400).json({ error: 'no valid ids' });
+  if(String(req.body?.action || '') !== 'delete') return res.status(400).json({ error: 'action must be delete' });
+  let done = 0;
+  for(const sid of ids){
+    try{
+      await db.prepare('DELETE FROM chat_messages WHERE session_id=?').run(sid);
+      await db.prepare('DELETE FROM chat_sessions WHERE session_id=?').run(sid);
+      done++;
+    }catch{}
+  }
+  res.json({ ok: true, action: 'delete', done, total: ids.length });
+});
+// Outbox sends: delete selected
+app.post('/api/admin/outbox/bulk', requireAuth, async (req, res) => {
+  const ids = bulkIds(req.body).filter(v => typeof v === 'number');
+  if(!ids.length) return res.status(400).json({ error: 'no valid ids' });
+  if(String(req.body?.action || '') !== 'delete') return res.status(400).json({ error: 'action must be delete' });
+  let done = 0;
+  for(const id of ids){ try{ await db.prepare('DELETE FROM campaign_sends WHERE id=?').run(id); done++; }catch{} }
+  res.json({ ok: true, action: 'delete', done, total: ids.length });
+});
+// Manual opt-out: add any customer email to the suppression list
+app.post('/api/admin/followups/unsubscribes', requireAuth, async (req, res) => {
+  const email = String(req.body?.email || '').toLowerCase().trim();
+  if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'valid email required' });
+  const reason = String(req.body?.reason || 'manual-admin').slice(0, 120);
+  await db.prepare("INSERT INTO email_unsubscribes (email, reason) VALUES (?,?) ON CONFLICT(email) DO UPDATE SET reason=excluded.reason").run(email, reason);
+  res.json({ ok: true, email });
+});
+// Bulk resubscribe (remove from suppression list)
+app.post('/api/admin/followups/unsubscribes/bulk', requireAuth, async (req, res) => {
+  const emails = bulkIds(req.body).map(v => String(v).toLowerCase());
+  if(!emails.length) return res.status(400).json({ error: 'no valid emails' });
+  if(String(req.body?.action || '') !== 'resubscribe') return res.status(400).json({ error: 'action must be resubscribe' });
+  let done = 0;
+  for(const em of emails){
+    if(!em.includes('@')) continue;
+    try{ await db.prepare('DELETE FROM email_unsubscribes WHERE email=?').run(em); done++; }catch{}
+  }
+  res.json({ ok: true, action: 'resubscribe', done, total: emails.length });
 });
 app.patch('/api/admin/orders/:id', requireAuth, async (req, res) => {
   const ex = await db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
