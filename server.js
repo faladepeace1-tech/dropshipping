@@ -1061,37 +1061,6 @@ app.post('/api/checkout/paystack/transfer', async (req, res) => {
     if(!res.headersSent) res.status(422).json({ error: e.message || 'Could not start bank transfer.' });
   }
 });
-// --- Native USSD (GTB 737 — Paystack's supported USSD type): dial code to pay ---
-app.post('/api/checkout/paystack/ussd', async (req, res) => {
-  try{
-    const { order_ref } = req.body || {};
-    const order = await db.prepare('SELECT * FROM orders WHERE order_ref=?').get(String(order_ref || ''));
-    if(!order) return res.status(404).json({ error: 'order not found' });
-    if(order.status === 'paid') return res.json({ ok: true, status: 'success' });
-    if(!(order.amount_cents > 0)) return res.status(400).json({ error: 'Free orders need no payment.' });
-    const pay = await getPayConfig();
-    if(!pay.configured) return res.status(422).json({ error: 'Payment gateway not connected yet.' });
-    const chg = paystackChargeAmount(order.amount_cents, order.currency, pay.usdNgn);
-    if(chg.currency !== 'NGN') return res.status(422).json({ error: 'USSD is available for Naira orders only.' });
-    const data = await paystackPost('/charge', {
-      email: order.customer_email, amount: String(chg.amount), currency: 'NGN',
-      ussd: { type: '737' },
-      metadata: { order_ref: order.order_ref }
-    }, pay.secret, 'ussd');
-    if(data.status === 'success'){
-      await markOrderPaid(order.order_ref, data.reference || order.order_ref);
-      return res.json({ ok: true, status: 'success' });
-    }
-    if(data.reference) await db.prepare('UPDATE orders SET cryptomus_order_id=? WHERE order_ref=?').run(data.reference, order.order_ref);
-    res.json({ ok: true, status: 'waiting',
-      ussd_code: data.ussd_code || '', display_text: data.display_text || '',
-      amount_text: '₦' + (chg.amount / 100).toLocaleString('en-US'),
-      reference: data.reference || order.order_ref });
-  }catch(e){
-    console.error('paystack ussd failed:', e.message);
-    if(!res.headersSent) res.status(422).json({ error: e.message || 'Could not start USSD payment.' });
-  }
-});
 // --- Re-check a pending order against Paystack (resume/3DS fallback) ---
 app.post('/api/checkout/paystack/verify', async (req, res) => {
   try{
@@ -1358,15 +1327,7 @@ app.get('/api/admin/checkout-diag', requireAuth, async (req, res) => {
       }, pay.secret, 'transfer');
       return { paystack_status: data.status, has_account: !!(data.account_number) };
     });
-    await step('paystack_test_ussd', async () => {
-      if(!pay || !pay.configured) throw new Error('skipped: gateway keys not configured');
-      // USSD code issuance only (buyer would dial it; we stop here).
-      const data = await paystackPost('/charge', {
-        email: 'diagprobe.test@gmail.com', amount: '150000', currency: 'NGN',
-        ussd: { type: '737' }
-      }, pay.secret, 'ussd');
-      return { paystack_status: data.status, has_code: !!(data.ussd_code) };
-    });
+
   }
   await step('db_cleanup', async () => {
     if(testRef) await db.prepare('DELETE FROM orders WHERE order_ref=?').run(testRef);

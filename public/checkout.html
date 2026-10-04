@@ -70,7 +70,6 @@
         <div class="pay-tabs" id="co-pay-tabs" role="tablist">
           <button type="button" class="pill active" data-ptab="card" role="tab">💳 Card</button>
           <button type="button" class="pill" data-ptab="transfer" role="tab">🏦 Transfer</button>
-          <button type="button" class="pill" data-ptab="ussd" role="tab">📱 USSD</button>
           <button type="button" class="pill" data-ptab="applepay" role="tab"> Apple Pay</button>
           <button type="button" class="pill" data-ptab="googlepay" role="tab">G Pay</button>
         </div>
@@ -96,16 +95,6 @@
               <div><small style="color:var(--text-muted);font-weight:700">ACCOUNT NAME</small><div id="co-transfer-name" style="font-weight:600">—</div></div>
               <div class="co-note" id="co-transfer-expiry">Expires in --:--</div>
             </div>
-          </div>
-        </div>
-        <div id="co-pane-ussd" class="pay-pane hidden">
-          <p class="sub" style="font-size:13px">Dial the code below on your phone (GTB line) to approve <b id="co-ussd-amount">—</b> — this page confirms automatically.</p>
-          <div id="co-ussd-msg" class="co-msg" role="alert"></div>
-          <button type="button" class="btn btn-primary btn-glow co-pay-btn" id="co-ussd-btn">Get USSD Code →</button>
-          <div id="co-ussd-details" class="hidden" style="margin-top:14px;border:1px dashed var(--border);border-radius:14px;padding:14px;text-align:center">
-            <small style="color:var(--text-muted);font-weight:700">DIAL ON YOUR PHONE</small>
-            <div id="co-ussd-code" style="font-weight:800;font-size:24px;letter-spacing:.06em;margin:6px 0">—</div>
-            <button type="button" class="btn btn-ghost" id="co-ussd-copy" style="padding:6px 12px;font-size:12px">Copy Code</button>
           </div>
         </div>
         <div id="co-pane-wallets" class="pay-pane hidden">

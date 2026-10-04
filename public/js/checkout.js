@@ -329,8 +329,8 @@ let PAY_TAB = 'card', COUNTDOWN_TIMER = null;
 function switchPayTab(name){
   PAY_TAB = name;
   document.querySelectorAll('#co-pay-tabs .pill').forEach(p => p.classList.toggle('active', p.dataset.ptab === name));
-  const panes = { card: '#co-card-form', transfer: '#co-pane-transfer', ussd: '#co-pane-ussd', applepay: '#co-pane-wallets', googlepay: '#co-pane-wallets' };
-  ['#co-card-form', '#co-pane-transfer', '#co-pane-ussd', '#co-pane-wallets'].forEach(s => $(s)?.classList.add('hidden'));
+  const panes = { card: '#co-card-form', transfer: '#co-pane-transfer', applepay: '#co-pane-wallets', googlepay: '#co-pane-wallets' };
+  ['#co-card-form', '#co-pane-transfer', '#co-pane-wallets'].forEach(s => $(s)?.classList.add('hidden'));
   $(panes[name])?.classList.remove('hidden');
   if(name === 'applepay' || name === 'googlepay'){
     $('#co-wallet-note').textContent = name === 'applepay'
@@ -402,27 +402,6 @@ async function startTransfer(){
     btn.disabled = false;
   }
 }
-// ---- Native USSD (GTB 737): dial code on any phone ----
-async function startUssd(){
-  const msg = $('#co-ussd-msg'), btn = $('#co-ussd-btn');
-  msg.textContent = '';
-  btn.disabled = true; btn.textContent = 'Generating code…';
-  try{
-    const res = await postJson('/api/checkout/paystack/ussd', { order_ref: ORDER_REF }, 'USSD code');
-    const j = await readJson(res, 'USSD code');
-    if(!res.ok) throw new Error(j.error || 'Could not start USSD payment.');
-    if(j.status === 'success'){ await finishPaid(); return; }
-    $('#co-ussd-amount').textContent = j.amount_text || '';
-    $('#co-ussd-code').textContent = j.ussd_code || '—';
-    $('#co-ussd-details').classList.remove('hidden');
-    btn.textContent = 'Refresh Code →';
-    startPolling();
-  }catch(e){
-    msg.textContent = e.message || 'Could not start USSD payment.';
-  }finally{
-    btn.disabled = false;
-  }
-}
 function formatCardInputs(){
   const num = $('#co-cc-num');
   num?.addEventListener('input', ()=>{
@@ -449,9 +428,7 @@ function formatCardInputs(){
   $('#co-card-form')?.addEventListener('submit', e => { e.preventDefault(); payWithCard(); });
   document.querySelectorAll('#co-pay-tabs .pill').forEach(p => p.addEventListener('click', () => switchPayTab(p.dataset.ptab)));
   $('#co-transfer-btn')?.addEventListener('click', startTransfer);
-  $('#co-ussd-btn')?.addEventListener('click', startUssd);
   $('#co-transfer-copy')?.addEventListener('click', e => copyText($('#co-transfer-acct')?.textContent || '', e.currentTarget));
-  $('#co-ussd-copy')?.addEventListener('click', e => copyText($('#co-ussd-code')?.textContent || '', e.currentTarget));
   $('#co-otp-btn')?.addEventListener('click', submitOtp);
   $('#co-iredirect-check')?.addEventListener('click', async ()=>{
     $('#co-pending-ref').textContent = ORDER_REF;
