@@ -61,28 +61,60 @@
     </div>
   </div>
 
-  <!-- Card payment (inline, no redirect / no popup) -->
+  <!-- Payment methods (all on this page — no redirect / no popup) -->
   <div id="co-card-view" class="hidden">
     <div class="co-grid">
-      <form class="co-card" id="co-card-form" novalidate>
-        <h3 style="margin:0 0 4px">Card details</h3>
-        <p class="sub" style="margin:0 0 14px;font-size:13px">Order <b id="co-card-ref"></b> · charged securely, never stored.</p>
-        <div class="field"><label for="co-cc-num">Card Number *</label><input id="co-cc-num" inputmode="numeric" placeholder="4084 0840 8408 4081" autocomplete="cc-number" maxlength="23"><small>Enter a valid card number</small></div>
-        <div class="co-row">
-          <div class="field"><label for="co-cc-exp">Expiry (MM/YY) *</label><input id="co-cc-exp" inputmode="numeric" placeholder="12/30" autocomplete="cc-exp" maxlength="7"><small>Invalid expiry</small></div>
-          <div class="field"><label for="co-cc-cvc">CVC *</label><input id="co-cc-cvc" inputmode="numeric" placeholder="408" autocomplete="cc-csc" maxlength="4"><small>Invalid CVC</small></div>
+      <div class="co-card">
+        <h3 style="margin:0 0 4px">Choose how to pay</h3>
+        <p class="sub" style="margin:0 0 12px;font-size:13px">Order <b id="co-card-ref"></b> · <span id="co-card-amount-line"></span></p>
+        <div class="pay-tabs" id="co-pay-tabs" role="tablist">
+          <button type="button" class="pill active" data-ptab="card" role="tab">💳 Card</button>
+          <button type="button" class="pill" data-ptab="transfer" role="tab">🏦 Transfer</button>
+          <button type="button" class="pill" data-ptab="ussd" role="tab">📱 USSD</button>
+          <button type="button" class="pill" data-ptab="applepay" role="tab"> Apple Pay</button>
+          <button type="button" class="pill" data-ptab="googlepay" role="tab">G Pay</button>
         </div>
-        <div id="co-card-msg" class="co-msg" role="alert"></div>
-        <button type="submit" class="btn btn-primary btn-glow co-pay-btn" id="co-card-pay-btn">Pay <span id="co-card-amount"></span> →</button>
-        <div class="co-trust"><span>🔒 256-bit encrypted</span><span>💳 Verve · Mastercard · Visa</span></div>
-        <div class="co-divider"><span>or pay another way</span></div>
-        <button type="button" class="btn btn-ghost co-pay-btn" id="co-frame-btn">Bank Transfer · Apple Pay · Google Pay · More →</button>
-        <div id="co-frame-wrap" class="hidden">
+        <form id="co-card-form" class="pay-pane" data-pane="card" novalidate>
+          <div class="field"><label for="co-cc-num">Card Number *</label><input id="co-cc-num" inputmode="numeric" placeholder="4084 0840 8408 4081" autocomplete="cc-number" maxlength="23"><small>Enter a valid card number</small></div>
+          <div class="co-row">
+            <div class="field"><label for="co-cc-exp">Expiry (MM/YY) *</label><input id="co-cc-exp" inputmode="numeric" placeholder="12/30" autocomplete="cc-exp" maxlength="7"><small>Invalid expiry</small></div>
+            <div class="field"><label for="co-cc-cvc">CVC *</label><input id="co-cc-cvc" inputmode="numeric" placeholder="408" autocomplete="cc-csc" maxlength="4"><small>Invalid CVC</small></div>
+          </div>
+          <div id="co-card-msg" class="co-msg" role="alert"></div>
+          <button type="submit" class="btn btn-primary btn-glow co-pay-btn" id="co-card-pay-btn">Pay <span id="co-card-amount"></span> →</button>
+          <div class="co-trust"><span>🔒 256-bit encrypted</span><span>💳 Verve · Mastercard · Visa · Amex</span></div>
+        </form>
+        <div id="co-pane-transfer" class="pay-pane hidden">
+          <p class="sub" style="font-size:13px">We generate a temporary bank account for this exact order — send the <b>exact amount</b> from any bank app, and this page confirms automatically.</p>
+          <div id="co-transfer-msg" class="co-msg" role="alert"></div>
+          <button type="button" class="btn btn-primary btn-glow co-pay-btn" id="co-transfer-btn">Get Transfer Account →</button>
+          <div id="co-transfer-details" class="hidden" style="margin-top:14px;border:1px dashed var(--border);border-radius:14px;padding:14px">
+            <div class="co-total" style="border:none;padding:0"><span>Amount to send</span><strong id="co-transfer-amount">—</strong></div>
+            <div style="display:grid;gap:8px;margin-top:10px">
+              <div><small style="color:var(--text-muted);font-weight:700">BANK</small><div id="co-transfer-bank" style="font-weight:800;font-size:16px">—</div></div>
+              <div><small style="color:var(--text-muted);font-weight:700">ACCOUNT NUMBER</small><div style="display:flex;gap:8px;align-items:center"><span id="co-transfer-acct" style="font-weight:800;font-size:22px;letter-spacing:.08em">—</span><button type="button" class="btn btn-ghost" id="co-transfer-copy" style="padding:6px 12px;font-size:12px">Copy</button></div></div>
+              <div><small style="color:var(--text-muted);font-weight:700">ACCOUNT NAME</small><div id="co-transfer-name" style="font-weight:600">—</div></div>
+              <div class="co-note" id="co-transfer-expiry">Expires in --:--</div>
+            </div>
+          </div>
+        </div>
+        <div id="co-pane-ussd" class="pay-pane hidden">
+          <p class="sub" style="font-size:13px">Dial the code below on your phone (GTB line) to approve <b id="co-ussd-amount">—</b> — this page confirms automatically.</p>
+          <div id="co-ussd-msg" class="co-msg" role="alert"></div>
+          <button type="button" class="btn btn-primary btn-glow co-pay-btn" id="co-ussd-btn">Get USSD Code →</button>
+          <div id="co-ussd-details" class="hidden" style="margin-top:14px;border:1px dashed var(--border);border-radius:14px;padding:14px;text-align:center">
+            <small style="color:var(--text-muted);font-weight:700">DIAL ON YOUR PHONE</small>
+            <div id="co-ussd-code" style="font-weight:800;font-size:24px;letter-spacing:.06em;margin:6px 0">—</div>
+            <button type="button" class="btn btn-ghost" id="co-ussd-copy" style="padding:6px 12px;font-size:12px">Copy Code</button>
+          </div>
+        </div>
+        <div id="co-pane-wallets" class="pay-pane hidden">
+          <p class="sub" style="font-size:13px" id="co-wallet-note">Continue with Apple Pay, Google Pay or PayAttitude in the secure frame below — same order, same price.</p>
           <div id="co-frame-msg" class="co-msg" role="alert"></div>
           <iframe id="co-frame" title="Secure payment options" allow="payment" style="width:100%;height:640px;border:1px solid var(--border);border-radius:14px;background:#fff"></iframe>
           <div class="co-note" style="margin-top:8px">Frame not loading? <a id="co-frame-full" href="#" target="_blank" rel="noopener">Open the secure page directly →</a></div>
         </div>
-      </form>
+      </div>
       <aside class="co-card co-summary" id="co-summary-2">
         <h3 style="margin:0 0 10px">Order summary</h3>
         <div class="co-kind" id="co-card-kind">Plan</div>

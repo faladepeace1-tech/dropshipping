@@ -137,10 +137,10 @@ function showCardView(){
   $('#co-card-amount').textContent = charge;
   const btn = $('#co-card-pay-btn');
   if(btn) btn.dataset.amount = charge;
-  const fw = $('#co-frame-wrap'), fr = $('#co-frame'), fb = $('#co-frame-btn');
-  if(fw) fw.classList.add('hidden');
-  if(fr) fr.src = 'about:blank';
-  if(fb){ fb.disabled = false; fb.textContent = 'Bank Transfer · Apple Pay · Google Pay · More →'; }
+  const fr = $('#co-frame');
+  if(fr){ fr.src = 'about:blank'; delete fr.dataset.loaded; }
+  stopCountdown();
+  switchPayTab('card');
   $('#co-card-msg').textContent = '';
   show('co-card-view');
 }
@@ -324,29 +324,103 @@ async function resumeByRef(ref){
     showError('We could not find that order. It may have expired — please check out again.');
   }
 }
-// ---- All-channels embedded frame (transfer, Apple Pay, Google Pay...) ----
+// ---- Payment method tabs: card | transfer | ussd | applepay | googlepay ----
+let PAY_TAB = 'card', COUNTDOWN_TIMER = null;
+function switchPayTab(name){
+  PAY_TAB = name;
+  document.querySelectorAll('#co-pay-tabs .pill').forEach(p => p.classList.toggle('active', p.dataset.ptab === name));
+  const panes = { card: '#co-card-form', transfer: '#co-pane-transfer', ussd: '#co-pane-ussd', applepay: '#co-pane-wallets', googlepay: '#co-pane-wallets' };
+  ['#co-card-form', '#co-pane-transfer', '#co-pane-ussd', '#co-pane-wallets'].forEach(s => $(s)?.classList.add('hidden'));
+  $(panes[name])?.classList.remove('hidden');
+  if(name === 'applepay' || name === 'googlepay'){
+    $('#co-wallet-note').textContent = name === 'applepay'
+      ? 'Continue with Apple Pay in the secure frame below — same order, same price.'
+      : 'Continue with Google Pay in the secure frame below — same order, same price.';
+    loadPayFrame();
+  }
+}
+// ---- All-channels embedded frame (Apple Pay, Google Pay, PayAttitude...) ----
 async function loadPayFrame(){
-  const wrap = $('#co-frame-wrap'), msg = $('#co-frame-msg'), frame = $('#co-frame'), btn = $('#co-frame-btn');
-  if(!wrap || !ORDER_REF) return;
-  if(!wrap.classList.contains('hidden')){ wrap.classList.add('hidden'); frame.src = 'about:blank'; btn.textContent = 'Bank Transfer · Apple Pay · Google Pay · More →'; return; }
-  msg.textContent = '';
-  btn.disabled = true; btn.textContent = 'Loading options…';
+  const msg = $('#co-frame-msg'), frame = $('#co-frame');
+  if(!frame || !ORDER_REF) return;
+  if(frame.dataset.loaded === ORDER_REF) return;
+  msg.textContent = 'Loading secure options…';
   try{
     const res = await postJson('/api/checkout/paystack/frame', { order_ref: ORDER_REF }, 'payment options');
     const j = await readJson(res, 'payment options');
     if(!res.ok) throw new Error(j.error || 'Could not load payment options.');
     if(j.paid){ await finishPaid(); return; }
     frame.src = j.authorization_url;
+    frame.dataset.loaded = ORDER_REF;
     $('#co-frame-full').href = j.authorization_url;
-    wrap.classList.remove('hidden');
-    btn.textContent = 'Hide other options ↑';
-    try{ wrap.scrollIntoView({ behavior: 'smooth', block: 'start' }); }catch{}
+    msg.textContent = '';
     startPolling(); // same order: webhook/verify flips us to success automatically
   }catch(e){
     msg.textContent = e.message || 'Could not load payment options.';
+  }
+}
+function stopCountdown(){ if(COUNTDOWN_TIMER){ clearInterval(COUNTDOWN_TIMER); COUNTDOWN_TIMER = null; } }
+function startCountdown(iso, el){
+  stopCountdown();
+  const target = new Date(iso).getTime();
+  if(isNaN(target)) return;
+  const tick = () => {
+    const left = Math.max(0, target - Date.now());
+    const m = Math.floor(left / 60000), s = Math.floor((left % 60000) / 1000);
+    if(el) el.textContent = left > 0 ? `Expires in ${m}:${String(s).padStart(2, '0')}` : 'Expired — tap the button again for fresh details.';
+    if(left <= 0) stopCountdown();
+  };
+  tick();
+  COUNTDOWN_TIMER = setInterval(tick, 1000);
+}
+function copyText(txt, btn, doneLabel){
+  const done = () => { if(btn){ const o = btn.textContent; btn.textContent = doneLabel || 'Copied ✓'; setTimeout(() => { btn.textContent = o; }, 1600); } };
+  if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(done).catch(() => prompt('Copy:', txt)); }
+  else prompt('Copy:', txt);
+}
+// ---- Native Bank Transfer: temp account for the exact order amount ----
+async function startTransfer(){
+  const msg = $('#co-transfer-msg'), btn = $('#co-transfer-btn');
+  msg.textContent = '';
+  btn.disabled = true; btn.textContent = 'Generating account…';
+  try{
+    const res = await postJson('/api/checkout/paystack/transfer', { order_ref: ORDER_REF }, 'transfer details');
+    const j = await readJson(res, 'transfer details');
+    if(!res.ok) throw new Error(j.error || 'Could not start bank transfer.');
+    if(j.status === 'success'){ await finishPaid(); return; }
+    $('#co-transfer-amount').textContent = j.amount_text || '';
+    $('#co-transfer-bank').textContent = j.bank_name || 'Bank';
+    $('#co-transfer-acct').textContent = j.account_number || '—';
+    $('#co-transfer-name').textContent = j.account_name || '';
+    $('#co-transfer-details').classList.remove('hidden');
+    btn.textContent = 'Refresh Account →';
+    startCountdown(j.expires_at, $('#co-transfer-expiry'));
+    startPolling();
+  }catch(e){
+    msg.textContent = e.message || 'Could not start bank transfer.';
   }finally{
     btn.disabled = false;
-    if(wrap.classList.contains('hidden')) btn.textContent = 'Bank Transfer · Apple Pay · Google Pay · More →';
+  }
+}
+// ---- Native USSD (GTB 737): dial code on any phone ----
+async function startUssd(){
+  const msg = $('#co-ussd-msg'), btn = $('#co-ussd-btn');
+  msg.textContent = '';
+  btn.disabled = true; btn.textContent = 'Generating code…';
+  try{
+    const res = await postJson('/api/checkout/paystack/ussd', { order_ref: ORDER_REF }, 'USSD code');
+    const j = await readJson(res, 'USSD code');
+    if(!res.ok) throw new Error(j.error || 'Could not start USSD payment.');
+    if(j.status === 'success'){ await finishPaid(); return; }
+    $('#co-ussd-amount').textContent = j.amount_text || '';
+    $('#co-ussd-code').textContent = j.ussd_code || '—';
+    $('#co-ussd-details').classList.remove('hidden');
+    btn.textContent = 'Refresh Code →';
+    startPolling();
+  }catch(e){
+    msg.textContent = e.message || 'Could not start USSD payment.';
+  }finally{
+    btn.disabled = false;
   }
 }
 function formatCardInputs(){
@@ -373,7 +447,11 @@ function formatCardInputs(){
   formatCardInputs();
   $('#co-form')?.addEventListener('submit', e => { e.preventDefault(); createOrder(); });
   $('#co-card-form')?.addEventListener('submit', e => { e.preventDefault(); payWithCard(); });
-  $('#co-frame-btn')?.addEventListener('click', loadPayFrame);
+  document.querySelectorAll('#co-pay-tabs .pill').forEach(p => p.addEventListener('click', () => switchPayTab(p.dataset.ptab)));
+  $('#co-transfer-btn')?.addEventListener('click', startTransfer);
+  $('#co-ussd-btn')?.addEventListener('click', startUssd);
+  $('#co-transfer-copy')?.addEventListener('click', e => copyText($('#co-transfer-acct')?.textContent || '', e.currentTarget));
+  $('#co-ussd-copy')?.addEventListener('click', e => copyText($('#co-ussd-code')?.textContent || '', e.currentTarget));
   $('#co-otp-btn')?.addEventListener('click', submitOtp);
   $('#co-iredirect-check')?.addEventListener('click', async ()=>{
     $('#co-pending-ref').textContent = ORDER_REF;

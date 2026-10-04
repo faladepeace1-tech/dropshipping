@@ -742,7 +742,11 @@ async function paystackPost(path, body, secret, label){
     console.log('paystack ' + label + ' done in ' + (Date.now() - t0) + 'ms, http=' + resp.status,
       'status=' + (j && j.status), 'data.status=' + (j && j.data && j.data.status));
     if(!resp.ok || j.status !== true || !j.data){
-      throw new Error((j && j.message) || ('Paystack error (HTTP ' + resp.status + ')'));
+      // NOTE: top-level `message` is almost always the generic "Charge
+      // attempted" — the real reason lives in data.gateway_response/message.
+      const d = (j && j.data) || {};
+      const detail = d.gateway_response || d.message || j.message || j.error || ('Paystack error (HTTP ' + resp.status + ')');
+      throw new Error(detail);
     }
     return j.data;
   } catch(e){
@@ -1021,6 +1025,73 @@ app.post('/api/checkout/paystack/frame', async (req, res) => {
     if(!res.headersSent) res.status(422).json({ error: e.message || 'Could not load payment options.' });
   }
 });
+// --- Native Bank Transfer (Pay with Transfer): buyer sends to a temp account ---
+// POST /charge {email, amount, bank_transfer:{account_expires_at}} ->
+// {status:'pending_bank_transfer', account_name/number, bank{name}, expires}.
+// Buyer completes in their own bank app; webhook/verify flips the order.
+app.post('/api/checkout/paystack/transfer', async (req, res) => {
+  try{
+    const { order_ref } = req.body || {};
+    const order = await db.prepare('SELECT * FROM orders WHERE order_ref=?').get(String(order_ref || ''));
+    if(!order) return res.status(404).json({ error: 'order not found' });
+    if(order.status === 'paid') return res.json({ ok: true, status: 'success' });
+    if(!(order.amount_cents > 0)) return res.status(400).json({ error: 'Free orders need no payment.' });
+    const pay = await getPayConfig();
+    if(!pay.configured) return res.status(422).json({ error: 'Payment gateway not connected yet.' });
+    const chg = paystackChargeAmount(order.amount_cents, order.currency, pay.usdNgn);
+    if(chg.currency !== 'NGN') return res.status(422).json({ error: 'Bank transfer is available for Naira orders only.' });
+    const expires = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    const data = await paystackPost('/charge', {
+      email: order.customer_email, amount: String(chg.amount), currency: 'NGN',
+      bank_transfer: { account_expires_at: expires },
+      metadata: { order_ref: order.order_ref }
+    }, pay.secret, 'transfer');
+    if(data.status === 'success'){
+      await markOrderPaid(order.order_ref, data.reference || order.order_ref);
+      return res.json({ ok: true, status: 'success' });
+    }
+    if(data.reference) await db.prepare('UPDATE orders SET cryptomus_order_id=? WHERE order_ref=?').run(data.reference, order.order_ref);
+    res.json({ ok: true, status: 'waiting',
+      account_name: data.account_name || '', account_number: data.account_number || '',
+      bank_name: (data.bank && data.bank.name) || '', amount_text: '₦' + (chg.amount / 100).toLocaleString('en-US'),
+      expires_at: data.account_expires_at || expires, display_text: data.display_text || '',
+      reference: data.reference || order.order_ref });
+  }catch(e){
+    console.error('paystack transfer failed:', e.message);
+    if(!res.headersSent) res.status(422).json({ error: e.message || 'Could not start bank transfer.' });
+  }
+});
+// --- Native USSD (GTB 737 — Paystack's supported USSD type): dial code to pay ---
+app.post('/api/checkout/paystack/ussd', async (req, res) => {
+  try{
+    const { order_ref } = req.body || {};
+    const order = await db.prepare('SELECT * FROM orders WHERE order_ref=?').get(String(order_ref || ''));
+    if(!order) return res.status(404).json({ error: 'order not found' });
+    if(order.status === 'paid') return res.json({ ok: true, status: 'success' });
+    if(!(order.amount_cents > 0)) return res.status(400).json({ error: 'Free orders need no payment.' });
+    const pay = await getPayConfig();
+    if(!pay.configured) return res.status(422).json({ error: 'Payment gateway not connected yet.' });
+    const chg = paystackChargeAmount(order.amount_cents, order.currency, pay.usdNgn);
+    if(chg.currency !== 'NGN') return res.status(422).json({ error: 'USSD is available for Naira orders only.' });
+    const data = await paystackPost('/charge', {
+      email: order.customer_email, amount: String(chg.amount), currency: 'NGN',
+      ussd: { type: '737' },
+      metadata: { order_ref: order.order_ref }
+    }, pay.secret, 'ussd');
+    if(data.status === 'success'){
+      await markOrderPaid(order.order_ref, data.reference || order.order_ref);
+      return res.json({ ok: true, status: 'success' });
+    }
+    if(data.reference) await db.prepare('UPDATE orders SET cryptomus_order_id=? WHERE order_ref=?').run(data.reference, order.order_ref);
+    res.json({ ok: true, status: 'waiting',
+      ussd_code: data.ussd_code || '', display_text: data.display_text || '',
+      amount_text: '₦' + (chg.amount / 100).toLocaleString('en-US'),
+      reference: data.reference || order.order_ref });
+  }catch(e){
+    console.error('paystack ussd failed:', e.message);
+    if(!res.headersSent) res.status(422).json({ error: e.message || 'Could not start USSD payment.' });
+  }
+});
 // --- Re-check a pending order against Paystack (resume/3DS fallback) ---
 app.post('/api/checkout/paystack/verify', async (req, res) => {
   try{
@@ -1275,6 +1346,26 @@ app.get('/api/admin/checkout-diag', requireAuth, async (req, res) => {
         secret: pay.secret
       });
       return { paystack_status: data.status, message: data.gateway_response || data.message || '' };
+    });
+  }
+  if(String(req.query.channels || '') === '1'){
+    await step('paystack_test_transfer', async () => {
+      if(!pay || !pay.configured) throw new Error('skipped: gateway keys not configured');
+      // Transfer account issuance only (buyer would pay into it; we stop here).
+      const data = await paystackPost('/charge', {
+        email: 'diagprobe.test@gmail.com', amount: '150000', currency: 'NGN',
+        bank_transfer: { account_expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString() }
+      }, pay.secret, 'transfer');
+      return { paystack_status: data.status, has_account: !!(data.account_number) };
+    });
+    await step('paystack_test_ussd', async () => {
+      if(!pay || !pay.configured) throw new Error('skipped: gateway keys not configured');
+      // USSD code issuance only (buyer would dial it; we stop here).
+      const data = await paystackPost('/charge', {
+        email: 'diagprobe.test@gmail.com', amount: '150000', currency: 'NGN',
+        ussd: { type: '737' }
+      }, pay.secret, 'ussd');
+      return { paystack_status: data.status, has_code: !!(data.ussd_code) };
     });
   }
   await step('db_cleanup', async () => {

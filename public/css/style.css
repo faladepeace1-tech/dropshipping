@@ -441,7 +441,10 @@ main, .footer{position:relative;z-index:1}
 @media(max-width:480px){.co-row{grid-template-columns:1fr}}
 .co-divider{display:flex;align-items:center;gap:10px;margin:16px 0 10px;color:var(--text-muted);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
 .co-divider::before,.co-divider::after{content:"";flex:1;height:1px;background:var(--border)}
-#co-frame-wrap{margin-top:12px}
+.pay-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.pay-tabs .pill{flex:1;justify-content:center;white-space:nowrap}
+.pay-pane{animation:coFade .25s ease}
+@keyframes coFade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 @media(max-width:480px){#co-frame{height:720px!important}}
 .co-total{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);padding-top:12px;font-size:15px}
 .co-total strong{font-family:var(--display);font-size:26px;letter-spacing:-.02em}
