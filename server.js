@@ -973,6 +973,54 @@ app.post('/api/checkout/paystack/pin', async (req, res) => {
     if(!res.headersSent) res.status(422).json({ error: e.message || 'PIN verification failed.' });
   }
 });
+// --- Embedded all-channels frame: initialize + return hosted URL for iframe ---
+// No `channels` param is sent on purpose: Paystack then applies the merchant's
+// dashboard Preferences (card, Apple Pay, Google Pay, bank transfer,
+// PayAttitude, Amex, international) automatically. Same order_ref is reused as
+// the Paystack reference, so card-form, iframe, webhook and verify all settle
+// the SAME order.
+app.post('/api/checkout/paystack/frame', async (req, res) => {
+  try{
+    const { order_ref } = req.body || {};
+    const order = await db.prepare('SELECT * FROM orders WHERE order_ref=?').get(String(order_ref || ''));
+    if(!order) return res.status(404).json({ error: 'order not found' });
+    if(order.status === 'paid') return res.json({ ok: true, paid: true });
+    if(!(order.amount_cents > 0)) return res.status(400).json({ error: 'Free orders need no payment.' });
+    const pay = await getPayConfig();
+    if(!pay.configured) return res.status(422).json({ error: 'Payment gateway not connected yet.' });
+    const chg = paystackChargeAmount(order.amount_cents, order.currency, pay.usdNgn);
+    const base = (process.env.PUBLIC_URL || '').trim().replace(/\/$/, '') || (req.protocol + '://' + req.get('host'));
+    const body = {
+      email: order.customer_email,
+      amount: String(chg.amount),
+      currency: chg.currency,
+      reference: order.order_ref,
+      callback_url: base + '/checkout?ref=' + encodeURIComponent(order.order_ref),
+      metadata: { order_ref: order.order_ref }
+    };
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 20000);
+    let j;
+    try{
+      const resp = await fetch('https://api.paystack.co/transaction/initialize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + pay.secret },
+        body: JSON.stringify(body),
+        signal: controller.signal
+      });
+      j = await resp.json().catch(() => ({}));
+      if(!resp.ok || j.status !== true || !j.data || !j.data.authorization_url){
+        throw new Error((j && j.message) || ('Paystack error (HTTP ' + resp.status + ')'));
+      }
+    } finally { clearTimeout(t); }
+    await db.prepare('UPDATE orders SET cryptomus_order_id=?, payment_url=? WHERE order_ref=?')
+      .run(j.data.reference || order.order_ref, j.data.authorization_url, order.order_ref);
+    res.json({ ok: true, authorization_url: j.data.authorization_url, reference: j.data.reference || order.order_ref });
+  }catch(e){
+    console.error('paystack frame init failed:', e.message);
+    if(!res.headersSent) res.status(422).json({ error: e.message || 'Could not load payment options.' });
+  }
+});
 // --- Re-check a pending order against Paystack (resume/3DS fallback) ---
 app.post('/api/checkout/paystack/verify', async (req, res) => {
   try{

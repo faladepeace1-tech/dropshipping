@@ -137,6 +137,10 @@ function showCardView(){
   $('#co-card-amount').textContent = charge;
   const btn = $('#co-card-pay-btn');
   if(btn) btn.dataset.amount = charge;
+  const fw = $('#co-frame-wrap'), fr = $('#co-frame'), fb = $('#co-frame-btn');
+  if(fw) fw.classList.add('hidden');
+  if(fr) fr.src = 'about:blank';
+  if(fb){ fb.disabled = false; fb.textContent = 'Bank Transfer · Apple Pay · Google Pay · More →'; }
   $('#co-card-msg').textContent = '';
   show('co-card-view');
 }
@@ -320,6 +324,31 @@ async function resumeByRef(ref){
     showError('We could not find that order. It may have expired — please check out again.');
   }
 }
+// ---- All-channels embedded frame (transfer, Apple Pay, Google Pay...) ----
+async function loadPayFrame(){
+  const wrap = $('#co-frame-wrap'), msg = $('#co-frame-msg'), frame = $('#co-frame'), btn = $('#co-frame-btn');
+  if(!wrap || !ORDER_REF) return;
+  if(!wrap.classList.contains('hidden')){ wrap.classList.add('hidden'); frame.src = 'about:blank'; btn.textContent = 'Bank Transfer · Apple Pay · Google Pay · More →'; return; }
+  msg.textContent = '';
+  btn.disabled = true; btn.textContent = 'Loading options…';
+  try{
+    const res = await postJson('/api/checkout/paystack/frame', { order_ref: ORDER_REF }, 'payment options');
+    const j = await readJson(res, 'payment options');
+    if(!res.ok) throw new Error(j.error || 'Could not load payment options.');
+    if(j.paid){ await finishPaid(); return; }
+    frame.src = j.authorization_url;
+    $('#co-frame-full').href = j.authorization_url;
+    wrap.classList.remove('hidden');
+    btn.textContent = 'Hide other options ↑';
+    try{ wrap.scrollIntoView({ behavior: 'smooth', block: 'start' }); }catch{}
+    startPolling(); // same order: webhook/verify flips us to success automatically
+  }catch(e){
+    msg.textContent = e.message || 'Could not load payment options.';
+  }finally{
+    btn.disabled = false;
+    if(wrap.classList.contains('hidden')) btn.textContent = 'Bank Transfer · Apple Pay · Google Pay · More →';
+  }
+}
 function formatCardInputs(){
   const num = $('#co-cc-num');
   num?.addEventListener('input', ()=>{
@@ -344,6 +373,7 @@ function formatCardInputs(){
   formatCardInputs();
   $('#co-form')?.addEventListener('submit', e => { e.preventDefault(); createOrder(); });
   $('#co-card-form')?.addEventListener('submit', e => { e.preventDefault(); payWithCard(); });
+  $('#co-frame-btn')?.addEventListener('click', loadPayFrame);
   $('#co-otp-btn')?.addEventListener('click', submitOtp);
   $('#co-iredirect-check')?.addEventListener('click', async ()=>{
     $('#co-pending-ref').textContent = ORDER_REF;

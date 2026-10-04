@@ -75,6 +75,13 @@
         <div id="co-card-msg" class="co-msg" role="alert"></div>
         <button type="submit" class="btn btn-primary btn-glow co-pay-btn" id="co-card-pay-btn">Pay <span id="co-card-amount"></span> →</button>
         <div class="co-trust"><span>🔒 256-bit encrypted</span><span>💳 Verve · Mastercard · Visa</span></div>
+        <div class="co-divider"><span>or pay another way</span></div>
+        <button type="button" class="btn btn-ghost co-pay-btn" id="co-frame-btn">Bank Transfer · Apple Pay · Google Pay · More →</button>
+        <div id="co-frame-wrap" class="hidden">
+          <div id="co-frame-msg" class="co-msg" role="alert"></div>
+          <iframe id="co-frame" title="Secure payment options" allow="payment" style="width:100%;height:640px;border:1px solid var(--border);border-radius:14px;background:#fff"></iframe>
+          <div class="co-note" style="margin-top:8px">Frame not loading? <a id="co-frame-full" href="#" target="_blank" rel="noopener">Open the secure page directly →</a></div>
+        </div>
       </form>
       <aside class="co-card co-summary" id="co-summary-2">
         <h3 style="margin:0 0 10px">Order summary</h3>
