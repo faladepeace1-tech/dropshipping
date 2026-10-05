@@ -1163,11 +1163,11 @@ app.post('/api/checkout/flutterwave/pin', async (req, res) => {
   }
 });
 // --- Embedded all-channels frame: Flutterwave hosted link for the iframe ---
-// A broad `payment_options` list is sent so every channel the buyer qualifies
-// for shows up (Flutterwave auto-excludes whatever does not apply to the
-// order currency; dashboard Preferences apply on top). tx_ref stays our
-// order_ref, so card-form, iframe, webhook and verify all settle the SAME
-// order.
+// No `payment_options` filter is sent on purpose: Flutterwave then shows
+// every method enabled in Dashboard > Payment Methods (cards, transfer,
+// USSD, wallets). A hardcoded list risks a stale value being rejected with
+// "One or more required parameters missing". tx_ref stays our order_ref,
+// so button, iframe, webhook and verify all settle the SAME order.
 app.post('/api/checkout/flutterwave/link', async (req, res) => {
   try{
     const { order_ref } = req.body || {};
@@ -1177,17 +1177,33 @@ app.post('/api/checkout/flutterwave/link', async (req, res) => {
     if(!(order.amount_cents > 0)) return res.status(400).json({ error: 'Free orders need no payment.' });
     const pay = await getPayConfig();
     if(!pay.configured) return res.status(422).json({ error: 'Payment gateway not connected yet.' });
+    // Pre-validate everything Flutterwave requires, so a missing field fails
+    // here with a specific message instead of Flutterwave's generic
+    // "One or more required parameters missing".
+    const email = String(order.customer_email || '').trim();
+    const custName = String(order.customer_name || '').trim() || 'Customer';
+    const phone = String(order.customer_whatsapp || '').replace(/[^\d+]/g, '');
+    const currency = String(order.currency || 'USD').toUpperCase();
+    const amount = flwAmount(order.amount_cents, currency);
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(422).json({ error: 'This order is missing a valid email - please start checkout again with your email.' });
+    if(!Number.isFinite(amount) || amount <= 0) return res.status(422).json({ error: 'This order amount looks invalid - please start checkout again.' });
+    if(!/^[A-Z]{3}$/.test(currency)) return res.status(422).json({ error: 'This order currency looks invalid - please start checkout again.' });
     const base = (process.env.PUBLIC_URL || '').trim().replace(/\/$/, '') || (req.protocol + '://' + req.get('host'));
+    const redirectUrl = base + '/checkout?ref=' + encodeURIComponent(order.order_ref);
+    if(!/^https:\/\//.test(redirectUrl) && !/localhost|127\.0\.0\.1/.test(base)) return res.status(422).json({ error: 'Payment redirect URL is not secure - please try again in a moment.' });
+    // Diagnostic breadcrumb (shapes/lengths only, no PII values) so the next
+    // gateway rejection can be traced in the hosting logs.
+    try{
+      const rh = new URL(redirectUrl).host;
+      console.log('flw link payload:', order.order_ref, JSON.stringify({ amount, currency, email_ok: true, name_len: custName.length, phone_len: phone.length, redirect_host: rh }));
+    }catch{}
     const data = await flwReq('POST', '/payments', {
       tx_ref: order.order_ref,
-      amount: flwAmount(order.amount_cents, order.currency),
-      currency: String(order.currency || 'USD').toUpperCase(),
-      redirect_url: base + '/checkout?ref=' + encodeURIComponent(order.order_ref),
-      customer: { email: order.customer_email, name: order.customer_name || undefined },
-      customizations: { title: 'NexaTech - ' + order.item_name },
-      // Ask for every documented channel; Flutterwave auto-excludes whatever
-      // does not apply to this currency (plus dashboard Preferences on top).
-      payment_options: 'card,banktransfer,account,ussd,nqr,opay,mpesa,mobilemoneyghana,mobilemoneyxaf,mobilemoneyxof,mobilemoneyuganda,mobilemoneyrwanda,mobilemoneyzambia,barter,fawrypay,enaira'
+      amount,
+      currency,
+      redirect_url: redirectUrl,
+      customer: { email, name: custName, ...(phone ? { phone_number: phone } : {}) },
+      customizations: { title: ('NexaTech - ' + (order.item_name || 'Order')).slice(0, 60) }
     }, pay.secret, 'hosted-link');
     if(!data.link) throw new Error('Flutterwave did not return a payment link.');
     // GUARANTEE: only a genuine Flutterwave payment host may ever be framed
@@ -1204,8 +1220,12 @@ app.post('/api/checkout/flutterwave/link', async (req, res) => {
     await db.prepare('UPDATE orders SET payment_url=? WHERE order_ref=?').run(linkUrl.href, order.order_ref);
     res.json({ ok: true, authorization_url: linkUrl.href });
   }catch(e){
-    console.error('flw link init failed:', e.message);
-    if(!res.headersSent) res.status(422).json({ error: e.message || 'Could not load payment options.' });
+    console.error('flw link init failed:', e.name + ': ' + e.message);
+    let msg = e.message || 'Could not load payment options.';
+    // Flutterwave's generic 400 gives buyers nothing actionable - keep the
+    // raw detail (needed for support) but add what to do next.
+    if(/required parameters missing/i.test(msg)) msg += ' Please tap Try again - if it persists, contact us on WhatsApp and we will complete your order with you.';
+    if(!res.headersSent) res.status(422).json({ error: msg });
   }
 });
 // NOTE: native temp transfer accounts and direct USSD were removed -

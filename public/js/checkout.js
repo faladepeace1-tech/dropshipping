@@ -174,6 +174,9 @@ async function createOrder(){
   }
 }
 // ---- Step 2: hosted Flutterwave frame (only payment method) ----
+// Guarded against double-taps (common on mobile): concurrent taps collapse
+// into a single payment-link request for the same order.
+let PAY_LOADING = false;
 function showCardView(){
   $('#co-card-ref').textContent = ORDER_REF;
   $('#co-card-kind').textContent = ITEM.kind === 'theme' ? 'Theme · Instant Download' : 'Launch Package';
@@ -181,9 +184,10 @@ function showCardView(){
   $('#co-card-price').textContent = ITEM.price_text || '';
   const charge = ITEM.price_text || '';
   const startBtn = $('#co-flw-start-btn');
-  if(startBtn) startBtn.textContent = 'Pay ' + charge + ' →';
+  if(startBtn){ startBtn.disabled = false; startBtn.textContent = 'Pay ' + charge + ' →'; }
   const fr = $('#co-frame');
   if(fr){ fr.src = 'about:blank'; delete fr.dataset.loaded; }
+  PAY_LOADING = false;
   $('#co-flw-start')?.classList.remove('hidden');
   $('#co-pane-wallets')?.classList.add('hidden');
   const fm = $('#co-frame-msg');
@@ -192,9 +196,14 @@ function showCardView(){
 }
 // Buyer confirms first - only then load the Flutterwave frame below.
 function startPayNow(){
-  $('#co-flw-start')?.classList.add('hidden');
+  if(PAY_LOADING) return;
+  const frame = $('#co-frame');
+  if(frame && frame.dataset.loaded === ORDER_REF) return; // already loaded
+  PAY_LOADING = true;
+  const btn = $('#co-flw-start-btn');
+  if(btn){ btn.disabled = true; btn.textContent = 'Loading secure payment…'; }
   $('#co-pane-wallets')?.classList.remove('hidden');
-  loadPayFrame();
+  loadPayFrame().finally(() => { PAY_LOADING = false; });
 }
 // Inline card charge removed - all payments go through the hosted frame.
 let LAST_CARD = null;
@@ -374,8 +383,8 @@ async function recoverFrameSelfLoad(){
   if(paid){ await finishPaid(); return; }
   stopPolling();
   showCardView();
-  const m = $('#co-frame-msg');
-  if(m) m.textContent = 'That attempt did not complete - no money was taken. Please try again or use another method.';
+  const n = $('#co-wallet-note');
+  if(n) n.textContent = 'That attempt did not complete - no money was taken. Please tap Pay below to try again.';
 }
 function watchFrameSelfLoad(){
   const frame = $('#co-frame');
@@ -395,7 +404,7 @@ async function loadPayFrame(){
   const msg = $('#co-frame-msg'), frame = $('#co-frame');
   if(!frame || !ORDER_REF) return;
   if(frame.dataset.loaded === ORDER_REF) return;
-  msg.textContent = 'Loading secure options…';
+  if(msg) msg.textContent = 'Loading secure options…';
   try{
     const res = await postJson('/api/checkout/flutterwave/link', { order_ref: ORDER_REF }, 'payment options');
     const j = await readJson(res, 'payment options');
@@ -405,11 +414,35 @@ async function loadPayFrame(){
     watchFrameSelfLoad();
     frame.src = j.authorization_url;
     frame.dataset.loaded = ORDER_REF;
-    $('#co-frame-full').href = j.authorization_url;
-    msg.textContent = '';
+    const full = $('#co-frame-full');
+    if(full) full.href = j.authorization_url;
+    if(msg) msg.textContent = '';
+    $('#co-flw-start')?.classList.add('hidden');
     startPolling(); // same order: webhook/verify flips us to success automatically
   }catch(e){
-    msg.textContent = e.message || 'Could not load payment options.';
+    delete frame.dataset.loaded;
+    const detail = e.message || 'Could not load payment options.';
+    // Friendly error + recovery: re-arm the Pay button as "Try again" and
+    // offer WhatsApp help with the order ref attached. Raw detail is kept
+    // in small text for support.
+    if(msg){
+      msg.textContent = 'Could not load the secure payment page. Please tap Try again below.';
+      const small = document.createElement('small');
+      small.style.cssText = 'display:block;color:#94A3B8;margin-top:4px';
+      small.textContent = 'Detail: ' + detail;
+      msg.appendChild(small);
+      const wa = document.createElement('div');
+      wa.style.marginTop = '8px';
+      const a = document.createElement('a');
+      a.href = waLink('Hi Nexatech! The payment page failed to load for order ' + ORDER_REF + ' (' + detail + '). Please help.');
+      a.target = '_blank'; a.rel = 'noopener';
+      a.textContent = 'Need help? Chat on WhatsApp →';
+      wa.appendChild(a);
+      msg.appendChild(wa);
+    }
+    $('#co-flw-start')?.classList.remove('hidden');
+    const btn = $('#co-flw-start-btn');
+    if(btn){ btn.disabled = false; btn.textContent = 'Try again →'; }
   }
 }
 function formatCardInputs(){
