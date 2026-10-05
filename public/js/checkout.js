@@ -176,6 +176,34 @@ async function createOrder(){
 // Guarded against double-taps (common on mobile): concurrent taps collapse
 // into a single payment-link request for the same order.
 let PAY_LOADING = false;
+// Exact-fit: size the frame wrapper to the visible viewport so the hosted
+// Flutterwave page fills it exactly (no fixed 640px, no cut-off, no outer
+// double-scroll). Cross-origin iframes can't be measured, so we fit to
+// viewport instead. Also honours genuine postMessage resize requests.
+function fitPayFrame(){
+  const wrap = $('#co-frame-wrap'), frame = $('#co-frame');
+  if(!wrap || !frame) return;
+  if($('#co-pane-wallets')?.classList.contains('hidden')) return;
+  const vh = Math.max(window.innerHeight || 0, document.documentElement?.clientHeight || 0, 560);
+  const top = wrap.getBoundingClientRect().top + window.scrollY;
+  const avail = Math.max(480, vh - 48); // keep some breathing room top/bottom
+  const belowTop = Math.max(480, (vh + window.scrollY - top) - 24);
+  const h = Math.min(920, Math.max(560, Math.min(avail, belowTop, vh * 0.85)));
+  wrap.style.height = Math.round(window.innerWidth <= 860 ? Math.max(h, Math.min(vh * 0.85, 900)) : h) + 'px';
+}
+window.addEventListener('resize', () => { try{ fitPayFrame(); }catch{} });
+window.addEventListener('orientationchange', () => setTimeout(fitPayFrame, 250));
+window.addEventListener('message', (e) => {
+  try{
+    if(!/(^|\.)flutterwave\.com$/.test(new URL(e.origin).hostname)) return;
+    const d = e.data || {};
+    const h = Number(d.height || d.frameHeight || d.h);
+    if(h >= 400 && h <= 2000){
+      const wrap = $('#co-frame-wrap');
+      if(wrap) wrap.style.height = Math.min(1200, Math.max(560, h)) + 'px';
+    }
+  }catch{}
+});
 function showCardView(){
   $('#co-card-ref').textContent = ORDER_REF;
   $('#co-card-kind').textContent = ITEM.kind === 'theme' ? 'Theme · Instant Download' : 'Launch Package';
@@ -202,6 +230,7 @@ function startPayNow(){
   const btn = $('#co-flw-start-btn');
   if(btn){ btn.disabled = true; btn.textContent = 'Loading secure payment…'; }
   $('#co-pane-wallets')?.classList.remove('hidden');
+  requestAnimationFrame(() => { fitPayFrame(); $('#co-frame-wrap')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
   loadPayFrame().finally(() => { PAY_LOADING = false; });
 }
 // Inline card charge removed - all payments go through the hosted frame.
@@ -417,6 +446,8 @@ async function loadPayFrame(){
     if(full) full.href = j.authorization_url;
     if(msg) msg.textContent = '';
     $('#co-flw-start')?.classList.add('hidden');
+    requestAnimationFrame(() => { fitPayFrame(); setTimeout(fitPayFrame, 300); });
+    frame.onload = () => { fitPayFrame(); setTimeout(fitPayFrame, 500); };
     startPolling(); // same order: webhook/verify flips us to success automatically
   }catch(e){
     delete frame.dataset.loaded;

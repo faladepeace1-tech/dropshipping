@@ -63,19 +63,23 @@
 
   <!-- Payment methods (all on this page - no redirect / no popup) -->
   <div id="co-card-view" class="hidden">
-    <div class="co-grid">
-      <div class="co-card">
-        <h3 style="margin:0 0 4px">Complete payment</h3>
-        <p class="sub" style="margin:0 0 12px;font-size:13px">Order <b id="co-card-ref"></b> · <span id="co-card-amount-line"></span></p>
-        <div id="co-flw-start">
+    <div class="co-grid co-pay-grid">
+      <div class="co-card co-frame-card">
+        <div class="co-frame-head">
+          <h3 style="margin:0 0 4px">Complete payment</h3>
+          <p class="sub" style="margin:0;font-size:13px">Order <b id="co-card-ref"></b> · <span id="co-card-amount-line"></span></p>
+        </div>
+        <div id="co-flw-start" class="co-frame-head">
           <p class="sub" style="font-size:13px" id="co-wallet-note">Pay securely with card, bank transfer, USSD, Apple Pay, Google Pay and more - same order, same price.</p>
           <button type="button" class="btn btn-primary btn-glow co-pay-btn" id="co-flw-start-btn">Pay →</button>
           <div class="co-trust"><span>🔒 Secured by Flutterwave</span><span>⚡ Instant access</span></div>
         </div>
         <div id="co-pane-wallets" class="pay-pane hidden">
           <div id="co-frame-msg" class="co-msg" role="alert"></div>
-          <iframe id="co-frame" title="Secure payment options" allow="payment" style="width:100%;height:640px;border:1px solid var(--border);border-radius:14px;background:#fff"></iframe>
-          <div class="co-note" style="margin-top:8px">Frame not loading? <a id="co-frame-full" href="#" target="_blank" rel="noopener">Open the secure page directly →</a></div>
+          <div class="co-frame-wrap" id="co-frame-wrap">
+            <iframe id="co-frame" class="co-frame-fit" title="Secure payment options" allow="payment *; fullscreen *" allowfullscreen scrolling="auto" frameborder="0" loading="eager"></iframe>
+          </div>
+          <div class="co-note co-frame-fallback" style="margin-top:8px">Frame not loading? <a id="co-frame-full" href="#" target="_blank" rel="noopener">Open the secure page directly →</a></div>
         </div>
       </div>
       <aside class="co-card co-summary" id="co-summary-2">

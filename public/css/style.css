@@ -446,7 +446,27 @@ main, .footer{position:relative;z-index:1}
 .pay-tabs .pill{flex:1;justify-content:center;white-space:nowrap}
 .pay-pane{animation:coFade .25s ease}
 @keyframes coFade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-@media(max-width:480px){#co-frame{height:720px!important}}
+/* Exact-fit Flutterwave frame: flush edges, no double border/padding,
+   height tracks the viewport so the hosted page fills the frame exactly
+   with only ONE (inner) scrollbar. Cross-origin pages can't be measured,
+   so we size the wrapper to the visible area instead of a fixed 640px. */
+.co-frame-card{padding:0;overflow:hidden}
+.co-frame-head{padding:26px 26px 0}
+#co-pane-wallets{padding:14px 0 0}
+#co-frame-msg{padding:0 26px}
+.co-frame-fallback{padding:0 26px 18px}
+.co-frame-wrap{position:relative;width:100%;height:78dvh;min-height:560px;max-height:920px;background:#fff;border-top:1px solid var(--border);overflow:hidden}
+.co-frame-fit{display:block;width:100%;height:100%;border:0;border-radius:0;background:#fff;overflow:auto;-webkit-overflow-scrolling:touch}
+@media(max-width:860px){
+  .co-pay-grid{grid-template-columns:1fr}
+  .co-frame-wrap{height:82dvh;min-height:600px;max-height:none}
+}
+@media(max-width:480px){
+  .co-frame-head{padding:20px 18px 0}
+  #co-frame-msg{padding:0 18px}
+  .co-frame-fallback{padding:0 18px 14px}
+  .co-frame-wrap{min-height:620px;height:85dvh}
+}
 .co-total{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);padding-top:12px;font-size:15px}
 .co-total strong{font-family:var(--display);font-size:26px;letter-spacing:-.02em}
 .co-note{font-size:12px;color:var(--text-muted);margin-top:8px}
