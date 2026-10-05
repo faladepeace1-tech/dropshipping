@@ -80,16 +80,16 @@
         </div>
       </section>
 
-      <!-- Brand / Logo — backend only, logo in logo-mark, logo first -->
+      <!-- Brand / Logo - backend only, logo in logo-mark, logo first -->
       <section data-panel="brand" class="hidden">
         <div class="card" style="border-color:rgba(124,58,237,.25)">
-          <h3>Brand — Logo & Favicon <small style="font-weight:500;color:#64748B">backend only</small></h3>
-          <p style="font-size:12px;color:#64748B;margin:6px 0 0">Logo is rendered in <code>&lt;span class="logo-mark"&gt;N&lt;/span&gt;</code> — the <b>logo mark</b> — shown <b>before</b> the brand name as <b>(logo) NEXATECH</b>. Upload here, saved permanently.</p>
+          <h3>Brand - Logo & Favicon <small style="font-weight:500;color:#64748B">backend only</small></h3>
+          <p style="font-size:12px;color:#64748B;margin:6px 0 0">Logo is rendered in <code>&lt;span class="logo-mark"&gt;N&lt;/span&gt;</code> - the <b>logo mark</b> - shown <b>before</b> the brand name as <b>(logo) NEXATECH</b>. Upload here, saved permanently.</p>
           <div style="display:grid;gap:14px;margin-top:14px">
             <label>Brand Name (editable, after logo) <input id="brand-name" placeholder="NEXATECH"></label>
             <div style="display:grid;grid-template-columns:1fr 120px;gap:12px;align-items:start">
               <div style="display:grid;gap:10px">
-                <label>Logo Image — uploads to <code>logo-mark</code> (replaces N) <input type="file" id="brand-logo-file" accept="image/*"></label>
+                <label>Logo Image - uploads to <code>logo-mark</code> (replaces N) <input type="file" id="brand-logo-file" accept="image/*"></label>
                 <label>or Logo URL <input id="brand-logo-url" placeholder="https://... or /uploads/..."></label>
                 <small style="color:#94A3B8">Recommended: square PNG/SVG 256×256, transparent. This replaces the <b>N</b> inside <code>.logo-mark</code>.</small>
               </div>
@@ -102,7 +102,7 @@
               </div>
               <div id="brand-favicon-preview" style="width:112px;height:56px;border:1px solid var(--border);border-radius:10px;display:grid;place-items:center;overflow:hidden;background:#F8FAFC;font-size:11px;color:#94A3B8">favicon</div>
             </div>
-            <label>Logo Position <select id="brand-position"><option value="logo_first">Logo first (Logo + Brand) — default: (logo) NEXATECH</option><option value="brand_first">Brand first (Brand + Logo)</option></select></label>
+            <label>Logo Position <select id="brand-position"><option value="logo_first">Logo first (Logo + Brand) - default: (logo) NEXATECH</option><option value="brand_first">Brand first (Brand + Logo)</option></select></label>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
               <button class="btn btn-primary" id="btn-save-brand">Save Brand</button>
               <button class="btn btn-ghost" id="btn-preview-brand" type="button">Preview Header →</button>
@@ -169,9 +169,9 @@
             <label>Tags (comma-separated)<input name="tags"></label>
             <label>Case-study text (portfolio only)<textarea name="case_study_text" rows="3" placeholder="What was built, timeline, result..."></textarea></label>
             <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-              <label>Upload files — images or video up to 150MB each (select many at once)<input type="file" name="file" accept="image/*,video/*,.mov,.m4v" multiple></label>
+              <label>Upload files - images or video up to 150MB each (select many at once)<input type="file" name="file" accept="image/*,video/*,.mov,.m4v" multiple></label>
               <span style="color:#64748B">or</span>
-              <label style="flex:1">Image/Video URL — direct mp4/webm/mov link, or YouTube / Vimeo / Drive link<input name="url" placeholder="https://..."></label>
+              <label style="flex:1">Image/Video URL - direct mp4/webm/mov link, or YouTube / Vimeo / Drive link<input name="url" placeholder="https://..."></label>
             </div>
             <div id="media-hint" style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:10px;font-size:12px;color:#1E40AF;display:none"><b>Tip:</b> <span id="media-hint-text"></span></div>
             <div id="media-preview" style="display:none;border:1px dashed #CBD5E1;border-radius:12px;padding:10px"><img id="media-preview-img" style="max-height:180px;border-radius:8px"><div id="media-preview-meta" style="font-size:12px;color:#64748B;margin-top:6px"></div></div>
@@ -205,18 +205,18 @@
               <label style="flex:1;min-width:140px">Slug (auto if empty)<input id="theme-slug" placeholder="elegance-fashion"></label>
             </div>
             <div style="display:flex;gap:10px;flex-wrap:wrap">
-              <label style="flex:1;min-width:120px">Price (USD) * — 0 = free/test<input id="theme-price" type="number" min="0" step="0.01" required placeholder="49"></label>
+              <label style="flex:1;min-width:120px">Price (USD) * - 0 = free/test<input id="theme-price" type="number" min="0" step="0.01" required placeholder="49"></label>
               <label style="flex:1;min-width:120px">Currency<input id="theme-currency" placeholder="USD" value="USD"></label>
               <label style="align-self:end"><input type="checkbox" id="theme-published" checked> Published (visible in shop)</label>
             </div>
             <label>Description<textarea id="theme-desc" rows="3" placeholder="What buyers get, features, compatibility..."></textarea></label>
             <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-              <label>Preview Picture — upload<input type="file" id="theme-preview-file" accept="image/*,.svg"></label>
+              <label>Preview Picture - upload<input type="file" id="theme-preview-file" accept="image/*,.svg"></label>
               <span style="color:#64748B">or</span>
               <label style="flex:1">Preview Image URL<input id="theme-preview-url" placeholder="https://..."></label>
             </div>
             <div id="theme-preview-wrap" style="display:none;border:1px dashed #CBD5E1;border-radius:12px;padding:10px"><img id="theme-preview-img" style="max-height:180px;border-radius:8px"><div id="theme-zip-status" style="font-size:12px;color:#64748B;margin-top:6px"></div></div>
-            <label>Theme ZIP file — the downloadable package (up to 200MB, stored privately, buyers get it only after payment)<input type="file" id="theme-zip-file" accept=".zip,application/zip"></label>
+            <label>Theme ZIP file - the downloadable package (up to 200MB, stored privately, buyers get it only after payment)<input type="file" id="theme-zip-file" accept=".zip,application/zip"></label>
             <div id="theme-upload-progress" style="display:none"><div style="height:8px;background:#E2E8F0;border-radius:999px;overflow:hidden"><div id="theme-upload-bar" style="height:100%;width:0%;background:#0B1220;transition:width .2s"></div></div><small id="theme-upload-text" style="color:#64748B">Uploading…</small></div>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
               <button class="btn btn-primary" type="submit" id="theme-submit-btn">Save Theme</button>
@@ -244,7 +244,7 @@
       <section data-panel="orders" class="hidden">
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:10px" id="orders-stats"></div>
         <div class="card">
-          <h3>Manage Orders <small style="color:#64748B"> plans + themes — search, select, bulk update, export</small></h3>
+          <h3>Manage Orders <small style="color:#64748B"> plans + themes - search, select, bulk update, export</small></h3>
           <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
             <input id="order-search" placeholder="Search ref, item, name, email..." style="flex:1;min-width:160px">
             <select id="order-status-filter"><option value="">All statuses</option><option value="pending">Pending</option><option value="paid">Paid</option><option value="failed">Failed</option><option value="expired">Expired</option></select>
@@ -322,22 +322,22 @@
         </div>
       </section>
 
-      <!-- Campaigns — HubSpot-like bulk + personal email via same Google OAuth -->
+      <!-- Campaigns - HubSpot-like bulk + personal email via same Google OAuth -->
       <section data-panel="campaigns" class="hidden">
         <div class="card" style="border-color:rgba(124,58,237,.25)">
           <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between">
-            <h3 style="margin:0">Campaigns & Email CRM <small style="font-weight:500;color:#64748B"> — bulk + personal via same Google Client ID/Secret (Gmail)</small></h3>
+            <h3 style="margin:0">Campaigns & Email CRM <small style="font-weight:500;color:#64748B"> - bulk + personal via same Google Client ID/Secret (Gmail)</small></h3>
             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
               <span id="gmail-status" style="font-size:11px;color:#94A3B8;border:1px solid #E2E8F0;border-radius:999px;padding:4px 8px">Checking Gmail...</span>
               <button class="btn btn-ghost" id="btn-gmail-connect" style="padding:6px 10px;font-size:12px;border-color:#10B981;color:#10B981">Connect Gmail (same Client ID)</button>
               <button class="btn btn-ghost" id="btn-gmail-test" style="padding:6px 10px;font-size:12px">Send Test Email</button>
             </div>
           </div>
-          <div style="font-size:11px;color:#94A3B8;margin-top:6px">Uses <b>same Console Client ID / Secret</b> you saved in <b>Integrations → Google Sheets</b>. One OAuth grant gives <b>Sheets + Gmail</b> — no duplicate credentials. Re-connect after adding scopes to enable sending. Gmail daily limit ~500/day (enforced with 400ms throttle).</div>
+          <div style="font-size:11px;color:#94A3B8;margin-top:6px">Uses <b>same Console Client ID / Secret</b> you saved in <b>Integrations → Google Sheets</b>. One OAuth grant gives <b>Sheets + Gmail</b> - no duplicate credentials. Re-connect after adding scopes to enable sending. Gmail daily limit ~500/day (enforced with 400ms throttle).</div>
           <div id="gmail-msg" style="font-size:12px;margin-top:8px;color:#64748B"></div>
           <!-- sender config -->
           <details style="margin-top:10px;border:1px solid #E2E8F0;border-radius:10px;padding:10px">
-            <summary style="cursor:pointer;font-size:12px;color:#0B1220">Sender settings (From name / email) — defaults to connected Gmail</summary>
+            <summary style="cursor:pointer;font-size:12px;color:#0B1220">Sender settings (From name / email) - defaults to connected Gmail</summary>
             <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
               <label style="flex:1">From Name<input id="camp-from-name" placeholder="Nexatech"></label>
               <label style="flex:1">From Email (leave blank = Gmail)<input id="camp-from-email" placeholder="connected Gmail"></label>
@@ -349,7 +349,7 @@
 
         <div class="card" style="border-color:rgba(16,185,129,.35);background:rgba(16,185,129,.04)">
           <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between">
-            <h3 style="margin:0">🤖 Auto AI Follow-ups <small style="font-weight:500;color:#64748B">instant (form + chat) + daily — same Gmail Client ID/Secret, HTML + WhatsApp + opt-out, all logged to CRM</small></h3>
+            <h3 style="margin:0">🤖 Auto AI Follow-ups <small style="font-weight:500;color:#64748B">instant (form + chat) + daily - same Gmail Client ID/Secret, HTML + WhatsApp + opt-out, all logged to CRM</small></h3>
             <span id="followup-status-pill" style="font-size:11px;color:#94A3B8;border:1px solid #E2E8F0;border-radius:999px;padding:4px 10px;background:#fff">Checking...</span>
           </div>
           <div style="font-size:11px;color:#64748B;margin-top:6px">Instant email fires <b>immediately after form submit</b> and <b>after chat ends (name+email + idle/close)</b>, generated by AI from their request/transcript. Daily emails go <b>every day 09:00</b> (Day 2–<span id="followup-max-hint">7</span>) to leads + chat contacts. Every email is HTML-designed with <b>WhatsApp button</b> + <b>Unsubscribe opt-out</b> and appears in <b>Outbox + Sends log + Lead timeline</b>.</div>
@@ -377,7 +377,7 @@
           <div id="followup-list" style="display:grid;gap:6px;margin-top:8px;max-height:320px;overflow:auto"></div>
           <div style="margin-top:8px;font-size:11px;color:#94A3B8">Opt-outs: <span id="unsub-count">–</span> • <button id="btn-view-unsubs" class="btn btn-ghost" style="padding:4px 8px;font-size:11px">View opt-outs</button></div>
           <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;align-items:center">
-            <input id="unsub-add-email" type="email" placeholder="customer@email.com — opt out manually" style="flex:1;min-width:180px;padding:7px 10px;border:1px solid #E2E8F0;border-radius:10px;font-size:12px">
+            <input id="unsub-add-email" type="email" placeholder="customer@email.com - opt out manually" style="flex:1;min-width:180px;padding:7px 10px;border:1px solid #E2E8F0;border-radius:10px;font-size:12px">
             <button id="btn-unsub-add" class="btn btn-ghost" type="button" style="padding:6px 10px;font-size:11px">Opt Out Email</button>
             <button id="btn-unsub-bulk" class="btn btn-ghost hidden" type="button" style="padding:6px 10px;font-size:11px;color:#10B981">Resubscribe Selected</button>
           </div>
@@ -417,12 +417,12 @@
               <div id="camp-ai-subjects" style="display:grid;gap:4px"></div>
               <label>HTML Body<textarea id="camp-html" rows="8" placeholder="<p>Hi {{name}},</p>..."></textarea></label>
               <label>Text fallback<textarea id="camp-text" rows="3" placeholder="Hi {{name}}, ..."></textarea></label>
-              <div style="font-size:11px;color:#94A3B8">Personalization tags: <code>{{name}}</code> <code>{{storeName}}</code> <code>{{preferredNiche}}</code> <code>{{investmentRange}}</code> <code>{{email}}</code> <code>{{whatsapp}}</code> — like HubSpot tokens.</div>
+              <div style="font-size:11px;color:#94A3B8">Personalization tags: <code>{{name}}</code> <code>{{storeName}}</code> <code>{{preferredNiche}}</code> <code>{{investmentRange}}</code> <code>{{email}}</code> <code>{{whatsapp}}</code> - like HubSpot tokens.</div>
               <button class="btn btn-primary" id="btn-save-camp">Save Campaign</button>
             </div>
             <!-- Bulk send -->
             <div style="margin-top:14px;border:1px solid #E2E8F0;border-radius:12px;padding:10px;background:#F8FAFC">
-              <h4 style="margin:0 0 6px">Bulk Send — select audience</h4>
+              <h4 style="margin:0 0 6px">Bulk Send - select audience</h4>
               <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
                 <select id="camp-filter-stage" style="padding:6px 8px;border-radius:8px;border:1px solid #E2E8F0"><option value="">All stages</option><option value="new">New</option><option value="contacted">Contacted</option><option value="scheduled">Scheduled</option><option value="closed">Closed</option></select>
                 <input id="camp-filter-search" placeholder="Search name/email/niche" style="padding:6px 8px;border:1px solid #E2E8F0;border-radius:8px;flex:1">
@@ -445,12 +445,12 @@
           </div>
           <!-- Empty state -->
           <div class="card" id="campaign-empty" style="display:flex;align-items:center;justify-content:center;min-height:260px;color:#94A3B8;text-align:center">
-            <div><div style="font-size:22px;margin-bottom:6px">📧</div>Select or create a campaign to compose, preview audience and send bulk/personal emails via Gmail. <br><small>HubSpot-style CRM — same OAuth, no extra API keys.</small></div>
+            <div><div style="font-size:22px;margin-bottom:6px">📧</div>Select or create a campaign to compose, preview audience and send bulk/personal emails via Gmail. <br><small>HubSpot-style CRM - same OAuth, no extra API keys.</small></div>
           </div>
         </div>
 
         <div class="card" style="margin-top:12px">
-          <h3>Outbox — Recent sends (personal + bulk)</h3>
+          <h3>Outbox - Recent sends (personal + bulk)</h3>
           <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center">
             <button class="btn btn-ghost" id="btn-refresh-outbox" style="padding:6px 10px;font-size:11px">Refresh Outbox</button>
             <button class="btn btn-ghost hidden" id="btn-delete-outbox-sel" style="padding:6px 10px;font-size:11px;color:#F87171">Delete Selected</button>
@@ -463,7 +463,7 @@
         <!-- Personal email modal trigger from Leads kanban handled via global dialog -->
       </section>
 
-      <!-- Chatbot — how many used it + full conversations (clean UI) -->
+      <!-- Chatbot - how many used it + full conversations (clean UI) -->
       <section data-panel="chats" class="hidden">
         <div class="cards">
           <div class="kpi"><small>Chat Users</small><strong id="chat-kpi-users">–</strong></div>
@@ -526,7 +526,7 @@
         <p style="font-size:12px;color:#64748B;margin:0 0 10px">Integrations are saved <b>permanently in backend</b>. Change your admin password below.</p>
 
         <details class="card" id="details-password" style="border-color:rgba(239,68,68,.35);background:rgba(239,68,68,.04)">
-          <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:10px"><div><h3 style="margin:0">🔒 Change Password</h3><small style="color:#94A3B8">Admin security — <span id="password-user" style="color:#0B1220">admin</span> • <span id="password-summary-status" style="color:#64748B">not changed</span></small></div><span style="font-size:12px;color:#DC2626;border:1px solid #FECACA;border-radius:999px;padding:4px 10px;background:#FFF">Edit ▾</span></summary>
+          <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:10px"><div><h3 style="margin:0">🔒 Change Password</h3><small style="color:#94A3B8">Admin security - <span id="password-user" style="color:#0B1220">admin</span> • <span id="password-summary-status" style="color:#64748B">not changed</span></small></div><span style="font-size:12px;color:#DC2626;border:1px solid #FECACA;border-radius:999px;padding:4px 10px;background:#FFF">Edit ▾</span></summary>
           <div style="display:grid;gap:10px;margin-top:12px">
             <div style="font-size:11px;color:#64748B;background:#FFF;border:1px solid #FECACA;border-radius:8px;padding:8px">Logged in as <b id="password-current-user">admin</b> • This changes your backend login password. Use a strong password and keep it safe.</div>
             <label>Current Password <input id="pwd-current" type="password" placeholder="••••••••" autocomplete="current-password"></label>
@@ -542,12 +542,12 @@
 
         <div class="card">
           <h3>Contact & Booking</h3>
-          <p style="font-size:12px;color:#64748B;margin:6px 0 0">Edit & Save — frontend <b>Book a Call</b> buttons (nav, hero, CTA, drawer) update instantly from <code>calendly_url</code>.</p>
+          <p style="font-size:12px;color:#64748B;margin:6px 0 0">Edit & Save - frontend <b>Book a Call</b> buttons (nav, hero, CTA, drawer) update instantly from <code>calendly_url</code>.</p>
           <label>WhatsApp Number (digits, with country code, e.g. 19283825389)<input id="int-wa" placeholder="19283825389"></label>
           <label>Contact Email (footer & privacy)<input id="int-email" placeholder="saheednexatech@gmail.com"></label>
           <label>Contact Phone Display<input id="int-phone" placeholder="+1 928 382 5389"></label>
-          <label>Calendly / Booking URL (editable — all Book buttons use this)<input id="int-calendly" type="url" placeholder="https://calendly.com/nexatech/strategy-call"></label>
-          <small style="color:#94A3B8">Paste full URL with https:// — Save, then click Preview Site → Book a Call to verify it opens.</small>
+          <label>Calendly / Booking URL (editable - all Book buttons use this)<input id="int-calendly" type="url" placeholder="https://calendly.com/nexatech/strategy-call"></label>
+          <small style="color:#94A3B8">Paste full URL with https:// - Save, then click Preview Site → Book a Call to verify it opens.</small>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
             <button class="btn btn-primary" id="btn-save-integrations">Save Contact & Booking</button>
             <button class="btn btn-ghost" id="btn-preview-booking" type="button">Preview Site →</button>
@@ -555,7 +555,7 @@
           <div id="int-msg" style="font-size:13px;margin-top:8px"></div>
         </div>
         <div class="card" style="border-color:rgba(0,209,255,.35)">
-          <h3>Card Payments — Flutterwave <small style="font-weight:500;color:#64748B">buyers pay inside the checkout page (USD)</small></h3>
+          <h3>Card Payments - Flutterwave <small style="font-weight:500;color:#64748B">buyers pay inside the checkout page (USD)</small></h3>
           <p style="font-size:12px;color:#94A3B8">From Flutterwave dashboard → Settings → API Keys: paste your <b>Secret</b> + <b>Public</b> keys and <b>Encryption key</b>. In Settings → Webhooks set:<br>Webhook URL <code>https://dropshippingstore.dpdns.org/api/checkout/webhook/flutterwave</code> · Secret hash must match the field below.<br>Keys are stored permanently and never shown on the public site.</p>
           <label>Secret Key<input id="int-flw-secret" type="password" placeholder="FLWSECK-... (paste whole key)"></label>
           <label>Public Key<input id="int-flw-public" placeholder="FLWPUBK-..."></label>
@@ -572,7 +572,7 @@
         </div>
         <div class="card" style="border-color:rgba(16,185,129,.35)">
           <h3>Auto Currency <small style="font-weight:500;color:#64748B">visitors see prices in their local money</small></h3>
-          <p style="font-size:12px;color:#94A3B8">Detects each visitor's country and converts USD prices using live market rates (refreshed every 12h). Checkout always re-prices on the server — if rates are unavailable it safely charges USD.</p>
+          <p style="font-size:12px;color:#94A3B8">Detects each visitor's country and converts USD prices using live market rates (refreshed every 12h). Checkout always re-prices on the server - if rates are unavailable it safely charges USD.</p>
           <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="int-fx-auto" checked> Auto-convert prices by visitor location</label>
           <div style="font-size:12px;color:#94A3B8;margin:6px 0">Active currencies (uncheck to hide):</div>
           <div id="fx-cur-list" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px"></div>
@@ -599,13 +599,13 @@
           <div id="notify-msg" style="font-size:13px;margin-top:8px"></div>
         </div>
         <div class="card" style="border-color:rgba(16,185,129,.3)">
-          <h3>Google Sheets Direct (Append row) — matches n8n node <small style="font-weight:500;color:#64748B" id="google-summary-status">checking...</small></h3>
+          <h3>Google Sheets Direct (Append row) - matches n8n node <small style="font-weight:500;color:#64748B" id="google-summary-status">checking...</small></h3>
           <p style="font-size:12px;color:#94A3B8">Backend will append each new lead as a row (like <code>n8n-nodes-base.googleSheets</code> operation <code>append</code> with <code>documentId</code> + <code>sheetName</code>). Add your <b>Google Cloud Console OAuth Client ID / Secret</b> (APIs & Services → Credentials → OAuth 2.0 Client ID), set <b>Redirect URI</b> to <code>https://dropshippingstore.dpdns.org/auth/google/callback</code> and <code>http://localhost:3000/auth/google/callback</code>, enable <b>Google Sheets API</b>, then Connect.</p>
           <label>Google Cloud Client ID <input id="int-google-client-id" placeholder="123456789012-...apps.googleusercontent.com"></label>
           <label>Google Cloud Client Secret <input id="int-google-client-secret" type="password" placeholder="GOCSPX-..."></label>
           <div style="display:flex;gap:8px;align-items:center"><span id="google-client-status" style="font-size:11px;color:#94A3B8">Checking...</span><button class="btn btn-ghost" id="btn-show-google-secret" style="padding:6px 10px;font-size:11px">Show</button></div>
-          <label>Google Sheets Document ID <input id="int-google-doc-id" placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms (from sheet URL) — paste full URL or ID, it auto-extracts"></label>
-          <label>Sheet Name <input id="int-google-sheet-name" placeholder="Sheet1 — auto-detected if leave blank, use Detect below"></label>
+          <label>Google Sheets Document ID <input id="int-google-doc-id" placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms (from sheet URL) - paste full URL or ID, it auto-extracts"></label>
+          <label>Sheet Name <input id="int-google-sheet-name" placeholder="Sheet1 - auto-detected if leave blank, use Detect below"></label>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
             <button class="btn btn-primary" id="btn-save-google-sheets">Save Google Sheets</button>
             <button class="btn btn-ghost" id="btn-connect-google" style="border-color:#10B981;color:#10B981">Connect Google Sheets →</button>
@@ -638,7 +638,7 @@
           <div style="font-size:11px;color:#94A3B8;margin-top:8px">Keys are saved <b>permanently</b> in DB (content table: google_client_id / google_client_secret / google_sheets_doc_id / google_sheets_sheet_name / tokens). They persist across deploys and only change when you edit & Save again. Use <b>Auto-Detect</b> to list sheets inside the spreadsheet, see current header row, highlight missing columns, and auto-create the 22 lead columns: <code>Timestamp, Name, Store Name, Preferred Niche, Preferred Niche Other, Investment Range, Store Status, Was Scammed, Scam Details, WhatsApp, Email, Preferred Contact Time, Source, Traffic Plan, Page URL, Session ID, UTM Source, UTM Medium, UTM Campaign, Pipeline Stage, Webhook Status, Submitted At</code>.</div>
         </div>
         <div class="card" style="border-color:rgba(124,58,237,.3)">
-          <h3>Chatbot — Gemini Direct (replaces n8n webhook for chat) <small style="font-weight:500;color:#64748B" id="gemini-summary-status">checking...</small></h3>
+          <h3>Chatbot - Gemini Direct (replaces n8n webhook for chat) <small style="font-weight:500;color:#64748B" id="gemini-summary-status">checking...</small></h3>
           <p style="font-size:12px;color:#94A3B8">Paste your Gemini API key here to run the chatbot directly via Google Gemini. Form leads go directly to Google Sheets (above). Key is stored securely in DB and never shown publicly.</p>
           <label>Gemini API Key <input id="int-gemini-key" type="password" placeholder="AQ.Ab8RN6... or AIza... (paste whole key)"></label>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -661,10 +661,10 @@
         </div>
         <div class="card" style="border-color:rgba(16,185,129,.35)">
           <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between">
-            <h3 style="margin:0">💾 Backup & Restore <small style="font-weight:500;color:#64748B">server-side — same state in every browser</small></h3>
+            <h3 style="margin:0">💾 Backup & Restore <small style="font-weight:500;color:#64748B">server-side - same state in every browser</small></h3>
             <span id="backup-status-pill" style="font-size:11px;color:#94A3B8;border:1px solid #E2E8F0;border-radius:999px;padding:4px 10px;background:#fff">Checking...</span>
           </div>
-          <div style="font-size:11px;color:#64748B;margin-top:6px">All saves live in the <b>backend database</b>, not in your browser — any browser that logs in sees the same data. Secrets (Client Secret, API keys) are never shown back for security; the list below proves they are stored. Snapshots on server disk survive restarts (Render disk).</div>
+          <div style="font-size:11px;color:#64748B;margin-top:6px">All saves live in the <b>backend database</b>, not in your browser - any browser that logs in sees the same data. Secrets (Client Secret, API keys) are never shown back for security; the list below proves they are stored. Snapshots on server disk survive restarts (Render disk).</div>
           <div id="backup-saved-state" style="display:grid;gap:4px;margin-top:10px;font-size:12px"></div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
             <button class="btn btn-primary" id="btn-backup-snapshot" style="padding:8px 14px;font-size:12px">Save Snapshot Now</button>
@@ -711,11 +711,11 @@
   <form method="dialog" style="display:grid;gap:0">
     <div style="padding:16px;border-bottom:1px solid #E2E8F0;display:flex;justify-content:space-between;align-items:center"><b>Send Personal Email <small style="font-weight:500;color:#64748B" id="personal-email-to"></small></b><button value="cancel" style="border:none;background:#F1F5F9;border-radius:999px;width:32px;height:32px;cursor:pointer">✕</button></div>
     <div style="padding:16px;display:grid;gap:10px;max-height:62vh;overflow:auto">
-      <label>Template<select id="personal-tpl"><option value="">— No template —</option></select></label>
+      <label>Template<select id="personal-tpl"><option value="">- No template -</option></select></label>
       <label>Subject<input id="personal-subject" placeholder="Hi {{name}}!"></label>
       <label>HTML Body<textarea id="personal-html" rows="8" placeholder="<p>Hi {{name}},</p>..."></textarea></label>
       <label>Text fallback<textarea id="personal-text" rows="3"></textarea></label>
-      <div style="font-size:11px;color:#94A3B8">Tags: {{name}} {{storeName}} {{preferredNiche}} {{email}} {{whatsapp}} — rendered per lead.</div>
+      <div style="font-size:11px;color:#94A3B8">Tags: {{name}} {{storeName}} {{preferredNiche}} {{email}} {{whatsapp}} - rendered per lead.</div>
     </div>
     <div style="padding:12px 16px;background:#F8FAFC;display:flex;gap:8px;justify-content:flex-end"><button value="cancel" class="btn btn-ghost">Cancel</button><button id="personal-send" type="button" class="btn btn-primary">Send via Gmail →</button></div>
   </form>
@@ -725,12 +725,12 @@
   <form method="dialog" style="display:grid;gap:0">
     <div style="padding:16px;border-bottom:1px solid #E2E8F0;display:flex;justify-content:space-between;align-items:center"><b id="template-dialog-title">New Template</b><button value="cancel" style="border:none;background:#F1F5F9;border-radius:999px;width:32px;height:32px;cursor:pointer">✕</button></div>
     <div style="padding:16px;display:grid;gap:10px;max-height:62vh;overflow:auto">
-      <label>Template Name<input id="tpl-name" placeholder="Welcome — New Lead"></label>
+      <label>Template Name<input id="tpl-name" placeholder="Welcome - New Lead"></label>
       <label>Category<input id="tpl-cat" placeholder="general / followup / nurture"></label>
       <label>Subject<input id="tpl-subject" placeholder="Welcome {{name}}!"></label>
       <label>HTML Body<textarea id="tpl-html" rows="8" placeholder="<p>Hi {{name}},</p>"></textarea></label>
       <label>Text Body<textarea id="tpl-text" rows="3"></textarea></label>
-      <div style="font-size:11px;color:#64748B;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:8px">Live placeholders (filled at send time from current pricing): <code>{{name}}</code> <code>{{storeName}}</code> <code>{{preferredNiche}}</code> <code>{{whatsapp}}</code> <code>{{email}}</code> <code>{{starterPrice}}</code> <code>{{proPrice}}</code> <code>{{elitePrice}}</code> <code>{{mentorshipPrice}}</code> <code>{{planPrice}}</code> <code>{{planName}}</code> — change a price once in Content, every email follows.</div>
+      <div style="font-size:11px;color:#64748B;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:8px">Live placeholders (filled at send time from current pricing): <code>{{name}}</code> <code>{{storeName}}</code> <code>{{preferredNiche}}</code> <code>{{whatsapp}}</code> <code>{{email}}</code> <code>{{starterPrice}}</code> <code>{{proPrice}}</code> <code>{{elitePrice}}</code> <code>{{mentorshipPrice}}</code> <code>{{planPrice}}</code> <code>{{planName}}</code> - change a price once in Content, every email follows.</div>
     </div>
     <div style="padding:12px 16px;background:#F8FAFC;display:flex;gap:8px;justify-content:flex-end"><button value="cancel" class="btn btn-ghost">Cancel</button><button id="template-save" type="button" class="btn btn-primary">Save Template</button></div>
   </form>

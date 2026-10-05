@@ -621,7 +621,7 @@ export async function initDb() {
     return parseInt(row?.c ?? row?.count ?? 0, 10);
   };
 
-  // Default content definitions — used for initial seed AND for deploy-with-defaults ensure
+  // Default content definitions - used for initial seed AND for deploy-with-defaults ensure
   const defaults = [
       ['site_name', 'Nexatech Dropshipping Store', 'text'],
       ['tagline', "We don't just build stores we engineer high-converting storefronts backed by real, current sales proof.", 'text'],
@@ -719,7 +719,7 @@ export async function initDb() {
       ['themes_eyebrow', 'Theme Store', 'text'],
       ['themes_title', 'Premium Store Themes', 'text'],
       ['themes_subtitle', 'Ready-made, high-converting themes. Buy once, download instantly, own forever.', 'text'],
-      ['themes_empty', 'No themes available yet — check back soon.', 'text'],
+      ['themes_empty', 'No themes available yet - check back soon.', 'text'],
       ['theme_preview_label', 'Preview', 'text'],
       ['theme_buy_label', 'Buy Now', 'text'],
       ['theme_badge', 'Instant Download', 'text'],
@@ -736,7 +736,7 @@ export async function initDb() {
       ['flw_secret_hash', '', 'text'],
       ['flw_testmode', 'true', 'boolean'],
       ['fx_auto_enabled', 'true', 'boolean'],
-      ['fx_currencies', '["USD","NGN","EUR","GBP","GHS","KES","ZAR","UGX","TZS","RWF","XAF","XOF","MWK","EGP","SLL","ZMW","CAD"]', 'json'],
+      ['fx_currencies', '["USD","EUR","GBP","CAD","INR","NGN","GHS","KES","ZAR","UGX","TZS","RWF","ZMW","XOF","XAF","EGP","MWK","SLE","ETB","GNF","AUD","BRL","COP","MXN","PEN","SGD","AED","SAR","JPY"]', 'json'],
       ['owner_notify_email', 'nexatechdropshipping@gmail.com', 'text'],
       ['owner_whatsapp', '19283825389', 'text'],
       ['callmebot_api_key', '', 'text'],
@@ -820,14 +820,14 @@ export async function initDb() {
       ['whatwedo_cta', 'See Our Packages', 'text'],
       ['dropshipping_eyebrow', 'Founder Explains', 'text'],
       ['dropshipping_title', 'Dropshipping Explanation by Akinyemi Ifeoluwa', 'text'],
-      ['dropshipping_subtitle', 'What dropshipping really is — in simple English, no big grammar.', 'text'],
+      ['dropshipping_subtitle', 'What dropshipping really is - in simple English, no big grammar.', 'text'],
       ['dropshipping_step1', 'Someone buys something from your shop.', 'text'],
       ['dropshipping_step2', 'You send that order to another company (the supplier).', 'text'],
       ['dropshipping_step3', 'The supplier packs it and sends it straight to your customer.', 'text'],
       ['dropshipping_step4', 'You never see or touch the item yourself.', 'text'],
       ['dropshipping_job', "Your job is just to bring customers and sell. The supplier's job is to send the product.", 'text'],
       ['dropshipping_profit_title', 'How you make profit', 'text'],
-      ['dropshipping_profit_text', "You find a product that costs, say, $100 from the supplier. You sell it in your shop for $250. The supplier gets their $100, you keep the $150 difference. That's your profit. You don't pay for the product until someone actually buys it — so there's no risk of buying things that won't sell.", 'text'],
+      ['dropshipping_profit_text', "You find a product that costs, say, $100 from the supplier. You sell it in your shop for $250. The supplier gets their $100, you keep the $150 difference. That's your profit. You don't pay for the product until someone actually buys it - so there's no risk of buying things that won't sell.", 'text'],
       ['dropshipping_image_url', 'https://dropshippingstore.dpdns.org/uploads/1788949090415-102669406.webp', 'text'],
       ['dropshipping_name', 'Akinyemi Ifeoluwa', 'text'],
       ['dropshipping_role', 'Founder, Nexatech', 'text'],
@@ -935,7 +935,7 @@ export async function initDb() {
   ];
   const count = await getCount('content');
   const forceReset = process.env.FORCE_DEFAULT_CONTENT === 'true' || process.env.RESET_CONTENT === 'true';
-  // Keys that must NEVER be wiped by reseed — user wants API/Client/Secret/Sheet permanently saved until explicitly edited (same console creds reused for Campaigns/Gmail) + Brand logo
+  // Keys that must NEVER be wiped by reseed - user wants API/Client/Secret/Sheet permanently saved until explicitly edited (same console creds reused for Campaigns/Gmail) + Brand logo
   const PROTECTED_KEYS = new Set([
     'google_client_id','google_client_secret','google_sheets_doc_id','google_sheets_sheet_name',
     'google_refresh_token','google_access_token','google_token_expiry','google_column_mapping',
@@ -952,13 +952,13 @@ export async function initDb() {
   ]);
   if (count === 0 || forceReset) {
     if (forceReset && count !== 0) {
-      // Backup protected integration keys before wiping — they must persist permanently
+      // Backup protected integration keys before wiping - they must persist permanently
       const preserved = {};
       for(const pk of PROTECTED_KEYS){
         try{ const row = await db.prepare('SELECT key,value,type FROM content WHERE key=?').get(pk); if(row && row.value && String(row.value).trim()!=='') preserved[pk]=row; }catch{}
       }
       try { await db.exec('DELETE FROM content'); } catch {}
-      console.log('FORCE_DEFAULT_CONTENT enabled — reseeding content with defaults (protected keys backed up)');
+      console.log('FORCE_DEFAULT_CONTENT enabled - reseeding content with defaults (protected keys backed up)');
       for (const r of defaults) {
         await db.prepare('INSERT INTO content (key,value,type) VALUES (?,?,?)').run(r[0], r[1], r[2]);
       }
@@ -986,7 +986,7 @@ export async function initDb() {
     if (inserted) console.log(`Inserted ${inserted} missing default content keys (deploy-with-defaults)`);
   }
   // NOTE: no force-overwrite here on purpose. The insert-missing block above already adds
-  // new default keys, but admin edits must SURVIVE restarts — overwriting every boot
+  // new default keys, but admin edits must SURVIVE restarts - overwriting every boot
   // would wipe all backend text edits (and all newly editable micro-copy) on redeploy.
   // Protected integration keys are additionally guarded in PROTECTED_KEYS.
 
@@ -1132,20 +1132,20 @@ export async function initDb() {
     if (forceReset) console.log('FORCE_DEFAULT_CONTENT: reseeded stats');
   }
 
-  // Email templates & campaigns seed (HubSpot-like CRM) — uses same Google console creds via Gmail
+  // Email templates & campaigns seed (HubSpot-like CRM) - uses same Google console creds via Gmail
   try{
     const tmplCount = await getCount('email_templates');
     if(tmplCount===0){
       const tmplDefaults = [
-        ['Welcome — New Lead','Welcome {{name}}! Your {{storeName}} journey starts','<div style="font-family:Inter,sans-serif;line-height:1.6;color:#0B1220"><p>Hi {{name}},</p><p>Thanks for applying for your <b>{{storeName}}</b> store in the <b>{{preferredNiche}}</b> niche. Our team at <b>Nexatech</b> will review your application and reach out on WhatsApp <b>{{whatsapp}}</b> within 24h.</p><p>While you wait, explore our portfolio and packages on the site.</p><p style="margin-top:16px">— <b>Ifeoluwa (Akinyemmi Ifeoluwa)</b><br>NEXATECH Dropshipping Store<br><a href="https://wa.me/19283825389">WhatsApp</a> • saheednexatech@gmail.com</p></div>','general'],
-        ['Follow-up — 48h After Application','Quick check-in, {{name}}','<div style="font-family:Inter,sans-serif;line-height:1.6;color:#0B1220"><p>Hi {{name}},</p><p>Just checking in — did you get our WhatsApp message about your <b>{{storeName}}</b> project?</p><p>We have <b>{{investmentRange}}</b> options and can start your store in 7–14 days. Reply to this email or ping us on WhatsApp to lock your slot.</p><p>— Nexatech</p></div>','followup'],
-        ['Nurture — Why Nexatech','Why founders choose Nexatech, {{name}}','<div style="font-family:Inter,sans-serif;line-height:1.6;color:#0B1220"><p>Hi {{name}},</p><p>Many founders come to us after being scammed. Here’s how we’re different:</p><ul><li>100% ownership — we build in <i>your</i> Shopify account</li><li>Video proof + live store walkthroughs</li><li>Winning product research + supplier automation</li><li>30-day scaling roadmap</li></ul><p>Want the mentorship (results BEFORE payment)? Let us know.</p><p>— Nexatech</p></div>','nurture'],
+        ['Welcome - New Lead','Welcome {{name}}! Your {{storeName}} journey starts','<div style="font-family:Inter,sans-serif;line-height:1.6;color:#0B1220"><p>Hi {{name}},</p><p>Thanks for applying for your <b>{{storeName}}</b> store in the <b>{{preferredNiche}}</b> niche. Our team at <b>Nexatech</b> will review your application and reach out on WhatsApp <b>{{whatsapp}}</b> within 24h.</p><p>While you wait, explore our portfolio and packages on the site.</p><p style="margin-top:16px">- <b>Ifeoluwa (Akinyemmi Ifeoluwa)</b><br>NEXATECH Dropshipping Store<br><a href="https://wa.me/19283825389">WhatsApp</a> • saheednexatech@gmail.com</p></div>','general'],
+        ['Follow-up - 48h After Application','Quick check-in, {{name}}','<div style="font-family:Inter,sans-serif;line-height:1.6;color:#0B1220"><p>Hi {{name}},</p><p>Just checking in - did you get our WhatsApp message about your <b>{{storeName}}</b> project?</p><p>We have <b>{{investmentRange}}</b> options and can start your store in 7–14 days. Reply to this email or ping us on WhatsApp to lock your slot.</p><p>- Nexatech</p></div>','followup'],
+        ['Nurture - Why Nexatech','Why founders choose Nexatech, {{name}}','<div style="font-family:Inter,sans-serif;line-height:1.6;color:#0B1220"><p>Hi {{name}},</p><p>Many founders come to us after being scammed. Here’s how we’re different:</p><ul><li>100% ownership - we build in <i>your</i> Shopify account</li><li>Video proof + live store walkthroughs</li><li>Winning product research + supplier automation</li><li>30-day scaling roadmap</li></ul><p>Want the mentorship (results BEFORE payment)? Let us know.</p><p>- Nexatech</p></div>','nurture'],
       ];
       for(const t of tmplDefaults) await db.prepare('INSERT INTO email_templates (name,subject,body_html,category) VALUES (?,?,?,?)').run(t[0],t[1],t[2],t[3]);
       console.log(`Seeded ${tmplDefaults.length} email templates`);
     }
   }catch(e){ console.error('templates seed error', e.message); }
-  // Fix existing templates that still say Saheed — update to Ifeoluwa (owner request: name is Ifeoluwa not Saheed)
+  // Fix existing templates that still say Saheed - update to Ifeoluwa (owner request: name is Ifeoluwa not Saheed)
   try{ await db.prepare("UPDATE email_templates SET body_html = REPLACE(body_html, 'Saheed (Akinyemmi Ifeoluwa)', 'Ifeoluwa (Akinyemmi Ifeoluwa)') WHERE body_html LIKE '%Saheed%'").run(); }catch{}
   try{ await db.prepare("UPDATE email_templates SET body_html = REPLACE(body_html, 'Saheed', 'Ifeoluwa') WHERE body_html LIKE '%Saheed%'").run(); }catch{}
 
@@ -1154,6 +1154,27 @@ export async function initDb() {
     await db.prepare("UPDATE content SET value = REPLACE(value, '₦', '$') WHERE value LIKE '%₦%'").run();
     // pg doesn't support REPLACE in same way? but works
   } catch(e){}
+  // Owner request: no em dashes anywhere - clean already-saved prose too.
+  // Parameterized (never touches slugs/urls/names - prose columns only).
+  try {
+    const EMD = '\u2014';
+    const likePat = '%' + EMD + '%';
+    const jobs = [
+      ['content', 'value'],
+      ['email_templates', 'subject'], ['email_templates', 'body_html'], ['email_templates', 'body_text'],
+      ['media', 'caption'], ['media', 'alt_text'], ['media', 'tags'], ['media', 'result_stat'], ['media', 'case_study_text'],
+      ['team', 'role'], ['team', 'credibility_note'],
+      ['themes', 'description']
+    ];
+    let cleaned = 0;
+    for(const [tbl, col] of jobs){
+      try{
+        const r = await db.prepare(`UPDATE ${tbl} SET ${col} = REPLACE(${col}, ?, '-') WHERE ${col} LIKE ?`).run(EMD, likePat);
+        cleaned += (r && r.changes) || 0;
+      }catch{}
+    }
+    if(cleaned) console.log(`Migrated: removed em dashes from ${cleaned} saved row(s)`);
+  } catch(e){ console.error('emdash migration error', e.message); }
   try {
     const ensure = async (key, val, type='text') => {
       const ex=await db.prepare('SELECT key FROM content WHERE key=?').get(key);
@@ -1200,7 +1221,7 @@ export async function initDb() {
     try{ const gm = (await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_model'))?.value; if(gm && (gm.includes('1.5') || gm.trim() === 'gemini-2.5-flash')) await db.prepare("UPDATE content SET value='gemini-3.6-flash' WHERE key='gemini_model'").run(); }catch{}
     // upgrade retired Groq model id (llama-3.3-70b-versatile shut down 08/16/26) to official replacement
     try{ const am = (await db.prepare('SELECT value FROM content WHERE key=?').get('ai_model'))?.value; if(am && am.trim() === 'llama-3.3-70b-versatile') await db.prepare("UPDATE content SET value='openai/gpt-oss-20b' WHERE key='ai_model'").run(); }catch{}
-    // Gemini-only: provider switcher removed per owner request — always use Gemini rotation
+    // Gemini-only: provider switcher removed per owner request - always use Gemini rotation
     try{ await db.prepare("INSERT INTO content (key,value,type) VALUES ('ai_provider','gemini','text') ON CONFLICT(key) DO UPDATE SET value='gemini'").run(); }catch{}
     // contact migration
     const waOld = (await db.prepare('SELECT value FROM content WHERE key=?').get('whatsapp_number'))?.value;
@@ -1268,7 +1289,26 @@ export async function initDb() {
     await ensure('flw_secret_hash','','text');
     await ensure('flw_testmode','true','boolean');
     await ensure('fx_auto_enabled','true','boolean');
-    await ensure('fx_currencies','["USD","NGN","EUR","GBP","GHS","KES","ZAR","UGX","TZS","RWF","XAF","XOF","MWK","EGP","SLL","ZMW","CAD"]','json');
+    await ensure('fx_currencies','["USD","EUR","GBP","CAD","INR","NGN","GHS","KES","ZAR","UGX","TZS","RWF","ZMW","XOF","XAF","EGP","MWK","SLE","ETB","GNF","AUD","BRL","COP","MXN","PEN","SGD","AED","SAR","JPY"]','json');
+    // Merge newly-supported currencies into existing allowlists. Anything the
+    // admin deliberately removed stays removed; retired SLL becomes SLE.
+    try{
+      const row = await db.prepare("SELECT value FROM content WHERE key='fx_currencies'").get();
+      let list = [];
+      try{ list = JSON.parse(row?.value || '[]'); }catch{ list = []; }
+      if(!Array.isArray(list)) list = [];
+      const OLD17 = ["USD","NGN","EUR","GBP","GHS","KES","ZAR","UGX","TZS","RWF","XAF","XOF","MWK","EGP","SLL","ZMW","CAD"];
+      const NEW_CODES = ["INR","ETB","GNF","AUD","BRL","COP","MXN","PEN","SGD","AED","SAR","JPY"];
+      const have = new Set(list.map(c => String(c).toUpperCase()));
+      let changed = false;
+      if(have.has('SLL') && !have.has('SLE')){
+        list = list.map(c => String(c).toUpperCase() === 'SLL' ? 'SLE' : String(c).toUpperCase());
+        list.forEach(c => have.add(String(c).toUpperCase()));
+        changed = true;
+      }
+      for(const c of NEW_CODES){ if(!OLD17.includes(c) && ![...have].includes(c)){ list.push(c); have.add(c); changed = true; } }
+      if(changed) await db.prepare("UPDATE content SET value=? WHERE key='fx_currencies'").run(JSON.stringify(list));
+    }catch(e){ console.error('fx currency merge failed', e.message); }
     // WhatsApp plan templates: convert exact old hardcoded-price seeds to live
     // {name}/{price} placeholders (custom admin wording is never touched)
     try{
@@ -1311,7 +1351,7 @@ export async function initDb() {
     await ensure('cryptomus_testmode','true','boolean');
   } catch(e){ console.error('migration error', e); }
 
-  // Seed sample themes (preview only — admin uploads the zip per theme)
+  // Seed sample themes (preview only - admin uploads the zip per theme)
   try{
     const themeCount = await getCount('themes');
     if(themeCount === 0){
@@ -1329,7 +1369,7 @@ export async function initDb() {
 }
 
 export async function reseedDefaults() {
-  // Force reseed with default content — used for "deploy with default content" requirement
+  // Force reseed with default content - used for "deploy with default content" requirement
   process.env.FORCE_DEFAULT_CONTENT = 'true';
   await initDb();
   delete process.env.FORCE_DEFAULT_CONTENT;

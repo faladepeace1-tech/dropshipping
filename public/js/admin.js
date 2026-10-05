@@ -21,7 +21,7 @@ async function chunkedUploadMedia(file, meta, onProgress){
   const initR = await fetch('/api/media/chunk-init', {method:'POST', headers:{'Content-Type':'application/json', ...authHeaders()}, body: JSON.stringify({filename: file.name, totalSize: file.size, totalChunks, mime: file.type||'', ...meta})});
   const initJ = await initR.json().catch(()=>({}));
   if(!initR.ok) throw new Error(initJ.error || ('Init failed (HTTP '+initR.status+')'));
-  if(initR.status===401 || initJ.error==='Unauthorized' || initJ.error==='Invalid token') throw new Error('Session expired — log out and log back in, then retry.');
+  if(initR.status===401 || initJ.error==='Unauthorized' || initJ.error==='Invalid token') throw new Error('Session expired - log out and log back in, then retry.');
   const uploadId = initJ.uploadId;
   if(!uploadId) throw new Error('Init failed (no upload id)');
   for(let i=0;i<totalChunks;i++){
@@ -55,7 +55,7 @@ async function chunkedUploadMedia(file, meta, onProgress){
   if(!cR.ok) throw new Error(cJ.error || ('Assemble start failed (HTTP '+cR.status+')'));
   if(cJ.status === 'done') return cJ;
   if(cJ.status === 'error' || cJ.error) throw new Error(cJ.error || 'Server assembly failed');
-  // 'processing' — big videos assemble in the background (proxies kill slow
+  // 'processing' - big videos assemble in the background (proxies kill slow
   // requests), so poll until done. Keep the tab open.
   if(onProgress) onProgress(1, totalChunks, totalChunks, 'assembling');
   for(let p=0;p<120;p++){
@@ -64,12 +64,12 @@ async function chunkedUploadMedia(file, meta, onProgress){
     try{
       const sR = await fetch('/api/media/chunk-status/'+encodeURIComponent(uploadId), {headers: authHeaders()});
       sJ = await sR.json().catch(()=>null);
-    }catch(e){ continue; } // transient network blip — keep polling
+    }catch(e){ continue; } // transient network blip - keep polling
     if(!sJ) continue;
     if(sJ.status === 'done') return sJ;
     if(sJ.status === 'error') throw new Error(sJ.error || 'Server assembly failed');
   }
-  throw new Error('Still assembling after 6 minutes — leave this tab open and check the gallery shortly; the video appears when the server finishes.');
+  throw new Error('Still assembling after 6 minutes - leave this tab open and check the gallery shortly; the video appears when the server finishes.');
 }
 let token = localStorage.getItem('nexatech_admin_token') || '';
 let CONTENT={}, SECTIONS=[], MEDIA=[], TEAM=[], LEADS=[], ANALYTICS=null;
@@ -274,15 +274,15 @@ const CONTENT_SCHEMA = {
     {key:'pricing_starter_name', label:'Starter Name'},
     {key:'pricing_starter_price', label:'Starter Price'},
     {key:'pricing_starter_features', label:'Starter Features (one per line, text format)', type:'textarea'},
-    {key:'pricing_starter_whatsapp', label:'Starter WhatsApp Message — use {name} and {price}, auto-filled with live values', type:'textarea'},
+    {key:'pricing_starter_whatsapp', label:'Starter WhatsApp Message - use {name} and {price}, auto-filled with live values', type:'textarea'},
     {key:'pricing_pro_name', label:'Pro Name'},
     {key:'pricing_pro_price', label:'Pro Price'},
     {key:'pricing_pro_features', label:'Pro Features (one per line, text format)', type:'textarea'},
-    {key:'pricing_pro_whatsapp', label:'Pro WhatsApp Message — use {name} and {price}, auto-filled with live values', type:'textarea'},
+    {key:'pricing_pro_whatsapp', label:'Pro WhatsApp Message - use {name} and {price}, auto-filled with live values', type:'textarea'},
     {key:'pricing_elite_name', label:'Elite Name'},
     {key:'pricing_elite_price', label:'Elite Price'},
     {key:'pricing_elite_features', label:'Elite Features (one per line, text format)', type:'textarea'},
-    {key:'pricing_elite_whatsapp', label:'Elite WhatsApp Message — use {name} and {price}, auto-filled with live values', type:'textarea'},
+    {key:'pricing_elite_whatsapp', label:'Elite WhatsApp Message - use {name} and {price}, auto-filled with live values', type:'textarea'},
     {key:'mentorship_title', label:'Mentorship Title'},
     {key:'mentorship_subtitle', label:'Mentorship Subtitle', type:'textarea'},
     {key:'mentorship_eyebrow', label:'Mentorship Eyebrow'},
@@ -380,7 +380,7 @@ const CONTENT_SCHEMA = {
     {key:'form_label_traffic', label:'Label: Traffic Plan'},
   ],
   chatbot: [
-    {key:'chatbot_system_prompt', label:'AI Brain — System Prompt (persona, knowledge, style, handoff rules). Site knowledge auto-appends.', type:'textarea', rows:16},
+    {key:'chatbot_system_prompt', label:'AI Brain - System Prompt (persona, knowledge, style, handoff rules). Site knowledge auto-appends.', type:'textarea', rows:16},
     {key:'chatbot_temperature', label:'Creativity 0–1.5 (lower = strict, higher = chatty)'},
     {key:'chatbot_max_tokens', label:'Max Reply Length (tokens, 100–2000)'},
     {key:'chat_title', label:'Chat Header Name'},
@@ -455,7 +455,7 @@ function renderContentForms(){
     let input;
     if(field.type==='textarea'){
       input=document.createElement('textarea'); input.rows=field.rows||4; input.value=displayVal;
-      if(listKeys.includes(field.key)) input.placeholder = 'One item per line — text format';
+      if(listKeys.includes(field.key)) input.placeholder = 'One item per line - text format';
     } else if(field.type==='image_upload'){
       // preview
       const preview=document.createElement('div');
@@ -546,7 +546,7 @@ async function loadContent(){
   const emailEl=$('#int-email'); if(emailEl) emailEl.value=CONTENT.footer_email||'';
   const phoneEl=$('#int-phone'); if(phoneEl) phoneEl.value=CONTENT.footer_phone||'';
   const calEl=$('#int-calendly'); if(calEl) calEl.value=CONTENT.calendly_url||'';
-  // Legacy webhook fields (optional — only if present in DOM)
+  // Legacy webhook fields (optional - only if present in DOM)
   const whEl=$('#int-webhook'); if(whEl) whEl.value=CONTENT.webhook_url||'';
   const whEn=$('#int-webhook-enabled'); if(whEn) whEn.checked=String(CONTENT.webhook_enabled)==='true';
   const formEl=$('#int-webhook-form'); if(formEl) formEl.value=CONTENT.webhook_form_url||'';
@@ -565,7 +565,7 @@ $('#btn-save-content').addEventListener('click', async()=>{
     const listKeysSave = ['pricing_starter_features','pricing_pro_features','pricing_elite_features','mentorship_bullets'];
     inputs.forEach(inp=>{
       let v=inp.value;
-      // For list keys, convert text lines to JSON array string (text format per owner request) — also accepts raw JSON for backward compat
+      // For list keys, convert text lines to JSON array string (text format per owner request) - also accepts raw JSON for backward compat
       if(listKeysSave.includes(inp.dataset.key)){
         let lines;
         const trimmed = v.trim();
@@ -584,7 +584,7 @@ $('#btn-save-content').addEventListener('click', async()=>{
     if(!Object.keys(payload).length){ if(msg) msg.textContent='Nothing to save'; return; }
     const r=await fetch('/api/content',{method:'PUT',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify(payload)});
     const j=await r.json().catch(()=>({}));
-    if(r.status===401){ if(msg) msg.textContent='Session expired — please log out and log back in, then Save again.'; if(msg) msg.style.color='#F87171'; return; }
+    if(r.status===401){ if(msg) msg.textContent='Session expired - please log out and log back in, then Save again.'; if(msg) msg.style.color='#F87171'; return; }
     if(msg) msg.textContent = r.ok ? 'Saved ✓ preview updates instantly.' : (j.error||('Save failed (HTTP '+r.status+')'));
     if(msg) msg.style.color = r.ok ? '#10B981' : '#F87171';
     if(r.ok) await loadContent();
@@ -621,7 +621,7 @@ $('#btn-save-integrations').addEventListener('click', async()=>{
       footer_phone: phoneVal || CONTENT.footer_phone || '',
       calendly_url: calVal,
     };
-    // Optional legacy webhook fields — only include if inputs exist in DOM
+    // Optional legacy webhook fields - only include if inputs exist in DOM
     if($('#int-webhook')) payload.webhook_url=$('#int-webhook').value?.trim()||'';
     if($('#int-webhook-enabled')) payload.webhook_enabled=String($('#int-webhook-enabled').checked);
     if($('#int-webhook-form')) payload.webhook_form_url=$('#int-webhook-form').value?.trim()||'';
@@ -633,12 +633,12 @@ $('#btn-save-integrations').addEventListener('click', async()=>{
     const r=await fetch('/api/content',{method:'PUT',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify(payload)});
     const j=await r.json().catch(()=>({}));
     if(!r.ok) throw new Error(j.error||'Save failed');
-    if(msg){ msg.textContent='Saved ✓ — WhatsApp, Email, Phone & Calendly updated. Frontend Book buttons now use: '+(calVal||'(WhatsApp fallback)'); msg.style.color='#10B981'; }
+    if(msg){ msg.textContent='Saved ✓ - WhatsApp, Email, Phone & Calendly updated. Frontend Book buttons now use: '+(calVal||'(WhatsApp fallback)'); msg.style.color='#10B981'; }
     await loadContent();
   }catch(e){ if(msg){ msg.textContent='Error: '+e.message; msg.style.color='#F87171'; } }
   finally{ if(btn){ btn.disabled=false; btn.textContent='Save Contact & Booking'; } }
 });
-// Webhook test — form only (chat now via Gemini, per owner request)
+// Webhook test - form only (chat now via Gemini, per owner request)
 async function testWebhook(type){
   const btn = document.getElementById('btn-test-webhook-form');
   const out = $('#webhook-test-result');
@@ -648,12 +648,12 @@ async function testWebhook(type){
     const j=await r.json();
     if(out){ out.style.display='block'; out.textContent = JSON.stringify(j, null, 2); }
     if(!r.ok) $('#int-msg').textContent = j.error||'Webhook test failed';
-    else $('#int-msg').textContent = 'Webhook test sent — see result below';
+    else $('#int-msg').textContent = 'Webhook test sent - see result below';
   }catch(e){ if(out){ out.style.display='block'; out.textContent='Error: '+e.message; } }
   finally{ if(btn){ btn.disabled=false; btn.textContent='Test Form Webhook →'; } }
 }
 $('#btn-test-webhook-form')?.addEventListener('click', ()=> testWebhook('form'));
-// Gemini direct — saved permanently in backend content table (PROTECTED_KEYS, never wiped) — collapsed unless Edit
+// Gemini direct - saved permanently in backend content table (PROTECTED_KEYS, never wiped) - collapsed unless Edit
 async function loadGeminiStatus(){
   try{
     const r=await fetch('/api/admin/gemini-key',{headers:authHeaders()});
@@ -661,15 +661,15 @@ async function loadGeminiStatus(){
     const el=$('#gemini-key-status');
     const n=j.keyCount||(j.dbHas?1:0);
     if(el){
-      if(n>0) el.textContent = `${n} key${n>1?'s':''} set ✓ ${(j.keys||[]).map(k=>k.masked).join(' + ')} (saved permanently), model: ${j.model} — rotates on quota`;
-      else if(j.envHas) el.textContent = `Key set (${j.masked||'env'} via env, model: ${j.model}) — also save in DB to persist`;
-      else el.textContent = 'No key set — chatbot disabled, paste Gemini key above (AQ.Ab8... or AIza...)';
+      if(n>0) el.textContent = `${n} key${n>1?'s':''} set ✓ ${(j.keys||[]).map(k=>k.masked).join(' + ')} (saved permanently), model: ${j.model} - rotates on quota`;
+      else if(j.envHas) el.textContent = `Key set (${j.masked||'env'} via env, model: ${j.model}) - also save in DB to persist`;
+      else el.textContent = 'No key set - chatbot disabled, paste Gemini key above (AQ.Ab8... or AIza...)';
       el.style.color = n>0 ? '#10B981' : (j.envHas ? '#64748B' : '#F87171');
     }
     const sumEl=$('#gemini-summary-status');
     if(sumEl){
       if(n>0) { sumEl.textContent=`${n} key${n>1?'s':''} ✓ saved permanently`; sumEl.style.color='#10B981'; }
-      else if(j.envHas) { sumEl.textContent='env only — save to persist'; sumEl.style.color='#F59E0B'; }
+      else if(j.envHas) { sumEl.textContent='env only - save to persist'; sumEl.style.color='#F59E0B'; }
       else { sumEl.textContent='not set'; sumEl.style.color='#F87171'; }
     }
     const modelEl=$('#int-gemini-model');
@@ -679,7 +679,7 @@ async function loadGeminiStatus(){
     }
   }catch{}
 }
-// Integrations accordion — only one open at a time, closed by default (backend only, save & close)
+// Integrations accordion - only one open at a time, closed by default (backend only, save & close)
 (function(){
   const ids=['details-password','details-contact','details-google','details-gemini','details-theme'];
   function closeAll(except){
@@ -698,7 +698,7 @@ async function loadGeminiStatus(){
   // start closed
   ids.forEach(id=>{ const d=document.getElementById(id); if(d) d.open=false; });
 })();
-// Password helpers — show current user in settings
+// Password helpers - show current user in settings
 async function refreshPasswordUser(){
   try{
     const r=await fetch('/api/admin/me',{headers:authHeaders()});
@@ -733,13 +733,13 @@ $('#btn-save-gemini')?.addEventListener('click', async()=>{
     const r=await fetch('/api/admin/gemini-key',{method:'PUT',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify({key, key2, key3, model})});
     const j=await r.json();
     if(r.ok){
-      $('#gemini-msg').innerHTML = j.keyCount ? `<span style="color:#10B981">✓ Saved permanently — ${j.keyCount} key${j.keyCount>1?'s':''} will rotate on quota. Closed until you click Edit again</span>` : (j.message||'Saved');
+      $('#gemini-msg').innerHTML = j.keyCount ? `<span style="color:#10B981">✓ Saved permanently - ${j.keyCount} key${j.keyCount>1?'s':''} will rotate on quota. Closed until you click Edit again</span>` : (j.message||'Saved');
       $('#int-gemini-key').value='';
       const k2=$('#int-gemini-key2'); if(k2) k2.value='';
       const k3=$('#int-gemini-key3'); if(k3) k3.value='';
       if(model) $('#int-gemini-model').value='';
       await loadGeminiStatus();
-      // auto-close details — stays closed until Edit clicked
+      // auto-close details - stays closed until Edit clicked
       const d=document.getElementById('details-gemini'); if(d) d.open=false;
     } else {
       $('#gemini-msg').textContent = j.error||'Save failed';
@@ -760,13 +760,13 @@ $('#btn-test-gemini')?.addEventListener('click', async()=>{
       $('#gemini-msg').innerHTML = `<span style="color:#10B981">Gemini test succeeded via ${j.masked||'key'} (${j.perKey?.filter(p=>p.ok).length||1}/${j.keyCount||1} keys OK)</span>`;
     } else {
       const qs = (j.perKey||[]).map(p=>`${p.masked}: ${p.quota?'QUOTA EXHAUSTED':p.error}`).join(' | ');
-      $('#gemini-msg').innerHTML = `<span style="color:#F87171">Gemini test failed — ${j.error||''}${qs?'<br><small>'+qs+'</small>':''}${j.hint?'<br><small>'+j.hint+'</small>':''}</span>`;
+      $('#gemini-msg').innerHTML = `<span style="color:#F87171">Gemini test failed - ${j.error||''}${qs?'<br><small>'+qs+'</small>':''}${j.hint?'<br><small>'+j.hint+'</small>':''}</span>`;
     }
   }catch(e){ if(out) out.textContent='Error: '+e.message; }
   finally{ if(btn){ btn.disabled=false; btn.textContent='Test Gemini →'; } }
 });
 loadGeminiStatus();
-// Change Password — backend only, collapsed until Edit
+// Change Password - backend only, collapsed until Edit
 $('#btn-show-pwd')?.addEventListener('click', ()=>{
   const a=$('#pwd-current'), b=$('#pwd-new'), c=$('#pwd-confirm');
   const t = a.type==='password' ? 'text' : 'password';
@@ -788,10 +788,10 @@ $('#btn-change-password')?.addEventListener('click', async()=>{
     const r=await fetch('/api/admin/change-password',{method:'POST',headers:{'Content-Type':'application/json',...authHeaders()},body:JSON.stringify({currentPassword:cur, newPassword:nw, confirmPassword:cf})});
     const j=await r.json();
     if(r.ok){
-      if(msg) msg.innerHTML='<span style="color:#10B981">✓ Password changed successfully — saved permanently. Use new password next login. Closing...</span>';
+      if(msg) msg.innerHTML='<span style="color:#10B981">✓ Password changed successfully - saved permanently. Use new password next login. Closing...</span>';
       if(sum) { sum.textContent='changed ✓'; sum.style.color='#10B981'; }
       $('#pwd-current').value=''; $('#pwd-new').value=''; $('#pwd-confirm').value='';
-      // auto-close details — stays closed until Edit
+      // auto-close details - stays closed until Edit
       setTimeout(()=>{ const d=document.getElementById('details-password'); if(d) d.open=false; if(msg) msg.textContent=''; }, 1200);
     } else {
       if(msg) msg.innerHTML=`<span style="color:#F87171">${j.error||'Failed'}</span>`;
@@ -802,23 +802,23 @@ $('#btn-change-password')?.addEventListener('click', async()=>{
 });
 // refresh user on load
 refreshPasswordUser();
-// Google Sheets direct — permanent save + auto-detect
+// Google Sheets direct - permanent save + auto-detect
 async function loadGoogleStatus(){
   try{
     const r=await fetch('/api/admin/google/status',{headers:authHeaders()});
     const j=await r.json();
     const el=$('#google-client-status');
     if(el){
-      if(j.hasAuth) el.textContent=`Connected ✓ Doc: ${j.docId||'(none)'} Sheet: ${j.sheetName} | Client: ${j.clientIdMasked||'set'} — keys saved permanently`;
-      else if(j.hasClient && j.hasSheet) el.textContent=`Client+Sheet saved (permanent) — not yet connected → click Connect`;
+      if(j.hasAuth) el.textContent=`Connected ✓ Doc: ${j.docId||'(none)'} Sheet: ${j.sheetName} | Client: ${j.clientIdMasked||'set'} - keys saved permanently`;
+      else if(j.hasClient && j.hasSheet) el.textContent=`Client+Sheet saved (permanent) - not yet connected → click Connect`;
       else if(j.hasClient) el.textContent=`Client saved permanently, set Doc ID + Sheet`;
-      else el.textContent='Not configured — add Client ID/Secret + Doc ID (will be saved permanently)';
+      else el.textContent='Not configured - add Client ID/Secret + Doc ID (will be saved permanently)';
       el.style.color = j.hasAuth ? '#10B981' : '#94A3B8';
     }
     const sumEl=$('#google-summary-status');
     if(sumEl){
       if(j.hasAuth) { sumEl.textContent='connected ✓ saved permanently'; sumEl.style.color='#10B981'; }
-      else if(j.hasClient) { sumEl.textContent='saved permanently — not yet connected'; sumEl.style.color='#F59E0B'; }
+      else if(j.hasClient) { sumEl.textContent='saved permanently - not yet connected'; sumEl.style.color='#F59E0B'; }
       else { sumEl.textContent='not set'; sumEl.style.color='#F87171'; }
     }
     const docEl=$('#int-google-doc-id'); if(docEl && j.docId){ docEl.placeholder=j.docId; docEl.value = docEl.value || ''; }
@@ -842,21 +842,21 @@ $('#btn-save-google-sheets')?.addEventListener('click', async()=>{
   const clientSecret=$('#int-google-client-secret')?.value || '';
   const docId=$('#int-google-doc-id')?.value || '';
   const sheetName=$('#int-google-sheet-name')?.value || '';
-  // Permanent save: backend only overwrites non-empty — empty keeps old value. This ensures keys never wiped accidentally.
+  // Permanent save: backend only overwrites non-empty - empty keeps old value. This ensures keys never wiped accidentally.
   const body={clientId, clientSecret, docId, sheetName};
   const btn=$('#btn-save-google-sheets');
   if(btn){ btn.disabled=true; btn.textContent='Saving...'; }
   const r=await fetch('/api/admin/google/sheets',{method:'PUT',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify(body)});
   const j=await r.json().catch(()=>({}));
   if(btn){ btn.disabled=false; btn.textContent='Save Google Sheets'; }
-  $('#google-msg').textContent = r.ok ? `Saved permanently ✓ ${j.saved ? `Doc: ${j.saved.docId||'(unchanged)'} Sheet: ${j.saved.sheetName}` : ''} — closed until you click Edit again` : (j.error||'Save failed');
+  $('#google-msg').textContent = r.ok ? `Saved permanently ✓ ${j.saved ? `Doc: ${j.saved.docId||'(unchanged)'} Sheet: ${j.saved.sheetName}` : ''} - closed until you click Edit again` : (j.error||'Save failed');
   if(r.ok){
     if(clientId) $('#int-google-client-id').value='';
     if(clientSecret) $('#int-google-client-secret').value='';
     if(docId) $('#int-google-doc-id').value='';
     if(sheetName) $('#int-google-sheet-name').value='';
     await loadGoogleStatus();
-    // close details — stays closed until Edit
+    // close details - stays closed until Edit
     const d=document.getElementById('details-google'); if(d) d.open=false;
     // Auto-run detect after save if we have doc (will reopen if needed)
     if(j.saved?.docId){
@@ -867,9 +867,9 @@ $('#btn-save-google-sheets')?.addEventListener('click', async()=>{
 $('#btn-connect-google')?.addEventListener('click', async()=>{
   const r=await fetch('/api/admin/google/auth-url',{headers:authHeaders()});
   const j=await r.json();
-  if(!r.ok){ $('#google-msg').textContent=j.error||'Connect failed — set Client ID/Secret first'; return; }
+  if(!r.ok){ $('#google-msg').textContent=j.error||'Connect failed - set Client ID/Secret first'; return; }
   window.open(j.url, '_blank', 'width=600,height=700');
-  $('#google-msg').textContent='Opened Google consent — approve and return here, then Test Append / Auto-Detect';
+  $('#google-msg').textContent='Opened Google consent - approve and return here, then Test Append / Auto-Detect';
 });
 $('#btn-test-google-sheets')?.addEventListener('click', async()=>{
   const out=$('#google-test-result'); const btn=$('#btn-test-google-sheets');
@@ -879,7 +879,7 @@ $('#btn-test-google-sheets')?.addEventListener('click', async()=>{
     const r=await fetch('/api/admin/google/test',{method:'POST',headers:authHeaders()});
     const j=await r.json();
     if(out) out.textContent=JSON.stringify(j,null,2);
-    $('#google-msg').textContent = j.ok ? 'Test row appended ✓ Check your sheet (mapped to detected headers if any)' : (j.error||'Test failed — check Doc ID/Sheet + Connect or Run Auto-Detect');
+    $('#google-msg').textContent = j.ok ? 'Test row appended ✓ Check your sheet (mapped to detected headers if any)' : (j.error||'Test failed - check Doc ID/Sheet + Connect or Run Auto-Detect');
     if(j.ok) loadGoogleStatus();
   }catch(e){ if(out) out.textContent='Error: '+e.message; }
   finally{ if(btn){ btn.disabled=false; btn.textContent='Test Append Row →'; } }
@@ -904,7 +904,7 @@ async function detectGoogleSheet(){
   const titleEl=$('#google-detect-title');
   if(btn){ btn.disabled=true; btn.textContent='Detecting...'; }
   if(wrap) wrap.style.display='block';
-  if(info) info.textContent='Detecting Google Sheet — listing sheets & reading header row...';
+  if(info) info.textContent='Detecting Google Sheet - listing sheets & reading header row...';
   if(preview) preview.innerHTML='';
   if(missingWrap) missingWrap.innerHTML='';
   try{
@@ -940,7 +940,7 @@ async function detectGoogleSheet(){
       if(j.isEmpty){
         preview.innerHTML=`<div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:8px;color:#991B1B;font-size:11px">Sheet <b>${j.currentSheet}</b> has <b>no header row</b> (empty). Click <b>Create / Overwrite Headers</b> to create the 22 columns.</div>`;
       } else {
-        let html = `<div style="font-size:11px;color:#94A3B8;margin-bottom:4px">Headers in <b>${j.currentSheet}</b> — row 1 (${j.headers.length} cols):</div><div style="display:flex;gap:4px;flex-wrap:wrap">`;
+        let html = `<div style="font-size:11px;color:#94A3B8;margin-bottom:4px">Headers in <b>${j.currentSheet}</b> - row 1 (${j.headers.length} cols):</div><div style="display:flex;gap:4px;flex-wrap:wrap">`;
         j.headers.forEach((h,idx)=>{
           const isExpected = j.expectedHeaders.map(x=>x.toLowerCase().replace(/\s/g,'')).includes(h.toLowerCase().replace(/\s/g,''));
           const mapped = j.mapping && Object.values(j.mapping).includes(idx);
@@ -963,18 +963,18 @@ async function detectGoogleSheet(){
         html += `</div>`;
         missingWrap.innerHTML = html;
       } else if(j.isEmpty){
-        missingWrap.innerHTML = `<div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:10px;font-size:12px;color:#991B1B">Sheet empty — <b>22 columns</b> will be created: ${j.expectedHeaders.join(', ')}</div>`;
+        missingWrap.innerHTML = `<div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:10px;font-size:12px;color:#991B1B">Sheet empty - <b>22 columns</b> will be created: ${j.expectedHeaders.join(', ')}</div>`;
       } else {
-        missingWrap.innerHTML = `<div style="background:#ECFDF5;border:1px solid #A7F3D0;border-radius:10px;padding:10px;font-size:12px;color:#065F46">✓ All 22 expected columns present — sheet is correctly configured. Test Append will map to these headers.</div>`;
+        missingWrap.innerHTML = `<div style="background:#ECFDF5;border:1px solid #A7F3D0;border-radius:10px;padding:10px;font-size:12px;color:#065F46">✓ All 22 expected columns present - sheet is correctly configured. Test Append will map to these headers.</div>`;
       }
     }
     if(info){
-      if(j.isEmpty) info.innerHTML=`<span style="color:#F87171">Sheet empty — no headers found.</span> <span style="color:#94A3B8">Row count: ${j.rowCount}. Use Create Headers below.</span>`;
-      else if(j.missingColumns.length) info.innerHTML=`<span style="color:#F59E0B">${j.missingColumns.length} columns missing</span> • ${j.headers.length} present • Row count: ${j.rowCount} — see columns to create below`;
+      if(j.isEmpty) info.innerHTML=`<span style="color:#F87171">Sheet empty - no headers found.</span> <span style="color:#94A3B8">Row count: ${j.rowCount}. Use Create Headers below.</span>`;
+      else if(j.missingColumns.length) info.innerHTML=`<span style="color:#F59E0B">${j.missingColumns.length} columns missing</span> • ${j.headers.length} present • Row count: ${j.rowCount} - see columns to create below`;
       else info.innerHTML=`<span style="color:#10B981">✓ All columns matched</span> • ${j.headers.length} headers • ${j.rowCount} rows • Mapping will align lead fields to these positions automatically`;
     }
     if(out){ out.style.display='block'; out.textContent = JSON.stringify(j, null, 2); }
-    $('#google-msg').textContent = j.isEmpty ? 'Detected: sheet empty — create headers' : (j.missingColumns.length ? `Detected: ${j.missingColumns.length} columns to create` : 'Detected: sheet ready ✓');
+    $('#google-msg').textContent = j.isEmpty ? 'Detected: sheet empty - create headers' : (j.missingColumns.length ? `Detected: ${j.missingColumns.length} columns to create` : 'Detected: sheet ready ✓');
   }catch(e){
     if(info) info.innerHTML=`<span style="color:#F87171">Detect failed: ${e.message}</span>`;
     if(out){ out.style.display='block'; out.textContent='Error: '+e.message; }
@@ -1018,7 +1018,7 @@ async function setupHeaders(mode){
     const r=await fetch('/api/admin/google/setup-headers',{method:'POST',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify({docId, sheetName, mode})});
     const j=await r.json();
     if(!r.ok) throw new Error(j.error||'Setup failed');
-    $('#google-msg').textContent = `Headers ${mode==='append-missing' ? 'appended' : 'created'} ✓ Sheet: ${sheetName} — ${j.headers.length} cols`;
+    $('#google-msg').textContent = `Headers ${mode==='append-missing' ? 'appended' : 'created'} ✓ Sheet: ${sheetName} - ${j.headers.length} cols`;
     $('#google-detect-result').style.display='block';
     $('#google-detect-result').textContent = JSON.stringify(j,null,2);
     // auto re-detect
@@ -1033,10 +1033,10 @@ $('#btn-create-headers')?.addEventListener('click', ()=> setupHeaders('overwrite
 $('#btn-append-missing')?.addEventListener('click', ()=> setupHeaders('append-missing'));
 loadGoogleStatus();
 
-// ========== Brand / Logo — backend only, logo in logo-mark, brand name front ==========
+// ========== Brand / Logo - backend only, logo in logo-mark, brand name front ==========
 async function loadBrand(){
   try{
-    // CONTENT already loaded via loadContent — ensure fresh
+    // CONTENT already loaded via loadContent - ensure fresh
     if(!CONTENT || !Object.keys(CONTENT).length) await loadContent();
     const brandName = CONTENT.logo_text || CONTENT.brand_name || 'NEXATECH';
     const logoUrl = CONTENT.logo_url || '';
@@ -1064,7 +1064,7 @@ async function loadBrand(){
       else liveMark.textContent='N';
     }
     if(liveText) liveText.textContent=brandName||'NEXATECH';
-    // live preview order — logo first: (logo) NEXATECH (default)
+    // live preview order - logo first: (logo) NEXATECH (default)
     const liveWrap=$('#brand-live-preview');
     if(liveWrap){
       // logo_first = Mark + Brand (default), brand_first = Brand + Mark (legacy)
@@ -1092,7 +1092,7 @@ async function saveBrand(){
     const r=await fetch('/api/content',{method:'PUT',headers:{'Content-Type':'application/json',...authHeaders()},body:JSON.stringify(payload)});
     const j=await r.json().catch(()=>({}));
     if(!r.ok) throw new Error(j.error||'Save failed');
-    if(msgEl){ msgEl.innerHTML='<span style="color:#10B981">Saved ✓ — (logo) NEXATECH, frontend header updates instantly. <a href="/" target="_blank" style="color:#00D1FF">Preview →</a></span>'; }
+    if(msgEl){ msgEl.innerHTML='<span style="color:#10B981">Saved ✓ - (logo) NEXATECH, frontend header updates instantly. <a href="/" target="_blank" style="color:#00D1FF">Preview →</a></span>'; }
     await loadContent(); await loadBrand();
   }catch(e){ if(msgEl){ msgEl.textContent='Error: '+e.message; msgEl.style.color='#F87171'; } }
   finally{ if(btn){ btn.disabled=false; btn.textContent='Save Brand'; } }
@@ -1144,7 +1144,7 @@ $('#brand-logo-file')?.addEventListener('change', async()=>{
     if(!r.ok) throw new Error(j.error||'Upload failed');
     $('#brand-logo-url').value=j.url;
     $('#brand-logo-url').dispatchEvent(new Event('input'));
-    if(msgEl) msgEl.innerHTML=`<span style="color:#10B981">Uploaded: ${j.url} — click Save Brand</span>`;
+    if(msgEl) msgEl.innerHTML=`<span style="color:#10B981">Uploaded: ${j.url} - click Save Brand</span>`;
     // auto preview
     const lp=$('#brand-logo-preview'); if(lp) lp.innerHTML=`<img src="${j.url}" style="width:100%;height:100%;object-fit:cover;border-radius:10px;display:block">`;
   }catch(e){ if(msgEl) msgEl.textContent='Error: '+e.message; }
@@ -1160,14 +1160,14 @@ $('#brand-favicon-file')?.addEventListener('change', async()=>{
     if(!r.ok) throw new Error(j.error||'Upload failed');
     $('#brand-favicon-url').value=j.url;
     $('#brand-favicon-url').dispatchEvent(new Event('input'));
-    if(msgEl) msgEl.innerHTML=`<span style="color:#10B981">Uploaded: ${j.url} — click Save Brand</span>`;
+    if(msgEl) msgEl.innerHTML=`<span style="color:#10B981">Uploaded: ${j.url} - click Save Brand</span>`;
   }catch(e){ if(msgEl) msgEl.textContent='Error: '+e.message; }
 });
 // Ensure brand loads when content loads
 const _origLoadContent = loadContent;
 loadContent = async function(){ await _origLoadContent(); await loadBrand(); };
 
-// ========== Campaigns & Gmail CRM — HubSpot-like via same Console Creds ==========
+// ========== Campaigns & Gmail CRM - HubSpot-like via same Console Creds ==========
 let CAMPAIGNS=[], TEMPLATES=[], SELECTED_CAMP=null, PERSONAL_LEAD=null;
 async function loadGmailStatus(){
   try{
@@ -1177,8 +1177,8 @@ async function loadGmailStatus(){
     if(el){
       if(j.hasGmailAuth && j.verified) el.textContent=`Gmail: ${j.email} ✓`;
       else if(j.hasGmailAuth) el.textContent=`Gmail: ${j.email||'connected'} (verify...)`;
-      else if(j.needsReauth) el.textContent=`Re-connect needed — Gmail scope missing`;
-      else if(j.hasClient && !j.hasGmailAuth) el.textContent=`Gmail not connected — click Connect`;
+      else if(j.needsReauth) el.textContent=`Re-connect needed - Gmail scope missing`;
+      else if(j.hasClient && !j.hasGmailAuth) el.textContent=`Gmail not connected - click Connect`;
       else el.textContent=`Set Google Client ID/Secret first`;
       el.style.color = j.verified ? '#10B981' : '#94A3B8';
       el.style.borderColor = j.verified ? 'rgba(16,185,129,.3)' : '#E2E8F0';
@@ -1187,9 +1187,9 @@ async function loadGmailStatus(){
     const emailEl=$('#camp-from-email'); if(emailEl && j.email && !emailEl.value) emailEl.placeholder=j.email;
     const msgEl=$('#gmail-msg');
     if(msgEl){
-      if(j.verified) msgEl.innerHTML=`<span style="color:#10B981">✓ Gmail ready via <b>same Client ID</b> (${j.clientMasked}) — send bulk & personal now</span>`;
+      if(j.verified) msgEl.innerHTML=`<span style="color:#10B981">✓ Gmail ready via <b>same Client ID</b> (${j.clientMasked}) - send bulk & personal now</span>`;
       else if(!j.hasClient) msgEl.textContent='Set Client ID/Secret in Integrations → Google Sheets (reused for Campaigns).';
-      else if(!j.hasGmailAuth) msgEl.innerHTML=`<span style="color:#F59E0B">Gmail not yet authorized — click <b>Connect Gmail (same Client ID)</b> to grant gmail.send scope (one-time). Shares same refresh token as Sheets.</span>`;
+      else if(!j.hasGmailAuth) msgEl.innerHTML=`<span style="color:#F59E0B">Gmail not yet authorized - click <b>Connect Gmail (same Client ID)</b> to grant gmail.send scope (one-time). Shares same refresh token as Sheets.</span>`;
       else msgEl.textContent=j.lastError ? 'Gmail check: '+j.lastError : '';
     }
   }catch(e){ const el=$('#gmail-status'); if(el) el.textContent='Gmail status error'; }
@@ -1199,7 +1199,7 @@ $('#btn-gmail-connect')?.addEventListener('click', async()=>{
   const j=await r.json();
   if(!r.ok){ $('#gmail-msg').textContent=j.error||'Connect failed'; return; }
   window.open(j.url,'_blank','width=600,height=700');
-  $('#gmail-msg').textContent='Opened Google consent (Sheets + Gmail) — approve, then refresh Gmail status';
+  $('#gmail-msg').textContent='Opened Google consent (Sheets + Gmail) - approve, then refresh Gmail status';
 });
 $('#btn-gmail-test')?.addEventListener('click', async()=>{
   const btn=$('#btn-gmail-test'); if(btn) btn.disabled=true;
@@ -1207,7 +1207,7 @@ $('#btn-gmail-test')?.addEventListener('click', async()=>{
   try{
     const r=await fetch('/api/admin/gmail/test',{method:'POST', headers:{'Content-Type':'application/json', ...authHeaders()}, body: JSON.stringify({})});
     const j=await r.json();
-    $('#gmail-msg').textContent = r.ok ? `Test sent ✓ to ${j.to} via ${j.from} — check inbox` : (j.error||'Test failed — reconnect Gmail');
+    $('#gmail-msg').textContent = r.ok ? `Test sent ✓ to ${j.to} via ${j.from} - check inbox` : (j.error||'Test failed - reconnect Gmail');
   }catch(e){ $('#gmail-msg').textContent='Error: '+e.message; }
   finally{ if(btn) btn.disabled=false; loadGmailStatus(); }
 });
@@ -1217,7 +1217,7 @@ $('#btn-save-gmail-sender')?.addEventListener('click', async()=>{
   const reply=$('#camp-reply-to')?.value||'';
   const r=await fetch('/api/admin/gmail/sender',{method:'PUT',headers:{'Content-Type':'application/json',...authHeaders()}, body: JSON.stringify({name, email})});
   const j=await r.json();
-  $('#gmail-msg').textContent = r.ok ? 'Sender saved — will be used for campaigns' : (j.error||'Save failed');
+  $('#gmail-msg').textContent = r.ok ? 'Sender saved - will be used for campaigns' : (j.error||'Save failed');
   // also store reply_to in a campaign? just keep for next sends
   if(reply) localStorage.setItem('nexatech_reply_to', reply);
 });
@@ -1230,7 +1230,7 @@ async function loadCampaigns(){
 function renderCampaigns(){
   const wrap=$('#campaigns-list'); if(!wrap) return;
   wrap.innerHTML='';
-  if(!CAMPAIGNS.length){ wrap.innerHTML='<div style="font-size:12px;color:#94A3B8;padding:8px;border:1px dashed #E2E8F0;border-radius:10px">No campaigns yet — click + New Campaign (HubSpot-style).</div>'; return; }
+  if(!CAMPAIGNS.length){ wrap.innerHTML='<div style="font-size:12px;color:#94A3B8;padding:8px;border:1px dashed #E2E8F0;border-radius:10px">No campaigns yet - click + New Campaign (HubSpot-style).</div>'; return; }
   CAMPAIGNS.forEach(c=>{
     const div=document.createElement('div');
     const isSel = SELECTED_CAMP && SELECTED_CAMP.id===c.id;
@@ -1259,7 +1259,7 @@ async function selectCampaign(id){
 }
 function renderSends(list){
   const wrap=$('#camp-sends'); if(!wrap) return;
-  if(!list.length){ wrap.innerHTML='<div style="font-size:11px;color:#94A3B8">No sends yet — preview audience and send bulk.</div>'; return; }
+  if(!list.length){ wrap.innerHTML='<div style="font-size:11px;color:#94A3B8">No sends yet - preview audience and send bulk.</div>'; return; }
   wrap.innerHTML='';
   list.forEach(s=>{
     const div=document.createElement('div');
@@ -1274,7 +1274,7 @@ $('#btn-new-campaign')?.addEventListener('click', async()=>{
   if(!name) return;
   const subject=prompt('Email subject (supports {{name}}, {{storeName}}):','Welcome {{name}}! Your {{storeName}} store');
   if(!subject) return;
-  const r=await fetch('/api/admin/campaigns',{method:'POST',headers:{'Content-Type':'application/json',...authHeaders()}, body: JSON.stringify({name, subject, body_html:'<p>Hi {{name}},</p><p>Welcome to Nexatech — your {{storeName}} ({{preferredNiche}}) application is received. We will contact you on WhatsApp {{whatsapp}} within 24h.</p><p>— Nexatech</p>'})});
+  const r=await fetch('/api/admin/campaigns',{method:'POST',headers:{'Content-Type':'application/json',...authHeaders()}, body: JSON.stringify({name, subject, body_html:'<p>Hi {{name}},</p><p>Welcome to Nexatech - your {{storeName}} ({{preferredNiche}}) application is received. We will contact you on WhatsApp {{whatsapp}} within 24h.</p><p>- Nexatech</p>'})});
   const j=await r.json();
   if(r.ok){ await loadCampaigns(); if(j.id) selectCampaign(j.id); } else alert(j.error||'Create failed');
 });
@@ -1292,7 +1292,7 @@ $('#btn-camp-test')?.addEventListener('click', async()=>{
   try{
     const r=await fetch('/api/admin/campaigns/'+SELECTED_CAMP.id+'/test',{method:'POST',headers:{'Content-Type':'application/json',...authHeaders()}, body: JSON.stringify({})});
     const j=await r.json();
-    alert(r.ok ? `Test sent to ${j.to}` : j.error||'Test failed — check Gmail connection');
+    alert(r.ok ? `Test sent to ${j.to}` : j.error||'Test failed - check Gmail connection');
   }finally{ if(btn) btn.disabled=false; }
 });
 // AI subject-line suggestions (click a suggestion to use it)
@@ -1301,18 +1301,18 @@ $('#btn-camp-ai-subject')?.addEventListener('click', async()=>{
   if(msg) msg.textContent='Asking AI...';
   if(box) box.innerHTML='';
   try{
-    const context = `campaign "${$('#camp-name')?.value||''}" — body preview: ${($('#camp-html')?.value||'').replace(/<[^>]+>/g,' ').slice(0,300)}`;
+    const context = `campaign "${$('#camp-name')?.value||''}" - body preview: ${($('#camp-html')?.value||'').replace(/<[^>]+>/g,' ').slice(0,300)}`;
     const r=await fetch('/api/admin/ai/suggest-subject',{method:'POST',headers:{'Content-Type':'application/json',...authHeaders()}, body: JSON.stringify({ context, count: 3 })});
     const j=await r.json();
     if(!r.ok) throw new Error(j.error||'failed');
-    if(msg) msg.textContent = j.ai ? 'AI suggestions — click to use:' : ('Template suggestions — click to use ('+(j.hint||'set Gemini key for AI')+')');
+    if(msg) msg.textContent = j.ai ? 'AI suggestions - click to use:' : ('Template suggestions - click to use ('+(j.hint||'set Gemini key for AI')+')');
     if(box){
       box.innerHTML='';
       (j.subjects||[]).forEach(s=>{
         const b=document.createElement('button');
         b.type='button'; b.textContent=s;
         b.style.cssText='text-align:left;font-size:12px;border:1px solid #E2E8F0;border-radius:8px;padding:6px 10px;background:#F8FAFC;cursor:pointer';
-        b.addEventListener('click', ()=>{ const inp=$('#camp-subject'); if(inp) inp.value=s; if(msg) msg.textContent='Subject set ✓ — Save Campaign to keep'; });
+        b.addEventListener('click', ()=>{ const inp=$('#camp-subject'); if(inp) inp.value=s; if(msg) msg.textContent='Subject set ✓ - Save Campaign to keep'; });
         box.appendChild(b);
       });
     }
@@ -1340,18 +1340,18 @@ $('#btn-camp-preview-audience')?.addEventListener('click', async()=>{
 });
 $('#btn-camp-send')?.addEventListener('click', async()=>{
   if(!SELECTED_CAMP) return;
-  if(!confirm(`Send campaign "${SELECTED_CAMP.name}" now? This will send via Gmail (same Client ID) — bulk with personalization like HubSpot.`)) return;
+  if(!confirm(`Send campaign "${SELECTED_CAMP.name}" now? This will send via Gmail (same Client ID) - bulk with personalization like HubSpot.`)) return;
   const stage=$('#camp-filter-stage').value;
   const search=$('#camp-filter-search').value;
   const scammed=$('#camp-filter-scam').checked?'yes':'';
   const limit=$('#camp-limit').value||'100';
   const dryRun=$('#camp-dryrun').checked;
   const btn=$('#btn-camp-send'); if(btn) btn.disabled=true;
-  $('#camp-send-result').innerHTML='Sending — please wait (throttled 400ms each)...';
+  $('#camp-send-result').innerHTML='Sending - please wait (throttled 400ms each)...';
   try{
     const r=await fetch('/api/admin/campaigns/'+SELECTED_CAMP.id+'/send',{method:'POST',headers:{'Content-Type':'application/json',...authHeaders()}, body: JSON.stringify({ stage, search, scammed, limit: parseInt(limit,10), dryRun })});
     const j=await r.json();
-    if(!r.ok) $('#camp-send-result').innerHTML=`<span style="color:#F87171">${j.error||'Send failed — check Gmail connected (same Client ID) and Sheets+Gmail scopes'}</span>`;
+    if(!r.ok) $('#camp-send-result').innerHTML=`<span style="color:#F87171">${j.error||'Send failed - check Gmail connected (same Client ID) and Sheets+Gmail scopes'}</span>`;
     else {
       if(j.dryRun) $('#camp-send-result').innerHTML=`Dry run: ${j.wouldSend} would be sent`;
       else {
@@ -1369,7 +1369,7 @@ async function loadTemplates(){
   TEMPLATES=await r.json();
   const wrap=$('#templates-list'); if(!wrap) return;
   wrap.innerHTML='';
-  if(!TEMPLATES.length){ wrap.innerHTML='<div style="font-size:11px;color:#94A3B8">No templates — create one.</div>'; return; }
+  if(!TEMPLATES.length){ wrap.innerHTML='<div style="font-size:11px;color:#94A3B8">No templates - create one.</div>'; return; }
   TEMPLATES.forEach(t=>{
     const div=document.createElement('div');
     div.style.cssText='border:1px solid #E2E8F0;border-radius:8px;padding:8px;display:flex;gap:8px;align-items:center;justify-content:space-between;background:#F8FAFC';
@@ -1378,7 +1378,7 @@ async function loadTemplates(){
   });
   wrap.querySelectorAll('[data-tpl-use]').forEach(b=> b.addEventListener('click', ()=>{
     const t=TEMPLATES.find(x=> String(x.id)===b.dataset.tplUse);
-    if(t && SELECTED_CAMP){ $('#camp-subject').value=t.subject; $('#camp-html').value=t.body_html; $('#camp-text').value=t.body_text||''; $('#gmail-msg').textContent='Template loaded into campaign — Save Campaign to keep'; }
+    if(t && SELECTED_CAMP){ $('#camp-subject').value=t.subject; $('#camp-html').value=t.body_html; $('#camp-text').value=t.body_text||''; $('#gmail-msg').textContent='Template loaded into campaign - Save Campaign to keep'; }
     else alert('Select a campaign first, then Use template');
   }));
   wrap.querySelectorAll('[data-tpl-edit]').forEach(b=> b.addEventListener('click', ()=> openTemplateDialog(b.dataset.tplEdit)));
@@ -1389,8 +1389,8 @@ async function loadTemplates(){
   }));
   // also fill personal email template select
   const sel=$('#personal-tpl'); if(sel){
-    sel.innerHTML='<option value="">— No template —</option>';
-    TEMPLATES.forEach(t=>{ const o=document.createElement('option'); o.value=t.id; o.textContent=t.name+' — '+t.subject.slice(0,40); sel.appendChild(o); });
+    sel.innerHTML='<option value="">- No template -</option>';
+    TEMPLATES.forEach(t=>{ const o=document.createElement('option'); o.value=t.id; o.textContent=t.name+' - '+t.subject.slice(0,40); sel.appendChild(o); });
   }
 }
 let editingTplId=null;
@@ -1470,13 +1470,13 @@ $('#btn-clear-outbox')?.addEventListener('click', async()=>{
   alert(r.ok ? ('Outbox cleared ('+j.cleared+' records deleted)') : ('Failed: '+(j.error||'error')));
   loadOutbox();
 });
-// Personal email from Leads CRM — HubSpot 1:1
+// Personal email from Leads CRM - HubSpot 1:1
 function openPersonalEmail(lead){
   PERSONAL_LEAD=lead;
   $('#personal-email-to').textContent=`to ${lead.name} <${lead.email}>`;
   $('#personal-subject').value=`Hi ${lead.name}, about your ${lead.storeName||'store'}`;
-  $('#personal-html').value=`<p>Hi ${lead.name},</p><p>Thanks for your interest in <b>${lead.storeName||'your store'}</b> (${lead.preferredNiche||''}). Saw you’re on <b>${lead.pipeline_stage||'new'}</b> stage — happy to help personally.</p><p>— Nexatech</p>`;
-  $('#personal-text').value=`Hi ${lead.name},\n\nThanks for your interest in ${lead.storeName||'your store'}.\n\n— Nexatech`;
+  $('#personal-html').value=`<p>Hi ${lead.name},</p><p>Thanks for your interest in <b>${lead.storeName||'your store'}</b> (${lead.preferredNiche||''}). Saw you’re on <b>${lead.pipeline_stage||'new'}</b> stage - happy to help personally.</p><p>- Nexatech</p>`;
+  $('#personal-text').value=`Hi ${lead.name},\n\nThanks for your interest in ${lead.storeName||'your store'}.\n\n- Nexatech`;
   if(TEMPLATES.length===0) loadTemplates();
   document.getElementById('personal-email-dialog').showModal();
 }
@@ -1489,12 +1489,12 @@ $('#personal-send')?.addEventListener('click', async e=>{
   const r=await fetch(`/api/admin/leads/${PERSONAL_LEAD.id}/email`,{method:'POST',headers:{'Content-Type':'application/json',...authHeaders()}, body: JSON.stringify(payload)});
   const j=await r.json();
   if(r.ok){ alert('Sent via Gmail ✓ to '+j.to); document.getElementById('personal-email-dialog').close(); loadOutbox(); }
-  else alert(j.error||'Send failed — check Gmail connected (same Client ID)');
+  else alert(j.error||'Send failed - check Gmail connected (same Client ID)');
 });
 // Expose for leads rendering
 window.openPersonalEmail = openPersonalEmail;
 loadGoogleStatus();
-$('#btn-publish').addEventListener('click', ()=>{ alert('Changes are live instantly — no draft queue. (This button confirms publish.)'); window.open('/','_blank'); });
+$('#btn-publish').addEventListener('click', ()=>{ alert('Changes are live instantly - no draft queue. (This button confirms publish.)'); window.open('/','_blank'); });
 $('#btn-revert').addEventListener('click', async()=>{
   const dlg=document.getElementById('revisions-dialog');
   const list=$('#revisions-list');
@@ -1524,7 +1524,7 @@ $('#btn-revert').addEventListener('click', async()=>{
             const rr=await fetch('/api/admin/content-revisions/'+rev.id+'/restore',{method:'POST',headers:authHeaders()});
             const jj=await rr.json().catch(()=>({}));
             if(!rr.ok) throw new Error(jj.error||'Restore failed');
-            alert('Restored ✓ ('+jj.keys+' keys) — preview updates instantly.');
+            alert('Restored ✓ ('+jj.keys+' keys) - preview updates instantly.');
             if(dlg) dlg.close();
             await loadContent();
           }catch(err){ alert('Restore failed: '+err.message); btn.disabled=false; btn.textContent='Restore'; }
@@ -1543,7 +1543,7 @@ function updateMediaHint(){
   if(!hint||!txt) return;
   if(currentMediaTab==='reviews'){
     hint.style.display='block';
-    txt.innerHTML='For <b>Review Screenshots</b> upload landscape images at <b>2550 × 1650 px</b> (aspect 1.545). <b>Videos must be portrait 9:16</b> (e.g. 1080 × 1920 phone video) — they display tall on the wall and play full-frame in the popup. Videos autoplay muted on hover. File limit <b>150MB</b> each — or paste a YouTube/Vimeo/Drive link in the URL field.';
+    txt.innerHTML='For <b>Review Screenshots</b> upload landscape images at <b>2550 × 1650 px</b> (aspect 1.545). <b>Videos must be portrait 9:16</b> (e.g. 1080 × 1920 phone video) - they display tall on the wall and play full-frame in the popup. Videos autoplay muted on hover. File limit <b>150MB</b> each - or paste a YouTube/Vimeo/Drive link in the URL field.';
   } else if(currentMediaTab==='testimonials'){
     hint.style.display='block';
     txt.textContent='Testimonials: use short quotes with small avatar. Videos (file up to 150MB, or YouTube/Vimeo link) show with a play badge. For large review screenshots use Review Screenshots tab.';
@@ -1555,7 +1555,7 @@ function updateMediaHint(){
     txt.textContent='Sales proof: images or videos (file up to 150MB, or YouTube/Vimeo link). Videos play with controls on the homepage.';
   } else if(currentMediaTab==='hero'){
     hint.style.display='block';
-    txt.innerHTML='For the <b>homepage hero mockup</b> upload a wide image (16:10 works best). Uploading sets it live instantly — or hover any image below and click <b>Set as Hero</b> to switch.';
+    txt.innerHTML='For the <b>homepage hero mockup</b> upload a wide image (16:10 works best). Uploading sets it live instantly - or hover any image below and click <b>Set as Hero</b> to switch.';
   } else if(currentMediaTab==='certificates'){
     hint.style.display='block';
     txt.innerHTML='For <b>Certificates & Awards</b> upload image files (PNG/JPG/PDF preview as image). Recommended <b>4:3</b> or square, max 5MB. These appear in the homepage Certificates section.';
@@ -1659,7 +1659,7 @@ function renderMediaGallery(){
       const j=await r.json().catch(()=>({}));
       if(!r.ok) throw new Error(j.error||'Failed');
       CONTENT.hero_image_url=j.hero_image_url||CONTENT.hero_image_url;
-      alert('Hero image updated — homepage shows it instantly');
+      alert('Hero image updated - homepage shows it instantly');
     }catch(e){ alert('Failed: '+e.message); }
     loadMedia();
   }));
@@ -1674,7 +1674,7 @@ function renderMediaGallery(){
       await loadMedia();
     }catch(e){
       b.textContent=orig; b.disabled=false;
-      alert('Publish failed: '+e.message+(/401|unauthorized|invalid token/i.test(e.message)?' — log out and log back in, then retry':''));
+      alert('Publish failed: '+e.message+(/401|unauthorized|invalid token/i.test(e.message)?' - log out and log back in, then retry':''));
     }
   }));
   g.querySelectorAll('[data-del]').forEach(b=> b.addEventListener('click', async()=>{
@@ -1707,7 +1707,7 @@ document.querySelectorAll('[data-mbulk]').forEach(b => b.addEventListener('click
   b.disabled = false;
   loadMedia();
 }));
-// preview on file select (first file + count) — handles video + shows MB
+// preview on file select (first file + count) - handles video + shows MB
 $('input[name="file"]').addEventListener('change', e=>{
   const files=[...(e.target.files||[])];
   if(!files.length) return;
@@ -1734,7 +1734,7 @@ $('input[name="file"]').addEventListener('change', e=>{
       $('#media-preview-img').src=URL.createObjectURL(f);
     }
   }catch{ prevImg.src=URL.createObjectURL(f); }
-  const over=f.size>150*1024*1024?' — OVER 150MB LIMIT (will be rejected, compress or use URL)':'';
+  const over=f.size>150*1024*1024?' - OVER 150MB LIMIT (will be rejected, compress or use URL)':'';
   $('#media-preview-meta').textContent = files.length>1
     ? `${files.length} files selected (first: ${f.name} • ${fmtSize(f.size)}${over})`
     : `${f.name} • ${fmtSize(f.size)} • ${f.type}${over}`;
@@ -1767,7 +1767,7 @@ $('input[name="url"]').addEventListener('input', e=>{
   }
 });
 
-// upload with progress (XHR) — supports many files at once (one request per file)
+// upload with progress (XHR) - supports many files at once (one request per file)
 $('#media-form').addEventListener('submit', async e=>{
   e.preventDefault();
   const fd=new FormData(e.target);
@@ -1789,8 +1789,8 @@ $('#media-form').addEventListener('submit', async e=>{
       else {
         let msg='Upload failed (HTTP '+xhr.status+')';
         try{ const j=JSON.parse(xhr.responseText||'{}'); if(j.error) msg=j.error; }catch{ if(xhr.responseText) msg=xhr.responseText.slice(0,200); }
-        if(xhr.status===413) msg='File too large — limit is 150MB. Compress the video or paste a video URL instead.';
-        if(xhr.status===401) msg='Session expired — log out and log back in, then retry.';
+        if(xhr.status===413) msg='File too large - limit is 150MB. Compress the video or paste a video URL instead.';
+        if(xhr.status===401) msg='Session expired - log out and log back in, then retry.';
         reject(new Error(msg));
       }
     };
@@ -1803,7 +1803,7 @@ $('#media-form').addEventListener('submit', async e=>{
       let fileIdx=0;
       for(const file of files){
         fileIdx++;
-        if(file.size>150*1024*1024){ failed++; lastErr=`${file.name}: over 150MB limit — compress or use URL`; console.error(lastErr); continue; }
+        if(file.size>150*1024*1024){ failed++; lastErr=`${file.name}: over 150MB limit - compress or use URL`; console.error(lastErr); continue; }
         const singleMeta = {
           type: fd.get('type'),
           category: fd.get('category')||'',
@@ -1817,10 +1817,10 @@ $('#media-form').addEventListener('submit', async e=>{
           if(file.size > CHUNK_THRESHOLD){
             // Big file: 4MB pieces with retry (proxies kill single giant requests)
             await chunkedUploadMedia(file, singleMeta, (frac,a,b,phase)=>{
-              if(phase==='assembling'){ $('#upload-text').textContent=`File ${fileIdx}/${files.length} (${fmtSize(file.size)}): assembling video on server — keep this tab open…`; return; }
+              if(phase==='assembling'){ $('#upload-text').textContent=`File ${fileIdx}/${files.length} (${fmtSize(file.size)}): assembling video on server - keep this tab open…`; return; }
               const overall = Math.round(((fileIdx-1)+frac)/files.length*100);
               $('#upload-bar').style.width=overall+'%';
-              $('#upload-text').textContent=`File ${fileIdx}/${files.length} (${fmtSize(file.size)}) piece ${a}/${b} — ${overall}%`;
+              $('#upload-text').textContent=`File ${fileIdx}/${files.length} (${fmtSize(file.size)}) piece ${a}/${b} - ${overall}%`;
             });
           } else {
             const oneFd=new FormData();
@@ -1832,8 +1832,8 @@ $('#media-form').addEventListener('submit', async e=>{
         }catch(err){ failed++; lastErr=file.name+': '+err.message; console.error('bulk upload item failed', file.name, err.message); }
         $('#upload-bar').style.width=Math.round((done+failed)/files.length*100)+'%';
       }
-      $('#upload-text').textContent = failed ? `Done: ${done} uploaded, ${failed} failed — ${lastErr}` : `Done: ${done} uploaded`;
-      if(!done) throw new Error('All uploads failed — '+lastErr);
+      $('#upload-text').textContent = failed ? `Done: ${done} uploaded, ${failed} failed - ${lastErr}` : `Done: ${done} uploaded`;
+      if(!done) throw new Error('All uploads failed - '+lastErr);
     } else {
       // URL-only
       const payload={
@@ -1895,11 +1895,11 @@ $('#edit-media-save').addEventListener('click', async e=>{
   try{
     const file=$('#em-file').files[0];
     if(file){
-      if(file.size>150*1024*1024){ alert('File too large — limit is 150MB. Compress or use a URL.'); if(btn){ btn.disabled=false; btn.textContent='Save'; } return; }
+      if(file.size>150*1024*1024){ alert('File too large - limit is 150MB. Compress or use a URL.'); if(btn){ btn.disabled=false; btn.textContent='Save'; } return; }
       if(file.size > CHUNK_THRESHOLD){
         // Big replacement: pieces first (file-only, no new gallery row), then save URL
         if(btn) btn.textContent='Uploading pieces...';
-        const up = await chunkedUploadMedia(file, {mode:'file-only'}, (frac,a,b,phase)=>{ if(btn) btn.textContent = phase==='assembling' ? 'Assembling on server — keep open…' : `Uploading piece ${a}/${b}...`; });
+        const up = await chunkedUploadMedia(file, {mode:'file-only'}, (frac,a,b,phase)=>{ if(btn) btn.textContent = phase==='assembling' ? 'Assembling on server - keep open…' : `Uploading piece ${a}/${b}...`; });
         fd.set('url', up.url);
         if(btn) btn.textContent='Saving...';
       } else {
@@ -1909,7 +1909,7 @@ $('#edit-media-save').addEventListener('click', async e=>{
     const r=await fetch('/api/media/'+editingMediaId, {method:'PATCH', headers: authHeaders(), body: fd});
     const j=await r.json().catch(()=>({}));
     if(r.ok){ document.getElementById('edit-media-dialog').close(); loadMedia(); }
-    else alert('Save failed: '+(j.error||('HTTP '+r.status))+(r.status===401?' — log out and log back in':'')); 
+    else alert('Save failed: '+(j.error||('HTTP '+r.status))+(r.status===401?' - log out and log back in':'')); 
   }catch(err){ alert('Save failed: '+err.message); }
   finally{ if(btn){ btn.disabled=false; btn.textContent='Save'; } }
 });
@@ -1920,7 +1920,7 @@ async function loadTeam(){
   try{
     list.innerHTML='<div style="font-size:12px;color:#94A3B8">Loading experts...</div>';
     const r=await fetch('/api/team', {headers: authHeaders()});
-    if(!r.ok) throw new Error('Server returned '+r.status+' — try logging out and back in');
+    if(!r.ok) throw new Error('Server returned '+r.status+' - try logging out and back in');
     TEAM=await r.json();
   }catch(e){
     list.innerHTML='<div style="font-size:12px;color:#F87171;border:1px solid #FECACA;border-radius:10px;padding:10px">Could not load experts: '+e.message+'</div>';
@@ -1928,7 +1928,7 @@ async function loadTeam(){
   }
   list.innerHTML='';
   if(!TEAM.length){
-    list.innerHTML='<div style="font-size:12px;color:#94A3B8;border:1px dashed #E2E8F0;border-radius:10px;padding:14px;text-align:center">No experts yet — add your first expert with the form above. They appear instantly in the homepage Experts section.</div>';
+    list.innerHTML='<div style="font-size:12px;color:#94A3B8;border:1px dashed #E2E8F0;border-radius:10px;padding:14px;text-align:center">No experts yet - add your first expert with the form above. They appear instantly in the homepage Experts section.</div>';
     return;
   }
   TEAM.forEach(m=>{
@@ -2228,7 +2228,7 @@ $('#lead-stage-filter').addEventListener('change', loadLeads);
 $('#lead-scam-filter').addEventListener('change', loadLeads);
 function debounce(fn,ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a),ms); }; }
 
-// ========== Chatbot — how many used it + full conversations (clean UI) ==========
+// ========== Chatbot - how many used it + full conversations (clean UI) ==========
 let CHATS=[], SELECTED_CHAT=null;
 function escChat(s){ const d=document.createElement('div'); d.textContent=String(s||''); return d.innerHTML; }
 function fmtChatTime(s){ try{ const d=new Date(String(s).replace(' ','T')); return isNaN(d)? String(s).slice(0,16) : d.toLocaleString(); }catch{ return String(s||'').slice(0,16); } }
@@ -2245,8 +2245,8 @@ async function loadChats(){
       const spEl=$('#chat-kpi-split'); if(spEl) spEl.textContent=(s.userMessages ?? 0)+' / '+(s.botMessages ?? 0);
       const note=$('#chat-summary-note');
       if(note){
-        if((s.totalSessions||0)===0 && (s.legacySessions||0)>0) note.textContent=`${s.legacyMessages} chatbot clicks tracked via events before detailed logging — new conversations will appear here with full text.`;
-        else if((s.totalSessions||0)===0) note.textContent='No chatbot conversations yet — they appear here automatically when visitors chat.';
+        if((s.totalSessions||0)===0 && (s.legacySessions||0)>0) note.textContent=`${s.legacyMessages} chatbot clicks tracked via events before detailed logging - new conversations will appear here with full text.`;
+        else if((s.totalSessions||0)===0) note.textContent='No chatbot conversations yet - they appear here automatically when visitors chat.';
         else note.textContent=`${s.totalSessions} people chatted • ${s.totalMessages} messages total • ${s.todaySessions} chatted today`;
       }
       const cnt=$('#chat-count'); if(cnt) cnt.textContent=`(${(s.totalSessions||0)} people)`;
@@ -2403,7 +2403,7 @@ function drawChart(id, labels, values, label){
     ctx.fillText(String(v), x, y-6);
   });
 }
-// ========== Auto AI Follow-ups — CRM panel (instant + daily, same Gmail, HTML + WhatsApp + opt-out) ==========
+// ========== Auto AI Follow-ups - CRM panel (instant + daily, same Gmail, HTML + WhatsApp + opt-out) ==========
 async function loadFollowupStatus(){
   try{
     const r = await fetch('/api/admin/followups/status', { headers: authHeaders() });
@@ -2425,7 +2425,7 @@ async function loadFollowupStatus(){
       pill.style.borderColor = on ? '#A7F3D0' : '#FDE68A';
     }
     const uc=$('#unsub-count'); if(uc) uc.textContent = j.counts?.unsubscribed ?? 0;
-    if(!j.gmail?.email) { const m=$('#followup-msg'); if(m) m.innerHTML = '<span style="color:#F59E0B">Gmail not connected — follow-ups will fail until you Connect Gmail (same Client ID) in Integrations or Campaigns.</span>'; }
+    if(!j.gmail?.email) { const m=$('#followup-msg'); if(m) m.innerHTML = '<span style="color:#F59E0B">Gmail not connected - follow-ups will fail until you Connect Gmail (same Client ID) in Integrations or Campaigns.</span>'; }
   }catch(e){ const p=$('#followup-status-pill'); if(p) p.textContent='Error: '+e.message; }
 }
 async function loadFollowupLogs(){
@@ -2440,7 +2440,7 @@ async function loadFollowupLogs(){
     const cnt=$('#followup-count');
     if(cnt) cnt.textContent = `${j.logs?.length||0} shown • ${j.total||0} total`;
     if(wrap){
-      if(!j.logs?.length){ wrap.innerHTML='<div style="font-size:12px;color:#94A3B8;border:1px dashed #E2E8F0;border-radius:10px;padding:12px;text-align:center">No follow-ups sent yet — submit a test lead or chat, then Refresh. Instant sends appear here + in Outbox.</div>'; }
+      if(!j.logs?.length){ wrap.innerHTML='<div style="font-size:12px;color:#94A3B8;border:1px dashed #E2E8F0;border-radius:10px;padding:12px;text-align:center">No follow-ups sent yet - submit a test lead or chat, then Refresh. Instant sends appear here + in Outbox.</div>'; }
       else wrap.innerHTML = j.logs.map(l=> `<div style="border:1px solid #E2E8F0;border-radius:10px;padding:8px 10px;background:#fff;display:flex;gap:8px;justify-content:space-between;align-items:start;flex-wrap:wrap"><div style="flex:1;min-width:200px"><div style="font-size:12px;font-weight:700">${(l.subject||'(no subject)').slice(0,90)}</div><div style="font-size:11px;color:#64748B">to <b>${l.email}</b> • <span style="background:#F1F5F9;border-radius:999px;padding:1px 6px">${l.kind}${l.day_number?` d${l.day_number}`:''}</span> • <span style="color:${l.status==='sent'?'#10B981':(l.status==='skipped'?'#F59E0B':'#F87171')}">${l.status}</span> • ${l.sent_at||''}${l.message_id?` • <small>${String(l.message_id).slice(0,16)}</small>`:''}${l.error?` • <small style="color:#F87171">${String(l.error).slice(0,80)}</small>`:''}</div></div><button data-delfu="${l.id}" title="Delete from backend + database" style="font-size:10px;border:1px solid #FECACA;color:#F87171;border-radius:999px;padding:3px 8px;background:#fff;cursor:pointer;flex-shrink:0">Delete</button></div>`).join('');
       wrap.querySelectorAll('[data-delfu]').forEach(b=> b.addEventListener('click', async()=>{
         if(!confirm('Delete this follow-up record from the backend and database (also removes its outbox copy)?')) return;
@@ -2484,7 +2484,7 @@ $('#btn-unsub-add')?.addEventListener('click', async () => {
     const j = await r.json().catch(() => ({}));
     if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
     if(input) input.value = '';
-    alert(email + ' opted out ✓ — campaigns, follow-ups and 1:1 emails will skip it.');
+    alert(email + ' opted out ✓ - campaigns, follow-ups and 1:1 emails will skip it.');
   }catch(e){ alert('Opt-out failed: ' + e.message); }
   loadUnsubs(); loadFollowupStatus();
 });
@@ -2511,7 +2511,7 @@ $('#btn-save-followup')?.addEventListener('click', async()=>{
     const r = await fetch('/api/admin/followups/settings', { method:'PUT', headers:{'Content-Type':'application/json', ...authHeaders()}, body: JSON.stringify(body) });
     const j = await r.json();
     if(!r.ok) throw new Error(j.error||'Save failed');
-    if(msg){ msg.innerHTML='<span style="color:#10B981">Saved ✓ — instant + daily follow-ups updated.</span>'; }
+    if(msg){ msg.innerHTML='<span style="color:#10B981">Saved ✓ - instant + daily follow-ups updated.</span>'; }
     loadFollowupStatus();
   }catch(e){ if(msg) msg.textContent='Error: '+e.message; }
 });
@@ -2522,7 +2522,7 @@ $('#btn-test-followup')?.addEventListener('click', async()=>{
     const r = await fetch('/api/admin/followups/test', { method:'POST', headers: authHeaders() });
     const j = await r.json();
     if(!r.ok) throw new Error(j.error||'Send failed');
-    if(msg) msg.innerHTML=`<span style="color:#10B981">Test sent ✓ to ${j.to} — subject: ${j.subject} ${j.ai?'(AI-generated)':'(template fallback — check Gemini key)'}. Check inbox + Logs below + Outbox.</span>`;
+    if(msg) msg.innerHTML=`<span style="color:#10B981">Test sent ✓ to ${j.to} - subject: ${j.subject} ${j.ai?'(AI-generated)':'(template fallback - check Gemini key)'}. Check inbox + Logs below + Outbox.</span>`;
     loadFollowupLogs(); loadFollowupStatus();
   }catch(e){ if(msg) msg.textContent='Error: '+e.message; }
 });
@@ -2568,11 +2568,11 @@ $('#btn-reset-defaults')?.addEventListener('click', async()=>{
   if(!confirm('Reset live site to DEFAULT content? This will overwrite hero, portfolio, pricing, etc. with the seeded defaults from code. Leads will be preserved. Continue?')) return;
   const r=await fetch('/api/admin/reset-defaults',{method:'POST',headers:authHeaders()});
   const j=await r.json().catch(()=>({}));
-  if(r.ok){ alert('Defaults reseeded — refresh the public site to see changes'); await loadContent(); await loadMedia(); await loadTeam(); await loadSections(); await loadOverview(); }
+  if(r.ok){ alert('Defaults reseeded - refresh the public site to see changes'); await loadContent(); await loadMedia(); await loadTeam(); await loadSections(); await loadOverview(); }
   else alert('Reset failed: '+(j.error||r.statusText));
 });
 
-// ========== Backup & Restore — prove server-side saves in ANY browser ==========
+// ========== Backup & Restore - prove server-side saves in ANY browser ==========
 async function loadBackupStatus(){
   try{
     const r = await fetch('/api/admin/backup/status', { headers: authHeaders() });
@@ -2599,7 +2599,7 @@ async function loadBackupStatus(){
       }
       wrap.innerHTML = html;
     }
-    // download link needs auth header — fetch as blob instead of plain href
+    // download link needs auth header - fetch as blob instead of plain href
     const dl = $('#btn-backup-download');
     if(dl && !dl.dataset.wired){
       dl.dataset.wired = '1';
@@ -2615,7 +2615,7 @@ async function loadBackupStatus(){
           a.download = 'nexatech-backup-' + new Date().toISOString().slice(0,10) + '.json';
           a.click();
           setTimeout(()=> URL.revokeObjectURL(a.href), 5000);
-          if(msg) msg.innerHTML = '<span style="color:#10B981">Downloaded ✓ — keep this file to restore later from any browser.</span>';
+          if(msg) msg.innerHTML = '<span style="color:#10B981">Downloaded ✓ - keep this file to restore later from any browser.</span>';
         }catch(err){ if(msg) msg.textContent = 'Error: ' + err.message; }
       });
     }
@@ -2628,14 +2628,14 @@ async function loadBackupFiles(){
     const j = await r.json();
     const wrap = $('#backup-files');
     if(!wrap) return;
-    if(!j.files?.length){ wrap.innerHTML = '<small style="color:#94A3B8">No snapshots yet — click Save Snapshot Now. Nightly auto-snapshot at 03:30.</small>'; return; }
+    if(!j.files?.length){ wrap.innerHTML = '<small style="color:#94A3B8">No snapshots yet - click Save Snapshot Now. Nightly auto-snapshot at 03:30.</small>'; return; }
     wrap.innerHTML = j.files.map(f=> `<div style="display:flex;gap:8px;align-items:center;font-size:11px;border:1px solid #E2E8F0;border-radius:8px;padding:6px 8px;background:#F8FAFC"><span style="flex:1"><b>${f.file}</b> <small style="color:#94A3B8">${(f.size/1024).toFixed(1)}kb • ${f.modified||''}</small></span><button data-restore="${f.file}" style="font-size:10px;border:1px solid #10B981;color:#10B981;border-radius:999px;padding:3px 8px;background:#fff;cursor:pointer">Restore</button><button data-delbackup="${f.file}" style="font-size:10px;border:none;background:transparent;color:#F87171;cursor:pointer">Delete</button></div>`).join('');
     wrap.querySelectorAll('[data-restore]').forEach(b=> b.addEventListener('click', async()=>{
       if(!confirm('Restore snapshot '+b.dataset.restore+'? Current content is auto-backed-up first (reversible).')) return;
       const msg=$('#backup-msg'); if(msg) msg.textContent='Restoring...';
       const rr = await fetch('/api/admin/backup/files/'+encodeURIComponent(b.dataset.restore)+'/restore', { method:'POST', headers: authHeaders() });
       const jj = await rr.json().catch(()=>({}));
-      if(msg) msg.innerHTML = rr.ok ? '<span style="color:#10B981">Restored ✓ — refresh the site to see it.</span>' : ('Error: '+(jj.error||'failed'));
+      if(msg) msg.innerHTML = rr.ok ? '<span style="color:#10B981">Restored ✓ - refresh the site to see it.</span>' : ('Error: '+(jj.error||'failed'));
       if(rr.ok){ await loadContent(); loadBackupStatus(); }
     }));
     wrap.querySelectorAll('[data-delbackup]').forEach(b=> b.addEventListener('click', async()=>{
@@ -2651,7 +2651,7 @@ $('#btn-backup-snapshot')?.addEventListener('click', async()=>{
     const r = await fetch('/api/admin/backup/files', { method:'POST', headers:{'Content-Type':'application/json', ...authHeaders()}, body: JSON.stringify({}) });
     const j = await r.json();
     if(!r.ok) throw new Error(j.error||'failed');
-    if(msg) msg.innerHTML = `<span style="color:#10B981">Snapshot saved ✓ ${j.file} — visible in every browser.</span>`;
+    if(msg) msg.innerHTML = `<span style="color:#10B981">Snapshot saved ✓ ${j.file} - visible in every browser.</span>`;
     loadBackupFiles(); loadBackupStatus();
   }catch(e){ if(msg) msg.textContent='Error: '+e.message; }
 });
@@ -2666,7 +2666,7 @@ $('#backup-restore-file')?.addEventListener('change', async (e)=>{
     const r = await fetch('/api/admin/backup/import', { method:'POST', headers:{'Content-Type':'application/json', ...authHeaders()}, body: JSON.stringify(dump) });
     const j = await r.json().catch(()=>({}));
     if(!r.ok) throw new Error(j.error||'restore failed');
-    if(msg) msg.innerHTML='<span style="color:#10B981">Restored ✓ — refresh the site to see it.</span>';
+    if(msg) msg.innerHTML='<span style="color:#10B981">Restored ✓ - refresh the site to see it.</span>';
     await loadContent(); loadBackupStatus();
   }catch(err){ if(msg) msg.textContent='Error: '+err.message; }
   e.target.value='';
@@ -2738,7 +2738,7 @@ $('#btn-save-notify')?.addEventListener('click', async ()=>{
     const r = await fetch('/api/content', { method: 'PUT', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(payload) });
     const j = await r.json().catch(() => ({}));
     if(!r.ok) throw new Error(j.error || 'Save failed');
-    if(msg){ msg.textContent = 'Saved ✓ — alerts will now go to ' + (payload.owner_notify_email || 'your email') + '.'; msg.style.color = '#10B981'; }
+    if(msg){ msg.textContent = 'Saved ✓ - alerts will now go to ' + (payload.owner_notify_email || 'your email') + '.'; msg.style.color = '#10B981'; }
     if($('#int-callmebot-key')) $('#int-callmebot-key').value = '';
     await loadContent(); fillNotifyForm();
   }catch(e){ if(msg){ msg.textContent = 'Error: ' + e.message; msg.style.color = '#F87171'; } }
@@ -2754,10 +2754,10 @@ $('#btn-test-notify')?.addEventListener('click', async ()=>{
     if(!r.ok) throw new Error(j.error || 'Test failed');
     if(msg){
       const problems = [];
-      if(!j.gmail_connected) problems.push('EMAIL will NOT send — Google is not connected. Add nexatechdropshipping@gmail.com as a test user in Google Cloud → OAuth consent screen → Audience, then click Connect Google Sheets in Integrations.');
-      if(!j.callmebot_set) problems.push('WHATSAPP will NOT send — paste your CallMeBot apikey and Save first.');
+      if(!j.gmail_connected) problems.push('EMAIL will NOT send - Google is not connected. Add nexatechdropshipping@gmail.com as a test user in Google Cloud → OAuth consent screen → Audience, then click Connect Google Sheets in Integrations.');
+      if(!j.callmebot_set) problems.push('WHATSAPP will NOT send - paste your CallMeBot apikey and Save first.');
       if(problems.length){ msg.textContent = 'Test fired, but: ' + problems.join(' '); msg.style.color = '#F59E0B'; }
-      else { msg.textContent = 'Test alert sent ✓ — check ' + (j.owner_email || 'your email') + ' and WhatsApp (' + (j.owner_whatsapp || '') + ').'; msg.style.color = '#10B981'; }
+      else { msg.textContent = 'Test alert sent ✓ - check ' + (j.owner_email || 'your email') + ' and WhatsApp (' + (j.owner_whatsapp || '') + ').'; msg.style.color = '#10B981'; }
     }
   }catch(e){ if(msg){ msg.textContent = 'Error: ' + e.message; msg.style.color = '#F87171'; } }
   finally{ if(btn){ btn.disabled = false; btn.textContent = 'Send Test Alert →'; } }
@@ -2778,7 +2778,7 @@ $('#btn-save-payments')?.addEventListener('click', async ()=>{
     const r = await fetch('/api/content', { method: 'PUT', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(payload) });
     const j = await r.json().catch(() => ({}));
     if(!r.ok) throw new Error(j.error || 'Save failed');
-    if(msg){ msg.textContent = 'Saved ✓ — checkout now charges inline via Flutterwave (USD).'; msg.style.color = '#10B981'; }
+    if(msg){ msg.textContent = 'Saved ✓ - checkout now charges inline via Flutterwave (USD).'; msg.style.color = '#10B981'; }
     for(const id of ['int-flw-secret', 'int-flw-enc', 'int-flw-hash']){ const el = document.getElementById(id); if(el) el.value = ''; }
     await loadContent(); fillPaymentsForm();
   }catch(e){ if(msg){ msg.textContent = 'Error: ' + e.message; msg.style.color = '#F87171'; } }
@@ -2847,7 +2847,7 @@ async function loadThemesAdmin(){
     THEMES_ADMIN = await r.json();
     if(!list) return;
     list.innerHTML = '';
-    if(!THEMES_ADMIN.length){ list.innerHTML = '<p style="color:#64748B;font-size:13px">No themes yet — add your first one above.</p>'; return; }
+    if(!THEMES_ADMIN.length){ list.innerHTML = '<p style="color:#64748B;font-size:13px">No themes yet - add your first one above.</p>'; return; }
     THEMES_ADMIN.forEach(t => {
       const d = document.createElement('div');
       d.style.cssText = 'border:1px solid #E2E8F0;border-radius:12px;overflow:hidden;background:#fff';
@@ -2950,7 +2950,7 @@ function updateThemePreview(){
   const zipName = $('#theme-zip-file')?.files?.[0]?.name;
   $('#theme-zip-status').textContent = zipName
     ? 'New ZIP selected: ' + zipName
-    : (cur.zip_filename ? 'Current ZIP: ' + cur.zip_filename + (cur.zip_size ? ' (' + fmtSize(cur.zip_size) + ')' : '') : 'No ZIP yet — buyers cannot download until you upload one.');
+    : (cur.zip_filename ? 'Current ZIP: ' + cur.zip_filename + (cur.zip_size ? ' (' + fmtSize(cur.zip_size) + ')' : '') : 'No ZIP yet - buyers cannot download until you upload one.');
 }
 $('#theme-preview-file')?.addEventListener('change', updateThemePreview);
 $('#theme-preview-url')?.addEventListener('input', updateThemePreview);
@@ -2977,7 +2977,7 @@ $('#theme-form')?.addEventListener('submit', (e) => {
   const zf = $('#theme-zip-file').files[0];
   if(zf){
     if(!/\.zip$/i.test(zf.name)){ msg.textContent = 'Theme package must be a .zip file.'; msg.style.color = '#F87171'; return; }
-    if(zf.size > 200 * 1024 * 1024){ msg.textContent = 'ZIP too large — limit is 200MB.'; msg.style.color = '#F87171'; return; }
+    if(zf.size > 200 * 1024 * 1024){ msg.textContent = 'ZIP too large - limit is 200MB.'; msg.style.color = '#F87171'; return; }
     fd.append('zipfile', zf);
   }
   const url = EDITING_THEME_ID ? '/api/admin/themes/' + EDITING_THEME_ID : '/api/admin/themes';
@@ -3005,7 +3005,7 @@ $('#theme-form')?.addEventListener('submit', (e) => {
       } else { msg.textContent = 'Error: ' + (j.error || ('HTTP ' + xhr.status)); msg.style.color = '#F87171'; }
     }catch{ msg.textContent = 'Error: bad server response.'; msg.style.color = '#F87171'; }
   };
-  xhr.onerror = () => { btn.disabled = false; pwrap.style.display = 'none'; msg.textContent = 'Upload failed — check connection and retry.'; msg.style.color = '#F87171'; };
+  xhr.onerror = () => { btn.disabled = false; pwrap.style.display = 'none'; msg.textContent = 'Upload failed - check connection and retry.'; msg.style.color = '#F87171'; };
   xhr.send(fd);
 });
 // ================= ORDERS MANAGEMENT =================
@@ -3069,7 +3069,7 @@ function renderOrdersTable(){
       + (o.status === 'pending' ? `<button class="btn btn-ghost" data-opaid="${o.id}" style="padding:4px 8px;font-size:11px;color:#10B981">Mark Paid</button> ` : '')
       + `<button class="btn btn-ghost" data-odel="${o.id}" style="padding:4px 8px;font-size:11px;color:#F87171">Delete</button></td></tr>`
       + `<tr class="hidden" data-odetailrow="${o.id}"><td colspan="8" style="background:#F8FAFC;font-size:12px">`
-      + `Provider ref: <b>${escAttr(o.cryptomus_order_id || '—')}</b> · Payment page: ${o.payment_url ? `<a href="${escAttr(o.payment_url)}" target="_blank">open →</a>` : '—'}`
+      + `Provider ref: <b>${escAttr(o.cryptomus_order_id || '-')}</b> · Payment page: ${o.payment_url ? `<a href="${escAttr(o.payment_url)}" target="_blank">open →</a>` : '-'}`
       + (o.download_token ? ` · Download: <a href="/api/themes/${encodeURIComponent(o.item_ref)}/download?token=${encodeURIComponent(o.download_token)}" target="_blank">zip ↓</a> <button class="btn btn-ghost" data-ocopy="${o.id}" style="padding:2px 8px;font-size:10px">Copy Link</button>` : '')
       + `</td></tr>`;
   });

@@ -1,5 +1,5 @@
 // ============================================================
-// Nexatech 3D Frontend — business logic (APIs intact) + 3D engine
+// Nexatech 3D Frontend - business logic (APIs intact) + 3D engine
 // Preserves ALL backend contracts: /api/content, /api/sections,
 // /api/media, /api/team, /api/leads, /api/chat, /api/events
 // 3D layer: Three.js hero + tilt + GSAP reveals + Lenis + cursor
@@ -10,7 +10,7 @@ let CONTENT={}, STATS={}, SCARCITY={}, SECTIONS=[];
 let PORTFOLIO=[], MODAL_INDEX=0, MODAL_ITEMS=[];
 function T(key, fb){ const v=CONTENT[key]; if(v===undefined||v===null) return fb; const s=String(v); return s.trim()===''&&typeof fb==='string'&&fb!=='' ? fb : s; }
 // Storage can throw (blocked cookies, private-mode webviews, Brave shields).
-// It must NEVER kill the whole script — otherwise every button (including the
+// It must NEVER kill the whole script - otherwise every button (including the
 // form's Continue) silently stops working on that device while the page looks
 // fine. Fall back to an in-memory id.
 let sessionId = '';
@@ -105,11 +105,11 @@ function initMagnetic(){
   // Disabled: magnetic buttons added motion on every mousemove. Native hover is faster.
   return;
 }
-// 3D tilt — disabled (cards no longer carry data-tilt; tilt caused repaint jank on scroll)
+// 3D tilt - disabled (cards no longer carry data-tilt; tilt caused repaint jank on scroll)
 function initTilt(){
   return;
 }
-// Lenis smooth scroll — DISABLED by default for fast native scroll + less motion.
+// Lenis smooth scroll - DISABLED by default for fast native scroll + less motion.
 // Native scrolling is instant and cheaper. Keep function as no-op so init() stays safe.
 function initSmoothScroll(){
   return;
@@ -117,7 +117,7 @@ function initSmoothScroll(){
 function initGsapReveals(){
   // Lite reveals only: tiny fade-up, no 3D fly-through / scrub / blur.
   // Heavy version (z:-220, rotationX, blur 10px, departure scrub, inner parallax)
-  // is what made sections feel spaced-out + janky — removed for speed.
+  // is what made sections feel spaced-out + janky - removed for speed.
   try{
     if(!window.gsap || !window.ScrollTrigger) return;
     window.gsap.registerPlugin(window.ScrollTrigger);
@@ -277,7 +277,7 @@ function initFixedBackground2D(){
   return;
 }
 
-// 3D spotlight — disabled (glow ::before removed in CSS; this listener did
+// 3D spotlight - disabled (glow ::before removed in CSS; this listener did
 // getBoundingClientRect on every card per pointermove = scroll jank).
 function initSpotlight(){
   return;
@@ -287,7 +287,7 @@ function initSpotlight(){
 // DISABLED by default: the fixed WebGL tunnel (rings, galaxy, nebulae, gates,
 // warp streaks, per-frame scroll interpolation) was the #1 load + motion cost.
 // Sections now use solid backgrounds, so the tunnel added nothing visible.
-// Canvas + HUD are hidden instantly — no three.js download, instant first paint.
+// Canvas + HUD are hidden instantly - no three.js download, instant first paint.
 async function initAmbientWebGL(){
   const c=$('#webgl-fixed');
   try{ if(c) c.style.display='none'; }catch{}
@@ -413,14 +413,14 @@ function applyMicroCopy(){
   setText('portfolio-eyebrow', T('portfolio_eyebrow','Portfolio'));
   setText('dropshipping-eyebrow', T('dropshipping_eyebrow','Founder Explains'));
   setText('dropshipping-title', T('dropshipping_title','Dropshipping Explanation by Akinyemi Ifeoluwa'));
-  setText('dropshipping-subtitle', T('dropshipping_subtitle','What dropshipping really is — in simple English, no big grammar.'));
+  setText('dropshipping-subtitle', T('dropshipping_subtitle','What dropshipping really is - in simple English, no big grammar.'));
   setText('ds-step1', T('dropshipping_step1','Someone buys something from your shop.'));
   setText('ds-step2', T('dropshipping_step2','You send that order to another company (the supplier).'));
   setText('ds-step3', T('dropshipping_step3','The supplier packs it and sends it straight to your customer.'));
   setText('ds-step4', T('dropshipping_step4','You never see or touch the item yourself.'));
   setText('dropshipping-job', T('dropshipping_job',"Your job is just to bring customers and sell. The supplier's job is to send the product."));
   setText('dropshipping-profit-title', T('dropshipping_profit_title','How you make profit'));
-  setText('dropshipping-profit-text', T('dropshipping_profit_text',"You find a product that costs, say, $100 from the supplier. You sell it in your shop for $250. The supplier gets their $100, you keep the $150 difference. That's your profit. You don't pay for the product until someone actually buys it — so there's no risk of buying things that won't sell."));
+  setText('dropshipping-profit-text', T('dropshipping_profit_text',"You find a product that costs, say, $100 from the supplier. You sell it in your shop for $250. The supplier gets their $100, you keep the $150 difference. That's your profit. You don't pay for the product until someone actually buys it - so there's no risk of buying things that won't sell."));
   setText('dropshipping-name', T('dropshipping_name','Akinyemi Ifeoluwa'));
   setText('dropshipping-role', T('dropshipping_role','Founder, Nexatech'));
   setText('dropshipping-cta', T('dropshipping_cta','Start Your Own Store')+' →');
@@ -465,7 +465,7 @@ function applyMicroCopy(){
   setText('footer-legal-h', T('footer_legal','Legal'));
   setText('privacy-link', T('privacy_link_label','Privacy Policy'));
   setText('terms-link', T('terms_link_label','Terms of Service'));
-  setText('footer-built-note', T('footer_built_note','Built with honesty — all proof numbers are live from our database.'));
+  setText('footer-built-note', T('footer_built_note','Built with honesty - all proof numbers are live from our database.'));
   const socmap={'soc-instagram':'social_instagram_url','soc-x':'social_x_url','soc-tiktok':'social_tiktok_url','soc-linkedin':'social_linkedin_url','soc-facebook':'social_facebook_url','soc-youtube':'social_youtube_url'};
   for(const [id,key] of Object.entries(socmap)){
     const el=document.getElementById(id); if(!el) continue;
@@ -475,7 +475,7 @@ function applyMicroCopy(){
   setText('f-label-name', T('form_label_name','Full Name *'));
   setText('f-label-store', T('form_label_store','Desired Brand / Niche Name *'));
   setText('f-label-niche', T('form_label_niche','Preferred Niche *'));
-  setText('f-label-niche-other', T('form_label_niche_other','Other niche — tell us'));
+  setText('f-label-niche-other', T('form_label_niche_other','Other niche - tell us'));
   setText('f-label-investment', T('form_label_investment','Investment Range *'));
   setText('f-label-status', T('form_label_status','Current Status *'));
   setText('f-label-scammed', T('form_label_scammed','Previously lost money to a fake mentor/agency? *'));
@@ -605,11 +605,11 @@ function renderPortfolio(filter){
   const grid=$('#portfolio-grid'); if(!grid) return; grid.innerHTML='';
   const filtered = filter==='All'? PORTFOLIO : PORTFOLIO.filter(p=> (p.category||'').toLowerCase()===filter.toLowerCase() || (p.tags||'').toLowerCase().includes(filter.toLowerCase()));
   if(filtered.length===0){
-    grid.innerHTML='<p class="sub">'+sanitize(T('portfolio_empty','No stores in this category yet — check back soon or view All.'))+'</p>';
+    grid.innerHTML='<p class="sub">'+sanitize(T('portfolio_empty','No stores in this category yet - check back soon or view All.'))+'</p>';
     return;
   }
   // Fast path: cards + shadows render instantly (class 'in' from the start).
-  // No stagger delays, no per-card observers — old version waited 30+idx*40ms
+  // No stagger delays, no per-card observers - old version waited 30+idx*40ms
   // per card + an IntersectionObserver before painting shadow, so the grid
   // felt like it "loaded slowly".
   const frag=document.createDocumentFragment();
@@ -628,7 +628,7 @@ function renderPortfolio(filter){
     card.addEventListener('click', ()=> openModal(item, filtered));
     if(isVideo){
       const v=card.querySelector('video');
-      // Load + play only on hover/tap — no autoplay observers per card (was N observers).
+      // Load + play only on hover/tap - no autoplay observers per card (was N observers).
       card.addEventListener('mouseenter', ()=> { try{ v.preload='metadata'; v.play().catch(()=>{}); }catch{} });
       card.addEventListener('mouseleave', ()=> { try{ v.pause(); }catch{} });
     }
@@ -679,7 +679,7 @@ function updateModal(){
       v.id='modal-video'; v.controls=true; v.autoplay=true; v.muted=true; v.loop=true; v.playsInline=true;
       v.preload='auto'; v.style.cssText='width:100%;height:100%;object-fit:cover;background:#05070f';
       v.onloadedmetadata=()=>{ try{ if(v.videoHeight>v.videoWidth){ v.style.objectFit='contain'; } }catch{} };
-      v.onerror=()=>{ const p=document.createElement('div'); p.style.cssText='color:#F87171;padding:24px;text-align:center;font-size:13px'; p.textContent='Video failed to load — check the URL or re-upload the file.'; mediaBox.appendChild(p); };
+      v.onerror=()=>{ const p=document.createElement('div'); p.style.cssText='color:#F87171;padding:24px;text-align:center;font-size:13px'; p.textContent='Video failed to load - check the URL or re-upload the file.'; mediaBox.appendChild(p); };
       const s=document.createElement('source'); s.src=item.url;
       const ext=stripUrlParams(item.url).split('.').pop().toLowerCase();
       s.type=ext==='webm'?'video/webm':ext==='mov'?'video/quicktime':ext==='m4v'?'video/x-m4v':ext==='ogv'||ext==='ogg'?'video/ogg':'video/mp4';
@@ -698,7 +698,7 @@ function updateModal(){
   $('#modal-tag').textContent=item.category||'Store';
   $('#modal-title').textContent=item.caption||'Store';
   $('#modal-result').textContent=item.result_stat||'';
-  $('#modal-desc').textContent=item.case_study_text||T('modal_fallback_desc','A fully-configured dropshipping store built for conversions — premium theme, winning products, and automated fulfillment.');
+  $('#modal-desc').textContent=item.case_study_text||T('modal_fallback_desc','A fully-configured dropshipping store built for conversions - premium theme, winning products, and automated fulfillment.');
   const waNum=CONTENT.whatsapp_number||'2348123456789';
   $('#modal-cta').textContent=T('modal_cta','Start a Store Like This')+' →';
   $('#modal-cta').href=whatsappLink(waNum, `Hi Nexatech! I love the ${item.category||''} store "${item.caption||''}" I want a store like this. How do we start?`);
@@ -770,7 +770,7 @@ async function loadMedia(){
     if(rGrid){
       rGrid.innerHTML='';
       if(reviews.length===0){
-        if(empty) { empty.textContent=T('reviews_empty','No reviews uploaded yet — add them in Admin → Media Manager → Review Screenshots.'); empty.classList.remove('hidden'); }
+        if(empty) { empty.textContent=T('reviews_empty','No reviews uploaded yet - add them in Admin → Media Manager → Review Screenshots.'); empty.classList.remove('hidden'); }
       } else {
         if(empty) empty.classList.add('hidden');
         reviews.forEach((item, idx)=>{
@@ -806,7 +806,7 @@ async function loadMedia(){
     if(cGrid){
       cGrid.innerHTML='';
       if(certs.length===0){
-        if(cEmpty) { cEmpty.textContent=T('certs_empty','No certificates uploaded yet — add them in Admin → Media Manager → Certificates & Awards.'); cEmpty.classList.remove('hidden'); }
+        if(cEmpty) { cEmpty.textContent=T('certs_empty','No certificates uploaded yet - add them in Admin → Media Manager → Certificates & Awards.'); cEmpty.classList.remove('hidden'); }
       } else {
         if(cEmpty) cEmpty.classList.add('hidden');
         certs.forEach((item)=>{
@@ -850,11 +850,11 @@ async function loadMedia(){
 // Pricing
 // ================= AUTO CURRENCY (display layer) =================
 // Canonical prices are USD. This converts DISPLAYED prices to the visitor's
-// currency. Charged totals are always recomputed server-side — these numbers
+// currency. Charged totals are always recomputed server-side - these numbers
 // never go near money. Detection: saved override (?cc= test hook, IP lookup,
 // browser locale) -> USD fallback. Never blocks first paint.
 const FX_ZERO = ['XAF','XOF','RWF','UGX'];
-const FX_COUNTRY = {NG:'NGN',US:'USD',GB:'GBP',UK:'GBP',GH:'GHS',KE:'KES',ZA:'ZAR',UG:'UGX',TZ:'TZS',RW:'RWF',CM:'XAF',CF:'XAF',TD:'XAF',CG:'XAF',GA:'XAF',GQ:'XAF',SN:'XOF',CI:'XOF',BF:'XOF',ML:'XOF',NE:'XOF',GW:'XOF',TG:'XOF',BJ:'XOF',MW:'MWK',EG:'EGP',SL:'SLL',ZM:'ZMW',CA:'CAD',DE:'EUR',FR:'EUR',IT:'EUR',ES:'EUR',NL:'EUR',BE:'EUR',AT:'EUR',IE:'EUR',PT:'EUR',FI:'EUR',GR:'EUR',SK:'EUR',SI:'EUR',EE:'EUR',LV:'EUR',LT:'EUR',HR:'EUR',CY:'EUR',MT:'EUR',LU:'EUR',AD:'EUR',MC:'EUR',SM:'EUR',ME:'EUR'};
+const FX_COUNTRY = {NG:'NGN',US:'USD',GB:'GBP',UK:'GBP',GH:'GHS',KE:'KES',ZA:'ZAR',UG:'UGX',TZ:'TZS',RW:'RWF',CM:'XAF',CF:'XAF',TD:'XAF',CG:'XAF',GA:'XAF',GQ:'XAF',SN:'XOF',CI:'XOF',BF:'XOF',ML:'XOF',NE:'XOF',GW:'XOF',TG:'XOF',BJ:'XOF',MW:'MWK',EG:'EGP',SL:'SLE',ZM:'ZMW',CA:'CAD',IN:'INR',ET:'ETB',GN:'GNF',AU:'AUD',BR:'BRL',CO:'COP',MX:'MXN',PE:'PEN',SG:'SGD',AE:'AED',SA:'SAR',JP:'JPY',DE:'EUR',FR:'EUR',IT:'EUR',ES:'EUR',NL:'EUR',BE:'EUR',AT:'EUR',IE:'EUR',PT:'EUR',FI:'EUR',GR:'EUR',SK:'EUR',SI:'EUR',EE:'EUR',LV:'EUR',LT:'EUR',HR:'EUR',CY:'EUR',MT:'EUR',LU:'EUR',AD:'EUR',MC:'EUR',SM:'EUR',ME:'EUR'};
 const FX = { rates: null, currencies: ['USD'], currency: 'USD', updated_at: 0, auto: true };
 function fxUsdCentsFromText(t){
   const n = parseFloat(String(t == null ? '' : t).replace(/[^0-9.]/g, ''));
@@ -936,12 +936,12 @@ function renderPricing(){
   ];
   grid.innerHTML='';
   // Price tally: checkout links carry the live price, so plan buttons always
-  // charge exactly what the card shows — no stale template can desync them.
+  // charge exactly what the card shows - no stale template can desync them.
   tiers.forEach(t=>{
     const el=document.createElement('div'); el.className='price-card'+(t.popular?' popular':'');
     const c = fxConvertFrom(fxUsdCentsFromText(t.price), 'USD', FX.currency);
     const disp = (c.converted ? '≈ ' : '') + fxFormat(c.amount_cents, c.currency);
-    el.innerHTML=`${t.popular?'<span class="popular-badge">'+sanitize(T('pricing_popular_badge','Most Popular'))+'</span>':''}<div class="eyebrow" style="margin:0">${sanitize(t.name)}</div><div class="price" title="${sanitize(t.price)} USD">${sanitize(disp)}</div><ul>${t.features.map(f=>`<li>${sanitize(f)}</li>`).join('')}</ul><a class="btn ${t.popular?'btn-primary btn-glow':'btn-ghost'}" href="/checkout?kind=plan&item=${t.key}" style="margin-top:auto">${sanitize(T('pricing_cta_template','Choose {name}').replace('{name}', t.name))} →</a>`;
+    el.innerHTML=`${t.popular?'<span class="popular-badge">'+sanitize(T('pricing_popular_badge','Most Popular'))+'</span>':''}<div class="eyebrow" style="margin:0">${sanitize(t.name)}</div><div class="price" title="${sanitize(t.price)} USD">${sanitize(disp)}</div><ul>${t.features.map(f=>`<li>${sanitize(f)}</li>`).join('')}</ul><a class="btn ${t.popular?'btn-primary btn-glow':'btn-ghost'}" href="/checkout?kind=plan&item=${t.key}&currency=${encodeURIComponent(FX.currency)}" style="margin-top:auto">${sanitize(T('pricing_cta_template','Choose {name}').replace('{name}', t.name))} →</a>`;
     const a=el.querySelector('a'); a.addEventListener('click',()=>track('cta_click','pricing-'+t.key,{price:disp}));
     grid.appendChild(el);
   });
@@ -964,7 +964,7 @@ function renderThemes(){
   if(!grid) return;
   grid.innerHTML='';
   if(!THEMES.length){
-    if(empty){ empty.textContent=T('themes_empty','No themes available yet — check back soon.'); empty.classList.remove('hidden'); }
+    if(empty){ empty.textContent=T('themes_empty','No themes available yet - check back soon.'); empty.classList.remove('hidden'); }
     return;
   }
   if(empty) empty.classList.add('hidden');
@@ -982,7 +982,7 @@ function renderThemes(){
       + `<div class="theme-body"><p class="theme-desc">${sanitize((th.description||'').slice(0,120))}</p>`
       + `<div class="theme-actions">`
       + `<button class="btn btn-ghost theme-preview-btn" type="button">${sanitize(T('theme_preview_label','Preview'))}</button>`
-      + `<a class="btn btn-primary" href="/checkout?kind=theme&item=${encodeURIComponent(th.slug)}">${sanitize(T('theme_buy_label','Buy Now'))} →</a>`
+      + `<a class="btn btn-primary" href="/checkout?kind=theme&item=${encodeURIComponent(th.slug)}&currency=${encodeURIComponent(FX.currency)}">${sanitize(T('theme_buy_label','Buy Now'))} →</a>`
       + `</div></div>`;
     card.querySelector('.theme-preview-btn').addEventListener('click', (e)=>{ e.stopPropagation(); openThemeModal(th); });
     card.querySelector('.theme-actions a').addEventListener('click', ()=>track('cta_click','theme-buy-'+th.slug,{price:th.price_text}));
@@ -997,7 +997,7 @@ function openThemeModal(th){
     case_study_text:th.description||'', url:th.preview_url||'' };
   openModal(item, [item, ...MODAL_ITEMS.filter(m=>String(m.id).indexOf('theme-')!==0)]);
   const cta=$('#modal-cta');
-  if(cta){ cta.textContent=T('theme_buy_label','Buy Now')+' →'; cta.target=''; cta.href='/checkout?kind=theme&item='+encodeURIComponent(th.slug); cta.onclick=()=>track('cta_click','theme-modal-buy-'+th.slug); }
+  if(cta){ cta.textContent=T('theme_buy_label','Buy Now')+' →'; cta.target=''; cta.href='/checkout?kind=theme&item='+encodeURIComponent(th.slug)+'&currency='+encodeURIComponent(FX.currency); cta.onclick=()=>track('cta_click','theme-modal-buy-'+th.slug); }
 }
 function renderWhatWeDo(){
   const list = $('#whatwedo-list'); if(!list) return;
@@ -1063,7 +1063,7 @@ function showStep(n){
   $('#bar1').classList.toggle('on', n>=1);
   $('#bar2').classList.toggle('on', n>=2);
   $('#bar3').classList.toggle('on', n>=3);
-  const labels=[T('form_step_1','Step 1 of 3 — Vision'),T('form_step_2','Step 2 of 3 — Qualification'),T('form_step_3','Step 3 of 3 — Contact & Delivery')];
+  const labels=[T('form_step_1','Step 1 of 3 - Vision'),T('form_step_2','Step 2 of 3 - Qualification'),T('form_step_3','Step 3 of 3 - Contact & Delivery')];
   $('#step-indicator').textContent=labels[n-1];
   $('#btn-prev').classList.toggle('hidden', n===1);
   $('#btn-next').classList.toggle('hidden', n===totalSteps);
@@ -1150,7 +1150,7 @@ function initLeadForm(){
       const j=await res.json();
       if(!res.ok) throw new Error(j.error||'Submission failed');
       msg.style.color='var(--success)';
-      const emailEcho = payload.email ? ' '+T('form_success_email_note',"We've sent details to {email} — please check your inbox (and spam folder).").replace('{email}', payload.email) : '';
+      const emailEcho = payload.email ? ' '+T('form_success_email_note',"We've sent details to {email} - please check your inbox (and spam folder).").replace('{email}', payload.email) : '';
       msg.textContent=(j.message||'Application received.') + emailEcho;
       e.target.reset(); showStep(1);
       track('form_complete','lead_form',{leadId:j.leadId});
@@ -1223,7 +1223,7 @@ function initChips(){
   show(); setInterval(show, 3200);
 }
 
-// Testimonials infinite conveyor — slides 1 card left every 3.4s,
+// Testimonials infinite conveyor - slides 1 card left every 3.4s,
 // then sends that card to the back to fetch the next one (seamless loop).
 // Shows 3-up desktop / 2 tablet / 1 mobile. Pause on hover/touch/offscreen.
 let __testiTimer=null, __testiIdx=0;
@@ -1362,7 +1362,7 @@ function initHeader(){
   $('#drawer')?.addEventListener('click', e=>{ if(e.target.id==='drawer') e.currentTarget.classList.remove('open'); });
 }
 
-// Reveal — everything visible instantly (CSS has no hidden state anymore).
+// Reveal - everything visible instantly (CSS has no hidden state anymore).
 // Old version kept a 2s setInterval + 1200ms fallback timer running forever.
 function initReveal(){
   try{
@@ -1373,7 +1373,7 @@ function initReveal(){
   }catch{}
 }
 
-// Chatbot — persists reload (sessionStorage), new tab fresh, with New/Recent/WhatsApp
+// Chatbot - persists reload (sessionStorage), new tab fresh, with New/Recent/WhatsApp
 function initChat(){
   const btn=$('#chat-btn'), win=$('#chat-win'), close=$('#chat-close'), input=$('#chat-input'), send=$('#chat-send'), body=$('#chat-body');
   if(!btn||!win||!input||!send||!body) return;
@@ -1402,7 +1402,7 @@ function initChat(){
   function renderRecent(){
     if(!recentList) return;
     const recents=getRecents();
-    if(recents.length===0){ recentList.innerHTML='<div style="padding:8px;font-size:12px;color:#94A3B8">'+sanitize(T('chat_no_recent','No recent chats yet — start a conversation first.'))+'</div>'; return; }
+    if(recents.length===0){ recentList.innerHTML='<div style="padding:8px;font-size:12px;color:#94A3B8">'+sanitize(T('chat_no_recent','No recent chats yet - start a conversation first.'))+'</div>'; return; }
     recentList.innerHTML='';
     recents.forEach(r=>{
       const div=document.createElement('div');
@@ -1445,7 +1445,7 @@ function initChat(){
   function showGreeting(){
     const id=getIdentity();
     const first=id ? escId(String(id.name).split(' ')[0]) : 'there';
-    const greet=T('chat_greeting','Hi {name}! I am the Nexatech assistant. Ask me about packages, timelines, or proof — or tap a quick question below.').replace('{name}', first);
+    const greet=T('chat_greeting','Hi {name}! I am the Nexatech assistant. Ask me about packages, timelines, or proof - or tap a quick question below.').replace('{name}', first);
     body.innerHTML=`<div class="msg bot">${sanitize(greet)}</div>`+quickHtml()+`<div style="font-size:10px;color:#94A3B8;padding:2px 4px">${sanitize(T('chat_chatting_as','Chatting as'))} <b>${id?escId(id.name):''}</b>${id?' ('+escId(id.email)+')':''} <button id="chat-switch-id" style="border:none;background:none;color:#7C3AED;cursor:pointer;font-size:10px;text-decoration:underline">${sanitize(T('chat_switch','switch'))}</button></div>`;
     bindQuick();
     body.querySelector('#chat-switch-id')?.addEventListener('click', ()=>{ clearIdentity(); showGate(); });
@@ -1541,10 +1541,10 @@ function initChat(){
       const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text, sessionId, history, pageUrl: location.href, name: id.name, email: id.email})});
       const j=await r.json();
       const bot=document.createElement('div'); bot.className='msg bot';
-      let replyText = j.reply || j.error || T('chat_offline','Not available right now — tap below to chat on WhatsApp.');
+      let replyText = j.reply || j.error || T('chat_offline','Not available right now - tap below to chat on WhatsApp.');
       replyText = replyText.replace(/https?:\/\/wa\.me[^\s"'\)]+/gi, '').replace(/https?:\/\/wa\.me[^\s]*/gi, '').replace(/\[WHATSAPP[^\]]*\]/gi, '').trim();
       replyText = replyText.replace(/\s{2,}/g,' ').trim();
-      bot.textContent = replyText || T('chat_offline','Not available right now — tap below to chat on WhatsApp.');
+      bot.textContent = replyText || T('chat_offline','Not available right now - tap below to chat on WhatsApp.');
       if(shouldShowWhatsAppButton(replyText, userQuestion, j) || j.fallback){
         const b2 = createWhatsAppButton(userQuestion);
         bot.appendChild(document.createElement('br'));
@@ -1552,7 +1552,7 @@ function initChat(){
       }
       body.appendChild(bot);
     }catch{
-      const bot=document.createElement('div'); bot.className='msg bot'; bot.textContent=T('chat_offline','Not available right now — tap below to chat on WhatsApp.');
+      const bot=document.createElement('div'); bot.className='msg bot'; bot.textContent=T('chat_offline','Not available right now - tap below to chat on WhatsApp.');
       const b2 = createWhatsAppButton(userQuestion);
       bot.appendChild(document.createElement('br'));
       bot.appendChild(b2);
@@ -1602,7 +1602,7 @@ function initChat(){
   newBtn?.addEventListener('click', ()=>{ try{ notifyChatFinished('new'); }catch{} try{ if(idleTimer) clearTimeout(idleTimer); }catch{} try{ sessionStorage.removeItem(FINISH_KEY + sessionId); }catch{} resetIdleTimer(); }, true);
 }
 
-// Init all — content first, feeds in parallel, 3D last (deferred)
+// Init all - content first, feeds in parallel, 3D last (deferred)
 // One failing widget must never kill the rest: each initializer is isolated,
 // so a single device-specific error can't take down all buttons at once.
 function safeInit(fn){

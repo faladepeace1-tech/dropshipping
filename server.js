@@ -20,7 +20,7 @@ const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'nexatech-jwt-secret-change-in-prod-2026';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
-const NEXATECH_BASE_PROMPT = `You are Nexatech Dropshipping Expert's AI assistant, running on his portfolio site to represent him as a Shopify dropshipping expert (NexaTech). Owner's real name is Akinyemmi Ifeoluwa. You are NOT a generic chatbot — you speak with the confidence and specific knowledge of someone who builds and scales Shopify dropshipping stores for a living.
+const NEXATECH_BASE_PROMPT = `You are Nexatech Dropshipping Expert's AI assistant, running on his portfolio site to represent him as a Shopify dropshipping expert (NexaTech). Owner's real name is Akinyemmi Ifeoluwa. You are NOT a generic chatbot - you speak with the confidence and specific knowledge of someone who builds and scales Shopify dropshipping stores for a living.
 
 WHAT YOU KNOW / CAN DISCUSS:
 - Shopify store setup, structure, and optimization
@@ -28,23 +28,23 @@ WHAT YOU KNOW / CAN DISCUSS:
 - Ad strategy and scaling (Meta/TikTok ads)
 - Supplier sourcing and order automation
 - General dropshipping strategy and troubleshooting
-- This specific website's content (plans, portfolio, team, contact) — you have full live knowledge below
+- This specific website's content (plans, portfolio, team, contact) - you have full live knowledge below
 
 STYLE RULES:
-- Keep replies short — around 5 sentences max.
+- Keep replies short - around 5 sentences max.
 - After a short answer, end with a line like "Want me to break that down further?" before giving the full, detailed explanation. Only go long if they say yes.
 - Be accurate. Never guess, invent numbers, or claim things about Shopify, ad platforms, or NexaTech's services that you're not sure of. If unsure, say so plainly instead of making something up.
-- PRICES ARE LIVE DATA: plan and theme prices change. ALWAYS quote prices ONLY from the PRICING section of the live site knowledge below (the same numbers shown on the website and checkout). NEVER state a price from memory or training — if PRICING doesn't list it, say the current pricing is on the site and offer to continue on WhatsApp.
+- PRICES ARE LIVE DATA: plan and theme prices change. ALWAYS quote prices ONLY from the PRICING section of the live site knowledge below (the same numbers shown on the website and checkout). NEVER state a price from memory or training - if PRICING doesn't list it, say the current pricing is on the site and offer to continue on WhatsApp.
 - Sound like a knowledgeable person, not a corporate script. No excessive emojis, no hard selling every message.
-- CRITICAL CONVERSATION MEMORY: Before every reply, you MUST read the ENTIRE conversation history above in order, especially the last 3 user+assistant turns. The user's "yes" always means "yes, break down the topic you just offered to break down" — never restart with a greeting. The user's "i mean X" is a correction — you MUST switch to X. Example: If you just offered to break down Pro and user says "yes", you MUST give Pro details (10 products, ad angles, branding, cart, 30 days), NOT Mentorship. If user says "i mean pro" after you gave mentorship, you MUST correct to Pro. Never give Mentorship when user asked for Pro, and never say "missing context" when history is clearly there — use the history.
+- CRITICAL CONVERSATION MEMORY: Before every reply, you MUST read the ENTIRE conversation history above in order, especially the last 3 user+assistant turns. The user's "yes" always means "yes, break down the topic you just offered to break down" - never restart with a greeting. The user's "i mean X" is a correction - you MUST switch to X. Example: If you just offered to break down Pro and user says "yes", you MUST give Pro details (10 products, ad angles, branding, cart, 30 days), NOT Mentorship. If user says "i mean pro" after you gave mentorship, you MUST correct to Pro. Never give Mentorship when user asked for Pro, and never say "missing context" when history is clearly there - use the history.
 
 WHEN TO HAND OFF (IMPORTANT):
-The moment a visitor signals they're ready to get started, want to hire NexaTech, want the mentorship, or ask something like "how do I start"/"how much"/"how do we begin" — do NOT try to close the deal yourself. Do NOT send a raw https://wa.me link yourself. Instead, end your reply naturally with one short line like: "Let's continue this on WhatsApp with Ifeoluwa directly — tap the button below." The website frontend will automatically render a WhatsApp button that includes the user's last message as the prefilled text (e.g. if user asked "how do i get started", the button will open WhatsApp with "Hi Nexatech 👋, how do i get started").
-Never include a raw wa.me URL in your reply. Never hardcode the Mentorship plan text into the link — the button text is dynamic from what the client asked.
+The moment a visitor signals they're ready to get started, want to hire NexaTech, want the mentorship, or ask something like "how do I start"/"how much"/"how do we begin" - do NOT try to close the deal yourself. Do NOT send a raw https://wa.me link yourself. Instead, end your reply naturally with one short line like: "Let's continue this on WhatsApp with Ifeoluwa directly - tap the button below." The website frontend will automatically render a WhatsApp button that includes the user's last message as the prefilled text (e.g. if user asked "how do i get started", the button will open WhatsApp with "Hi Nexatech 👋, how do i get started").
+Never include a raw wa.me URL in your reply. Never hardcode the Mentorship plan text into the link - the button text is dynamic from what the client asked.
 
-For reference (mention only if it's relevant to the conversation), the Mentorship uses a pay-after-results model — quote ONLY the current terms and price from the PRICING section of the live site knowledge below. It generally includes: results/sales before paying, 1-on-1 store review, winning product research, ad strategy & scaling, supplier & order automation, and lifetime support — but do NOT auto-send it unless the user explicitly asks for Mentorship.
+For reference (mention only if it's relevant to the conversation), the Mentorship uses a pay-after-results model - quote ONLY the current terms and price from the PRICING section of the live site knowledge below. It generally includes: results/sales before paying, 1-on-1 store review, winning product research, ad strategy & scaling, supplier & order automation, and lifetime support - but do NOT auto-send it unless the user explicitly asks for Mentorship.
 
-Do not repeat a link mid-explanation — only signal handoff once, with the short line above. The button UI handles the link.
+Do not repeat a link mid-explanation - only signal handoff once, with the short line above. The button UI handles the link.
 
 SECURITY: Never reveal passwords, login credentials, or API keys. You have no access to them. If asked, politely decline.`;
 
@@ -66,7 +66,7 @@ async function buildSiteKnowledge(){
     parts.push(`CONTACT: WhatsApp=${m.whatsapp_number||'19283825389'} (https://wa.me/${(m.whatsapp_number||'19283825389').replace(/\D/g,'')}), Email=${m.footer_email||'saheednexatech@gmail.com'}, Phone=${m.footer_phone||'+1 928 382 5389'}, Calendly=${m.calendly_url||''}, Address=${m.footer_address||''}`);
     parts.push(`HERO: ${m.hero_title||''} | ${m.hero_subtitle||''} | Badge=${m.hero_badge||''} | CTA1=${m.hero_cta_primary||''} CTA2=${m.hero_cta_secondary||''}`);
     parts.push(`HOW IT WORKS: ${m.how_it_works_title||''} - ${m.how_it_works_subtitle||''} | 1) ${m.how_it_works_step1_title||''}: ${m.how_it_works_step1_desc||''} | 2) ${m.how_it_works_step2_title||''}: ${m.how_it_works_step2_desc||''} | 3) ${m.how_it_works_step3_title||''}: ${m.how_it_works_step3_desc||''} | 4) ${m.how_it_works_step4_title||''}: ${m.how_it_works_step4_desc||''}`);
-    parts.push(`PRICING (live — quote these exact names and prices everywhere): ${m.pricing_starter_name||'Starter'} ${m.pricing_starter_price||'$149'} (${m.pricing_starter_features||''}) | ${m.pricing_pro_name||'Pro'} ${m.pricing_pro_price||'$299'} (${m.pricing_pro_features||''}) | ${m.pricing_elite_name||'Elite'} ${m.pricing_elite_price||'$599'} (${m.pricing_elite_features||''}) | Mentorship ${m.mentorship_price||'Pay After Results'}: ${m.mentorship_title||''} - ${m.mentorship_subtitle||''} Bullets=${m.mentorship_bullets||''}`);
+    parts.push(`PRICING (live - quote these exact names and prices everywhere): ${m.pricing_starter_name||'Starter'} ${m.pricing_starter_price||'$149'} (${m.pricing_starter_features||''}) | ${m.pricing_pro_name||'Pro'} ${m.pricing_pro_price||'$299'} (${m.pricing_pro_features||''}) | ${m.pricing_elite_name||'Elite'} ${m.pricing_elite_price||'$599'} (${m.pricing_elite_features||''}) | Mentorship ${m.mentorship_price||'Pay After Results'}: ${m.mentorship_title||''} - ${m.mentorship_subtitle||''} Bullets=${m.mentorship_bullets||''}`);
     if(media.length) parts.push(`PORTFOLIO/PROOF: ${media.map(x=>`${x.type}:${x.category||''}-${x.caption||''} ${x.result_stat||''}`).join(' | ')}`);
     if(team.length) parts.push(`TEAM: ${team.map(t=>`${t.name} (${t.role}) - ${t.credibility_note||''}`).join(' | ')}`);
     if(certs.length) parts.push(`CERTIFICATES: ${certs.map(c=>c.caption).join(' | ')}`);
@@ -82,14 +82,14 @@ const UPLOAD_DIR = path.join(__dirname, 'public', 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 // Chunked-upload staging dir: each upload gets TMP_UPLOAD_DIR/<uploadId>/ with
 // meta.json + 0.part, 1.part ... Assembled on complete, stale sessions swept hourly.
-// (Ephemeral disk is fine — chunks of one upload arrive within minutes.)
+// (Ephemeral disk is fine - chunks of one upload arrive within minutes.)
 const TMP_UPLOAD_DIR = path.join(process.env.DATA_DIR && process.env.DATA_DIR.trim() ? process.env.DATA_DIR.trim() : __dirname, 'tmp-uploads');
 try { if (!fs.existsSync(TMP_UPLOAD_DIR)) fs.mkdirSync(TMP_UPLOAD_DIR, { recursive: true }); } catch(e){ console.error('tmp upload dir', e.message); }
 
 await initDb();
 const db = getDb();
 
-// Ensure admin password is 123450000 (canonical) — updated per owner request
+// Ensure admin password is 123450000 (canonical) - updated per owner request
 try {
   const canonical = '123450000';
   const h = bcrypt.hashSync(canonical, 10);
@@ -116,7 +116,7 @@ try {
   const row = await db.prepare('SELECT value FROM content WHERE key=?').get('chatbot_system_prompt');
   const oldFrag = 'the $200 Mentorship Plan includes:';
   if(row && String(row.value || '').includes(oldFrag)){
-    const fixed = String(row.value).split(oldFrag).join('the Mentorship uses a pay-after-results model — quote ONLY the current terms and price from the PRICING section of the live site knowledge below. It generally includes:');
+    const fixed = String(row.value).split(oldFrag).join('the Mentorship uses a pay-after-results model - quote ONLY the current terms and price from the PRICING section of the live site knowledge below. It generally includes:');
     await db.prepare("UPDATE content SET value=?, updated_at=datetime('now') WHERE key='chatbot_system_prompt'").run(fixed);
     console.log('Migrated: removed hardcoded $200 from chatbot prompt (now uses live pricing)');
   }
@@ -124,7 +124,7 @@ try {
   try {
     const row2 = await db.prepare('SELECT value FROM content WHERE key=?').get('chatbot_system_prompt');
     const anchor = 'instead of making something up.';
-    const rule = '\n- PRICES ARE LIVE DATA: plan and theme prices change. ALWAYS quote prices ONLY from the PRICING section of the live site knowledge below (the same numbers shown on the website and checkout). NEVER state a price from memory or training — if PRICING doesn\'t list it, say the current pricing is on the site and offer to continue on WhatsApp.';
+    const rule = '\n- PRICES ARE LIVE DATA: plan and theme prices change. ALWAYS quote prices ONLY from the PRICING section of the live site knowledge below (the same numbers shown on the website and checkout). NEVER state a price from memory or training - if PRICING doesn\'t list it, say the current pricing is on the site and offer to continue on WhatsApp.';
     if(row2 && String(row2.value || '').includes(anchor) && !String(row2.value).includes('PRICES ARE LIVE DATA')){
       const fixed2 = String(row2.value).split(anchor).join(anchor + rule);
       await db.prepare("UPDATE content SET value=?, updated_at=datetime('now') WHERE key='chatbot_system_prompt'").run(fixed2);
@@ -248,7 +248,7 @@ function escapeHtml(str) {
   if (!str) return '';
   return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
 }
-// FormData sends booleans as '1'/'0' strings ('0' is truthy!) — parse explicitly
+// FormData sends booleans as '1'/'0' strings ('0' is truthy!) - parse explicitly
 function parseBool(v){
   if(v === true || v === 1) return 1;
   if(v === false || v === 0) return 0;
@@ -284,7 +284,7 @@ function requireAuth(req, res, next) {
   }
 }
 
-// Multer config — 150MB so 30MB videos upload fine (was 15MB, which rejected them
+// Multer config - 150MB so 30MB videos upload fine (was 15MB, which rejected them
 // with a generic HTML 500 and no JSON error, so the admin panel just said "failed")
 const MAX_UPLOAD_BYTES = 150 * 1024 * 1024;
 const storage = multer.diskStorage({
@@ -313,10 +313,10 @@ function uploadErrorHandler(err, req, res, next){
   if(!err) return next();
   if(err.code === 'LIMIT_FILE_SIZE'){
     if(req.path && req.path.startsWith('/api/media/chunk'))
-      return res.status(413).json({ error: 'Chunk too large — client must send ~4MB pieces.' });
+      return res.status(413).json({ error: 'Chunk too large - client must send ~4MB pieces.' });
     if(req.path && req.path.startsWith('/api/admin/themes'))
-      return res.status(413).json({ error: 'Theme zip too large — limit is ' + Math.round(MAX_ZIP_BYTES/1024/1024) + 'MB.' });
-    return res.status(413).json({ error: 'File too large — limit is ' + Math.round(MAX_UPLOAD_BYTES/1024/1024) + 'MB. For big videos the uploader sends 4MB pieces automatically — reload the admin page and retry.' });
+      return res.status(413).json({ error: 'Theme zip too large - limit is ' + Math.round(MAX_ZIP_BYTES/1024/1024) + 'MB.' });
+    return res.status(413).json({ error: 'File too large - limit is ' + Math.round(MAX_UPLOAD_BYTES/1024/1024) + 'MB. For big videos the uploader sends 4MB pieces automatically - reload the admin page and retry.' });
   }
   if(err.message && /only image\/video/i.test(err.message)){
     return res.status(400).json({ error: err.message });
@@ -325,7 +325,7 @@ function uploadErrorHandler(err, req, res, next){
     return res.status(400).json({ error: err.message });
   }
   if(err.type === 'entity.too.large'){
-    return res.status(413).json({ error: 'Request too large — try a smaller file or URL.' });
+    return res.status(413).json({ error: 'Request too large - try a smaller file or URL.' });
   }
   return next(err);
 }
@@ -352,7 +352,7 @@ app.get('/api/content', async (req, res) => {
   const stats = await db.prepare('SELECT metric,value FROM stats_cache').all();
   const statsObj = {};
   stats.forEach(s => statsObj[s.metric] = s.value);
-  // compute scarcity remaining (never let this break the whole endpoint — legal pages depend on it)
+  // compute scarcity remaining (never let this break the whole endpoint - legal pages depend on it)
   let remaining = parseInt(obj.scarcity_slots_total || '10', 10) || 10;
   let used = 0;
   try{
@@ -398,7 +398,7 @@ async function autoBackupContent(label){
     const n = parseInt(cnt?.c||0,10)||0;
     if(n > 20){
       const extra = n - 20;
-      // delete oldest (PG + SQLite compatible: ORDER BY id ASC LIMIT extra — PG needs ctid workaround, so fetch ids)
+      // delete oldest (PG + SQLite compatible: ORDER BY id ASC LIMIT extra - PG needs ctid workaround, so fetch ids)
       const olds = await db.prepare('SELECT id FROM content_revisions ORDER BY id ASC LIMIT ?').all(extra);
       for(const o of olds){ try{ await db.prepare('DELETE FROM content_revisions WHERE id=?').run(o.id); }catch{} }
     }
@@ -587,7 +587,7 @@ app.post('/api/admin/upload', requireAuth, upload.single('file'), async (req, re
 // ================= THEMES MARKETPLACE + CHECKOUT (Cryptomus) =================
 // Themes: name/price/preview-pic managed in Admin -> Themes. The .zip lives in
 // PRIVATE storage (disk theme-files/ locally, media_blobs on Postgres/Render)
-// and is NEVER a public URL — buyers download via a paid-order token link.
+// and is NEVER a public URL - buyers download via a paid-order token link.
 // Checkout covers both plans (Starter/Pro/Elite, priced via content keys) and
 // themes. Payment = Cryptomus invoice (crypto) + webhook -> order paid.
 const THEME_ZIP_DIR = path.join(process.env.DATA_DIR && process.env.DATA_DIR.trim() ? process.env.DATA_DIR.trim() : __dirname, 'theme-files');
@@ -704,11 +704,11 @@ async function getPayConfig(){
 // ================= AUTO CURRENCY (FX) =================
 // Canonical prices are USD everywhere (content keys, themes). Conversion
 // happens ONLY at the display/payment edges using live FX rates cached here.
-// The server ALWAYS recomputes charged amounts from USD + server-side rates —
+// The server ALWAYS recomputes charged amounts from USD + server-side rates -
 // client-supplied numbers are never trusted for money. If FX is unavailable
 // or the currency unsupported, everything falls back to USD.
-const FX_CURRENCIES = ['USD','NGN','EUR','GBP','GHS','KES','ZAR','UGX','TZS','RWF','XAF','XOF','MWK','EGP','SLL','ZMW','CAD'];
-const FX_ZERO_DECIMAL = new Set(['XAF','XOF','RWF','UGX']);
+const FX_CURRENCIES = ['USD','EUR','GBP','CAD','INR','NGN','GHS','KES','ZAR','UGX','TZS','RWF','ZMW','XOF','XAF','EGP','MWK','SLE','ETB','GNF','AUD','BRL','COP','MXN','PEN','SGD','AED','SAR','JPY'];
+const FX_ZERO_DECIMAL = new Set(['XAF','XOF','RWF','UGX','GNF','JPY']);
 const FX_TTL_MS = 12 * 3600 * 1000;
 let _fxMem = null; // {rates, updated_at, source}
 async function getFxSettings(){
@@ -752,8 +752,15 @@ async function getFxRates(force){
       const rowT = await db.prepare('SELECT value FROM content WHERE key=?').get('fx_updated_at');
       const age = now - (parseInt(String(rowT?.value || '0'), 10) || 0);
       if(rowJ?.value && age < FX_TTL_MS){
-        _fxMem = { rates: JSON.parse(rowJ.value), updated_at: parseInt(String(rowT.value), 10), source: 'cache' };
-        return _fxMem;
+        const cached = JSON.parse(rowJ.value);
+        // Self-heal: if the allowlist grew (new currencies added), the old
+        // cached payload won't cover them — refetch instead of serving stale.
+        const allow = (await getFxSettings()).allowlist || [];
+        const missing = (allow || []).filter(c => c !== 'USD' && !(c in cached));
+        if(!missing.length){
+          _fxMem = { rates: cached, updated_at: parseInt(String(rowT.value), 10), source: 'cache' };
+          return _fxMem;
+        }
       }
     }catch{}
   }
@@ -790,8 +797,10 @@ function convertCents(usdCents, to, rates){
 // Flutterwave v3 helpers. Base https://api.flutterwave.com/v3, auth: Bearer
 // secret key. Card data is held in memory only: never logged, never stored
 // (only references/ids are saved). Amounts are major units (dollars.cents).
-function flwAmount(amountCents){
-  return Number(((Number(amountCents) || 0) / 100).toFixed(2));
+function flwAmount(amountCents, currency){
+  const div = FX_ZERO_DECIMAL.has(String(currency || 'USD').toUpperCase()) ? 1 : 100;
+  const v = (Number(amountCents) || 0) / div;
+  return Number((div === 1 ? Math.round(v) : +v.toFixed(2)));
 }
 async function flwReq(method, path, body, secret, label, timeoutMs){
   const controller = new AbortController();
@@ -815,7 +824,7 @@ async function flwReq(method, path, body, secret, label, timeoutMs){
 }
 // 3DES-24 payload encryption (Flutterwave v3 direct charge requirement).
 // Card payloads are encrypted with the merchant encryption key and wrapped
-// as {client: "<base64>"} — plaintext card calls are rejected outright.
+// as {client: "<base64>"} - plaintext card calls are rejected outright.
 function flwEncrypt3DES(payloadObj, encKey){
   const key = Buffer.from(String(encKey || ''), 'utf8');
   if(key.length !== 24) throw new Error('Encryption key not configured (must be 24 characters).');
@@ -857,12 +866,12 @@ async function flwChargeCard({ email, name, phone, amountCents, currency, orderR
   if(!/^\d{13,19}$/.test(num)) throw new Error('Card number looks incomplete.');
   if(!/^(0[1-9]|1[0-2])$/.test(expMonth) || !/^20\d{2}$/.test(expYear)) throw new Error('Card expiry looks invalid (MM/YY).');
   if(!/^\d{3,4}$/.test(String(card.cvc || ''))) throw new Error('Card CVC looks invalid.');
-  if(!encKey) throw new Error('Encryption key not configured — add it in Admin → Integrations.');
+  if(!encKey) throw new Error('Encryption key not configured - add it in Admin → Integrations.');
   const isAmex = /^3[47]/.test(num);
   const payload = {
     card_number: num, cvv: String(card.cvc), expiry_month: expMonth, expiry_year: expYear,
     currency: String(currency || 'USD').toUpperCase(),
-    amount: flwAmount(amountCents),
+    amount: flwAmount(amountCents, currency),
     email: String(email),
     fullname: String(name || 'Customer'),
     tx_ref: String(orderRef),
@@ -881,9 +890,9 @@ async function flwChargeCard({ email, name, phone, amountCents, currency, orderR
   if(mode === 'pin') return { outcome: 'pin_required', data };
   if(mode === 'otp') return { outcome: 'otp_required', data };
   if(mode === 'redirect') return { outcome: 'redirect', data, url: (j.meta.authorization && j.meta.authorization.redirect) || '' };
-  if(mode === 'avs_noauth') return { outcome: 'failed', data, message: 'This card needs billing-address verification — please use Bank Transfer or a wallet option instead.' };
+  if(mode === 'avs_noauth') return { outcome: 'failed', data, message: 'This card needs billing-address verification - please use Bank Transfer or a wallet option instead.' };
   const failMsg = data.processor_response || data.message || 'Card charge failed.';
-  if(/rave v3/i.test(failMsg)) return { outcome: 'failed', data, message: 'Direct card payments are not enabled on this store yet — please use the Apple Pay / Google Pay options below.' };
+  if(/rave v3/i.test(failMsg)) return { outcome: 'failed', data, message: 'Direct card payments are not enabled on this store yet - please use the Apple Pay / Google Pay options below.' };
   if(st === 'failed' || data.processor_response) return { outcome: 'failed', data, message: failMsg };
   return { outcome: 'pending', data };
 }
@@ -917,9 +926,9 @@ async function markOrderPaid(orderRef, providerRef){
     .run('checkout_paid', order.kind + ':' + order.item_ref, '', '', JSON.stringify({ order_ref: String(orderRef) })); }catch{}
   // owner alert: money in (fire-and-forget)
   notifyOwner({
-    subject: `💰 Payment received: ${order.item_name} — ${formatCents(order.amount_cents, order.currency)}`,
+    subject: `💰 Payment received: ${order.item_name} - ${formatCents(order.amount_cents, order.currency)}`,
     html: `<div style="font-family:Inter,sans-serif;line-height:1.6"><h3>💰 Payment received</h3><p><b>Item:</b> ${escapeHtml(order.item_name)} (${escapeHtml(order.kind)})<br><b>Amount:</b> ${escapeHtml(formatCents(order.amount_cents, order.currency))} ${escapeHtml(order.currency || '')}<br><b>Order:</b> ${escapeHtml(order.order_ref)}<br><b>Buyer:</b> ${escapeHtml(order.customer_name)}<br><b>Email:</b> ${escapeHtml(order.customer_email)}<br><b>WhatsApp:</b> ${escapeHtml(order.customer_whatsapp)}</p><p>View in Admin → Themes / Shop → Recent Orders.</p></div>`,
-    text: `Payment received: ${order.item_name} ${formatCents(order.amount_cents, order.currency)} — order ${order.order_ref}, buyer ${order.customer_name} (${order.customer_whatsapp}).`
+    text: `Payment received: ${order.item_name} ${formatCents(order.amount_cents, order.currency)} - order ${order.order_ref}, buyer ${order.customer_name} (${order.customer_whatsapp}).`
   });
   return await db.prepare('SELECT * FROM orders WHERE order_ref=?').get(String(orderRef));
 }
@@ -980,7 +989,7 @@ app.post('/api/admin/fx/refresh', requireAuth, async (req, res) => {
 });
 // --- Public: checkout item preview (price/name for the checkout page) ---
 // ?currency=XXX converts from canonical USD using server rates. The charged
-// total is always recomputed server-side at create time — never trusted.
+// total is always recomputed server-side at create time - never trusted.
 app.get('/api/checkout/item', async (req, res) => {
   const item = await getCheckoutItem(req.query.kind, req.query.ref || req.query.item);
   if(item.error) return res.status(404).json({ error: item.error });
@@ -1040,7 +1049,7 @@ app.post('/api/checkout/create', async (req, res) => {
     console.log('checkout order saved:', orderRef);
     try{ await db.prepare("INSERT INTO events (event_type,element_id,session_id,page_url,metadata) VALUES (?,?,?,?,?)")
       .run('checkout_created', item.kind + ':' + item.ref, '', '', JSON.stringify({ order_ref: orderRef, amount_cents: item.amount_cents })); }catch{}
-    // $0 items (free/test) complete instantly — no payment step at all.
+    // $0 items (free/test) complete instantly - no payment step at all.
     if(!(item.amount_cents > 0)){
       await markOrderPaid(orderRef, 'FREE');
       console.log('checkout free order completed:', orderRef);
@@ -1050,21 +1059,21 @@ app.post('/api/checkout/create', async (req, res) => {
     console.log('checkout pay configured:', pay.configured, 'testmode:', pay.testmode, 'secret set:', !!pay.secret);
     if(!pay.configured){
       return res.json({ ok: true, order_ref: orderRef, payment_url: null, inline: false,
-        message: 'Payment gateway not connected yet — our team will contact you on WhatsApp to complete this order.' });
+        message: 'Payment gateway not connected yet - our team will contact you on WhatsApp to complete this order.' });
     }
-    // Inline flow: order is ready — the buyer now pays with their card inside
+    // Inline flow: order is ready - the buyer now pays with their card inside
     // the checkout page (charge endpoint below). No redirect, no popup.
     await db.prepare('UPDATE orders SET cryptomus_order_id=? WHERE order_ref=?').run(orderRef, orderRef);
     res.json({ ok: true, order_ref: orderRef, payment_url: null, inline: true, provider: 'flutterwave' });
   }catch(e){
     console.error('checkout create failed:', e.name + ': ' + e.message);
-    // NOTE: status 422 (not 502) — hosting proxies replace upstream 502
+    // NOTE: status 422 (not 502) - hosting proxies replace upstream 502
     // bodies with their own HTML error page, which hides the real message.
     if(!res.headersSent) res.status(422).json({ error: 'Could not start payment: ' + e.message });
   }
 });
 // --- Inline card charge: buyer pays inside the checkout page ---
-// Body: {order_ref*, card:{number,expiry,cvc}*, pin?} — card data is used for
+// Body: {order_ref*, card:{number,expiry,cvc}*, pin?} - card data is used for
 // this single Flutterwave call only, never logged or stored.
 // Page-facing statuses: success | send_pin | send_otp | open_url | failed.
 app.post('/api/checkout/flutterwave/charge', async (req, res) => {
@@ -1109,7 +1118,7 @@ app.post('/api/checkout/flutterwave/otp', async (req, res) => {
     const pay = await getPayConfig();
     if(!pay.configured) return res.status(422).json({ error: 'Payment gateway not connected yet.' });
     const stored = unpackFlwRef(order.cryptomus_order_id);
-    if(!stored.flwRef) return res.status(422).json({ error: 'No charge to confirm — please pay again.' });
+    if(!stored.flwRef) return res.status(422).json({ error: 'No charge to confirm - please pay again.' });
     const out = await flwValidateOtp({ otp, flwRef: stored.flwRef, secret: pay.secret });
     if(out.outcome === 'success'){
       await markOrderPaid(order.order_ref, packFlwRef(out.data && out.data.id, stored.flwRef));
@@ -1154,10 +1163,10 @@ app.post('/api/checkout/flutterwave/pin', async (req, res) => {
   }
 });
 // --- Embedded all-channels frame: Flutterwave hosted link for the iframe ---
-// No `payment_options` filter is sent on purpose: Flutterwave then applies the
-// merchant's dashboard Preferences (card, transfer, USSD, Apple Pay,
-// Google Pay, mobile money, Amex, international) automatically. tx_ref stays
-// our order_ref, so card-form, iframe, webhook and verify all settle the SAME
+// A broad `payment_options` list is sent so every channel the buyer qualifies
+// for shows up (Flutterwave auto-excludes whatever does not apply to the
+// order currency; dashboard Preferences apply on top). tx_ref stays our
+// order_ref, so card-form, iframe, webhook and verify all settle the SAME
 // order.
 app.post('/api/checkout/flutterwave/link', async (req, res) => {
   try{
@@ -1171,11 +1180,14 @@ app.post('/api/checkout/flutterwave/link', async (req, res) => {
     const base = (process.env.PUBLIC_URL || '').trim().replace(/\/$/, '') || (req.protocol + '://' + req.get('host'));
     const data = await flwReq('POST', '/payments', {
       tx_ref: order.order_ref,
-      amount: flwAmount(order.amount_cents),
+      amount: flwAmount(order.amount_cents, order.currency),
       currency: String(order.currency || 'USD').toUpperCase(),
       redirect_url: base + '/checkout?ref=' + encodeURIComponent(order.order_ref),
       customer: { email: order.customer_email, name: order.customer_name || undefined },
-      customizations: { title: 'NexaTech — ' + order.item_name }
+      customizations: { title: 'NexaTech - ' + order.item_name },
+      // Ask for every documented channel; Flutterwave auto-excludes whatever
+      // does not apply to this currency (plus dashboard Preferences on top).
+      payment_options: 'card,banktransfer,account,ussd,nqr,opay,mpesa,mobilemoneyghana,mobilemoneyxaf,mobilemoneyxof,mobilemoneyuganda,mobilemoneyrwanda,mobilemoneyzambia,barter,fawrypay,enaira'
     }, pay.secret, 'hosted-link');
     if(!data.link) throw new Error('Flutterwave did not return a payment link.');
     await db.prepare('UPDATE orders SET payment_url=? WHERE order_ref=?').run(String(data.link), order.order_ref);
@@ -1185,7 +1197,7 @@ app.post('/api/checkout/flutterwave/link', async (req, res) => {
     if(!res.headersSent) res.status(422).json({ error: e.message || 'Could not load payment options.' });
   }
 });
-// NOTE: native temp transfer accounts and direct USSD were removed —
+// NOTE: native temp transfer accounts and direct USSD were removed -
 // Flutterwave's virtual-account API only supports NGN/GHS while this store
 // charges USD, and USSD needs per-bank params. Both channels (plus
 // PayAttitude and wallets) remain available inside the hosted frame below,
@@ -1199,7 +1211,7 @@ app.post('/api/checkout/flutterwave/verify', async (req, res) => {
     if(order.status === 'paid') return res.json({ ok: true, status: 'paid' });
     const pay = await getPayConfig();
     if(!pay.configured) return res.status(422).json({ error: 'Payment gateway not connected yet.' });
-    // NOTE: never re-POST a charge here to "look up" a transaction — that
+    // NOTE: never re-POST a charge here to "look up" a transaction - that
     // could initiate a duplicate live charge. Only verify known tx ids.
     const stored = unpackFlwRef(order.cryptomus_order_id);
     if(stored.txId){
@@ -1240,7 +1252,7 @@ app.post('/api/checkout/webhook/flutterwave', async (req, res) => {
     res.status(500).json({ error: 'webhook error' });
   }
 });
-// --- Secure theme download (paid order token only — zip is never public) ---
+// --- Secure theme download (paid order token only - zip is never public) ---
 app.get('/api/themes/:slug/download', async (req, res) => {
   const slug = String(req.params.slug || '');
   const token = String(req.query.token || '');
@@ -1250,7 +1262,7 @@ app.get('/api/themes/:slug/download', async (req, res) => {
   const order = await db.prepare("SELECT id FROM orders WHERE kind='theme' AND item_ref=? AND download_token=? AND status='paid'").get(slug, token);
   if(!order) return res.status(403).json({ error: 'payment not verified for this download' });
   const file = await readThemeZip(theme.zip_filename);
-  if(!file) return res.status(404).json({ error: 'file missing on server — contact support' });
+  if(!file) return res.status(404).json({ error: 'file missing on server - contact support' });
   res.setHeader('Content-Type', 'application/zip');
   res.setHeader('Content-Disposition', 'attachment; filename="' + slug + '.zip"');
   res.setHeader('Content-Length', String(file.buffer.length));
@@ -1494,7 +1506,7 @@ app.post('/api/admin/notify-test', requireAuth, async (req, res) => {
     // Fire the test through the real paths (results arrive async)
     notifyOwner({
       subject: '✅ Nexatech alerts working',
-      html: '<div style="font-family:Inter,sans-serif"><h3>✅ Alerts working</h3><p>This is a test — leads, payments and new chats will notify you here.</p></div>',
+      html: '<div style="font-family:Inter,sans-serif"><h3>✅ Alerts working</h3><p>This is a test - leads, payments and new chats will notify you here.</p></div>',
       text: 'Test alert: leads, payments and new chats will notify you here.'
     });
     res.json({
@@ -1593,7 +1605,7 @@ app.post('/api/admin/leads/bulk', requireAuth, async (req, res) => {
   } else if(action === 'delete'){
     for(const id of ids){
       try{
-        // NOTE: db run() is sync on SQLite / async on PG — never chain .catch()
+        // NOTE: db run() is sync on SQLite / async on PG - never chain .catch()
         // on it; use try/catch blocks so both drivers work.
         try{ await db.prepare('DELETE FROM campaign_sends WHERE lead_id=?').run(id); }catch{}
         try{ await db.prepare('DELETE FROM followup_logs WHERE lead_id=?').run(id); }catch{}
@@ -1750,7 +1762,7 @@ app.post('/api/media/chunk-init', requireAuth, async (req, res) => {
 app.post('/api/media/chunk', requireAuth, chunkUpload.single('chunk'), async (req, res) => {
   const { uploadId, index } = req.body || {};
   const got = readChunkMeta(uploadId);
-  if(!got) { try{ if(req.file) fs.unlinkSync(req.file.path); }catch{} return res.status(404).json({ error: 'upload session not found or expired — restart the upload' }); }
+  if(!got) { try{ if(req.file) fs.unlinkSync(req.file.path); }catch{} return res.status(404).json({ error: 'upload session not found or expired - restart the upload' }); }
   const idx = parseInt(index, 10);
   if(!Number.isInteger(idx) || idx < 0 || idx >= got.meta.totalChunks){ try{ if(req.file) fs.unlinkSync(req.file.path); }catch{} return res.status(400).json({ error: 'bad chunk index' }); }
   if(!req.file){ return res.status(400).json({ error: 'chunk file required' }); }
@@ -1767,11 +1779,11 @@ app.post('/api/media/chunk', requireAuth, chunkUpload.single('chunk'), async (re
 });
 app.post('/api/media/chunk-complete', requireAuth, async (req, res) => {
   // Fast: verify pieces, then assemble in the BACKGROUND and return at once.
-  // (Stitching + saving 30MB can take minutes on a small server — proxies kill
+  // (Stitching + saving 30MB can take minutes on a small server - proxies kill
   // slow requests with HTTP 524. The client polls chunk-status until done.)
   const { uploadId } = req.body || {};
   const got = readChunkMeta(uploadId);
-  if(!got) return res.status(404).json({ error: 'upload session not found or expired — restart the upload' });
+  if(!got) return res.status(404).json({ error: 'upload session not found or expired - restart the upload' });
   const { dir, meta } = got;
   const resultFp = path.join(dir, 'result.json');
   const lockFp = path.join(dir, 'assembling.lock');
@@ -1782,15 +1794,15 @@ app.post('/api/media/chunk-complete', requireAuth, async (req, res) => {
     if(fs.existsSync(lockFp)){
       try{ if(Date.now() - fs.statSync(lockFp).mtimeMs < 10*60*1000) return res.json({ ok: true, status: 'processing' }); }
       catch{}
-      try{ fs.unlinkSync(lockFp); }catch{} // stale lock (crash) — start assembly again below
+      try{ fs.unlinkSync(lockFp); }catch{} // stale lock (crash) - start assembly again below
     }
     let bytes = 0;
     for(let i=0;i<meta.totalChunks;i++){
       const fp = path.join(dir, i + '.part');
-      if(!fs.existsSync(fp)) return res.status(400).json({ error: `missing piece ${i+1}/${meta.totalChunks} — it failed to send, retry the upload` });
+      if(!fs.existsSync(fp)) return res.status(400).json({ error: `missing piece ${i+1}/${meta.totalChunks} - it failed to send, retry the upload` });
       bytes += fs.statSync(fp).size;
     }
-    if(bytes !== meta.totalSize) return res.status(400).json({ error: `size mismatch (got ${bytes}, expected ${meta.totalSize}) — retry the upload` });
+    if(bytes !== meta.totalSize) return res.status(400).json({ error: `size mismatch (got ${bytes}, expected ${meta.totalSize}) - retry the upload` });
     fs.writeFileSync(lockFp, JSON.stringify({ startedAt: Date.now() }));
     try{ fs.utimesSync(dir, new Date(), new Date()); }catch{}
     setImmediate(()=>{ assembleChunkedUpload(String(uploadId)).catch(e=> console.error('assemble bg', e.message)); });
@@ -1826,7 +1838,7 @@ async function assembleChunkedUpload(uploadId){
     }
     await new Promise((resolve, reject)=> out.end((err)=> err ? reject(err) : resolve()));
     const stat = fs.statSync(finalPath);
-    if(stat.size !== meta.totalSize){ try{ fs.unlinkSync(finalPath); }catch{} return fail('assembled file size mismatch — please retry the upload'); }
+    if(stat.size !== meta.totalSize){ try{ fs.unlinkSync(finalPath); }catch{} return fail('assembled file size mismatch - please retry the upload'); }
     const url = await persistUpload({ path: finalPath, filename: finalName, mimetype: meta.mime || '' });
     let done;
     if(meta.mode === 'file-only'){
@@ -1847,7 +1859,7 @@ async function assembleChunkedUpload(uploadId){
     try{ fs.unlinkSync(lockFp); }catch{}
     try{ fs.utimesSync(dir, new Date(), new Date()); }catch{}
     console.log(`chunk assembled ${meta.filename} ${(meta.totalSize/1048576).toFixed(1)}MB in ${Math.round((Date.now()-started)/1000)}s -> ${url}`);
-  }catch(e){ console.error('assembleChunkedUpload', e.message); fail('assembly failed on server: ' + e.message + ' — retry the upload'); }
+  }catch(e){ console.error('assembleChunkedUpload', e.message); fail('assembly failed on server: ' + e.message + ' - retry the upload'); }
 }
 
 // --- API: Team ---
@@ -1975,7 +1987,7 @@ app.post('/api/leads', leadLimiter, async (req, res) => {
     webhookStatus = 'failed';
   }
 
-  // also append to Google Sheets directly (if configured) — no n8n needed
+  // also append to Google Sheets directly (if configured) - no n8n needed
   try{
     await appendToGoogleSheet({ name, storeName, preferredNiche, preferredNicheOther, investmentRange, storeStatus, wasScammed, scamDetails, whatsapp, email, preferredContactTime, source, trafficPlan, pageUrl, sessionId, utm_source, utm_medium, utm_campaign, pipeline_stage, webhook_status: webhookStatus, submittedAt: nowIso });
   }catch(e){ console.error('Sheets append error', e.message); }
@@ -1984,12 +1996,12 @@ app.post('/api/leads', leadLimiter, async (req, res) => {
   try { await db.prepare('INSERT INTO events (event_type,element_id,session_id,page_url,metadata) VALUES (?,?,?,?,?)').run('lead_submitted', 'lead_form', sessionId||'', pageUrl||'', JSON.stringify({ leadId, niche: preferredNiche })); } catch {}
   // owner alert: new lead (fire-and-forget)
   notifyOwner({
-    subject: `🔔 New lead: ${name} — ${preferredNiche} (${investmentRange})`,
+    subject: `🔔 New lead: ${name} - ${preferredNiche} (${investmentRange})`,
     html: `<div style="font-family:Inter,sans-serif;line-height:1.6"><h3>🔔 New store application</h3><p><b>Name:</b> ${escapeHtml(name)}<br><b>Store:</b> ${escapeHtml(storeName)}<br><b>Niche:</b> ${escapeHtml(preferredNiche)}<br><b>Plan:</b> ${escapeHtml(investmentRange)}<br><b>WhatsApp:</b> ${escapeHtml(whatsapp)}<br><b>Email:</b> ${escapeHtml(email)}<br><b>Status:</b> ${escapeHtml(storeStatus)} · <b>Scammed before:</b> ${escapeHtml(wasScammed)}</p><p>View in Admin → Leads / CRM.</p></div>`,
-    text: `New lead: ${name} (${storeName}) — ${preferredNiche} / ${investmentRange}. WhatsApp: ${whatsapp}, Email: ${email}.`
+    text: `New lead: ${name} (${storeName}) - ${preferredNiche} / ${investmentRange}. WhatsApp: ${whatsapp}, Email: ${email}.`
   });
 
-  // Instant AI follow-up email (HTML + WhatsApp + opt-out, logged to CRM) — fire-and-forget so response stays instant
+  // Instant AI follow-up email (HTML + WhatsApp + opt-out, logged to CRM) - fire-and-forget so response stays instant
   try{
     const leadForMail = { id: leadId, name, storeName, preferredNiche, preferredNicheOther, investmentRange, storeStatus, wasScammed, scamDetails, whatsapp, email, preferredContactTime, source, trafficPlan };
     const baseUrl = getBaseUrl(req);
@@ -2004,7 +2016,7 @@ app.post('/api/leads', leadLimiter, async (req, res) => {
     leadId,
     webhook_status: webhookStatus,
     whatsappFallback,
-    message: "Application received — we'll message you on email shortly. Please check your inbox (and spam folder)."
+    message: "Application received - we'll message you on email shortly. Please check your inbox (and spam folder)."
   });
 });
 
@@ -2100,9 +2112,9 @@ app.get('/api/admin/analytics', requireAuth, async (req, res) => {
   res.json({ totalViews, uniqueVisitors, ctaClicks, funnelStarts, funnelCompletions, trafficSource: traffic, geo, daily, topPortfolio, leadsByDay });
 });
 
-// --- Helpers: Gemini — DB keys take precedence over env; extra keys rotate on quota errors
+// --- Helpers: Gemini - DB keys take precedence over env; extra keys rotate on quota errors
 // Free tier is ~20 generate requests/day per key/project, shared by chatbot,
-// follow-ups and tests — so up to 3 keys (different Google projects) fail over.
+// follow-ups and tests - so up to 3 keys (different Google projects) fail over.
 function geminiFingerprint(key){ const k=String(key||''); return k.slice(0,8)+'...'+k.slice(-4); }
 const geminiCooldowns = new Map(); // fingerprint -> retry-after epoch ms
 async function getGeminiKeys(){
@@ -2164,7 +2176,7 @@ async function geminiGenerate({ model, systemText, contents, genConfig, timeoutM
         const msg = data?.error?.message || data?.error?.status || ('Gemini error ' + resp.status + ' ' + resp.statusText);
         const isQuota = resp.status===429 || /quota|RESOURCE_EXHAUSTED|exceed/i.test(String(msg));
         if(isQuota) geminiCooldowns.set(geminiFingerprint(key), Date.now() + geminiQuotaDelayMs(data));
-        const hint = key.startsWith('AQ.') ? ' (AQ. key — ensure it is a Google AI API key, not OAuth token; try AIza... key from aistudio.google.com)' : '';
+        const hint = key.startsWith('AQ.') ? ' (AQ. key - ensure it is a Google AI API key, not OAuth token; try AIza... key from aistudio.google.com)' : '';
         const err = new Error(msg + hint);
         err.quota = isQuota; err.status = resp.status;
         throw err;
@@ -2200,7 +2212,7 @@ async function geminiGenerate({ model, systemText, contents, genConfig, timeoutM
 // Together, Hugging Face, Mistral, Pollinations, custom). The chatbot, follow-up
 // emails and subject suggestions all go through aiGenerate(), so switching
 // provider changes everything at once. Nothing here is unlimited: every free
-// API has daily/rate limits — Gemini ~20/day/key, others per their own docs.
+// API has daily/rate limits - Gemini ~20/day/key, others per their own docs.
 const AI_PRESETS = {
   gemini:       { label: 'Gemini (Google)', baseUrl: '', model: '', needsKey: true },
   groq:         { label: 'Groq (generous free tier)', baseUrl: 'https://api.groq.com/openai/v1', model: 'openai/gpt-oss-20b', needsKey: true },
@@ -2304,7 +2316,7 @@ async function getGeminiKeySource(){
   if (GEMINI_API_KEY && GEMINI_API_KEY.trim()) return 'env';
   return 'none';
 }
-// Chatbot brain — editable in Admin -> Content & Theme -> Chatbot. Falls back to built-in.
+// Chatbot brain - editable in Admin -> Content & Theme -> Chatbot. Falls back to built-in.
 async function getChatbotPrompt(){
   try{
     const row = await db.prepare('SELECT value FROM content WHERE key=?').get('chatbot_system_prompt');
@@ -2333,7 +2345,7 @@ async function callGemini(userMessage, history=[]){
   const siteKnowledge = await buildSiteKnowledge();
   const basePrompt = await getChatbotPrompt();
   const genCfg = await getChatbotGenConfig();
-  const fullPrompt = basePrompt + "\n\nSITE KNOWLEDGE (live, everything except secrets — owner: Akinyemmi Ifeoluwa, brand NEXATECH, includes plans, portfolio, WhatsApp, pricing, team, certificates):\n" + siteKnowledge;
+  const fullPrompt = basePrompt + "\n\nSITE KNOWLEDGE (live, everything except secrets - owner: Akinyemmi Ifeoluwa, brand NEXATECH, includes plans, portfolio, WhatsApp, pricing, team, certificates):\n" + siteKnowledge;
   // Build contents with history (up to last 10 turns) for conversational memory.
   // Gemini rejects consecutive same-role turns, so merge them; first turn must be user.
   let contents = [];
@@ -2375,7 +2387,7 @@ async function callGemini(userMessage, history=[]){
 }
 
 // --- Helpers: Google Sheets (direct, no n8n) ---
-// Expected columns for leads sheet — used for auto-detect, setup, and append mapping
+// Expected columns for leads sheet - used for auto-detect, setup, and append mapping
 const EXPECTED_SHEET_HEADERS = [
   'Timestamp','Name','Store Name','Preferred Niche','Preferred Niche Other','Investment Range','Store Status','Was Scammed','Scam Details','WhatsApp','Email','Preferred Contact Time','Source','Traffic Plan','Page URL','Session ID','UTM Source','UTM Medium','UTM Campaign','Pipeline Stage','Webhook Status','Submitted At'
 ];
@@ -2419,7 +2431,7 @@ async function getGoogleConfig(){
     gmailSenderName: await get('gmail_sender_name'),
   };
 }
-// Google OAuth scopes — same console Client ID/Secret reused for Sheets + Campaign/Gmail (HubSpot-like CRM)
+// Google OAuth scopes - same console Client ID/Secret reused for Sheets + Campaign/Gmail (HubSpot-like CRM)
 const GOOGLE_SCOPES = [
   'https://www.googleapis.com/auth/spreadsheets',
   'https://www.googleapis.com/auth/gmail.send',
@@ -2448,7 +2460,7 @@ async function getAuthenticatedSheets(){
   const cfg = await getGoogleConfig();
   if(!cfg.clientId || !cfg.clientSecret) throw new Error('Google Client ID/Secret not configured');
   if(!cfg.docId) throw new Error('Google Sheets Document ID not configured');
-  if(!cfg.refreshToken) throw new Error('Google not connected — click Connect Google (Sheets + Gmail) to authorize');
+  if(!cfg.refreshToken) throw new Error('Google not connected - click Connect Google (Sheets + Gmail) to authorize');
   const oauth2 = getGoogleOAuthClient(cfg);
   oauth2.setCredentials({ refresh_token: cfg.refreshToken, access_token: cfg.accessToken || undefined });
   await refreshGoogleTokens(oauth2);
@@ -2457,8 +2469,8 @@ async function getAuthenticatedSheets(){
 }
 async function getAuthenticatedGmail(){
   const cfg = await getGoogleConfig();
-  if(!cfg.clientId || !cfg.clientSecret) throw new Error('Google Client ID/Secret not configured — set in Integrations → Google Sheets (same console creds reused for Campaigns)');
-  if(!cfg.refreshToken) throw new Error('Gmail not connected — click Connect Google (same Client ID/Secret) to grant Gmail permission');
+  if(!cfg.clientId || !cfg.clientSecret) throw new Error('Google Client ID/Secret not configured - set in Integrations → Google Sheets (same console creds reused for Campaigns)');
+  if(!cfg.refreshToken) throw new Error('Gmail not connected - click Connect Google (same Client ID/Secret) to grant Gmail permission');
   const oauth2 = getGoogleOAuthClient(cfg);
   oauth2.setCredentials({ refresh_token: cfg.refreshToken, access_token: cfg.accessToken || undefined });
   await refreshGoogleTokens(oauth2);
@@ -2474,10 +2486,10 @@ async function getAuthenticatedGmail(){
   }
   return { gmail, oauth2, cfg, senderEmail };
 }
-// Helper: render template with lead variables {{name}}, {{storeName}}, etc. — HubSpot-like personalization
+// Helper: render template with lead variables {{name}}, {{storeName}}, etc. - HubSpot-like personalization
 // Live prices (single source of truth = content keys). Cached 60s so bulk
 // email sends don't hammer the DB. Used by email placeholders, AI prompts,
-// and WhatsApp templates — change a price once, everything follows.
+// and WhatsApp templates - change a price once, everything follows.
 let _livePricesCache = null, _livePricesAt = 0;
 async function getLivePrices(){
   const now = Date.now();
@@ -2583,7 +2595,7 @@ function renderTemplate(str, lead={}){
 async function sendGmailRaw({ to, subject, html, text, fromName, fromEmail, replyTo }){
   const { gmail, senderEmail } = await getAuthenticatedGmail();
   const from = fromEmail || senderEmail || (await getGoogleConfig()).gmailConnectedEmail;
-  if(!from) throw new Error('No sender Gmail — connect Google and ensure Gmail API enabled');
+  if(!from) throw new Error('No sender Gmail - connect Google and ensure Gmail API enabled');
   const fromHeader = fromName ? `${fromName} <${from}>` : from;
   // Build MIME
   const boundary = 'nexatech_'+Date.now();
@@ -2606,7 +2618,7 @@ async function sendGmailRaw({ to, subject, html, text, fromName, fromEmail, repl
 
 // ==================== Owner notifications (email + WhatsApp) ====================
 // Fires on: new lead, paid order, first chat message. Never throws, never
-// blocks responses — all sends are fire-and-forget.
+// blocks responses - all sends are fire-and-forget.
 // Email: uses the already-connected Gmail (Admin → Integrations → Google).
 // WhatsApp: free CallMeBot gateway. One-time setup: from the OWNER's phone,
 // send "I allow callmebot to send me messages" to +34 644 10 55 84, then
@@ -2652,7 +2664,7 @@ function notifyOwner({ subject, html, text }){
   });
 }
 
-// ==================== Auto AI Follow-ups — instant (form + chat) + daily, via same Gmail Client ID/Secret ====================
+// ==================== Auto AI Follow-ups - instant (form + chat) + daily, via same Gmail Client ID/Secret ====================
 // Requirements covered:
 // - After name+email from form OR chatbot, send AI-generated follow-up based on their request / chat transcript
 // - Every day send follow-up via same Gmail OAuth (google_client_id/secret)
@@ -2739,10 +2751,10 @@ async function generateFollowupAI({ lead={}, transcript='', kind='form_instant',
       ? cleanSubject('Great chatting, ' + name + ' - next step for your' + (niche ? ' ' + niche : '') + ' store', 'Great chatting, ' + name + ' - next step for your store')
       : cleanSubject(name + ', quick check-in (Day ' + (dayNumber || '') + ') - your store slot', 'Quick check-in - your store slot');
   const fallbackInner = kind === 'form_instant'
-    ? `<p>Hi ${escapeHtml(name)},</p><p>Thanks for applying for your <b>${escapeHtml(store||'dropshipping store')}</b>${niche?` in the <b>${escapeHtml(niche)}</b> niche`:''}. We have received your request and our team will reach out on WhatsApp within 24 hours.</p><p>While you wait: every store we build includes winning-product research, supplier automation and 100% ownership in your account — launched in 7 to 14 days.</p>`
+    ? `<p>Hi ${escapeHtml(name)},</p><p>Thanks for applying for your <b>${escapeHtml(store||'dropshipping store')}</b>${niche?` in the <b>${escapeHtml(niche)}</b> niche`:''}. We have received your request and our team will reach out on WhatsApp within 24 hours.</p><p>While you wait: every store we build includes winning-product research, supplier automation and 100% ownership in your account - launched in 7 to 14 days.</p>`
     : kind === 'chat_instant'
-      ? `<p>Hi ${escapeHtml(name)},</p><p>Thanks for chatting with us${transcript ? ' about <b>'+escapeHtml(transcript.slice(0,120))+'…</b>' : ''}. Based on what you asked, the best next step is a quick WhatsApp chat with Ifeoluwa so we can map your niche, timeline and package.</p><p>Reply to this email or tap WhatsApp below — we usually reply within hours.</p>`
-      : `<p>Hi ${escapeHtml(name)},</p><p>Just checking in${store?` on <b>${escapeHtml(store)}</b>`:''}${niche?` (${escapeHtml(niche)})`:''} — your build slot is still open. Many founders start with a free strategy call to lock timeline and package.</p><p>Want us to hold your slot for this week? Tap WhatsApp below or reply “YES”.</p>`;
+      ? `<p>Hi ${escapeHtml(name)},</p><p>Thanks for chatting with us${transcript ? ' about <b>'+escapeHtml(transcript.slice(0,120))+'…</b>' : ''}. Based on what you asked, the best next step is a quick WhatsApp chat with Ifeoluwa so we can map your niche, timeline and package.</p><p>Reply to this email or tap WhatsApp below - we usually reply within hours.</p>`
+      : `<p>Hi ${escapeHtml(name)},</p><p>Just checking in${store?` on <b>${escapeHtml(store)}</b>`:''}${niche?` (${escapeHtml(niche)})`:''} - your build slot is still open. Many founders start with a free strategy call to lock timeline and package.</p><p>Want us to hold your slot for this week? Tap WhatsApp below or reply “YES”.</p>`;
   const keys = await getGeminiKeys().catch(()=> []);
   const cfg = await getAIConfig().catch(()=> ({ provider:'gemini' }));
   if(cfg.provider === 'gemini' && !keys.length) return { subject: fallbackSubject, htmlInner: fallbackInner, textInner: fallbackInner.replace(/<[^>]+>/g,''), ai: false };
@@ -2756,7 +2768,7 @@ async function generateFollowupAI({ lead={}, transcript='', kind='form_instant',
   const cleanTranscript = String(transcript||'').slice(0,2500);
   const dayAngle = kind.startsWith('daily') ? `This is Day ${dayNumber} follow-up (angles rotate: Day2 reminder+social proof, Day3 FAQ/objection handling incl. scam-trust, Day4 urgency/slot scarcity, Day5+ mentorship pay-after-results). Keep it fresh, never repeat verbatim.` : 'This is the FIRST instant follow-up (thank them, confirm next step within 24h on WhatsApp).';
   const livePrices = await getLivePrices().catch(() => ({ starterprice:'$149', proname:'Pro', proprice:'$299', elitename:'Elite', eliteprice:'$599', mentorshipprice:'Pay After Results' }));
-  const prompt = `You are Nexatech email copywriter. Write a short personalized follow-up email.\n${dayAngle}\nLEAD CONTEXT: ${ctxSummary || '(chat-only contact)'}\nCHAT TRANSCRIPT (if any): ${cleanTranscript || '(none — form lead)'}\nRULES:\n- Friendly, human, 120-180 words, 2-3 short paragraphs. Address by first name.\n- Reference their niche/store/request specifically. If scammed=yes, show empathy + trust (100% ownership, video proof).\n- Never invent prices. The ONLY prices you may state: Starter ${livePrices.starterprice} / ${livePrices.proname} ${livePrices.proprice} / ${livePrices.elitename} ${livePrices.eliteprice} / Mentorship ${livePrices.mentorshipprice}. Quote ONLY these exact figures.\n- No raw URLs (WhatsApp button + unsubscribe are added separately). No emojis overload (max 1).\n- SUBJECT RULE: include the person's first name plus their store or niche, plain ASCII text only (letters, numbers, basic punctuation - no emoji, no special dashes, no curly quotes). Example: Thanks Ada - your GlowLab fashion store request is in.\n- Return ONLY valid JSON: {"subject":"...","html_inner":"<p>...</p><p>...</p>","text_inner":"..."}`;
+  const prompt = `You are Nexatech email copywriter. Write a short personalized follow-up email.\n${dayAngle}\nLEAD CONTEXT: ${ctxSummary || '(chat-only contact)'}\nCHAT TRANSCRIPT (if any): ${cleanTranscript || '(none - form lead)'}\nRULES:\n- Friendly, human, 120-180 words, 2-3 short paragraphs. Address by first name.\n- Reference their niche/store/request specifically. If scammed=yes, show empathy + trust (100% ownership, video proof).\n- Never invent prices. The ONLY prices you may state: Starter ${livePrices.starterprice} / ${livePrices.proname} ${livePrices.proprice} / ${livePrices.elitename} ${livePrices.eliteprice} / Mentorship ${livePrices.mentorshipprice}. Quote ONLY these exact figures.\n- No raw URLs (WhatsApp button + unsubscribe are added separately). No emojis overload (max 1).\n- SUBJECT RULE: include the person's first name plus their store or niche, plain ASCII text only (letters, numbers, basic punctuation - no emoji, no special dashes, no curly quotes). Example: Thanks Ada - your GlowLab fashion store request is in.\n- Return ONLY valid JSON: {"subject":"...","html_inner":"<p>...</p><p>...</p>","text_inner":"..."}`;
   try{
     const r = await aiGenerate({ contents: [{ role:'user', parts:[{ text: prompt }] }], genConfig: { temperature: 0.8, maxOutputTokens: 700, topP: 0.9 }, timeoutMs: 15000 });
     let text = r.text.replace(/^```json\s*/i,'').replace(/^```\s*/,'').replace(/```\s*$/,'').trim();
@@ -2778,7 +2790,7 @@ async function generateFollowupAI({ lead={}, transcript='', kind='form_instant',
 function buildFollowupHtml({ innerHtml, leadName='', whatsappNumber='', whatsappUrl='', unsubscribeUrl='', preheader='' }){
   const waNum = (whatsappNumber||'19283825389').replace(/\D/g,'');
   const waUrl = whatsappUrl || `https://wa.me/${waNum}?text=${encodeURIComponent('Hi Nexatech! Following up on my store request.')}`;
-  const safeInner = innerHtml || '<p>Thanks for reaching out — we will be in touch shortly.</p>';
+  const safeInner = innerHtml || '<p>Thanks for reaching out - we will be in touch shortly.</p>';
   const pre = preheader ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0">${escapeHtml(preheader).slice(0,140)}</div>` : '';
   return `<!doctype html><html><body style="margin:0;padding:0;background:#F1F5F9;font-family:Inter,system-ui,-apple-system,sans-serif;color:#0B1220">`
   + pre
@@ -2837,7 +2849,7 @@ async function logFollowup({ email, name='', leadId=null, sessionId='', kind='',
       .run(em, leadId, sessionId||'', kind, dayNumber||0, subject||'', body_html||'', body_text||'', status, String(error||'').slice(0,500), messageId||'', sendId||0);
     logId = info.lastInsertRowid || null;
   }catch(e){
-    // Older DBs without send_id column (migration not yet applied) — retry without it
+    // Older DBs without send_id column (migration not yet applied) - retry without it
     try{
       const info2 = await db.prepare('INSERT INTO followup_logs (email,lead_id,session_id,kind,day_number,subject,body_html,body_text,status,error,message_id,sent_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,datetime(\'now\'))')
         .run(em, leadId, sessionId||'', kind, dayNumber||0, subject||'', body_html||'', body_text||'', status, String(error||'').slice(0,500), messageId||'');
@@ -2850,13 +2862,13 @@ async function logFollowup({ email, name='', leadId=null, sessionId='', kind='',
   }catch{}
   return logId;
 }
-// Central sender — checks opt-out + settings + dedup, generates AI HTML, sends via same Gmail Client ID/Secret, logs to CRM
+// Central sender - checks opt-out + settings + dedup, generates AI HTML, sends via same Gmail Client ID/Secret, logs to CRM
 async function sendFollowupEmail({ to, name='', lead=null, leadId=null, sessionId='', kind='form_instant', dayNumber=0, transcript='', baseUrl='' }){
   const email = String(to||lead?.email||'').toLowerCase().trim();
   if(!email || !email.includes('@')) return { ok:false, skipped:'invalid email' };
   const displayName = name || lead?.name || '';
   if(await isEmailUnsubscribed(email)){
-    await logFollowup({ email, name: displayName, leadId: leadId ?? lead?.id ?? null, sessionId, kind, dayNumber, subject:'(skipped — unsubscribed)', status:'skipped', error:'unsubscribed' });
+    await logFollowup({ email, name: displayName, leadId: leadId ?? lead?.id ?? null, sessionId, kind, dayNumber, subject:'(skipped - unsubscribed)', status:'skipped', error:'unsubscribed' });
     return { ok:false, skipped:'unsubscribed' };
   }
   const settings = await getFollowupSettings().catch(()=> ({ enabled:true, instantEnabled:true, dailyEnabled:true }));
@@ -2867,7 +2879,7 @@ async function sendFollowupEmail({ to, name='', lead=null, leadId=null, sessionI
   const owner = await getOwnerContact().catch(()=> ({ whatsapp_number:'19283825389', footer_email:'saheednexatech@gmail.com', footer_phone:'+1 928 382 5389' }));
   const unsubUrl = getUnsubscribeUrl(email, baseUrl);
   const gen = await generateFollowupAI({ lead: lead||{ name: displayName, email }, transcript, kind, dayNumber });
-  const waPrefill = `Hi Nexatech! ${displayName?displayName.split(' ')[0]+' here — ':''}following up on my store request${lead?.preferredNiche?` (${lead.preferredNiche})`:''}.`;
+  const waPrefill = `Hi Nexatech! ${displayName?displayName.split(' ')[0]+' here - ':''}following up on my store request${lead?.preferredNiche?` (${lead.preferredNiche})`:''}.`;
   const waUrl = `https://wa.me/${owner.whatsapp_number.replace(/\D/g,'')}?text=${encodeURIComponent(waPrefill)}`;
   const html = buildFollowupHtml({ innerHtml: gen.htmlInner, leadName: displayName, whatsappNumber: owner.whatsapp_number, whatsappUrl: waUrl, unsubscribeUrl: unsubUrl, preheader: gen.textInner.slice(0,120) });
   const text = `${gen.textInner}\n\nChat on WhatsApp: ${waUrl}\n\nTo opt out: ${unsubUrl}`;
@@ -2952,7 +2964,7 @@ async function appendToGoogleSheet(lead){
       const vals = hdrRes.data.values;
       if(vals && vals[0] && vals[0].length) headers = vals[0];
       else {
-        // Sheet empty — create headers first time automatically
+        // Sheet empty - create headers first time automatically
         try{
           await sheets.spreadsheets.values.update({
             spreadsheetId: curCfg.docId,
@@ -3008,7 +3020,7 @@ app.post('/api/chat', async (req, res) => {
     const prior = await db.prepare("SELECT COUNT(*) as c FROM chat_messages WHERE session_id=? AND role='user'").get(sid);
     if(parseInt(prior?.c ?? 0, 10) <= 1){
       notifyOwner({
-        subject: `💬 New chat: ${name} — “${String(message).slice(0, 50)}”`,
+        subject: `💬 New chat: ${name} - “${String(message).slice(0, 50)}”`,
         html: `<div style="font-family:Inter,sans-serif;line-height:1.6"><h3>💬 New chatbot conversation</h3><p><b>Name:</b> ${escapeHtml(name)}<br><b>Email:</b> ${escapeHtml(email)}<br><b>First message:</b> ${escapeHtml(String(message).slice(0, 500))}</p><p>View in Admin → Chatbot.</p></div>`,
         text: `New chat from ${name} (${email}): ${String(message).slice(0, 200)}`
       });
@@ -3017,8 +3029,8 @@ app.post('/api/chat', async (req, res) => {
   // AI provider check (Gemini rotation across saved keys)
   const ready = await aiReady().catch(()=> ({ ready:false }));
   if(!ready.ready){
-    await logChatMessage(sid, 'model', 'Chatbot not configured — set Gemini API key.', pageUrl);
-    return res.status(503).json({ error: 'Chatbot not configured — set Gemini API key in Admin → Integrations → Gemini Direct', code: 'config', fallback: 'Please chat on WhatsApp instead.' });
+    await logChatMessage(sid, 'model', 'Chatbot not configured - set Gemini API key.', pageUrl);
+    return res.status(503).json({ error: 'Chatbot not configured - set Gemini API key in Admin → Integrations → Gemini Direct', code: 'config', fallback: 'Please chat on WhatsApp instead.' });
   }
   const history = Array.isArray(req.body.history) ? req.body.history : [];
   const reply = await callGemini(message, history);
@@ -3029,21 +3041,21 @@ app.post('/api/chat', async (req, res) => {
     try{ const r = await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_model'); if(r?.value?.trim()) model = r.value.trim(); }catch{}
     return res.json({ reply, source: 'gemini', model });
   }
-  await logChatMessage(sid, 'model', 'Gemini failed — check API key/model.', pageUrl);
+  await logChatMessage(sid, 'model', 'Gemini failed - check API key/model.', pageUrl);
   let failCode = 'error';
   let failDetail = '';
   try{ failCode = globalThis.__lastGeminiCode || 'error'; }catch{}
   try{ failDetail = String(globalThis.__lastGeminiError || '').slice(0, 220); }catch{}
   const failHints = {
-    quota: 'AI daily limit reached — try again shortly',
-    timeout: 'AI took too long — try again',
-    config: 'Chatbot not configured — set Gemini API key in Admin → Integrations → Gemini Direct',
-    error: 'Gemini failed — check API key/model'
+    quota: 'AI daily limit reached - try again shortly',
+    timeout: 'AI took too long - try again',
+    config: 'Chatbot not configured - set Gemini API key in Admin → Integrations → Gemini Direct',
+    error: 'Gemini failed - check API key/model'
   };
   return res.status(503).json({ error: failHints[failCode] || failHints.error, code: failCode, detail: failDetail, fallback: 'Please chat on WhatsApp instead.' });
 });
 
-// Chat finished — instant AI follow-up after name+email + conversation ends (frontend calls after idle / close / New Chat; cron also auto-detects idle)
+// Chat finished - instant AI follow-up after name+email + conversation ends (frontend calls after idle / close / New Chat; cron also auto-detects idle)
 app.post('/api/chat/finish', async (req, res) => {
   try{
     const sid = String(req.body?.sessionId || '').slice(0,120);
@@ -3051,7 +3063,7 @@ app.post('/api/chat/finish', async (req, res) => {
     await ensureFollowupTables();
     let session = null;
     try{ session = await db.prepare('SELECT session_id, name, email FROM chat_sessions WHERE session_id=?').get(sid); }catch{}
-    if(!session || !session.email || !session.email.includes('@')) return res.status(400).json({ error: 'No email for this chat session yet — name+email required before follow-up' });
+    if(!session || !session.email || !session.email.includes('@')) return res.status(400).json({ error: 'No email for this chat session yet - name+email required before follow-up' });
     if(await hasFollowupBeenSent({ email: session.email, kind:'chat_instant', sessionId: sid })) return res.json({ ok:true, already:true, message:'Follow-up already sent for this chat' });
     // Build transcript from recent messages
     let transcript = '';
@@ -3067,7 +3079,7 @@ app.post('/api/chat/finish', async (req, res) => {
     const r = await sendFollowupEmail({ to: session.email, name: session.name||lead?.name||'', lead: lead || { name: session.name, email: session.email }, leadId, sessionId: sid, kind:'chat_instant', dayNumber: 1, transcript, baseUrl });
     if(r.ok) return res.json({ ok:true, messageId: r.messageId, subject: r.subject });
     if(r.skipped) return res.json({ ok:true, skipped: r.skipped });
-    return res.status(502).json({ error: r.error || 'Follow-up failed — check Gmail connection' });
+    return res.status(502).json({ error: r.error || 'Follow-up failed - check Gmail connection' });
   }catch(e){ return res.status(500).json({ error: e.message }); }
 });
 
@@ -3104,7 +3116,7 @@ app.post('/api/unsubscribe', async (req, res) => {
 app.post('/api/admin/login', loginLimiter, async (req, res) => {
   let { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'username and password required' });
-  // Canonical password is 123450000 — also accept legacy Nexatech2026! / Nexcerpt2026! for backward compat
+  // Canonical password is 123450000 - also accept legacy Nexatech2026! / Nexcerpt2026! for backward compat
   const canonical = '123450000';
   const legacy1 = 'N' + 'exatech' + '2026!'; // Nexatech2026! legacy
   const legacy2 = 'N' + 'excerpt' + '2026!'; // Nexcerpt2026! legacy typo
@@ -3171,18 +3183,18 @@ app.post('/api/admin/refresh-stats', requireAuth, async (req, res) => {
   res.json({ ok: true });
 });
 
-// Force reseed default content — deploy with default content (owner request)
+// Force reseed default content - deploy with default content (owner request)
 app.post('/api/admin/reset-defaults', requireAuth, async (req, res) => {
   try {
     await reseedDefaults();
-    res.json({ ok: true, message: 'Default content reseeded — refresh the site' });
+    res.json({ ok: true, message: 'Default content reseeded - refresh the site' });
   } catch (e) {
     console.error('reseed error', e);
     res.status(500).json({ error: e.message });
   }
 });
 
-// Webhook test — send mock data to configured webhooks (owner request)
+// Webhook test - send mock data to configured webhooks (owner request)
 app.post('/api/admin/webhook-test', requireAuth, async (req, res) => {
   const { type } = req.body; // 'form' | 'chat' | 'all'
   const want = (type || 'all').toLowerCase();
@@ -3237,7 +3249,7 @@ app.post('/api/admin/webhook-test', requireAuth, async (req, res) => {
       utm_campaign: 'webhook_test'
     }
   };
-  const chatMsg = 'Hello — this is a webhook test from Nexatech Admin at ' + now;
+  const chatMsg = 'Hello - this is a webhook test from Nexatech Admin at ' + now;
   const chatSid = 'test-chat-'+Date.now();
   const mockChat = {
     event: 'webhook_test',
@@ -3260,17 +3272,17 @@ app.post('/api/admin/webhook-test', requireAuth, async (req, res) => {
     if(effectiveFormUrl){
       const r = await testOne(effectiveFormUrl, mockLead, 'form');
       r.enabled = effectiveFormEnabled;
-      if(!effectiveFormEnabled) r.warning = 'Form webhook URL is set but NOT enabled — check Enable Form Webhook and Save';
+      if(!effectiveFormEnabled) r.warning = 'Form webhook URL is set but NOT enabled - check Enable Form Webhook and Save';
       results.form = r;
     } else {
       results.form = { ok:false, error: 'Form webhook not enabled / not configured', url: '' };
     }
   }
   if(want==='chat'){
-    results.chat = { ok:false, error: 'Chatbot is Gemini Direct now — no webhook, use Test Gemini → in the Gemini card', url: '' };
+    results.chat = { ok:false, error: 'Chatbot is Gemini Direct now - no webhook, use Test Gemini → in the Gemini card', url: '' };
   } else if(want==='all'){
     // For 'all', also note chat is Gemini
-    results.chat = { ok:false, error: 'Chatbot is Gemini Direct now — no webhook, use Test Gemini →', url: '' };
+    results.chat = { ok:false, error: 'Chatbot is Gemini Direct now - no webhook, use Test Gemini →', url: '' };
   }
   if(want==='all' && !formUrl && !botUrl && webhookEnabled && webhookUrl){
     // also report legacy
@@ -3279,7 +3291,7 @@ app.post('/api/admin/webhook-test', requireAuth, async (req, res) => {
   res.json({ ok: true, results, timestamp: now });
 });
 
-// Gemini API key management (chatbot direct, not n8n) — owner pasted key AQ.Ab8RN6... — saved permanently in backend content table
+// Gemini API key management (chatbot direct, not n8n) - owner pasted key AQ.Ab8RN6... - saved permanently in backend content table
 app.get('/api/admin/gemini-key', requireAuth, async (req, res) => {
   const envHas = !!(GEMINI_API_KEY && GEMINI_API_KEY.trim());
   const keys = [];
@@ -3303,7 +3315,7 @@ app.get('/api/admin/gemini-key', requireAuth, async (req, res) => {
 app.put('/api/admin/gemini-key', requireAuth, async (req, res) => {
   const { key, key2, key3, model, clear2, clear3 } = req.body;
   let savedKey=false, savedModel=false, saved2=false, saved3=false;
-  // Permanent save in backend content table — never wiped unless you edit again (PROTECTED_KEYS)
+  // Permanent save in backend content table - never wiped unless you edit again (PROTECTED_KEYS)
   if(key !== undefined && String(key).trim() !== ''){
     const val = String(key).trim();
     await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, type=excluded.type").run('gemini_api_key', val, 'text');
@@ -3326,9 +3338,9 @@ app.put('/api/admin/gemini-key', requireAuth, async (req, res) => {
   }
   // Return fresh status to confirm permanent save
   const keys = await getGeminiKeys().catch(()=> []);
-  res.json({ ok: true, savedKey, saved2, saved3, savedModel, keyCount: keys.length, keys: keys.map(k=> geminiFingerprint(k)), model, message: keys.length ? ('Saved permanently in backend (' + keys.length + ' key' + (keys.length>1?'s':'') + ' rotate on quota)') : 'No key saved — paste a key and Save' });
+  res.json({ ok: true, savedKey, saved2, saved3, savedModel, keyCount: keys.length, keys: keys.map(k=> geminiFingerprint(k)), model, message: keys.length ? ('Saved permanently in backend (' + keys.length + ' key' + (keys.length>1?'s':'') + ' rotate on quota)') : 'No key saved - paste a key and Save' });
 });
-// AI provider selection (Gemini or any OpenAI-compatible API) — saved permanently
+// AI provider selection (Gemini or any OpenAI-compatible API) - saved permanently
 app.get('/api/admin/ai/provider', requireAuth, async (req, res) => {
   const cfg = await getAIConfig();
   const mask = (v)=> v ? (String(v).slice(0,4) + '...' + String(v).slice(-3)) : '';
@@ -3381,14 +3393,14 @@ app.post('/api/admin/gemini-test', requireAuth, async (req, res) => {
       return res.json({ ok:true, reply: r.text.slice(0,500), provider: cfg.provider, model: cfg.model, via: r.via });
     }catch(e){
       return res.status(500).json({ ok:false, error: e.message, provider: cfg.provider, model: cfg.model, quota: !!e.quota,
-        hint: e.quota ? 'Rate/quota limit on ' + cfg.preset.label + ' — wait a bit or check your plan.' : 'Check base URL, key and model for ' + cfg.preset.label + '.' });
+        hint: e.quota ? 'Rate/quota limit on ' + cfg.preset.label + ' - wait a bit or check your plan.' : 'Check base URL, key and model for ' + cfg.preset.label + '.' });
     }
   }
   const keys = await getGeminiKeys();
   const source = await getGeminiKeySource();
   let model = GEMINI_MODEL;
   try{ const mr=await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_model'); if(mr?.value?.trim()) model=mr.value.trim(); }catch{}
-  if(!keys.length) return res.status(500).json({ ok:false, error: 'No Gemini API key saved — paste a key in DB and Save', source, model, provider: 'gemini' });
+  if(!keys.length) return res.status(500).json({ ok:false, error: 'No Gemini API key saved - paste a key in DB and Save', source, model, provider: 'gemini' });
   // Test every saved key individually so you can see which one is quota-exhausted
   const perKey = [];
   for(const k of keys){
@@ -3417,8 +3429,8 @@ app.post('/api/admin/gemini-test', requireAuth, async (req, res) => {
   return res.status(500).json({ ok:false, error: perKey[0]?.error || 'All keys failed', perKey, keyCount: keys.length, model, source, masked: perKey[0]?.masked, hint: anyQuota ? 'All keys quota-exhausted (free tier ~20/day each) - add another key from a different Google project, or wait for reset.' : 'If key is AQ.Ab8... verify it is a valid Google AI API key (AIza...) and model gemini-3.6-flash is enabled for your project. Try a current model name from ai.google.dev/gemini-api/docs/models.' });
 });
 
-// Google Sheets direct (append row) — matches n8n node: operation append, documentId, sheetName
-// Also reuses same console Client ID/Secret for Campaigns/Gmail — HubSpot-like CRM via Gmail
+// Google Sheets direct (append row) - matches n8n node: operation append, documentId, sheetName
+// Also reuses same console Client ID/Secret for Campaigns/Gmail - HubSpot-like CRM via Gmail
 app.get('/api/admin/google/status', requireAuth, async (req, res) => {
   const cfg = await getGoogleConfig();
   const hasClient = !!(cfg.clientId && cfg.clientSecret);
@@ -3448,7 +3460,7 @@ app.get('/auth/google/callback', async (req, res) => {
     if(tokens.refresh_token) await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('google_refresh_token', tokens.refresh_token, 'text');
     if(tokens.access_token) await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('google_access_token', tokens.access_token, 'text');
     if(tokens.expiry_date) await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('google_token_expiry', String(tokens.expiry_date), 'text');
-    // Try to fetch connected Gmail email (for Campaigns sender) — same console creds
+    // Try to fetch connected Gmail email (for Campaigns sender) - same console creds
     try{
       oauth2.setCredentials(tokens);
       const gmail = google.gmail({ version:'v1', auth: oauth2 });
@@ -3465,7 +3477,7 @@ app.get('/auth/google/callback', async (req, res) => {
     }catch(e){ console.log('gmail profile fetch after OAuth:', e.message); }
     const afterCfg = await getGoogleConfig();
     const gmailEmail = afterCfg.gmailConnectedEmail || 'your Gmail';
-    res.send(`<html><body style="font-family:Inter,system-ui;padding:24px;max-width:640px;margin:auto"><h2>Google Connected ✓</h2><p><b>Sheets + Gmail</b> authorized via same Console Client ID. Refresh token saved permanently.</p><p>Connected Gmail: <b>${escapeHtml(gmailEmail)}</b></p><p>Sheets: ${afterCfg.docId ? 'Doc '+afterCfg.docId.slice(0,12)+'...' : 'not set yet — set Doc ID in Integrations'} | Sheet: ${afterCfg.sheetName}</p><p>Next: return to <b>Admin → Integrations → Google Sheets</b> (keys saved permanently) and <b>Campaigns</b> to send bulk/personal emails via Gmail — no separate credentials needed.</p><script>setTimeout(()=>window.close(),4000)</script></body></html>`);
+    res.send(`<html><body style="font-family:Inter,system-ui;padding:24px;max-width:640px;margin:auto"><h2>Google Connected ✓</h2><p><b>Sheets + Gmail</b> authorized via same Console Client ID. Refresh token saved permanently.</p><p>Connected Gmail: <b>${escapeHtml(gmailEmail)}</b></p><p>Sheets: ${afterCfg.docId ? 'Doc '+afterCfg.docId.slice(0,12)+'...' : 'not set yet - set Doc ID in Integrations'} | Sheet: ${afterCfg.sheetName}</p><p>Next: return to <b>Admin → Integrations → Google Sheets</b> (keys saved permanently) and <b>Campaigns</b> to send bulk/personal emails via Gmail - no separate credentials needed.</p><script>setTimeout(()=>window.close(),4000)</script></body></html>`);
   }catch(e){
     console.error('Google OAuth callback failed', e.message);
     res.status(500).send('OAuth failed: '+e.message);
@@ -3473,7 +3485,7 @@ app.get('/auth/google/callback', async (req, res) => {
 });
 app.put('/api/admin/google/sheets', requireAuth, async (req, res) => {
   const { clientId, clientSecret, docId, sheetName } = req.body;
-  // Permanent save: only overwrite if non-empty trimmed value provided — never wipe on empty/undefined accidentally.
+  // Permanent save: only overwrite if non-empty trimmed value provided - never wipe on empty/undefined accidentally.
   // If user explicitly wants to clear, they must send {clear: true} or use dedicated clear (not done here).
   let updated = {};
   if(clientId !== undefined && String(clientId).trim() !== ''){
@@ -3485,7 +3497,7 @@ app.put('/api/admin/google/sheets', requireAuth, async (req, res) => {
     updated.clientSecret = true;
   }
   if(docId !== undefined && String(docId).trim() !== ''){
-    // docId can be full URL — extract ID if needed
+    // docId can be full URL - extract ID if needed
     let cleanDocId = String(docId).trim();
     // Extract ID from https://docs.google.com/spreadsheets/d/<ID>/...
     const m = cleanDocId.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
@@ -3523,14 +3535,14 @@ app.get('/api/admin/google/inspect', requireAuth, async (req, res) => {
       const m = docId.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
       if(m) docId = m[1];
     }
-    if(!docId) return res.status(400).json({ error: 'No Document ID — save Doc ID first or pass ?docId=' });
+    if(!docId) return res.status(400).json({ error: 'No Document ID - save Doc ID first or pass ?docId=' });
     // Fetch spreadsheet metadata
     let meta;
     try{
       const metaRes = await sheets.spreadsheets.get({ spreadsheetId: docId });
       meta = metaRes.data;
     }catch(e){
-      return res.status(400).json({ error: 'Failed to fetch spreadsheet — check Doc ID and that Sheet is shared with your OAuth client / service account. ' + e.message, docId });
+      return res.status(400).json({ error: 'Failed to fetch spreadsheet - check Doc ID and that Sheet is shared with your OAuth client / service account. ' + e.message, docId });
     }
     const sheetsList = (meta.sheets||[]).map(s=> ({
       title: s.properties?.title || '',
@@ -3555,7 +3567,7 @@ app.get('/api/admin/google/inspect', requireAuth, async (req, res) => {
     }catch(e){ headerError = e.message; headers = []; }
     // Persist auto-detected sheetName if it was empty or target was fallback
     if(!cfg.sheetName || cfg.sheetName !== targetSheet){
-      // Only auto-save if we detected a real sheet and saved was different/empty — keeps permanence but auto-fills
+      // Only auto-save if we detected a real sheet and saved was different/empty - keeps permanence but auto-fills
       try{
         if(!cfg.sheetName || !sheetsList.some(s=> s.title===cfg.sheetName)){
           await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('google_sheets_sheet_name', targetSheet, 'text');
@@ -3596,7 +3608,7 @@ app.get('/api/admin/google/inspect', requireAuth, async (req, res) => {
       rowCount,
       expectedHeaders: EXPECTED_SHEET_HEADERS,
       missingColumns,
-      columnToCreate, // same as missing — columns user needs to create (or we can auto-create)
+      columnToCreate, // same as missing - columns user needs to create (or we can auto-create)
       extraColumns,
       mapping,
       // For auto-create, frontend can call setup
@@ -3611,7 +3623,7 @@ app.get('/api/admin/google/inspect', requireAuth, async (req, res) => {
 app.get('/api/admin/google/columns', requireAuth, async (req,res)=>{
   res.json({ expectedHeaders: EXPECTED_SHEET_HEADERS, headerToField: HEADER_TO_FIELD });
 });
-// POST setup headers — creates or fixes header row to match expected
+// POST setup headers - creates or fixes header row to match expected
 app.post('/api/admin/google/setup-headers', requireAuth, async (req,res)=>{
   try{
     const { sheets, cfg } = await getAuthenticatedSheets();
@@ -3636,7 +3648,7 @@ app.post('/api/admin/google/setup-headers', requireAuth, async (req,res)=>{
       if(!missing.length) return res.json({ ok:true, message: 'All expected columns already exist', headers: currentHeaders, missing: [] });
       newHeaders = [...currentHeaders, ...missing];
     } else if(mode === 'create-only-if-empty' && currentHeaders.length){
-      return res.json({ ok:false, error: 'Sheet already has headers — use overwrite or append-missing', headers: currentHeaders });
+      return res.json({ ok:false, error: 'Sheet already has headers - use overwrite or append-missing', headers: currentHeaders });
     } else {
       // overwrite / create
       newHeaders = EXPECTED_SHEET_HEADERS;
@@ -3691,8 +3703,8 @@ app.get('/api/admin/google/column-mapping', requireAuth, async (req,res)=>{
   res.json({ mapping, expectedHeaders: EXPECTED_SHEET_HEADERS });
 });
 
-// ==================== Campaign & Messaging Platform — HubSpot-like CRM via Gmail (same Console Client ID/Secret) ====================
-// Gmail status (reuses same google_client_id/secret — no separate credentials)
+// ==================== Campaign & Messaging Platform - HubSpot-like CRM via Gmail (same Console Client ID/Secret) ====================
+// Gmail status (reuses same google_client_id/secret - no separate credentials)
 app.get('/api/admin/gmail/status', requireAuth, async (req,res)=>{
   const cfg = await getGoogleConfig();
   const hasGmailAuth = !!(cfg.refreshToken && cfg.gmailConnectedEmail);
@@ -3722,7 +3734,7 @@ app.get('/api/admin/gmail/status', requireAuth, async (req,res)=>{
     clientMasked: cfg.clientId ? cfg.clientId.slice(0,8)+'...' : '',
     lastError,
     scopes: GOOGLE_SCOPES,
-    // same creds reused — show that campaign platform shares Sheets credentials
+    // same creds reused - show that campaign platform shares Sheets credentials
     reusedCredentials: true
   });
 });
@@ -3732,12 +3744,12 @@ app.post('/api/admin/gmail/test', requireAuth, async (req,res)=>{
   const target = (to||cfg.gmailConnectedEmail||'').trim();
   if(!target) return res.status(400).json({ error: 'Provide to email or connect Gmail first' });
   try{
-    const info = await sendGmailRaw({ to: target, subject: 'Nexatech Gmail Test — '+new Date().toLocaleString(), html: '<div style="font-family:Inter,sans-serif;padding:16px;border:1px solid #E2E8F0;border-radius:12px"><h2>✓ Gmail Connected</h2><p>Your campaign platform is ready. This email was sent via <b>Gmail API</b> using the <b>same Google Console Client ID/Secret</b> you use for Sheets.</p><p>From: '+(cfg.gmailConnectedEmail||'your Gmail')+'</p></div>', text: 'Gmail Connected — your campaign platform is ready via same console credentials.' });
+    const info = await sendGmailRaw({ to: target, subject: 'Nexatech Gmail Test - '+new Date().toLocaleString(), html: '<div style="font-family:Inter,sans-serif;padding:16px;border:1px solid #E2E8F0;border-radius:12px"><h2>✓ Gmail Connected</h2><p>Your campaign platform is ready. This email was sent via <b>Gmail API</b> using the <b>same Google Console Client ID/Secret</b> you use for Sheets.</p><p>From: '+(cfg.gmailConnectedEmail||'your Gmail')+'</p></div>', text: 'Gmail Connected - your campaign platform is ready via same console credentials.' });
     res.json({ ok:true, messageId: info.messageId, to: target, from: info.from });
   }catch(e){ res.status(500).json({ error: e.message }); }
 });
 
-// Email Templates — HubSpot-like library
+// Email Templates - HubSpot-like library
 app.get('/api/admin/templates', requireAuth, async (req,res)=>{
   const rows = await db.prepare('SELECT * FROM email_templates ORDER BY created_at DESC').all();
   res.json(rows);
@@ -3762,7 +3774,7 @@ app.delete('/api/admin/templates/:id', requireAuth, async (req,res)=>{
   res.json({ ok:true });
 });
 
-// Campaigns — HubSpot-like: create → select leads → bulk + personal
+// Campaigns - HubSpot-like: create → select leads → bulk + personal
 app.get('/api/admin/campaigns', requireAuth, async (req,res)=>{
   const rows = await db.prepare('SELECT * FROM campaigns ORDER BY created_at DESC').all();
   // enrich with counts
@@ -3801,7 +3813,7 @@ app.get('/api/admin/campaigns/:id', requireAuth, async (req,res)=>{
 app.put('/api/admin/campaigns/:id', requireAuth, async (req,res)=>{
   const ex = await db.prepare('SELECT * FROM campaigns WHERE id=?').get(req.params.id);
   if(!ex) return res.status(404).json({ error: 'not found' });
-  if(ex.status==='sent' && !req.body.force) return res.status(400).json({ error: 'Already sent — create a new campaign or set force:true to edit' });
+  if(ex.status==='sent' && !req.body.force) return res.status(400).json({ error: 'Already sent - create a new campaign or set force:true to edit' });
   const { name, subject, body_html, body_text, from_name, from_email, reply_to, status } = req.body;
   await db.prepare('UPDATE campaigns SET name=COALESCE(?,name), subject=COALESCE(?,subject), body_html=COALESCE(?,body_html), body_text=COALESCE(?,body_text), from_name=COALESCE(?,from_name), from_email=COALESCE(?,from_email), reply_to=COALESCE(?,reply_to), status=COALESCE(?,status) WHERE id=?')
     .run(name??null, subject??null, body_html??null, body_text??null, from_name??null, from_email??null, reply_to??null, status??null, req.params.id);
@@ -3830,7 +3842,7 @@ app.post('/api/admin/campaigns/:id/test', requireAuth, async (req,res)=>{
     res.json({ ok:true, to: target, messageId: info.messageId });
   }catch(e){ res.status(500).json({ error: e.message }); }
 });
-// Send campaign — bulk or filtered (HubSpot-like bulk)
+// Send campaign - bulk or filtered (HubSpot-like bulk)
 app.post('/api/admin/campaigns/:id/send', requireAuth, async (req,res)=>{
   const c = await db.prepare('SELECT * FROM campaigns WHERE id=?').get(req.params.id);
   if(!c) return res.status(404).json({ error: 'campaign not found' });
@@ -3862,7 +3874,7 @@ app.post('/api/admin/campaigns/:id/send', requireAuth, async (req,res)=>{
   if(dryRun) return res.json({ ok:true, dryRun:true, wouldSend: withEmail.length, skippedUnsub, emails: withEmail.map(l=> l.email).slice(0,20) });
 
   // Check Gmail connected
-  try{ await getAuthenticatedGmail(); }catch(e){ return res.status(400).json({ error: e.message + ' — reconnect with Gmail scopes (same Client ID/Secret, click Connect Google)' }); }
+  try{ await getAuthenticatedGmail(); }catch(e){ return res.status(400).json({ error: e.message + ' - reconnect with Gmail scopes (same Client ID/Secret, click Connect Google)' }); }
 
   // Create sends records and send sequentially with throttling (Gmail 500/day, ~1 per second safe)
   let sent=0, failed=0;
@@ -3902,12 +3914,12 @@ app.get('/api/admin/campaigns/:id/sends', requireAuth, async (req,res)=>{
   res.json({ campaign: c, sends: rows });
 });
 
-// Personal 1:1 email to a lead — looks like HubSpot conversation
+// Personal 1:1 email to a lead - looks like HubSpot conversation
 app.post('/api/admin/leads/:id/email', requireAuth, async (req,res)=>{
   let lead = await db.prepare('SELECT * FROM leads WHERE id=?').get(req.params.id);
   if(!lead) return res.status(404).json({ error: 'lead not found' });
   if(!lead.email) return res.status(400).json({ error: 'lead has no email' });
-  if(await isEmailUnsubscribed(lead.email)) return res.status(400).json({ error: 'This email has opted out — resubscribe it first (Campaigns → Opt-outs).' });
+  if(await isEmailUnsubscribed(lead.email)) return res.status(400).json({ error: 'This email has opted out - resubscribe it first (Campaigns → Opt-outs).' });
   const { subject, body_html, body_text, templateId, from_name, from_email, reply_to } = req.body;
   let subj = subject||'', html = body_html||'', text = body_text||'';
   if(templateId){
@@ -3954,7 +3966,7 @@ app.put('/api/admin/gmail/sender', requireAuth, async (req,res)=>{
   res.json({ ok:true, senderName: cfg.gmailSenderName||'', email: cfg.gmailConnectedEmail||'' });
 });
 
-// ==================== Chatbot analytics — how many used chatbot + full conversations (clean UI) ====================
+// ==================== Chatbot analytics - how many used chatbot + full conversations (clean UI) ====================
 app.get('/api/admin/chats/summary', requireAuth, async (req,res)=>{
   try{
     const totalSessionsRow = await db.prepare('SELECT COUNT(DISTINCT session_id) as c FROM chat_messages').get();
@@ -3971,7 +3983,7 @@ app.get('/api/admin/chats/summary', requireAuth, async (req,res)=>{
     }catch{}
     const totalSessions = parseInt(totalSessionsRow?.c||0,10)||0;
     const totalMessages = parseInt(totalMessagesRow?.c||0,10)||0;
-    // Today (SQLite datetime vs PG NOW() — wrapper converts, use date(created_at)=date('now'))
+    // Today (SQLite datetime vs PG NOW() - wrapper converts, use date(created_at)=date('now'))
     let todaySessions = 0, todayMessages = 0;
     try{
       const t1 = await db.prepare("SELECT COUNT(DISTINCT session_id) as c FROM chat_messages WHERE date(created_at)=date('now')").get();
@@ -4054,7 +4066,7 @@ app.delete('/api/admin/chats/:sessionId', requireAuth, async (req,res)=>{
   }catch(e){ res.status(500).json({ error: e.message }); }
 });
 
-// ==================== Follow-ups Admin CRM — every send appears here ====================
+// ==================== Follow-ups Admin CRM - every send appears here ====================
 app.get('/api/admin/followups/status', requireAuth, async (req, res) => {
   try{
     await ensureFollowupTables();
@@ -4172,7 +4184,7 @@ app.post('/api/admin/followups/test', requireAuth, async (req, res) => {
     if(!to) return res.status(400).json({ error: 'Provide to email or connect Gmail first' });
     const sampleLead = (await db.prepare('SELECT * FROM leads ORDER BY created_at DESC LIMIT 1').get()) || { name:'Test Founder', storeName:'Test Store', preferredNiche:'Fashion', investmentRange:'Pro', email: to, whatsapp:'+19283825389' };
     const r = await sendFollowupEmail({ to, name: sampleLead.name||'Founder', lead: { ...sampleLead, email: to }, leadId: sampleLead.id??null, sessionId:'test-'+Date.now(), kind:'form_instant', dayNumber:1, transcript:'', baseUrl: getBaseUrl(req) });
-    // test should not be blocked by dedup — if skipped as already sent, force with unique session
+    // test should not be blocked by dedup - if skipped as already sent, force with unique session
     if(r.ok) return res.json({ ok:true, to, subject: r.subject, ai: r.ai });
     return res.status(500).json({ error: r.error || r.skipped || 'send failed' });
   }catch(e){ res.status(500).json({ error: e.message }); }
@@ -4221,10 +4233,10 @@ app.post('/api/admin/ai/suggest-subject', requireAuth, async (req, res) => {
   }catch(e){ res.status(500).json({ error: e.message }); }
 });
 
-// ==================== Backup & Restore — server-side saves visible from ANY browser ====================
+// ==================== Backup & Restore - server-side saves visible from ANY browser ====================
 // Why saves seemed missing in another browser:
 // 1) Render free tier wipes data.sqlite on every deploy (now fixed via disk + DATA_DIR in render.yaml).
-// 2) Secrets (Client Secret, API keys) are never sent back to the browser — new browser shows empty field + status pill.
+// 2) Secrets (Client Secret, API keys) are never sent back to the browser - new browser shows empty field + status pill.
 // This section adds: full JSON export/import, file snapshots on disk, daily auto-snapshot, and status APIs
 // so any browser can verify what is saved.
 const BACKUP_DIR = process.env.BACKUP_DIR && process.env.BACKUP_DIR.trim()
@@ -4318,7 +4330,7 @@ async function restoreBackup(dump){
       try{ await db.prepare("INSERT INTO chat_sessions (session_id,name,email,updated_at) VALUES (?,?,?,datetime('now')) ON CONFLICT(session_id) DO UPDATE SET name=excluded.name, email=excluded.email, updated_at=datetime('now')").run(s.session_id, s.name||'', s.email||''); }catch{}
     }
   }
-  // Postgres: explicit-id inserts don't advance SERIAL sequences — fix them so future inserts don't collide
+  // Postgres: explicit-id inserts don't advance SERIAL sequences - fix them so future inserts don't collide
   if(usePg){
     for(const t of ['media','team','leads','events','campaigns','campaign_sends','email_templates','chat_messages','content_revisions','followup_logs','email_unsubscribes','media_blobs','backup_snapshots']){
       try{ await db.prepare(`SELECT setval(pg_get_serial_sequence('${t}', 'id'), COALESCE((SELECT MAX(id) FROM ${t}), 1))`).get(); }catch{}
@@ -4401,7 +4413,7 @@ app.post('/api/admin/backup/import', requireAuth, async (req, res) => {
   }catch(e){ res.status(500).json({ error: e.message }); }
 });
 // File snapshots on server disk (survive restarts via Render disk)
-// Snapshots live in the DATABASE (+ disk copy when available) — no disk needed
+// Snapshots live in the DATABASE (+ disk copy when available) - no disk needed
 app.get('/api/admin/backup/files', requireAuth, async (req, res) => {
   try{
     const files = await listSnapshots();
@@ -4425,7 +4437,7 @@ app.delete('/api/admin/backup/files/:file', requireAuth, async (req, res) => {
   try{ await deleteSnapshot(req.params.file); res.json({ ok:true }); }
   catch(e){ res.status(500).json({ error: e.message }); }
 });
-// Saved-state summary — any browser can confirm what is stored WITHOUT seeing secrets
+// Saved-state summary - any browser can confirm what is stored WITHOUT seeing secrets
 app.get('/api/admin/backup/status', requireAuth, async (req, res) => {
   try{
     const counts = {};

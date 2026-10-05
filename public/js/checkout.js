@@ -1,5 +1,5 @@
 // ============================================================
-// Nexatech Checkout — plans + themes, Flutterwave INLINE card payment.
+// Nexatech Checkout - plans + themes, Flutterwave INLINE card payment.
 // Everything happens inside this page: details -> card form ->
 // bank OTP/PIN (if required) -> success/download. No redirect, no popup.
 // ============================================================
@@ -19,8 +19,8 @@ async function readJson(res, label){
   try{ return JSON.parse(text); }
   catch{
     const where = label ? ' while loading ' + label : '';
-    if(!res.ok && res.status === 404) throw new Error('Checkout API not found (HTTP 404)' + where + '. The server is running old code — restart it (or wait for redeploy) and refresh.');
-    throw new Error('Server returned an unexpected response' + where + ' (HTTP ' + res.status + '). It may still be updating — wait a minute and refresh.');
+    if(!res.ok && res.status === 404) throw new Error('Checkout API not found (HTTP 404)' + where + '. The server is running old code - restart it (or wait for redeploy) and refresh.');
+    throw new Error('Server returned an unexpected response' + where + ' (HTTP ' + res.status + '). It may still be updating - wait a minute and refresh.');
   }
 }
 function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
@@ -37,7 +37,7 @@ async function apiFetch(url, options, label){
   try{
     res = await once(45000);
   }catch(e){
-    if(e && e.name === 'AbortError') throw new Error('The server took too long' + (label ? ' while loading ' + label : '') + ' (45s). It may be waking up — please refresh and try again.');
+    if(e && e.name === 'AbortError') throw new Error('The server took too long' + (label ? ' while loading ' + label : '') + ' (45s). It may be waking up - please refresh and try again.');
     await sleep(4000);
     try{ res = await once(45000); }
     catch(e2){
@@ -56,13 +56,21 @@ function postJson(url, body, label){
 }
 // Buyer currency: shared override with the homepage (nx_currency), else ?cc=
 // test hook, else IP lookup, else browser locale, else USD. Server re-prices
-// authoritatively — this only decides what we ASK for.
+// authoritatively - this only decides what we ASK for.
 let BUY_CUR = 'USD';
-const BUY_FX_COUNTRY = {NG:'NGN',US:'USD',GB:'GBP',UK:'GBP',GH:'GHS',KE:'KES',ZA:'ZAR',UG:'UGX',TZ:'TZS',RW:'RWF',CM:'XAF',CF:'XAF',TD:'XAF',CG:'XAF',GA:'XAF',GQ:'XAF',SN:'XOF',CI:'XOF',BF:'XOF',ML:'XOF',NE:'XOF',GW:'XOF',TG:'XOF',BJ:'XOF',MW:'MWK',EG:'EGP',SL:'SLL',ZM:'ZMW',CA:'CAD',DE:'EUR',FR:'EUR',IT:'EUR',ES:'EUR',NL:'EUR',BE:'EUR',AT:'EUR',IE:'EUR',PT:'EUR',FI:'EUR',GR:'EUR',SK:'EUR',SI:'EUR',EE:'EUR',LV:'EUR',LT:'EUR',HR:'EUR',CY:'EUR',MT:'EUR',LU:'EUR'};
+const BUY_FX_COUNTRY = {NG:'NGN',US:'USD',GB:'GBP',UK:'GBP',GH:'GHS',KE:'KES',ZA:'ZAR',UG:'UGX',TZ:'TZS',RW:'RWF',CM:'XAF',CF:'XAF',TD:'XAF',CG:'XAF',GA:'XAF',GQ:'XAF',SN:'XOF',CI:'XOF',BF:'XOF',ML:'XOF',NE:'XOF',GW:'XOF',TG:'XOF',BJ:'XOF',MW:'MWK',EG:'EGP',SL:'SLE',ZM:'ZMW',CA:'CAD',IN:'INR',ET:'ETB',GN:'GNF',AU:'AUD',BR:'BRL',CO:'COP',MX:'MXN',PE:'PEN',SG:'SGD',AE:'AED',SA:'SAR',JP:'JPY',DE:'EUR',FR:'EUR',IT:'EUR',ES:'EUR',NL:'EUR',BE:'EUR',AT:'EUR',IE:'EUR',PT:'EUR',FI:'EUR',GR:'EUR',SK:'EUR',SI:'EUR',EE:'EUR',LV:'EUR',LT:'EUR',HR:'EUR',CY:'EUR',MT:'EUR',LU:'EUR'};
 async function detectBuyCurrency(supported){
   const ok = c => c && supported && supported.includes(c);
+  const qs = new URLSearchParams(location.search);
+  // Explicit ?currency= from homepage links wins (same visit, same currency
+  // the buyer just saw) and syncs the stored override.
+  const cp = qs.get('currency');
+  if(cp && ok(cp.toUpperCase())){
+    try{ localStorage.setItem('nx_currency', cp.toUpperCase()); }catch{}
+    return cp.toUpperCase();
+  }
   try{ const s = String(localStorage.getItem('nx_currency') || '').toUpperCase(); if(ok(s)) return s; }catch{}
-  const q = new URLSearchParams(location.search).get('cc');
+  const q = qs.get('cc');
   if(q && ok(q.toUpperCase())) return q.toUpperCase();
   try{
     const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 4000);
@@ -156,7 +164,7 @@ async function createOrder(){
       show('co-redirect-view');
       startPolling();
     } else {
-      showError((j.message || 'Payment gateway not connected yet.') + ' Your order ' + ORDER_REF + ' is saved — tap below and we will complete it with you.');
+      showError((j.message || 'Payment gateway not connected yet.') + ' Your order ' + ORDER_REF + ' is saved - tap below and we will complete it with you.');
       $('#co-error-wa').href = waLink((ITEM.wa_text || ('Hi Nexatech! I just created order ' + ORDER_REF + ' (' + ITEM.name + ' ' + ITEM.price_text + '). How do I pay?')) + ' [Order ' + ORDER_REF + ']');
     }
   }catch(e){
@@ -212,9 +220,9 @@ async function payWithCard(pin){
     if(j.status === 'success'){
       await finishPaid();
     } else if(j.status === 'send_otp'){
-      showOtpView('otp', j.message || 'Your bank sent a one-time code — enter it below to complete payment.');
+      showOtpView('otp', j.message || 'Your bank sent a one-time code - enter it below to complete payment.');
     } else if(j.status === 'send_pin'){
-      showOtpView('pin', j.message || 'Your card needs its PIN — enter it below to continue.');
+      showOtpView('pin', j.message || 'Your card needs its PIN - enter it below to continue.');
     } else if(j.status === 'send_phone'){
       showError('Your bank needs phone verification. ' + (j.message || '') + ' Complete it, then return here and use “Check status”.');
     } else if(j.status === 'open_url' && j.url){
@@ -226,9 +234,9 @@ async function payWithCard(pin){
     } else {
       const msgText = j.message || 'Card was declined. Try another card or contact your bank.';
       if(/rave v3/i.test(msgText)){
-        // Direct card entry not enabled on this merchant — fall over to the
+        // Direct card entry not enabled on this merchant - fall over to the
         // secure frame below, where the same card works today (same order).
-        showWalletsFallback('Direct card entry is not enabled on this store yet — please complete with your card below instead (same order, same price).');
+        showWalletsFallback('Direct card entry is not enabled on this store yet - please complete with your card below instead (same order, same price).');
         return;
       }
       throw new Error(msgText);
@@ -371,7 +379,7 @@ async function resumeByRef(ref){
     ITEM = ij;
     showCardView();
   }catch{
-    showError('We could not find that order. It may have expired — please check out again.');
+    showError('We could not find that order. It may have expired - please check out again.');
   }
 }
 // ---- Payment method tabs: card | more (transfer, USSD, wallets in frame) ----
@@ -451,7 +459,7 @@ function formatCardInputs(){
         stopPolling(); showSuccess(await readJson(r, 'order status'));
       }
       else alert('Still waiting for payment. If you paid, give it a few minutes, then check again.');
-    }catch{ alert('Could not check status — try again in a moment.'); }
+    }catch{ alert('Could not check status - try again in a moment.'); }
   });
   const q = new URLSearchParams(location.search);
   await buyCurrency();

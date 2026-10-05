@@ -1,5 +1,5 @@
 /* ============================================================
-   NEXATECH 3D — Advanced immersive design system
+   NEXATECH 3D - Advanced immersive design system
    Keeps admin-editable CSS vars: --primary, --accent, etc.
    ============================================================ */
 :root{
@@ -66,9 +66,9 @@ main, .footer{position:relative;z-index:1}
 /* Light reveal only (heavy 3D fly-through removed for speed) */
 .section[data-reveal], section[data-section]{will-change:auto}
 .strip{position:relative;z-index:1;background:#fff}
-/* Cinematic speed vignette — opacity driven by scroll velocity (JS) */
+/* Cinematic speed vignette - opacity driven by scroll velocity (JS) */
 #cam-vignette{position:fixed;inset:0;z-index:2;pointer-events:none;opacity:0;background:radial-gradient(120% 100% at 50% 50%,transparent 55%,rgba(0,209,255,.14) 82%,rgba(124,58,237,.22) 100%);transition:opacity .25s}
-/* Camera location HUD — shows which stop the camera is at */
+/* Camera location HUD - shows which stop the camera is at */
 #cam-hud{position:fixed;right:14px;top:50%;transform:translateY(-50%);z-index:80;display:flex;flex-direction:column;gap:8px;padding:10px 8px;border-radius:999px;background:rgba(5,7,15,.55);border:1px solid rgba(255,255,255,.16);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
 #cam-hud button{width:10px;height:10px;border-radius:50%;border:none;background:rgba(255,255,255,.28);cursor:pointer;padding:0;transition:all .3s;position:relative}
 #cam-hud button.on{background:linear-gradient(135deg,var(--accent),var(--accent-2));box-shadow:0 0 12px rgba(0,209,255,.8);transform:scale(1.5)}
@@ -222,7 +222,7 @@ main, .footer{position:relative;z-index:1}
   .duo.rev .duo-copy{grid-column:2;grid-row:1}
 }
 @media(max-width:900px){
-  /* Mobile: single column in DOM order — text on top, logo below it */
+  /* Mobile: single column in DOM order - text on top, logo below it */
   .duo,.duo.rev{grid-template-columns:1fr}
   .duo-logo{max-width:420px;margin:0 auto;width:100%}
 }
@@ -394,7 +394,7 @@ main, .footer{position:relative;z-index:1}
 .tdot:nth-child(3){animation-delay:.4s}
 @keyframes tblink{0%,60%,100%{opacity:.25;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
 
-/* ---------- Scroll reveal — instant by default, tiny fade only ---------- */
+/* ---------- Scroll reveal - instant by default, tiny fade only ---------- */
 [data-reveal]{opacity:1}
 .reveal{opacity:1;transform:none}
 .reveal.in{opacity:1;transform:none}
@@ -414,7 +414,7 @@ main, .footer{position:relative;z-index:1}
 .reduced #hero-webgl,.reduced #webgl-fixed,.reduced #hero-particles{animation:none!important}
 .reduced .hero-visual .tilt{animation:none!important}
 
-/* ---------- EXTRA 3D DEPTH (lite — no costly filters/animations) ---------- */
+/* ---------- EXTRA 3D DEPTH (lite - no costly filters/animations) ---------- */
 .hero-title{filter:none}
 .hero-visual .tilt::after{display:none}
 .spotlight{position:relative}
