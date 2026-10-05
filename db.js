@@ -730,6 +730,11 @@ export async function initDb() {
       ['paystack_public_key', '', 'text'],
       ['paystack_testmode', 'true', 'boolean'],
       ['paystack_usd_ngn_rate', '1500', 'text'],
+      ['flw_secret_key', '', 'text'],
+      ['flw_public_key', '', 'text'],
+      ['flw_enc_key', '', 'text'],
+      ['flw_secret_hash', '', 'text'],
+      ['flw_testmode', 'true', 'boolean'],
       ['owner_notify_email', 'nexatechdropshipping@gmail.com', 'text'],
       ['owner_whatsapp', '19283825389', 'text'],
       ['callmebot_api_key', '', 'text'],
@@ -939,6 +944,7 @@ export async function initDb() {
     'logo_text','logo_url','favicon_url','logo_position','brand_position','og_image',
     'cryptomus_merchant_uuid','cryptomus_api_key','cryptomus_testmode',
     'paystack_secret_key','paystack_public_key','paystack_testmode','paystack_usd_ngn_rate',
+    'flw_secret_key','flw_public_key','flw_enc_key','flw_secret_hash','flw_testmode',
     'owner_notify_email','owner_whatsapp','callmebot_api_key'
   ]);
   if (count === 0 || forceReset) {
@@ -1253,6 +1259,11 @@ export async function initDb() {
     await ensure('paystack_public_key','','text');
     await ensure('paystack_testmode','true','boolean');
     await ensure('paystack_usd_ngn_rate','1500','text');
+    await ensure('flw_secret_key','','text');
+    await ensure('flw_public_key','','text');
+    await ensure('flw_enc_key','','text');
+    await ensure('flw_secret_hash','','text');
+    await ensure('flw_testmode','true','boolean');
     // WhatsApp plan templates: convert exact old hardcoded-price seeds to live
     // {name}/{price} placeholders (custom admin wording is never touched)
     try{

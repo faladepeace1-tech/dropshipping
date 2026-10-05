@@ -2700,14 +2700,15 @@ async function fillPaymentsForm(){
   try{
     const r = await fetch('/api/admin/payments', { headers: authHeaders() });
     const j = await r.json();
-    if($('#int-paystack-public') && !$('#int-paystack-public').value) $('#int-paystack-public').value = j.public_key || '';
-    if($('#int-paystack-rate') && !$('#int-paystack-rate').value) $('#int-paystack-rate').value = j.usd_ngn || '1500';
-    if($('#int-paystack-test')) $('#int-paystack-test').checked = j.testmode !== false;
-    if($('#int-paystack-secret')) $('#int-paystack-secret').placeholder = j.secret_set ? 'Saved ✓ (leave empty to keep)' : 'sk_test_... (paste whole key)';
+    if($('#int-flw-public') && !$('#int-flw-public').value) $('#int-flw-public').value = j.public_key || '';
+    if($('#int-flw-test')) $('#int-flw-test').checked = j.testmode !== false;
+    if($('#int-flw-secret')) $('#int-flw-secret').placeholder = j.secret_set ? 'Saved ✓ (leave empty to keep)' : 'FLWSECK-... (paste whole key)';
+    if($('#int-flw-enc')) $('#int-flw-enc').placeholder = j.enc_set ? 'Saved ✓ (leave empty to keep)' : 'Encryption key';
+    if($('#int-flw-hash')) $('#int-flw-hash').placeholder = j.hash_set ? 'Saved ✓ (leave empty to keep)' : 'Webhook secret hash';
   }catch{}
 }
-$('#btn-show-paystack-key')?.addEventListener('click', ()=>{
-  const el = $('#int-paystack-secret');
+$('#btn-show-flw-key')?.addEventListener('click', ()=>{
+  const el = $('#int-flw-secret');
   if(el) el.type = el.type === 'password' ? 'text' : 'password';
 });
 async function fillNotifyForm(){
@@ -2767,17 +2768,18 @@ $('#btn-save-payments')?.addEventListener('click', async ()=>{
   if(msg){ msg.textContent = 'Saving...'; msg.style.color = '#64748B'; }
   try{
     const payload = {
-      paystack_public_key: $('#int-paystack-public')?.value?.trim() || '',
-      paystack_usd_ngn_rate: $('#int-paystack-rate')?.value?.trim() || '1500',
-      paystack_testmode: String($('#int-paystack-test')?.checked !== false)
+      flw_public_key: $('#int-flw-public')?.value?.trim() || '',
+      flw_testmode: String($('#int-flw-test')?.checked !== false)
     };
-    const keyVal = $('#int-paystack-secret')?.value?.trim() || '';
-    if(keyVal) payload.paystack_secret_key = keyVal; // empty = keep existing
+    for(const [inputId, contentKey] of [['int-flw-secret', 'flw_secret_key'], ['int-flw-enc', 'flw_enc_key'], ['int-flw-hash', 'flw_secret_hash']]){
+      const v = document.getElementById(inputId)?.value?.trim() || '';
+      if(v) payload[contentKey] = v; // empty = keep existing
+    }
     const r = await fetch('/api/content', { method: 'PUT', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(payload) });
     const j = await r.json().catch(() => ({}));
     if(!r.ok) throw new Error(j.error || 'Save failed');
-    if(msg){ msg.textContent = 'Saved ✓ — checkout now charges cards inline via Paystack.'; msg.style.color = '#10B981'; }
-    if($('#int-paystack-secret')) $('#int-paystack-secret').value = '';
+    if(msg){ msg.textContent = 'Saved ✓ — checkout now charges inline via Flutterwave (USD).'; msg.style.color = '#10B981'; }
+    for(const id of ['int-flw-secret', 'int-flw-enc', 'int-flw-hash']){ const el = document.getElementById(id); if(el) el.value = ''; }
     await loadContent(); fillPaymentsForm();
   }catch(e){ if(msg){ msg.textContent = 'Error: ' + e.message; msg.style.color = '#F87171'; } }
   finally{ if(btn){ btn.disabled = false; btn.textContent = 'Save Payment Keys'; } }
@@ -3017,7 +3019,7 @@ function renderOrdersTable(){
       + (o.status === 'pending' ? `<button class="btn btn-ghost" data-opaid="${o.id}" style="padding:4px 8px;font-size:11px;color:#10B981">Mark Paid</button> ` : '')
       + `<button class="btn btn-ghost" data-odel="${o.id}" style="padding:4px 8px;font-size:11px;color:#F87171">Delete</button></td></tr>`
       + `<tr class="hidden" data-odetailrow="${o.id}"><td colspan="8" style="background:#F8FAFC;font-size:12px">`
-      + `Paystack ref: <b>${escAttr(o.cryptomus_order_id || '—')}</b> · Payment page: ${o.payment_url ? `<a href="${escAttr(o.payment_url)}" target="_blank">open →</a>` : '—'}`
+      + `Provider ref: <b>${escAttr(o.cryptomus_order_id || '—')}</b> · Payment page: ${o.payment_url ? `<a href="${escAttr(o.payment_url)}" target="_blank">open →</a>` : '—'}`
       + (o.download_token ? ` · Download: <a href="/api/themes/${encodeURIComponent(o.item_ref)}/download?token=${encodeURIComponent(o.download_token)}" target="_blank">zip ↓</a> <button class="btn btn-ghost" data-ocopy="${o.id}" style="padding:2px 8px;font-size:10px">Copy Link</button>` : '')
       + `</td></tr>`;
   });

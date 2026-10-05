@@ -814,12 +814,12 @@ function unpackFlwRef(s){
   const parts = String(s || '').split('|');
   return { txId: parts[0] || '', flwRef: parts[1] || '' };
 }
-async function markOrderPaid(orderRef, paystackRef){
+async function markOrderPaid(orderRef, providerRef){
   const order = await db.prepare('SELECT * FROM orders WHERE order_ref=?').get(String(orderRef));
   if(!order || order.status === 'paid') return order;
   const token = order.kind === 'theme' ? crypto.randomBytes(24).toString('hex') : (order.download_token || '');
   await db.prepare("UPDATE orders SET status='paid', paid_at=datetime('now'), cryptomus_order_id=?, download_token=? WHERE order_ref=?")
-    .run(String(paystackRef || order.cryptomus_order_id || ''), token, String(orderRef));
+    .run(String(providerRef || order.cryptomus_order_id || ''), token, String(orderRef));
   try{ await db.prepare("INSERT INTO events (event_type,element_id,session_id,page_url,metadata) VALUES (?,?,?,?,?)")
     .run('checkout_paid', order.kind + ':' + order.item_ref, '', '', JSON.stringify({ order_ref: String(orderRef) })); }catch{}
   // owner alert: money in (fire-and-forget)

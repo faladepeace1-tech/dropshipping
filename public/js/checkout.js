@@ -1,5 +1,5 @@
 // ============================================================
-// Nexatech Checkout — plans + themes, Paystack INLINE card payment.
+// Nexatech Checkout — plans + themes, Flutterwave INLINE card payment.
 // Everything happens inside this page: details -> card form ->
 // bank OTP/PIN (if required) -> success/download. No redirect, no popup.
 // ============================================================
@@ -155,6 +155,7 @@ function validateCard(){
   mark(cvc, /^\d{3,4}$/.test(cvc.value.trim()));
   return ok;
 }
+let LAST_CARD = null; // memory only: resent if the bank asks for PIN (never stored)
 async function payWithCard(pin){
   const msg = $('#co-card-msg');
   msg.textContent = '';
@@ -163,9 +164,12 @@ async function payWithCard(pin){
   btn.disabled = true; btn.textContent = 'Processing payment…';
   try{
     const body = { order_ref: ORDER_REF };
-    if(pin) body.pin = pin;
-    else body.card = { number: $('#co-cc-num').value, expiry: $('#co-cc-exp').value, cvc: $('#co-cc-cvc').value };
-    const res = await postJson('/api/checkout/paystack/charge', body, 'card payment');
+    if(pin){ body.pin = pin; if(LAST_CARD) body.card = LAST_CARD; }
+    else {
+      body.card = { number: $('#co-cc-num').value, expiry: $('#co-cc-exp').value, cvc: $('#co-cc-cvc').value };
+      LAST_CARD = body.card;
+    }
+    const res = await postJson('/api/checkout/flutterwave/charge', body, 'card payment');
     const j = await readJson(res, 'card payment');
     if(!res.ok) throw new Error(j.error || 'Card charge failed.');
     if(j.status === 'success'){
@@ -221,9 +225,11 @@ async function submitOtp(){
   btn.disabled = true; btn.textContent = 'Verifying…';
   $('#co-otp-spinner').style.display = 'block';
   try{
-    const path = OTP_MODE === 'pin' ? '/api/checkout/paystack/pin' : '/api/checkout/paystack/otp';
+    const path = OTP_MODE === 'pin' ? '/api/checkout/flutterwave/pin' : '/api/checkout/flutterwave/otp';
     const key = OTP_MODE === 'pin' ? 'pin' : 'otp';
-    const res = await postJson(path, { order_ref: ORDER_REF, [key]: val }, 'verification');
+    const payload = { order_ref: ORDER_REF, [key]: val };
+    if(OTP_MODE === 'pin' && LAST_CARD) payload.card = LAST_CARD; // FLW takes PIN with the charge
+    const res = await postJson(path, payload, 'verification');
     const j = await readJson(res, 'verification');
     if(!res.ok) throw new Error(j.error || 'Verification failed.');
     if(j.status === 'success'){
@@ -247,7 +253,7 @@ async function finishPaid(){
   showSuccess(o);
 }
 // ---- Polling (3DS fallback / slow confirmations) ----
-// Re-verifies LIVE with Paystack on every tick (not just our DB), so a
+// Re-verifies LIVE with Flutterwave on every tick (not just our DB), so a
 // completed bank-side payment flips to success even if the webhook is
 // delayed or not configured yet.
 function startPolling(){
@@ -258,7 +264,7 @@ function startPolling(){
     try{
       let paid = false, failed = '', expired = false;
       try{
-        const vr = await postJson('/api/checkout/paystack/verify', { order_ref: ORDER_REF }, 'payment check');
+        const vr = await postJson('/api/checkout/flutterwave/verify', { order_ref: ORDER_REF }, 'payment check');
         const v = await readJson(vr, 'payment check');
         if(vr.ok && v.status === 'paid') paid = true;
       }catch{}
@@ -292,10 +298,10 @@ function showSuccess(o){
   }
   show('co-success-view');
 }
-// ---- Resume: returning buyer re-checks with Paystack, or retries card ----
+// ---- Resume: returning buyer re-checks live, or retries card ----
 async function resumeByRef(ref){
   try{
-    const vres = await postJson('/api/checkout/paystack/verify', { order_ref: ref }, 'payment check');
+    const vres = await postJson('/api/checkout/flutterwave/verify', { order_ref: ref }, 'payment check');
     const v = await readJson(vres, 'payment check');
     if(vres.ok && v.status === 'paid'){
       ORDER_REF = ref;
@@ -324,7 +330,8 @@ async function resumeByRef(ref){
     showError('We could not find that order. It may have expired — please check out again.');
   }
 }
-// ---- Payment method tabs: card | transfer | ussd | applepay | googlepay ----
+// ---- Payment method tabs: card | transfer | applepay | googlepay ----
+// (USSD, PayAttitude + more live inside the wallets frame.)
 let PAY_TAB = 'card', COUNTDOWN_TIMER = null;
 function switchPayTab(name){
   PAY_TAB = name;
@@ -346,7 +353,7 @@ async function loadPayFrame(){
   if(frame.dataset.loaded === ORDER_REF) return;
   msg.textContent = 'Loading secure options…';
   try{
-    const res = await postJson('/api/checkout/paystack/frame', { order_ref: ORDER_REF }, 'payment options');
+    const res = await postJson('/api/checkout/flutterwave/link', { order_ref: ORDER_REF }, 'payment options');
     const j = await readJson(res, 'payment options');
     if(!res.ok) throw new Error(j.error || 'Could not load payment options.');
     if(j.paid){ await finishPaid(); return; }
@@ -384,7 +391,7 @@ async function startTransfer(){
   msg.textContent = '';
   btn.disabled = true; btn.textContent = 'Generating account…';
   try{
-    const res = await postJson('/api/checkout/paystack/transfer', { order_ref: ORDER_REF }, 'transfer details');
+    const res = await postJson('/api/checkout/flutterwave/transfer', { order_ref: ORDER_REF }, 'transfer details');
     const j = await readJson(res, 'transfer details');
     if(!res.ok) throw new Error(j.error || 'Could not start bank transfer.');
     if(j.status === 'success'){ await finishPaid(); return; }
@@ -438,7 +445,7 @@ function formatCardInputs(){
   $('#co-pending-check')?.addEventListener('click', async ()=>{
     if(!ORDER_REF) return;
     try{
-      const vres = await postJson('/api/checkout/paystack/verify', { order_ref: ORDER_REF }, 'payment check');
+      const vres = await postJson('/api/checkout/flutterwave/verify', { order_ref: ORDER_REF }, 'payment check');
       const v = await readJson(vres, 'payment check');
       if(vres.ok && v.status === 'paid'){
         const r = await apiFetch('/api/checkout/order/' + encodeURIComponent(ORDER_REF), {}, 'order status');
