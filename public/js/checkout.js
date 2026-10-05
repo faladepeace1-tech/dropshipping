@@ -176,20 +176,29 @@ async function createOrder(){
 // Guarded against double-taps (common on mobile): concurrent taps collapse
 // into a single payment-link request for the same order.
 let PAY_LOADING = false;
-// Exact-fit: size the frame wrapper to the visible viewport so the hosted
-// Flutterwave page fills it exactly (no fixed 640px, no cut-off, no outer
-// double-scroll). Cross-origin iframes can't be measured, so we fit to
-// viewport instead. Also honours genuine postMessage resize requests.
+// Exact-fit: desktop sizes the frame to the viewport; mobile uses a tall
+// no-scrollbar frame (whole Flutterwave page visible, main page scrolls).
+// Cross-origin iframes can't be measured, so mobile gets a compact tall
+// frame instead of an inner scroll. Honours postMessage resize requests.
+const MOBILE_TALL = 1500;
 function fitPayFrame(){
   const wrap = $('#co-frame-wrap'), frame = $('#co-frame');
   if(!wrap || !frame) return;
   if($('#co-pane-wallets')?.classList.contains('hidden')) return;
+  if(window.innerWidth <= 860){
+    wrap.style.height = 'auto';
+    frame.style.height = MOBILE_TALL + 'px';
+    frame.setAttribute('scrolling', 'no');
+    return;
+  }
+  frame.setAttribute('scrolling', 'auto');
+  frame.style.height = '';
   const vh = Math.max(window.innerHeight || 0, document.documentElement?.clientHeight || 0, 560);
   const top = wrap.getBoundingClientRect().top + window.scrollY;
   const avail = Math.max(480, vh - 48); // keep some breathing room top/bottom
   const belowTop = Math.max(480, (vh + window.scrollY - top) - 24);
   const h = Math.min(920, Math.max(560, Math.min(avail, belowTop, vh * 0.85)));
-  wrap.style.height = Math.round(window.innerWidth <= 860 ? Math.max(h, Math.min(vh * 0.85, 900)) : h) + 'px';
+  wrap.style.height = Math.round(h) + 'px';
 }
 window.addEventListener('resize', () => { try{ fitPayFrame(); }catch{} });
 window.addEventListener('orientationchange', () => setTimeout(fitPayFrame, 250));
@@ -198,9 +207,15 @@ window.addEventListener('message', (e) => {
     if(!/(^|\.)flutterwave\.com$/.test(new URL(e.origin).hostname)) return;
     const d = e.data || {};
     const h = Number(d.height || d.frameHeight || d.h);
-    if(h >= 400 && h <= 2000){
-      const wrap = $('#co-frame-wrap');
-      if(wrap) wrap.style.height = Math.min(1200, Math.max(560, h)) + 'px';
+    if(h >= 400 && h <= 2200){
+      const wrap = $('#co-frame-wrap'), frame = $('#co-frame');
+      if(window.innerWidth <= 860){
+        // Mobile: grow/shrink the tall frame to the reported size - still no scrollbar.
+        if(frame) frame.style.height = Math.min(2200, Math.max(900, h)) + 'px';
+        if(wrap) wrap.style.height = 'auto';
+      } else if(wrap){
+        wrap.style.height = Math.min(1200, Math.max(560, h)) + 'px';
+      }
     }
   }catch{}
 });

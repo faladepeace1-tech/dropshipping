@@ -455,17 +455,22 @@ main, .footer{position:relative;z-index:1}
 #co-pane-wallets{padding:14px 0 0}
 #co-frame-msg{padding:0 26px}
 .co-frame-fallback{padding:0 26px 18px}
-.co-frame-wrap{position:relative;width:100%;height:78dvh;min-height:560px;max-height:920px;background:#fff;border-top:1px solid var(--border);overflow:hidden}
-.co-frame-fit{display:block;width:100%;height:100%;border:0;border-radius:0;background:#fff;overflow:auto;-webkit-overflow-scrolling:touch}
+.co-frame-wrap{position:relative;width:100%;height:78dvh;min-height:560px;max-height:920px;background:#fff;border-top:1px solid var(--border);overflow:hidden;scrollbar-width:none;-ms-overflow-style:none}
+.co-frame-wrap::-webkit-scrollbar{display:none;width:0;height:0}
+.co-frame-fit{display:block;width:100%;height:100%;border:0;border-radius:0;background:#fff;overflow:hidden;scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch}
+.co-frame-fit::-webkit-scrollbar{display:none;width:0;height:0}
 @media(max-width:860px){
   .co-pay-grid{grid-template-columns:1fr}
-  .co-frame-wrap{height:82dvh;min-height:600px;max-height:none}
+  /* Mobile: NO inner scrollbar - tall frame shows the whole Flutterwave
+     page at a compact size, the main page scrolls instead. */
+  .co-frame-wrap{height:auto;min-height:0;max-height:none;overflow:visible}
+  .co-frame-fit{height:1500px;overflow:hidden}
 }
 @media(max-width:480px){
   .co-frame-head{padding:20px 18px 0}
   #co-frame-msg{padding:0 18px}
   .co-frame-fallback{padding:0 18px 14px}
-  .co-frame-wrap{min-height:620px;height:85dvh}
+  .co-frame-fit{height:1500px}
 }
 .co-total{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);padding-top:12px;font-size:15px}
 .co-total strong{font-family:var(--display);font-size:26px;letter-spacing:-.02em}
