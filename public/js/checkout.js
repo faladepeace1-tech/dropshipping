@@ -179,10 +179,22 @@ function showCardView(){
   $('#co-card-kind').textContent = ITEM.kind === 'theme' ? 'Theme · Instant Download' : 'Launch Package';
   $('#co-card-name').textContent = ITEM.name || '';
   $('#co-card-price').textContent = ITEM.price_text || '';
+  const charge = ITEM.price_text || '';
+  const startBtn = $('#co-flw-start-btn');
+  if(startBtn) startBtn.textContent = 'Pay ' + charge + ' →';
   const fr = $('#co-frame');
   if(fr){ fr.src = 'about:blank'; delete fr.dataset.loaded; }
-  switchPayTab('more');
+  $('#co-flw-start')?.classList.remove('hidden');
+  $('#co-pane-wallets')?.classList.add('hidden');
+  const fm = $('#co-frame-msg');
+  if(fm) fm.textContent = '';
   show('co-card-view');
+}
+// Buyer confirms first - only then load the Flutterwave frame below.
+function startPayNow(){
+  $('#co-flw-start')?.classList.add('hidden');
+  $('#co-pane-wallets')?.classList.remove('hidden');
+  loadPayFrame();
 }
 // Inline card charge removed - all payments go through the hosted frame.
 let LAST_CARD = null;
@@ -329,10 +341,7 @@ async function resumeByRef(ref){
 let PAY_TAB = 'more';
 function switchPayTab(name){
   PAY_TAB = 'more';
-  document.querySelectorAll('#co-pay-tabs .pill').forEach(p => p.classList.toggle('active', p.dataset.ptab === 'more'));
-  $('#co-card-form')?.classList.add('hidden');
-  $('#co-pane-wallets')?.classList.remove('hidden');
-  loadPayFrame();
+  startPayNow();
 }
 // Fallback target when a native channel is gated: show the all-channels
 // frame with a contextual note (same order, same price).
@@ -412,6 +421,7 @@ function formatCardInputs(){
   try{ fetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_type: 'pageview', element_id: 'checkout', session_id: '', page_url: location.href, utm: {}, metadata: {} }) }).catch(()=>{}); }catch{}
   formatCardInputs();
   $('#co-form')?.addEventListener('submit', e => { e.preventDefault(); createOrder(); });
+  $('#co-flw-start-btn')?.addEventListener('click', startPayNow);
   document.querySelectorAll('#co-pay-tabs .pill').forEach(p => p.addEventListener('click', () => switchPayTab('more')));
   $('#co-otp-btn')?.addEventListener('click', submitOtp);
   $('#co-iredirect-check')?.addEventListener('click', async ()=>{
