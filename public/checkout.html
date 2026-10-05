@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Secure Checkout — Nexatech</title>
+<title>Secure Checkout - Nexatech</title>
 <meta name="description" content="Complete your Nexatech purchase securely with crypto. Instant access after payment.">
 <meta name="theme-color" content="#05070f">
 <link rel="icon" href="data:,">
@@ -33,7 +33,7 @@
   <div id="co-form-view" class="hidden">
     <div class="eyebrow">Secure Checkout</div>
     <h1 class="h2 gradient-text" id="co-title">Complete Your Purchase</h1>
-    <p class="sub" id="co-subtitle">Pay securely with your card right here — no redirects, no popups. You get instant access the moment payment confirms.</p>
+    <p class="sub" id="co-subtitle">Pay securely with your card right here - no redirects, no popups. You get instant access the moment payment confirms.</p>
     <div class="co-grid">
       <form class="co-card" id="co-form" novalidate>
         <h3 style="margin:0 0 4px">Your details</h3>
@@ -53,15 +53,15 @@
         <h3 style="margin:0 0 10px">Order summary</h3>
         <img id="co-item-img" class="co-item-img hidden" alt="">
         <div class="co-kind" id="co-item-kind">Plan</div>
-        <div class="co-item-name" id="co-item-name">—</div>
+        <div class="co-item-name" id="co-item-name">-</div>
         <p class="co-item-desc" id="co-item-desc"></p>
-        <div class="co-total"><span>Total</span><strong id="co-item-price">—</strong></div>
-        <div class="co-note">One-time payment. No subscription.</div>
+        <div class="co-total"><span>Total</span><strong id="co-item-price">-</strong></div>
+        <div class="co-note" id="co-cur-note">One-time payment. No subscription.</div>
       </aside>
     </div>
   </div>
 
-  <!-- Payment methods (all on this page — no redirect / no popup) -->
+  <!-- Payment methods (all on this page - no redirect / no popup) -->
   <div id="co-card-view" class="hidden">
     <div class="co-grid">
       <div class="co-card">
@@ -82,7 +82,7 @@
           <div class="co-trust"><span>🔒 256-bit encrypted</span><span>💳 Verve · Mastercard · Visa · Amex</span></div>
         </form>
         <div id="co-pane-wallets" class="pay-pane hidden">
-          <p class="sub" style="font-size:13px" id="co-wallet-note">More ways to pay — bank transfer, USSD, PayAttitude, Apple Pay, Google Pay and cards, all in the secure frame below — same order, same price.</p>
+          <p class="sub" style="font-size:13px" id="co-wallet-note">More ways to pay - bank transfer, USSD, PayAttitude, Apple Pay, Google Pay and cards, all in the secure frame below - same order, same price.</p>
           <div id="co-frame-msg" class="co-msg" role="alert"></div>
           <iframe id="co-frame" title="Secure payment options" allow="payment" style="width:100%;height:640px;border:1px solid var(--border);border-radius:14px;background:#fff"></iframe>
           <div class="co-note" style="margin-top:8px">Frame not loading? <a id="co-frame-full" href="#" target="_blank" rel="noopener">Open the secure page directly →</a></div>
@@ -91,8 +91,8 @@
       <aside class="co-card co-summary" id="co-summary-2">
         <h3 style="margin:0 0 10px">Order summary</h3>
         <div class="co-kind" id="co-card-kind">Plan</div>
-        <div class="co-item-name" id="co-card-name">—</div>
-        <div class="co-total"><span>Total</span><strong id="co-card-price">—</strong></div>
+        <div class="co-item-name" id="co-card-name">-</div>
+        <div class="co-total"><span>Total</span><strong id="co-card-price">-</strong></div>
         <div class="co-note">One-time payment. No subscription.</div>
       </aside>
     </div>
@@ -102,7 +102,7 @@
   <div id="co-otp-view" class="co-card co-center hidden">
     <div class="co-spinner" id="co-otp-spinner" style="display:none" aria-hidden="true"></div>
     <h2 class="h2" style="margin:12px 0 6px" id="co-otp-title">Enter your OTP</h2>
-    <p class="sub" style="margin:0 0 14px" id="co-otp-desc">Your bank sent a one-time code — enter it below to complete payment.</p>
+    <p class="sub" style="margin:0 0 14px" id="co-otp-desc">Your bank sent a one-time code - enter it below to complete payment.</p>
     <div class="field" style="max-width:320px;margin:0 auto;text-align:left"><label for="co-otp-input" id="co-otp-label">One-time code *</label><input id="co-otp-input" inputmode="numeric" placeholder="123456" style="text-align:center;letter-spacing:.3em;font-size:18px"></div>
     <div id="co-otp-msg" class="co-msg" role="alert"></div>
     <button class="btn btn-primary btn-glow" id="co-otp-btn" type="button" style="margin-top:12px">Confirm Payment →</button>
@@ -114,14 +114,14 @@
     <h2 class="h2" style="margin:12px 0 6px">Opening secure payment…</h2>
     <p class="sub" style="margin:0 0 14px">Order <b id="co-redirect-ref"></b> created. If nothing opens, tap below.</p>
     <a class="btn btn-primary btn-glow" id="co-pay-link" href="#" target="_blank" rel="noopener">Continue to Payment →</a>
-    <button class="btn btn-ghost" id="co-iredirect-check" type="button" style="margin-top:10px">I already paid — check status</button>
+    <button class="btn btn-ghost" id="co-iredirect-check" type="button" style="margin-top:10px">I already paid - check status</button>
   </div>
 
   <!-- Waiting for payment -->
   <div id="co-pending-view" class="co-card co-center hidden">
     <div class="co-spinner" aria-hidden="true"></div>
     <h2 class="h2" style="margin:12px 0 6px">Waiting for payment…</h2>
-    <p class="sub" style="margin:0 0 6px">Order <b id="co-pending-ref"></b>. Complete payment in the opened tab — this page updates automatically.</p>
+    <p class="sub" style="margin:0 0 6px">Order <b id="co-pending-ref"></b>. Complete payment in the opened tab - this page updates automatically.</p>
     <p class="sub" style="margin:0 0 14px;font-size:12px">Crypto confirmations can take a few minutes.</p>
     <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
       <a class="btn btn-ghost" id="co-pending-pay" href="#" target="_blank" rel="noopener">Reopen payment page</a>
@@ -136,7 +136,7 @@
     <p class="sub" style="margin:0 0 6px">Order <b id="co-success-ref"></b> confirmed. Receipt sent to <b id="co-success-email"></b>.</p>
     <div id="co-download-wrap" class="hidden" style="margin-top:14px">
       <a class="btn btn-primary btn-glow" id="co-download" href="#">Download Theme (.zip) ↓</a>
-      <p class="sub" style="margin:10px 0 0;font-size:12px">Keep this page bookmarked — this link is your access key.</p>
+      <p class="sub" style="margin:10px 0 0;font-size:12px">Keep this page bookmarked - this link is your access key.</p>
     </div>
     <div id="co-plan-wrap" class="hidden" style="margin-top:14px">
       <p class="sub" style="margin:0 0 12px">Our team will reach out on WhatsApp within 24 hours to kick off your build.</p>

@@ -1,7 +1,7 @@
 {
   "name": "nexatech-dropshipping-store",
   "version": "1.0.0",
-  "description": "Nexatech Dropshipping Store — Full-stack done-for-you store builder with layered motion hero and advanced portfolio",
+  "description": "Nexatech Dropshipping Store - Full-stack done-for-you store builder with layered motion hero and advanced portfolio",
   "type": "module",
   "main": "server.js",
   "scripts": {
