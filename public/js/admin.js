@@ -2836,9 +2836,13 @@ $('#btn-refresh-fx')?.addEventListener('click', async ()=>{
   finally{ if(btn){ btn.disabled = false; btn.textContent = 'Refresh Rates Now'; } }
 });
 function themeMoney(cents, cur){
-  const v = (Number(cents) || 0) / 100;
-  const sym = String(cur || 'USD').toUpperCase() === 'USD' ? '$' : String(cur || 'USD') + ' ';
-  return sym + (Number.isInteger(v) ? v.toLocaleString('en-US') : v.toFixed(2));
+  const c = String(cur || 'USD').toUpperCase();
+  const sym = c === 'USD' ? '$' : c + ' ';
+  try{ return sym + fmtMoney(cents, c); }
+  catch{
+    const v = (Number(cents) || 0) / 100;
+    return sym + (Number.isInteger(v) ? v.toLocaleString('en-US') : v.toFixed(2));
+  }
 }
 async function loadThemesAdmin(){
   const list = $('#themes-list');
@@ -3046,9 +3050,60 @@ function renderOrdersStats(){
   if(!box) return;
   const paid = ORDERS_ROWS.filter(o => o.status === 'paid');
   const pend = ORDERS_ROWS.filter(o => o.status === 'pending');
-  const rev = paid.reduce((a, o) => a + (Number(o.amount_cents) || 0), 0);
-  const card = (label, val, color) => `<div class="card" style="margin:0;padding:12px"><small style="color:#64748B">${label}</small><div style="font-size:20px;font-weight:800;color:${color || '#0B1220'}">${val}</div></div>`;
-  box.innerHTML = card('Total Orders', ORDERS_ROWS.length) + card('Pending', pend.length, '#F59E0B') + card('Paid', paid.length, '#10B981') + card('Revenue (paid)', '$' + (rev / 100).toLocaleString('en-US'), '#10B981');
+  const card = (label, val, color, sub) => `<div class="card" style="margin:0;padding:12px"><small style="color:#64748B">${label}</small><div style="font-size:20px;font-weight:800;color:${color || '#0B1220'}">${val}</div>${sub ? `<small style="color:#64748B">${sub}</small>` : ''}</div>`;
+  // Per-currency totals (identify what was actually paid in).
+  const byCur = {};
+  paid.forEach(o => {
+    const c = String(o.currency || 'USD').toUpperCase();
+    byCur[c] = (byCur[c] || 0) + (Number(o.amount_cents) || 0);
+  });
+  const parts = Object.keys(byCur).sort().map(c => `${fmtMoney(byCur[c], c)} ${c}`);
+  // Render immediately with native totals, then upgrade to USD-converted total.
+  box.innerHTML = card('Total Orders', ORDERS_ROWS.length) + card('Pending', pend.length, '#F59E0B') + card('Paid', paid.length, '#10B981') + card('Revenue (paid)', parts.length ? parts.join(' + ') : '$0', '#10B981', 'converting to USD…');
+  fxToUsdCents(paid).then(usdCents => {
+    if(!document.body.contains(box)) return;
+    const sub = parts.length ? parts.join(' + ') + ' → auto-converted' : 'no paid orders';
+    box.innerHTML = card('Total Orders', ORDERS_ROWS.length) + card('Pending', pend.length, '#F59E0B') + card('Paid', paid.length, '#10B981') + card('Revenue (paid)', '$' + (usdCents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), '#10B981', escAttr(sub));
+  }).catch(() => {});
+}
+// Zero-decimal currencies (minor unit = 1, not 100) - mirrors server FX_ZERO_DECIMAL.
+const FX_ZERO_DEC = new Set(['XAF', 'XOF', 'RWF', 'UGX', 'GNF', 'JPY']);
+function fmtMoney(minor, cur){
+  const c = String(cur || 'USD').toUpperCase();
+  const div = FX_ZERO_DEC.has(c) ? 1 : 100;
+  const v = (Number(minor) || 0) / div;
+  return div === 1 ? v.toLocaleString('en-US') : v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+let _fxCache = null;
+async function fxRates(){
+  if(_fxCache) return _fxCache;
+  const r = await fetch('/api/fx/rates');
+  const j = await r.json();
+  if(!r.ok || !j.rates) throw new Error('rates unavailable');
+  _fxCache = j.rates;
+  return _fxCache;
+}
+// Auto-convert a list of paid orders to USD cents via live FX rates (via USD).
+// Unknown currencies / missing rates fall back to face value (USD 1:1) so the
+// total never silently drops an order.
+async function fxToUsdCents(orders){
+  try{
+    const rates = await fxRates();
+    let total = 0;
+    orders.forEach(o => {
+      const from = String(o.currency || 'USD').toUpperCase();
+      const minor = Number(o.amount_cents) || 0;
+      if(from === 'USD'){ total += minor; return; }
+      const rFrom = Number(rates[from]);
+      if(!Number.isFinite(rFrom) || rFrom <= 0){ total += minor; return; }
+      const fromDiv = FX_ZERO_DEC.has(from) ? 1 : 100;
+      const usd = (minor / fromDiv) / rFrom;
+      total += Math.round(usd * 100);
+    });
+    return total;
+  }catch{
+    return orders.reduce((a, o) => a + (Number(o.amount_cents) || 0), 0);
+  }
 }
 function renderOrdersTable(){
   const table = $('#orders-table');
