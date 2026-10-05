@@ -59,44 +59,43 @@ function postJson(url, body, label){
 // authoritatively - this only decides what we ASK for.
 let BUY_CUR = 'USD';
 const BUY_FX_COUNTRY = {NG:'NGN',US:'USD',GB:'GBP',UK:'GBP',GH:'GHS',KE:'KES',ZA:'ZAR',UG:'UGX',TZ:'TZS',RW:'RWF',CM:'XAF',CF:'XAF',TD:'XAF',CG:'XAF',GA:'XAF',GQ:'XAF',SN:'XOF',CI:'XOF',BF:'XOF',ML:'XOF',NE:'XOF',GW:'XOF',TG:'XOF',BJ:'XOF',MW:'MWK',EG:'EGP',SL:'SLE',ZM:'ZMW',CA:'CAD',IN:'INR',ET:'ETB',GN:'GNF',AU:'AUD',BR:'BRL',CO:'COP',MX:'MXN',PE:'PEN',SG:'SGD',AE:'AED',SA:'SAR',JP:'JPY',DE:'EUR',FR:'EUR',IT:'EUR',ES:'EUR',NL:'EUR',BE:'EUR',AT:'EUR',IE:'EUR',PT:'EUR',FI:'EUR',GR:'EUR',SK:'EUR',SI:'EUR',EE:'EUR',LV:'EUR',LT:'EUR',HR:'EUR',CY:'EUR',MT:'EUR',LU:'EUR'};
-async function detectBuyCurrency(supported){
-  const ok = c => c && supported && supported.includes(c);
-  const qs = new URLSearchParams(location.search);
-  // Explicit ?currency= from homepage links wins (same visit, same currency
-  // the buyer just saw) and syncs the stored override.
-  const cp = qs.get('currency');
-  if(cp && ok(cp.toUpperCase())){
-    try{ localStorage.setItem('nx_currency', cp.toUpperCase()); }catch{}
-    return cp.toUpperCase();
-  }
-  try{ const s = String(localStorage.getItem('nx_currency') || '').toUpperCase(); if(ok(s)) return s; }catch{}
-  const q = qs.get('cc');
-  if(q && ok(q.toUpperCase())) return q.toUpperCase();
+async function geoCountryFast(){
   try{
-    const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 4000);
+    const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 1500);
     const r = await fetch('https://ipwho.is/', { signal: ctl.signal });
     clearTimeout(t);
     const j = await r.json();
-    if(j && j.success !== false && j.country_code){
-      const c = BUY_FX_COUNTRY[String(j.country_code).toUpperCase()];
-      if(ok(c)) return c;
-    }
+    if(j && j.success !== false && j.country_code) return String(j.country_code).toUpperCase();
   }catch{}
-  try{
-    const m = String(navigator.language || '').match(/[-_]([A-Za-z]{2})$/);
-    if(m){ const c = BUY_FX_COUNTRY[m[1].toUpperCase()]; if(ok(c)) return c; }
-  }catch{}
-  return 'USD';
+  return '';
 }
 async function buyCurrency(){
-  let supported = null;
+  // Rates + geo lookup run concurrently (was: rates, then up-to-4s geo stall).
+  const ratesP = fetch('/api/fx/rates').then(r => r.json()).catch(() => null);
+  const qs = new URLSearchParams(location.search);
+  const hintCur = (qs.get('currency') || '').toUpperCase();
+  const hintCc = (qs.get('cc') || '').toUpperCase();
+  let cached = '';
+  try{ cached = String(localStorage.getItem('nx_currency') || '').toUpperCase(); }catch{}
+  const geoP = (!hintCur && !cached && !hintCc) ? geoCountryFast() : Promise.resolve('');
+  const j = await ratesP;
+  const supported = (j && Array.isArray(j.currencies)) ? j.currencies : ['USD'];
+  const ok = c => c && supported && supported.includes(c);
+  // Explicit ?currency= from homepage links wins (same visit, same currency
+  // the buyer just saw) and syncs the stored override.
+  if(hintCur && ok(hintCur)){
+    try{ localStorage.setItem('nx_currency', hintCur); }catch{}
+    BUY_CUR = hintCur; return BUY_CUR;
+  }
+  if(cached && ok(cached)){ BUY_CUR = cached; return BUY_CUR; }
+  if(hintCc && ok(hintCc)){ BUY_CUR = hintCc; return BUY_CUR; }
+  const cc = await geoP;
+  if(cc){ const c = BUY_FX_COUNTRY[cc]; if(ok(c)){ BUY_CUR = c; return BUY_CUR; } }
   try{
-    const r = await fetch('/api/fx/rates');
-    const j = await r.json();
-    if(j && Array.isArray(j.currencies)) supported = j.currencies;
+    const m = String(navigator.language || '').match(/[-_]([A-Za-z]{2})$/);
+    if(m){ const c = BUY_FX_COUNTRY[m[1].toUpperCase()]; if(ok(c)){ BUY_CUR = c; return BUY_CUR; } }
   }catch{}
-  BUY_CUR = await detectBuyCurrency(supported || ['USD']);
-  return BUY_CUR;
+  BUY_CUR = 'USD'; return BUY_CUR;
 }
 function setWaFallbacks(){
   $('#co-error-wa').href = waLink('Hi Nexatech! I need help with my checkout.');

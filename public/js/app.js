@@ -507,9 +507,10 @@ function applyMicroCopy(){
   setText('chat-send', T('chat_send','Send'));
 }
 
-// Fetch content
+// Fetch content (content + sections in parallel - was 2 sequential round trips)
 async function loadContent(){
-  const r=await fetch('/api/content'); const j=await r.json();
+  const cP=fetch('/api/content'), sP=fetch('/api/sections').catch(()=>null);
+  const r=await cP; const j=await r.json();
   CONTENT=j.content; STATS=j.stats; SCARCITY=j.scarcity;
   applyTheme(CONTENT);
   const badgeText = SCARCITY.text || CONTENT.hero_badge || 'Only 5 build slots left this month';
@@ -532,7 +533,8 @@ async function loadContent(){
     const el=document.getElementById(id);
     if(el) el.addEventListener('click',()=>track('cta_click',id,{href:el.href}));
   }
-  const sRes=await fetch('/api/sections'); SECTIONS=await sRes.json();
+  let sJ=[]; try{ const sRes=await sP; if(sRes&&sRes.ok) sJ=await sRes.json(); }catch{}
+  SECTIONS=Array.isArray(sJ)?sJ:[];
   applySections();
   renderPricing();
   renderMentorship();
@@ -885,23 +887,28 @@ function fxLocaleCountry(){
   return '';
 }
 async function initFx(){
-  try{ const r = await fetch('/api/fx/rates'); const j = await r.json(); if(j && j.rates){ FX.rates = j.rates; FX.currencies = j.currencies || ['USD']; FX.updated_at = j.updated_at || 0; FX.auto = j.auto !== false; } }catch{}
-  let cur = '';
-  try{ cur = String(localStorage.getItem('nx_currency') || '').toUpperCase(); }catch{}
-  const q = new URLSearchParams(location.search).get('cc');
-  if(q && FX.currencies.includes(q.toUpperCase())) cur = q.toUpperCase();
-  if(!cur && FX.auto){
+  // Rates + geo lookup run concurrently (was: rates, then up-to-4s geo stall).
+  const ratesP=fetch('/api/fx/rates').then(r=>r.json()).catch(()=>null);
+  const geoP=(async()=>{
+    try{ const s=String(localStorage.getItem('nx_currency')||'').toUpperCase(); if(s) return {cached:s}; }catch{}
+    const q=new URLSearchParams(location.search).get('cc');
+    if(q) return {cached:q.toUpperCase()};
     try{
-      const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 4000);
-      const r = await fetch('https://ipwho.is/', { signal: ctl.signal });
+      const ctl=new AbortController(); const t=setTimeout(()=>ctl.abort(),1500);
+      const r=await fetch('https://ipwho.is/',{signal:ctl.signal});
       clearTimeout(t);
-      const j = await r.json();
-      if(j && j.success !== false && j.country_code) cur = FX_COUNTRY[String(j.country_code).toUpperCase()] || '';
+      const j=await r.json();
+      if(j&&j.success!==false&&j.country_code) return {cc:String(j.country_code).toUpperCase()};
     }catch{}
-    if(!cur){ const lc = fxLocaleCountry(); if(lc && FX_COUNTRY[lc] && FX.currencies.includes(FX_COUNTRY[lc])) cur = FX_COUNTRY[lc]; }
-  }
-  if(!cur || !FX.currencies.includes(cur)) cur = 'USD';
-  FX.currency = cur;
+    return {cc:fxLocaleCountry()};
+  })();
+  try{ const j=await ratesP; if(j&&j.rates){ FX.rates=j.rates; FX.currencies=j.currencies||['USD']; FX.updated_at=j.updated_at||0; FX.auto=j.auto!==false; } }catch{}
+  let cur='';
+  const geo=await geoP;
+  if(geo.cached) cur=geo.cached;
+  else if(FX.auto!==false&&geo.cc){ cur=FX_COUNTRY[geo.cc]||''; }
+  if(!cur||!FX.currencies.includes(cur)) cur='USD';
+  FX.currency=cur;
   fillFxSelectors();
   renderPricing();
   renderThemes();

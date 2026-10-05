@@ -1,4 +1,5 @@
 import express from 'express';
+import compression from 'compression';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -135,6 +136,9 @@ try {
 
 const app = express();
 app.set('trust proxy', 1); // Required for Render + Cloudflare (X-Forwarded-For) + express-rate-limit
+// gzip (70%+ smaller JS/CSS/JSON/HTML) - biggest speedup on slow mobile networks.
+// Versioned assets (?v=) are immutable; HTML revalidates via ETag.
+app.use(compression());
 // Security & middleware
 app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
 app.use(cors({ origin: true, credentials: true }));
@@ -168,17 +172,19 @@ function versionedHtml(file){
   return html;
 }
 app.use((req, res, next)=>{ if(req.query && req.query.v) res.set('Cache-Control','public, max-age=31536000, immutable'); next(); });
-app.get(['/', '/index.html'], (req, res)=> res.type('html').send(versionedHtml('index.html')));
-app.get('/admin', (req, res)=> res.type('html').send(versionedHtml('admin.html')));
-app.get(['/checkout', '/checkout.html'], (req, res)=>{
+// Versioned HTML shell: always revalidate (fast 304 via ETag), never stale after deploys.
+const noCacheHtml = (fn) => (req, res) => { res.set('Cache-Control','no-cache'); return fn(req, res); };
+app.get(['/', '/index.html'], noCacheHtml((req, res)=> res.type('html').send(versionedHtml('index.html'))));
+app.get('/admin', noCacheHtml((req, res)=> res.type('html').send(versionedHtml('admin.html'))));
+app.get(['/checkout', '/checkout.html'], noCacheHtml((req, res)=>{
   try { return res.type('html').send(versionedHtml('checkout.html')); }
   catch(e){ return res.status(500).type('html').send('<h1>Checkout unavailable</h1><p><a href="/">Back to Home</a></p>'); }
-});
-app.get(['/privacy.html', '/privacy', '/terms.html', '/terms'], (req, res)=>{
+}));
+app.get(['/privacy.html', '/privacy', '/terms.html', '/terms'], noCacheHtml((req, res)=>{
   const file = req.path.startsWith('/terms') ? 'terms.html' : 'privacy.html';
   try { return res.type('html').send(versionedHtml(file)); }
   catch(e){ return res.status(500).type('html').send('<h1>Page unavailable</h1><p><a href="/">Back to Home</a></p>'); }
-});
+}));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(UPLOAD_DIR));
 // DB media store (Postgres): files uploaded while DATABASE_URL is set live in media_blobs,
@@ -365,6 +371,7 @@ app.get('/api/content', async (req, res) => {
   const total = parseInt(obj.scarcity_slots_total || '10', 10) || 10;
   const labelTpl = obj.scarcity_label || 'Only {remaining} build slots left this month';
   const scarcityText = String(labelTpl).replace('{remaining}', remaining);
+  res.set('Cache-Control','public, max-age=30');
   res.json({ content: obj, stats: statsObj, scarcity: { total, used, remaining, text: scarcityText } });
   }catch(e){
     console.error('GET /api/content failed:', e.message);
@@ -450,6 +457,7 @@ app.post('/api/admin/content-revisions/:id/restore', requireAuth, async (req, re
 // --- API: Sections ---
 app.get('/api/sections', async (req, res) => {
   const rows = await db.prepare('SELECT * FROM sections ORDER BY display_order ASC').all();
+  res.set('Cache-Control','public, max-age=30');
   res.json(rows);
 });
 app.put('/api/sections/:key', requireAuth, async (req, res) => {
@@ -814,7 +822,13 @@ async function flwReq(method, path, body, secret, label, timeoutMs){
     console.log('flw ' + label + ' done in ' + (Date.now() - t0) + 'ms, http=' + resp.status,
       'status=' + (j && j.status));
     if(!resp.ok || (j.status !== undefined && j.status !== 'success')){
-      throw new Error((j && (j.message || j.error)) || ('Flutterwave error (HTTP ' + resp.status + ')'));
+      // Capture the FULL gateway body (it often names the missing/invalid
+      // field inside `data`). Logged server-side only - never sent to browsers.
+      const bodyTxt = JSON.stringify(j).slice(0, 800);
+      console.error('flw ' + label + ' error body: http=' + resp.status, bodyTxt);
+      const err = new Error((j && (j.message || j.error)) || ('Flutterwave error (HTTP ' + resp.status + ')'));
+      err.flwHttp = resp.status; err.flwBody = bodyTxt;
+      throw err;
     }
     return j.data === undefined ? j : j.data;
   } catch(e){
@@ -977,6 +991,7 @@ app.get('/api/fx/rates', async (req, res) => {
   try{
     const settings = await getFxSettings();
     const fx = await getFxRates(false);
+    res.set('Cache-Control','public, max-age=30');
     res.json({ base: 'USD', rates: fx.rates, updated_at: fx.updated_at, source: fx.source, currencies: settings.allowlist, auto: settings.enabled });
   }catch(e){ res.status(502).json({ error: 'rates unavailable', currencies: ['USD'] }); }
 });
@@ -1168,6 +1183,33 @@ app.post('/api/checkout/flutterwave/pin', async (req, res) => {
 // USSD, wallets). A hardcoded list risks a stale value being rejected with
 // "One or more required parameters missing". tx_ref stays our order_ref,
 // so button, iframe, webhook and verify all settle the SAME order.
+// Build + validate the /v3/payments body for ANY order-like object.
+// Throws a specific 422-style Error when a required field is missing, so a
+// missing field fails here with a precise message instead of Flutterwave's
+// generic "One or more required parameters missing". Shared by the live
+// /link route and the admin diag probe (same bytes in both paths).
+// NOTE: customer is exactly {email, name} - the shape of the last payload
+// observed to be accepted. No payment_options filter: Flutterwave then shows
+// every method enabled in Dashboard > Payment Methods.
+function buildFlwHostedBody(order, base){
+  const email = String(order.customer_email || '').trim();
+  const custName = String(order.customer_name || '').trim() || 'Customer';
+  const currency = String(order.currency || 'USD').toUpperCase();
+  const amount = flwAmount(order.amount_cents, currency);
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('ORDER_BAD_EMAIL: missing/invalid customer email');
+  if(!Number.isFinite(amount) || amount <= 0) throw new Error('ORDER_BAD_AMOUNT: ' + String(order.amount_cents));
+  if(!/^[A-Z]{3}$/.test(currency)) throw new Error('ORDER_BAD_CURRENCY: ' + String(order.currency));
+  const redirectUrl = String(base || '').replace(/\/$/, '') + '/checkout?ref=' + encodeURIComponent(order.order_ref);
+  if(!/^https:\/\//.test(redirectUrl) && !/localhost|127\.0\.0\.1/.test(String(base || ''))) throw new Error('BASE_NOT_HTTPS: ' + String(base).slice(0, 60));
+  return {
+    tx_ref: order.order_ref,
+    amount,
+    currency,
+    redirect_url: redirectUrl,
+    customer: { email, name: custName },
+    customizations: { title: ('NexaTech - ' + (order.item_name || 'Order')).slice(0, 60) }
+  };
+}
 app.post('/api/checkout/flutterwave/link', async (req, res) => {
   try{
     const { order_ref } = req.body || {};
@@ -1177,34 +1219,19 @@ app.post('/api/checkout/flutterwave/link', async (req, res) => {
     if(!(order.amount_cents > 0)) return res.status(400).json({ error: 'Free orders need no payment.' });
     const pay = await getPayConfig();
     if(!pay.configured) return res.status(422).json({ error: 'Payment gateway not connected yet.' });
-    // Pre-validate everything Flutterwave requires, so a missing field fails
-    // here with a specific message instead of Flutterwave's generic
-    // "One or more required parameters missing".
-    const email = String(order.customer_email || '').trim();
-    const custName = String(order.customer_name || '').trim() || 'Customer';
-    const phone = String(order.customer_whatsapp || '').replace(/[^\d+]/g, '');
-    const currency = String(order.currency || 'USD').toUpperCase();
-    const amount = flwAmount(order.amount_cents, currency);
-    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(422).json({ error: 'This order is missing a valid email - please start checkout again with your email.' });
-    if(!Number.isFinite(amount) || amount <= 0) return res.status(422).json({ error: 'This order amount looks invalid - please start checkout again.' });
-    if(!/^[A-Z]{3}$/.test(currency)) return res.status(422).json({ error: 'This order currency looks invalid - please start checkout again.' });
     const base = (process.env.PUBLIC_URL || '').trim().replace(/\/$/, '') || (req.protocol + '://' + req.get('host'));
-    const redirectUrl = base + '/checkout?ref=' + encodeURIComponent(order.order_ref);
-    if(!/^https:\/\//.test(redirectUrl) && !/localhost|127\.0\.0\.1/.test(base)) return res.status(422).json({ error: 'Payment redirect URL is not secure - please try again in a moment.' });
-    // Diagnostic breadcrumb (shapes/lengths only, no PII values) so the next
-    // gateway rejection can be traced in the hosting logs.
-    try{
-      const rh = new URL(redirectUrl).host;
-      console.log('flw link payload:', order.order_ref, JSON.stringify({ amount, currency, email_ok: true, name_len: custName.length, phone_len: phone.length, redirect_host: rh }));
-    }catch{}
-    const data = await flwReq('POST', '/payments', {
-      tx_ref: order.order_ref,
-      amount,
-      currency,
-      redirect_url: redirectUrl,
-      customer: { email, name: custName, ...(phone ? { phone_number: phone } : {}) },
-      customizations: { title: ('NexaTech - ' + (order.item_name || 'Order')).slice(0, 60) }
-    }, pay.secret, 'hosted-link');
+    let body;
+    try{ body = buildFlwHostedBody(order, base); }
+    catch(ve){
+      const code = String(ve.message || '');
+      if(code.startsWith('ORDER_BAD_EMAIL')) return res.status(422).json({ error: 'This order is missing a valid email - please start checkout again with your email.' });
+      if(code.startsWith('ORDER_BAD_')) return res.status(422).json({ error: 'This order looks invalid - please start checkout again.' });
+      return res.status(422).json({ error: 'Payment redirect URL is not secure - please try again in a moment.' });
+    }
+    // Diagnostic breadcrumb (shapes only, no PII values) so a gateway
+    // rejection can be matched to its request in the hosting logs.
+    try{ console.log('flw link payload:', order.order_ref, JSON.stringify({ amount: body.amount, currency: body.currency, email_ok: true, name_len: body.customer.name.length, redirect_host: new URL(body.redirect_url).host })); }catch{}
+    const data = await flwReq('POST', '/payments', body, pay.secret, 'hosted-link');
     if(!data.link) throw new Error('Flutterwave did not return a payment link.');
     // GUARANTEE: only a genuine Flutterwave payment host may ever be framed
     // or saved. Anything else (including our own site) is rejected loudly
@@ -1220,7 +1247,8 @@ app.post('/api/checkout/flutterwave/link', async (req, res) => {
     await db.prepare('UPDATE orders SET payment_url=? WHERE order_ref=?').run(linkUrl.href, order.order_ref);
     res.json({ ok: true, authorization_url: linkUrl.href });
   }catch(e){
-    console.error('flw link init failed:', e.name + ': ' + e.message);
+    try{ console.error('flw link init failed:', String((req.body || {}).order_ref || '?'), 'http=' + (e.flwHttp || '?'), e.name + ': ' + e.message, e.flwBody || ''); }
+    catch{ console.error('flw link init failed:', e.message); }
     let msg = e.message || 'Could not load payment options.';
     // Flutterwave's generic 400 gives buyers nothing actionable - keep the
     // raw detail (needed for support) but add what to do next.
@@ -1484,6 +1512,37 @@ app.get('/api/admin/checkout-diag', requireAuth, async (req, res) => {
     const data = await flwReq('GET', '/banks/NG', undefined, pay.secret, 'auth-check', 12000);
     return { key_valid: true, banks: Array.isArray(data) ? data.length + ' banks' : typeof data };
   });
+  if(String(req.query.hostedlink || '') === '1'){
+    await step('flw_hostedlink_probe', async () => {
+      if(!pay || !pay.configured) throw new Error('skipped: gateway keys not configured');
+      // Reproduces EXACTLY what buyers hit: same builder, same /v3/payments
+      // call, from this server with live keys. Unpaid links just expire.
+      // Matrix covers the failing buyer currencies (USD/GBP/NGN).
+      const base = (process.env.PUBLIC_URL || '').trim().replace(/\/$/, '') || (req.protocol + '://' + req.get('host'));
+      const matrix = [
+        { currency: 'USD', amount_cents: 100 },
+        { currency: 'GBP', amount_cents: 100 },
+        { currency: 'NGN', amount_cents: 50000 }
+      ];
+      const out = [];
+      for(const m of matrix){
+        const probeOrder = { order_ref: testRef + '-LINK-' + m.currency, item_name: 'Diag Probe',
+          amount_cents: m.amount_cents, currency: m.currency,
+          customer_email: 'diagprobe.test@gmail.com', customer_name: 'Diag Probe' };
+        try{
+          const body = buildFlwHostedBody(probeOrder, base);
+          const data = await flwReq('POST', '/payments', body, pay.secret, 'hostedlink-probe-' + m.currency, 25000);
+          let host = '';
+          try{ host = new URL(String(data.link)).hostname; }catch{}
+          out.push({ currency: m.currency, amount: body.amount, ok: true, link_host: host });
+        }catch(pe){
+          out.push({ currency: m.currency, amount_cents: m.amount_cents, ok: false,
+            http: pe.flwHttp || null, message: pe.message, body: pe.flwBody || null });
+        }
+      }
+      return out;
+    });
+  }
   if(String(req.query.charge || req.query.invoice || '') === '1'){
     await step('flw_test_charge', async () => {
       if(!pay || !pay.configured) throw new Error('skipped: gateway keys not configured');
@@ -4662,5 +4721,8 @@ app.use((err, req, res, next)=>{
 app.listen(PORT, () => {
   console.log(`Nexatech server running at http://localhost:${PORT}`);
   console.log(`Admin: http://localhost:${PORT}/admin  (admin / 123450000)`);
+  // Warm the FX cache in the background: the first visitor must never wait
+  // on a live external rates fetch (DB cache serves instantly if live fails).
+  setTimeout(()=>{ getFxRates(false).then(fx => console.log('fx warmup', fx.source, Object.keys(fx.rates || {}).length + ' curs')).catch(e => console.error('fx warmup failed', e.message)); }, 2000);
 });
 
