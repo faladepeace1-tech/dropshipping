@@ -187,7 +187,15 @@ async function payWithCard(pin){
       try{ window.open(j.url, '_blank', 'noopener'); }catch{}
       startPolling();
     } else {
-      throw new Error(j.message || 'Card was declined. Try another card or contact your bank.');
+      const msgText = j.message || 'Card was declined. Try another card or contact your bank.';
+      if(/rave v3/i.test(msgText)){
+        // Direct card entry not enabled on this merchant — fall over to the
+        // secure frame below, where the same card works today (same order).
+        switchPayTab('applepay');
+        document.getElementById('co-wallet-note').textContent = 'Direct card entry is not enabled on this store yet — please complete with your card below instead (same order, same price).';
+        return;
+      }
+      throw new Error(msgText);
     }
   }catch(e){
     msg.textContent = e.message || 'Payment failed. Please try again.';
@@ -404,7 +412,16 @@ async function startTransfer(){
     startCountdown(j.expires_at, $('#co-transfer-expiry'));
     startPolling();
   }catch(e){
-    msg.textContent = e.message || 'Could not start bank transfer.';
+    const errText = e.message || 'Could not start bank transfer.';
+    if(/maintenance/i.test(errText)){
+      // Native transfer accounts unavailable — fall over to the secure frame
+      // below, which offers transfer among other options (same order).
+      switchPayTab('applepay');
+      document.getElementById('co-wallet-note').textContent = 'Instant transfer accounts are down right now — please complete your transfer below instead (same order, same price).';
+      btn.disabled = false;
+      return;
+    }
+    msg.textContent = errText;
   }finally{
     btn.disabled = false;
   }
