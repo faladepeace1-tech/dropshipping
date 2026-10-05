@@ -74,6 +74,7 @@ async function buildSiteKnowledge(){
     parts.push(`FAQ: ${(m.faq_items||'').toString().slice(0,800)}`);
     parts.push(`CTA: ${m.cta_band_title||''} - ${m.cta_band_subtitle||''} | Footer: ${m.footer_copyright||''}`);
     parts.push(`SEO: ${m.seo_title||''} | ${m.seo_description||''}`);
+    parts.push(`CURRENCY NOTE: listed prices are USD; the site auto-converts display to each visitor's local currency and checkout charges that converted total. Quote USD figures from PRICING, then add that the visitor will see/pay their local equivalent.`);
     return parts.join('\n');
   }catch(e){ return 'Site knowledge temporarily unavailable'; }
 }
@@ -667,9 +668,15 @@ function parsePriceToCents(str){
   return Math.round(n * 100);
 }
 function formatCents(cents, currency){
-  const v = (Number(cents) || 0) / 100;
-  const sym = String(currency || 'USD').toUpperCase() === 'USD' ? '$' : String(currency || 'USD').toUpperCase() + ' ';
-  return sym + (Number.isInteger(v) ? v.toLocaleString('en-US') : v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+  const cur = String(currency || 'USD').toUpperCase();
+  try{
+    const div = FX_ZERO_DECIMAL.has(cur) ? 1 : 100;
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: cur }).format((Number(cents) || 0) / div);
+  }catch{
+    const v = (Number(cents) || 0) / 100;
+    const sym = cur === 'USD' ? '$' : cur + ' ';
+    return sym + (Number.isInteger(v) ? v.toLocaleString('en-US') : v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+  }
 }
 function publicTheme(row){
   if(!row) return null;
@@ -693,6 +700,92 @@ async function getPayConfig(){
   const testRow = await get('flw_testmode');
   const testmode = String(testRow === '' ? 'true' : testRow).toLowerCase() === 'true';
   return { provider: 'flutterwave', secret, pub, enc, hash, testmode, configured: !!secret };
+}
+// ================= AUTO CURRENCY (FX) =================
+// Canonical prices are USD everywhere (content keys, themes). Conversion
+// happens ONLY at the display/payment edges using live FX rates cached here.
+// The server ALWAYS recomputes charged amounts from USD + server-side rates —
+// client-supplied numbers are never trusted for money. If FX is unavailable
+// or the currency unsupported, everything falls back to USD.
+const FX_CURRENCIES = ['USD','NGN','EUR','GBP','GHS','KES','ZAR','UGX','TZS','RWF','XAF','XOF','MWK','EGP','SLL','ZMW','CAD'];
+const FX_ZERO_DECIMAL = new Set(['XAF','XOF','RWF','UGX']);
+const FX_TTL_MS = 12 * 3600 * 1000;
+let _fxMem = null; // {rates, updated_at, source}
+async function getFxSettings(){
+  const get = async (k, fb) => {
+    try{
+      const row = await db.prepare('SELECT value FROM content WHERE key=?').get(k);
+      const v = String(row?.value ?? '').trim();
+      return v || fb;
+    }catch{ return fb; }
+  };
+  let allow = FX_CURRENCIES;
+  try{
+    const raw = await get('fx_currencies', '');
+    if(raw){ const p = JSON.parse(raw); if(Array.isArray(p) && p.length) allow = p.filter(c => FX_CURRENCIES.includes(String(c).toUpperCase())); }
+  }catch{}
+  if(!allow.length) allow = FX_CURRENCIES;
+  return { enabled: (await get('fx_auto_enabled', 'true')).toLowerCase() !== 'false', allowlist: allow };
+}
+async function fetchFxLive(){
+  // Primary: open.er-api.com (free, no key). Fallback: frankfurter (ECB).
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), 15000);
+  try{
+    const r = await fetch('https://open.er-api.com/v6/latest/USD', { signal: ctl.signal });
+    const j = await r.json();
+    if(r.ok && j && j.result === 'success' && j.rates) return { rates: j.rates, source: 'er-api' };
+    throw new Error('er-api bad response');
+  }catch(e1){
+    const r2 = await fetch('https://api.frankfurter.app/latest?from=USD', { signal: ctl.signal });
+    const jj = await r2.json();
+    if(r2.ok && jj && jj.rates) return { rates: { ...jj.rates, USD: 1 }, source: 'frankfurter' };
+    throw new Error('fx fetch failed: ' + e1.message);
+  } finally { clearTimeout(t); }
+}
+async function getFxRates(force){
+  const now = Date.now();
+  if(!force && _fxMem && (now - _fxMem.updated_at) < FX_TTL_MS) return _fxMem;
+  if(!force){
+    try{
+      const rowJ = await db.prepare('SELECT value FROM content WHERE key=?').get('fx_rates_json');
+      const rowT = await db.prepare('SELECT value FROM content WHERE key=?').get('fx_updated_at');
+      const age = now - (parseInt(String(rowT?.value || '0'), 10) || 0);
+      if(rowJ?.value && age < FX_TTL_MS){
+        _fxMem = { rates: JSON.parse(rowJ.value), updated_at: parseInt(String(rowT.value), 10), source: 'cache' };
+        return _fxMem;
+      }
+    }catch{}
+  }
+  const live = await fetchFxLive();
+  const keep = { USD: 1 };
+  for(const c of FX_CURRENCIES){ const v = Number(live.rates[c]); if(Number.isFinite(v) && v > 0) keep[c] = v; }
+  _fxMem = { rates: keep, updated_at: now, source: live.source };
+  try{
+    await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('fx_rates_json', JSON.stringify(keep), 'json');
+    await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('fx_updated_at', String(now), 'text');
+  }catch{}
+  return _fxMem;
+}
+// Convert any supported currency -> target currency (minor units), via USD.
+// Unknown currencies or missing rates fall back to the source unchanged.
+function convertFrom(amountMinor, fromCur, toCur, rates){
+  const from = String(fromCur || 'USD').toUpperCase();
+  const to = String(toCur || 'USD').toUpperCase();
+  const rFrom = from === 'USD' ? 1 : Number(rates && rates[from]);
+  const rTo = to === 'USD' ? 1 : Number(rates && rates[to]);
+  if(!Number.isFinite(rFrom) || rFrom <= 0 || !Number.isFinite(rTo) || rTo <= 0){
+    return { amount_cents: Math.round(Number(amountMinor) || 0), currency: from, converted: false };
+  }
+  const fromDiv = FX_ZERO_DECIMAL.has(from) ? 1 : 100;
+  const usd = ((Number(amountMinor) || 0) / fromDiv) / rFrom;
+  const units = usd * rTo;
+  const minor = FX_ZERO_DECIMAL.has(to) ? Math.round(units) : Math.round(units * 100);
+  return { amount_cents: minor, currency: to, converted: to !== from };
+}
+// Convert canonical USD cents -> target currency minor units.
+function convertCents(usdCents, to, rates){
+  return convertFrom(usdCents, 'USD', to, rates);
 }
 // Flutterwave v3 helpers. Base https://api.flutterwave.com/v3, auth: Bearer
 // secret key. Card data is held in memory only: never logged, never stored
@@ -870,10 +963,40 @@ app.get('/api/themes', async (req, res) => {
     res.json(rows.map(publicTheme));
   }catch(e){ res.status(500).json({ error: 'themes unavailable' }); }
 });
+// --- Public: FX rates (numbers only, cached 12h) ---
+app.get('/api/fx/rates', async (req, res) => {
+  try{
+    const settings = await getFxSettings();
+    const fx = await getFxRates(false);
+    res.json({ base: 'USD', rates: fx.rates, updated_at: fx.updated_at, source: fx.source, currencies: settings.allowlist, auto: settings.enabled });
+  }catch(e){ res.status(502).json({ error: 'rates unavailable', currencies: ['USD'] }); }
+});
+// --- Admin: force FX refresh ---
+app.post('/api/admin/fx/refresh', requireAuth, async (req, res) => {
+  try{
+    const fx = await getFxRates(true);
+    res.json({ ok: true, updated_at: fx.updated_at, source: fx.source, count: Object.keys(fx.rates || {}).length });
+  }catch(e){ res.status(502).json({ error: 'refresh failed: ' + e.message }); }
+});
 // --- Public: checkout item preview (price/name for the checkout page) ---
+// ?currency=XXX converts from canonical USD using server rates. The charged
+// total is always recomputed server-side at create time — never trusted.
 app.get('/api/checkout/item', async (req, res) => {
   const item = await getCheckoutItem(req.query.kind, req.query.ref || req.query.item);
   if(item.error) return res.status(404).json({ error: item.error });
+  try{
+    const want = String(req.query.currency || 'USD').toUpperCase();
+    const settings = await getFxSettings();
+    if(settings.enabled && want !== item.currency && settings.allowlist.includes(want)){
+      const fx = await getFxRates(false);
+      const c = convertFrom(item.amount_cents, item.currency, want, fx.rates);
+      if(c.converted){
+        item.amount_cents = c.amount_cents;
+        item.currency = c.currency;
+        item.price_text = formatCents(c.amount_cents, c.currency);
+      }
+    }
+  }catch{}
   res.json(item);
 });
 // --- Public: order status (for success page polling + download link) ---
@@ -889,7 +1012,7 @@ app.get('/api/checkout/order/:ref', async (req, res) => {
   }
   res.json(out);
 });
-// --- Public: create order + Cryptomus invoice ---
+// --- Public: create order (amount always recomputed server-side, FX-aware) ---
 app.post('/api/checkout/create', async (req, res) => {
   try{
     const { kind, ref, name, email, whatsapp } = req.body || {};
@@ -898,6 +1021,17 @@ app.post('/api/checkout/create', async (req, res) => {
     if(!whatsapp || String(whatsapp).replace(/\D/g, '').length < 7) return res.status(400).json({ error: 'Please enter a valid WhatsApp number.' });
     const item = await getCheckoutItem(kind, ref);
     if(item.error) return res.status(400).json({ error: item.error });
+    // Authoritative conversion: recompute from canonical USD using server
+    // rates. Client-displayed totals are informational only.
+    try{
+      const want = String(req.body?.currency || item.currency || 'USD').toUpperCase();
+      const settings = await getFxSettings();
+      if(settings.enabled && want !== item.currency && settings.allowlist.includes(want)){
+        const fx = await getFxRates(false);
+        const c = convertFrom(item.amount_cents, item.currency, want, fx.rates);
+        if(c.converted){ item.amount_cents = c.amount_cents; item.currency = c.currency; item.price_text = formatCents(c.amount_cents, c.currency); }
+      }
+    }catch{}
     const orderRef = 'NXT-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 6).toUpperCase();
     console.log('checkout create:', item.kind + ':' + item.ref, item.amount_cents + item.currency, 'email=' + String(email).trim().slice(0, 60));
     await db.prepare("INSERT INTO orders (order_ref,kind,item_ref,item_name,amount_cents,currency,customer_name,customer_email,customer_whatsapp,status) VALUES (?,?,?,?,?,?,?,?,?,'pending')")
@@ -1274,6 +1408,14 @@ app.get('/api/admin/checkout-diag', requireAuth, async (req, res) => {
     const o = await db.prepare('SELECT order_ref,status FROM orders WHERE order_ref=?').get(testRef);
     if(!o) throw new Error('inserted row not readable');
     return o;
+  });
+  await step('fx_rates', async () => {
+    const s = await getFxSettings();
+    const fx = await getFxRates(false);
+    const n = Object.keys(fx.rates || {}).length;
+    const ageH = Math.round((Date.now() - (fx.updated_at || 0)) / 3600000);
+    const sample = convertFrom(29900, 'USD', 'NGN', fx.rates);
+    return { enabled: s.enabled, source: fx.source, age_hours: ageH, currencies: n, sample_299usd_to_ngn: sample };
   });
   await step('pay_config', async () => {
     pay = await getPayConfig();
@@ -4360,6 +4502,10 @@ cron.schedule('*/5 * * * *', processIdleChatFollowups);
 cron.schedule('0 9 * * *', ()=> runDailyFollowups({}).catch(e=> console.error('daily followups cron', e.message)));
 cron.schedule('30 3 * * *', async ()=>{ try{ const r = await writeFileBackup('auto-'+new Date().toISOString().slice(0,10)); console.log('auto backup', r.file); }catch(e){ console.error('auto backup', e.message); } });
 cron.schedule('17 * * * *', ()=> sweepStaleChunks(2 * 3600 * 1000)); // drop abandoned chunk sessions
+cron.schedule('13 */6 * * *', async ()=>{ // keep FX rates warm (12h TTL)
+  try{ const fx = await getFxRates(true); console.log('fx refresh', fx.source, Object.keys(fx.rates || {}).length); }
+  catch(e){ console.error('fx refresh failed', e.message); }
+});
 sweepStaleChunks(2 * 3600 * 1000); // also sweep on boot
 
 // Idle chats: session updated > chatIdleMinutes ago, has email+messages, no chat_instant sent yet -> send instant AI follow-up

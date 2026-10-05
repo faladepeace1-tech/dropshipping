@@ -112,6 +112,7 @@ main, .footer{position:relative;z-index:1}
 .nav-links a:hover{color:var(--text)}
 .nav-links a:hover::after{width:100%}
 .nav-cta{display:flex;gap:10px;align-items:center}
+.fx-select{background:#fff;border:1px solid var(--border);color:var(--primary);border-radius:999px;padding:8px 10px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;outline:none}
 .hamburger{display:none;width:42px;height:42px;border-radius:12px;border:1px solid var(--border);background:#fff;cursor:pointer}
 @media(max-width:900px){.nav-links,.nav-cta .hide-mobile{display:none}.hamburger{display:grid;place-items:center}}
 .mobile-drawer{position:fixed;inset:0;z-index:110;background:rgba(5,7,15,.5);backdrop-filter:blur(8px);display:none}

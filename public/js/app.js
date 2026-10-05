@@ -848,6 +848,85 @@ async function loadMedia(){
 }
 
 // Pricing
+// ================= AUTO CURRENCY (display layer) =================
+// Canonical prices are USD. This converts DISPLAYED prices to the visitor's
+// currency. Charged totals are always recomputed server-side — these numbers
+// never go near money. Detection: saved override (?cc= test hook, IP lookup,
+// browser locale) -> USD fallback. Never blocks first paint.
+const FX_ZERO = ['XAF','XOF','RWF','UGX'];
+const FX_COUNTRY = {NG:'NGN',US:'USD',GB:'GBP',UK:'GBP',GH:'GHS',KE:'KES',ZA:'ZAR',UG:'UGX',TZ:'TZS',RW:'RWF',CM:'XAF',CF:'XAF',TD:'XAF',CG:'XAF',GA:'XAF',GQ:'XAF',SN:'XOF',CI:'XOF',BF:'XOF',ML:'XOF',NE:'XOF',GW:'XOF',TG:'XOF',BJ:'XOF',MW:'MWK',EG:'EGP',SL:'SLL',ZM:'ZMW',CA:'CAD',DE:'EUR',FR:'EUR',IT:'EUR',ES:'EUR',NL:'EUR',BE:'EUR',AT:'EUR',IE:'EUR',PT:'EUR',FI:'EUR',GR:'EUR',SK:'EUR',SI:'EUR',EE:'EUR',LV:'EUR',LT:'EUR',HR:'EUR',CY:'EUR',MT:'EUR',LU:'EUR',AD:'EUR',MC:'EUR',SM:'EUR',ME:'EUR'};
+const FX = { rates: null, currencies: ['USD'], currency: 'USD', updated_at: 0, auto: true };
+function fxUsdCentsFromText(t){
+  const n = parseFloat(String(t == null ? '' : t).replace(/[^0-9.]/g, ''));
+  return Number.isFinite(n) ? Math.round(n * 100) : 0;
+}
+function fxConvertFrom(amountMinor, fromCur, toCur){
+  const from = String(fromCur || 'USD').toUpperCase(), to = String(toCur || 'USD').toUpperCase();
+  const R = FX.rates || {};
+  const rFrom = from === 'USD' ? 1 : Number(R[from]), rTo = to === 'USD' ? 1 : Number(R[to]);
+  if(!Number.isFinite(rFrom) || rFrom <= 0 || !Number.isFinite(rTo) || rTo <= 0) return { amount_cents: Math.round(Number(amountMinor) || 0), currency: from, converted: false };
+  const usd = ((Number(amountMinor) || 0) / (FX_ZERO.includes(from) ? 1 : 100)) / rFrom;
+  const units = usd * rTo;
+  return { amount_cents: FX_ZERO.includes(to) ? Math.round(units) : Math.round(units * 100), currency: to, converted: to !== from };
+}
+function fxFormat(cents, cur){
+  const c = String(cur || 'USD').toUpperCase();
+  try{
+    const div = FX_ZERO.includes(c) ? 1 : 100;
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency: c }).format((Number(cents) || 0) / div);
+  }catch{ return (c === 'USD' ? '$' : c + ' ') + (((Number(cents) || 0) / 100).toLocaleString('en-US')); }
+}
+function fxLocaleCountry(){
+  try{
+    const loc = String(navigator.language || '');
+    const m = loc.match(/[-_]([A-Za-z]{2})$/);
+    if(m) return m[1].toUpperCase();
+  }catch{}
+  return '';
+}
+async function initFx(){
+  try{ const r = await fetch('/api/fx/rates'); const j = await r.json(); if(j && j.rates){ FX.rates = j.rates; FX.currencies = j.currencies || ['USD']; FX.updated_at = j.updated_at || 0; FX.auto = j.auto !== false; } }catch{}
+  let cur = '';
+  try{ cur = String(localStorage.getItem('nx_currency') || '').toUpperCase(); }catch{}
+  const q = new URLSearchParams(location.search).get('cc');
+  if(q && FX.currencies.includes(q.toUpperCase())) cur = q.toUpperCase();
+  if(!cur && FX.auto){
+    try{
+      const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 4000);
+      const r = await fetch('https://ipwho.is/', { signal: ctl.signal });
+      clearTimeout(t);
+      const j = await r.json();
+      if(j && j.success !== false && j.country_code) cur = FX_COUNTRY[String(j.country_code).toUpperCase()] || '';
+    }catch{}
+    if(!cur){ const lc = fxLocaleCountry(); if(lc && FX_COUNTRY[lc] && FX.currencies.includes(FX_COUNTRY[lc])) cur = FX_COUNTRY[lc]; }
+  }
+  if(!cur || !FX.currencies.includes(cur)) cur = 'USD';
+  FX.currency = cur;
+  fillFxSelectors();
+  renderPricing();
+  renderThemes();
+}
+function fillFxSelectors(){
+  for(const id of ['fx-select', 'fx-select-drawer']){
+    const el = document.getElementById(id);
+    if(!el) continue;
+    el.innerHTML = '';
+    FX.currencies.forEach(c => {
+      const o = document.createElement('option');
+      o.value = c; o.textContent = c;
+      if(c === FX.currency) o.selected = true;
+      el.appendChild(o);
+    });
+    el.onchange = () => {
+      try{ localStorage.setItem('nx_currency', el.value); }catch{}
+      FX.currency = el.value;
+      fillFxSelectors();
+      renderPricing();
+      renderThemes();
+      track('currency_change', el.value);
+    };
+  }
+}
 function renderPricing(){
   const grid=$('#pricing-grid'); if(!grid) return;
   const tiers=[
@@ -860,8 +939,10 @@ function renderPricing(){
   // charge exactly what the card shows — no stale template can desync them.
   tiers.forEach(t=>{
     const el=document.createElement('div'); el.className='price-card'+(t.popular?' popular':'');
-    el.innerHTML=`${t.popular?'<span class="popular-badge">'+sanitize(T('pricing_popular_badge','Most Popular'))+'</span>':''}<div class="eyebrow" style="margin:0">${sanitize(t.name)}</div><div class="price">${sanitize(t.price)}</div><ul>${t.features.map(f=>`<li>${sanitize(f)}</li>`).join('')}</ul><a class="btn ${t.popular?'btn-primary btn-glow':'btn-ghost'}" href="/checkout?kind=plan&item=${t.key}" style="margin-top:auto">${sanitize(T('pricing_cta_template','Choose {name}').replace('{name}', t.name))} →</a>`;
-    const a=el.querySelector('a'); a.addEventListener('click',()=>track('cta_click','pricing-'+t.key,{price:t.price}));
+    const c = fxConvertFrom(fxUsdCentsFromText(t.price), 'USD', FX.currency);
+    const disp = (c.converted ? '≈ ' : '') + fxFormat(c.amount_cents, c.currency);
+    el.innerHTML=`${t.popular?'<span class="popular-badge">'+sanitize(T('pricing_popular_badge','Most Popular'))+'</span>':''}<div class="eyebrow" style="margin:0">${sanitize(t.name)}</div><div class="price" title="${sanitize(t.price)} USD">${sanitize(disp)}</div><ul>${t.features.map(f=>`<li>${sanitize(f)}</li>`).join('')}</ul><a class="btn ${t.popular?'btn-primary btn-glow':'btn-ghost'}" href="/checkout?kind=plan&item=${t.key}" style="margin-top:auto">${sanitize(T('pricing_cta_template','Choose {name}').replace('{name}', t.name))} →</a>`;
+    const a=el.querySelector('a'); a.addEventListener('click',()=>track('cta_click','pricing-'+t.key,{price:disp}));
     grid.appendChild(el);
   });
 }
@@ -872,6 +953,11 @@ async function loadThemes(){
     const r=await fetch('/api/themes'); THEMES=await r.json();
   }catch{ THEMES=[]; }
   renderThemes();
+}
+function fxThemePrice(th){
+  if(!th || !(Number(th.price_cents) > 0)) return th.price_text || '';
+  const c = fxConvertFrom(Number(th.price_cents), th.currency || 'USD', FX.currency);
+  return (c.converted ? '≈ ' : '') + fxFormat(c.amount_cents, c.currency);
 }
 function renderThemes(){
   const grid=$('#themes-grid'); const empty=$('#themes-empty');
@@ -892,7 +978,7 @@ function renderThemes(){
         : `<div style="display:grid;place-items:center;height:100%;color:var(--text-muted);font-weight:700">No preview</div>`)
       + `<div class="overlay"><span class="tag">${sanitize(badge)}</span>`
       + `<div style="font-size:15px;font-weight:800;margin-top:6px">${sanitize(th.name)}</div>`
-      + `<div class="result" style="font-size:15px">${sanitize(th.price_text||'')}</div></div></div>`
+      + `<div class="result" style="font-size:15px">${sanitize(fxThemePrice(th))}</div></div></div>`
       + `<div class="theme-body"><p class="theme-desc">${sanitize((th.description||'').slice(0,120))}</p>`
       + `<div class="theme-actions">`
       + `<button class="btn btn-ghost theme-preview-btn" type="button">${sanitize(T('theme_preview_label','Preview'))}</button>`
@@ -907,7 +993,7 @@ function renderThemes(){
 }
 function openThemeModal(th){
   const item={ id:'theme-'+th.slug, category:'Theme', caption:th.name,
-    result_stat:(th.price_text||'')+' • '+T('theme_badge','Instant Download'),
+    result_stat:fxThemePrice(th)+' • '+T('theme_badge','Instant Download'),
     case_study_text:th.description||'', url:th.preview_url||'' };
   openModal(item, [item, ...MODAL_ITEMS.filter(m=>String(m.id).indexOf('theme-')!==0)]);
   const cta=$('#modal-cta');
@@ -1532,6 +1618,7 @@ function safeInit(fn){
   safeInit(initChat);
   safeInit(initChips);
   try{ await loadContent(); }catch(e){ console.error('content load failed',e); }
+  try{ await initFx(); }catch(e){ console.error('fx init failed',e); }
   safeInit(renderMarquee);
   safeInit(initReveal);
   // Portfolio + all media feeds concurrently (was sequential awaits)

@@ -2672,7 +2672,7 @@ $('#backup-restore-file')?.addEventListener('change', async (e)=>{
   e.target.value='';
 });
 // refresh backup state whenever Settings tab opens
-document.querySelector('.side-nav button[data-tab="settings"]')?.addEventListener('click', ()=>{ loadBackupStatus(); }, true);
+document.querySelector('.side-nav button[data-tab="settings"]')?.addEventListener('click', ()=>{ loadBackupStatus(); fillFxForm(); }, true);
 
 // Init
 (async()=>{
@@ -2785,6 +2785,56 @@ $('#btn-save-payments')?.addEventListener('click', async ()=>{
   finally{ if(btn){ btn.disabled = false; btn.textContent = 'Save Payment Keys'; } }
 });
 
+async function fillFxForm(){
+  try{
+    const r = await fetch('/api/fx/rates');
+    const j = await r.json();
+    if($('#int-fx-auto')) $('#int-fx-auto').checked = j.auto !== false;
+    const list = $('#fx-cur-list');
+    if(list){
+      list.innerHTML = '';
+      (j.currencies || ['USD']).forEach(c => {
+        const lab = document.createElement('label');
+        lab.style.cssText = 'display:flex;gap:4px;align-items:center;font-size:12px;border:1px solid var(--border);border-radius:999px;padding:4px 10px;cursor:pointer';
+        lab.innerHTML = `<input type="checkbox" value="${c}" ${c === 'USD' ? 'checked disabled' : 'checked'}> ${c}`;
+        list.appendChild(lab);
+      });
+    }
+    const st = $('#fx-status');
+    if(st){
+      const age = j.updated_at ? Math.round((Date.now() - j.updated_at) / 3600000) : '?';
+      st.textContent = `${Object.keys(j.rates || {}).length} rates via ${j.source || '?'} · updated ${age}h ago`;
+    }
+  }catch{ const st = $('#fx-status'); if(st) st.textContent = 'unavailable (checkout falls back to USD)'; }
+}
+$('#btn-save-fx')?.addEventListener('click', async ()=>{
+  const btn = $('#btn-save-fx'), msg = $('#fx-msg');
+  if(btn){ btn.disabled = true; btn.textContent = 'Saving...'; }
+  if(msg){ msg.textContent = 'Saving...'; msg.style.color = '#64748B'; }
+  try{
+    const checked = [...document.querySelectorAll('#fx-cur-list input:checked')].map(i => i.value);
+    if(!checked.includes('USD')) checked.unshift('USD');
+    const payload = { fx_auto_enabled: String($('#int-fx-auto')?.checked !== false), fx_currencies: checked };
+    const r = await fetch('/api/content', { method: 'PUT', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(payload) });
+    const j = await r.json().catch(() => ({}));
+    if(!r.ok) throw new Error(j.error || 'Save failed');
+    if(msg){ msg.textContent = 'Saved ✓'; msg.style.color = '#10B981'; }
+    await loadContent();
+  }catch(e){ if(msg){ msg.textContent = 'Error: ' + e.message; msg.style.color = '#F87171'; } }
+  finally{ if(btn){ btn.disabled = false; btn.textContent = 'Save Currency Settings'; } }
+});
+$('#btn-refresh-fx')?.addEventListener('click', async ()=>{
+  const btn = $('#btn-refresh-fx'), msg = $('#fx-msg');
+  if(btn){ btn.disabled = true; btn.textContent = 'Refreshing…'; }
+  try{
+    const r = await fetch('/api/admin/fx/refresh', { method: 'POST', headers: authHeaders() });
+    const j = await r.json().catch(() => ({}));
+    if(!r.ok) throw new Error(j.error || 'Refresh failed');
+    if(msg){ msg.textContent = `Refreshed ✓ ${j.count} rates via ${j.source}`; msg.style.color = '#10B981'; }
+    fillFxForm();
+  }catch(e){ if(msg){ msg.textContent = 'Error: ' + e.message + ' (checkout falls back to USD)'; msg.style.color = '#F87171'; } }
+  finally{ if(btn){ btn.disabled = false; btn.textContent = 'Refresh Rates Now'; } }
+});
 function themeMoney(cents, cur){
   const v = (Number(cents) || 0) / 100;
   const sym = String(cur || 'USD').toUpperCase() === 'USD' ? '$' : String(cur || 'USD') + ' ';

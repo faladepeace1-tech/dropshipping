@@ -54,6 +54,42 @@ async function apiFetch(url, options, label){
 function postJson(url, body, label){
   return apiFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) }, label);
 }
+// Buyer currency: shared override with the homepage (nx_currency), else ?cc=
+// test hook, else IP lookup, else browser locale, else USD. Server re-prices
+// authoritatively — this only decides what we ASK for.
+let BUY_CUR = 'USD';
+const BUY_FX_COUNTRY = {NG:'NGN',US:'USD',GB:'GBP',UK:'GBP',GH:'GHS',KE:'KES',ZA:'ZAR',UG:'UGX',TZ:'TZS',RW:'RWF',CM:'XAF',CF:'XAF',TD:'XAF',CG:'XAF',GA:'XAF',GQ:'XAF',SN:'XOF',CI:'XOF',BF:'XOF',ML:'XOF',NE:'XOF',GW:'XOF',TG:'XOF',BJ:'XOF',MW:'MWK',EG:'EGP',SL:'SLL',ZM:'ZMW',CA:'CAD',DE:'EUR',FR:'EUR',IT:'EUR',ES:'EUR',NL:'EUR',BE:'EUR',AT:'EUR',IE:'EUR',PT:'EUR',FI:'EUR',GR:'EUR',SK:'EUR',SI:'EUR',EE:'EUR',LV:'EUR',LT:'EUR',HR:'EUR',CY:'EUR',MT:'EUR',LU:'EUR'};
+async function detectBuyCurrency(supported){
+  const ok = c => c && supported && supported.includes(c);
+  try{ const s = String(localStorage.getItem('nx_currency') || '').toUpperCase(); if(ok(s)) return s; }catch{}
+  const q = new URLSearchParams(location.search).get('cc');
+  if(q && ok(q.toUpperCase())) return q.toUpperCase();
+  try{
+    const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 4000);
+    const r = await fetch('https://ipwho.is/', { signal: ctl.signal });
+    clearTimeout(t);
+    const j = await r.json();
+    if(j && j.success !== false && j.country_code){
+      const c = BUY_FX_COUNTRY[String(j.country_code).toUpperCase()];
+      if(ok(c)) return c;
+    }
+  }catch{}
+  try{
+    const m = String(navigator.language || '').match(/[-_]([A-Za-z]{2})$/);
+    if(m){ const c = BUY_FX_COUNTRY[m[1].toUpperCase()]; if(ok(c)) return c; }
+  }catch{}
+  return 'USD';
+}
+async function buyCurrency(){
+  let supported = null;
+  try{
+    const r = await fetch('/api/fx/rates');
+    const j = await r.json();
+    if(j && Array.isArray(j.currencies)) supported = j.currencies;
+  }catch{}
+  BUY_CUR = await detectBuyCurrency(supported || ['USD']);
+  return BUY_CUR;
+}
 function setWaFallbacks(){
   $('#co-error-wa').href = waLink('Hi Nexatech! I need help with my checkout.');
 }
@@ -74,6 +110,8 @@ function fillSummary(){
   $('#co-item-name').textContent = ITEM.name || '';
   $('#co-item-desc').textContent = ITEM.description || '';
   $('#co-item-price').textContent = ITEM.price_text || '';
+  const cn = $('#co-cur-note');
+  if(cn) cn.textContent = 'One-time payment. No subscription.' + (ITEM.currency && ITEM.currency !== 'USD' ? ' You will be charged in ' + ITEM.currency + '.' : '');
   const img = $('#co-item-img');
   if(ITEM.preview_url){ img.src = ITEM.preview_url; img.alt = ITEM.name || ''; img.classList.remove('hidden'); }
   else img.classList.add('hidden');
@@ -97,7 +135,7 @@ async function createOrder(){
   btn.disabled = true; btn.textContent = 'Creating your order…';
   try{
     const res = await postJson('/api/checkout/create', {
-      kind: ITEM.kind, ref: ITEM.ref,
+      kind: ITEM.kind, ref: ITEM.ref, currency: BUY_CUR,
       name: $('#co-name').value.trim(),
       email: $('#co-email').value.trim(),
       whatsapp: $('#co-whatsapp').value.trim()
@@ -327,7 +365,7 @@ async function resumeByRef(ref){
       showError('This payment ' + o.status + '. Please start a new checkout from the site.');
       return;
     }
-    const ir = await apiFetch('/api/checkout/item?kind=' + encodeURIComponent(o.kind) + '&ref=' + encodeURIComponent(o.item_ref), {}, 'item details');
+    const ir = await apiFetch('/api/checkout/item?kind=' + encodeURIComponent(o.kind) + '&ref=' + encodeURIComponent(o.item_ref) + '&currency=' + encodeURIComponent(BUY_CUR), {}, 'item details');
     const ij = await readJson(ir, 'item details');
     if(!ir.ok) throw new Error(ij.error || 'Item not available.');
     ITEM = ij;
@@ -416,12 +454,13 @@ function formatCardInputs(){
     }catch{ alert('Could not check status — try again in a moment.'); }
   });
   const q = new URLSearchParams(location.search);
+  await buyCurrency();
   const ref = (q.get('ref') || q.get('reference') || q.get('trxref') || '').trim();
   if(ref){ await resumeByRef(ref); return; }
   const kind = (q.get('kind') || '').trim(), item = (q.get('item') || '').trim();
   if(!kind || !item){ showError('Choose a plan or theme first, then come back to pay.'); return; }
   try{
-    const r = await apiFetch('/api/checkout/item?kind=' + encodeURIComponent(kind) + '&ref=' + encodeURIComponent(item), {}, 'item details');
+    const r = await apiFetch('/api/checkout/item?kind=' + encodeURIComponent(kind) + '&ref=' + encodeURIComponent(item) + '&currency=' + encodeURIComponent(BUY_CUR), {}, 'item details');
     const j = await readJson(r, 'item details');
     if(!r.ok) throw new Error(j.error || 'Item not available.');
     ITEM = j;

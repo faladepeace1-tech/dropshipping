@@ -735,6 +735,8 @@ export async function initDb() {
       ['flw_enc_key', '', 'text'],
       ['flw_secret_hash', '', 'text'],
       ['flw_testmode', 'true', 'boolean'],
+      ['fx_auto_enabled', 'true', 'boolean'],
+      ['fx_currencies', '["USD","NGN","EUR","GBP","GHS","KES","ZAR","UGX","TZS","RWF","XAF","XOF","MWK","EGP","SLL","ZMW","CAD"]', 'json'],
       ['owner_notify_email', 'nexatechdropshipping@gmail.com', 'text'],
       ['owner_whatsapp', '19283825389', 'text'],
       ['callmebot_api_key', '', 'text'],
@@ -945,6 +947,7 @@ export async function initDb() {
     'cryptomus_merchant_uuid','cryptomus_api_key','cryptomus_testmode',
     'paystack_secret_key','paystack_public_key','paystack_testmode','paystack_usd_ngn_rate',
     'flw_secret_key','flw_public_key','flw_enc_key','flw_secret_hash','flw_testmode',
+    'fx_auto_enabled','fx_currencies','fx_rates_json','fx_updated_at',
     'owner_notify_email','owner_whatsapp','callmebot_api_key'
   ]);
   if (count === 0 || forceReset) {
@@ -1264,6 +1267,8 @@ export async function initDb() {
     await ensure('flw_enc_key','','text');
     await ensure('flw_secret_hash','','text');
     await ensure('flw_testmode','true','boolean');
+    await ensure('fx_auto_enabled','true','boolean');
+    await ensure('fx_currencies','["USD","NGN","EUR","GBP","GHS","KES","ZAR","UGX","TZS","RWF","XAF","XOF","MWK","EGP","SLL","ZMW","CAD"]','json');
     // WhatsApp plan templates: convert exact old hardcoded-price seeds to live
     // {name}/{price} placeholders (custom admin wording is never touched)
     try{

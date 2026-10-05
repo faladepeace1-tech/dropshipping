@@ -570,6 +570,19 @@
           </div>
           <div id="pay-msg" style="font-size:13px;margin-top:8px"></div>
         </div>
+        <div class="card" style="border-color:rgba(16,185,129,.35)">
+          <h3>Auto Currency <small style="font-weight:500;color:#64748B">visitors see prices in their local money</small></h3>
+          <p style="font-size:12px;color:#94A3B8">Detects each visitor's country and converts USD prices using live market rates (refreshed every 12h). Checkout always re-prices on the server — if rates are unavailable it safely charges USD.</p>
+          <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="int-fx-auto" checked> Auto-convert prices by visitor location</label>
+          <div style="font-size:12px;color:#94A3B8;margin:6px 0">Active currencies (uncheck to hide):</div>
+          <div id="fx-cur-list" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px"></div>
+          <div style="font-size:12px;color:#94A3B8">Rates: <span id="fx-status">checking…</span></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+            <button class="btn btn-primary" id="btn-save-fx">Save Currency Settings</button>
+            <button class="btn btn-ghost" id="btn-refresh-fx" type="button">Refresh Rates Now</button>
+          </div>
+          <div id="fx-msg" style="font-size:13px;margin-top:8px"></div>
+        </div>
         <div class="card" style="border-color:rgba(245,158,11,.4)">
           <h3>Owner Notifications <small style="font-weight:500;color:#64748B">email + WhatsApp alerts for leads, payments, chats</small></h3>
           <p style="font-size:12px;color:#94A3B8">You get an <b>email</b> (via connected Gmail) and a <b>WhatsApp message</b> the moment: someone fills the form, someone pays, or someone starts a chat. WhatsApp uses free CallMeBot: from YOUR phone send <code>I allow callmebot to send me messages</code> to <b>+34 644 10 55 84</b>, then paste the apikey it replies with below. Without the key, email alerts still work.</p>
