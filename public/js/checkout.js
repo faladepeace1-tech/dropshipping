@@ -406,6 +406,40 @@ function frameHostOk(u){
     return x.protocol === 'https:' && /(^|\.)flutterwave\.com$/.test(x.hostname);
   }catch{ return false; }
 }
+// If OUR OWN page ever lands inside the frame (e.g. a failed-payment
+// redirect bouncing back to /checkout), close the frame and reload the main
+// payment view instead of showing the site nested in itself.
+// Detection: reading location.href throws on cross-origin (genuine payment
+// page - leave it alone) and succeeds only for same-origin (our page).
+async function recoverFrameSelfLoad(){
+  const frame = $('#co-frame');
+  if(frame){ frame.src = 'about:blank'; delete frame.dataset.loaded; }
+  let paid = false;
+  try{
+    const vr = await postJson('/api/checkout/flutterwave/verify', { order_ref: ORDER_REF }, 'payment check');
+    const v = await readJson(vr, 'payment check');
+    paid = vr.ok && v.status === 'paid';
+  }catch{}
+  if(paid){ await finishPaid(); return; }
+  stopPolling();
+  switchPayTab('card');
+  showCardView();
+  const m = $('#co-card-msg');
+  if(m) m.textContent = 'That attempt did not complete - no money was taken. Please try again or use another method.';
+}
+function watchFrameSelfLoad(){
+  const frame = $('#co-frame');
+  if(!frame || frame.dataset.watched) return;
+  frame.dataset.watched = '1';
+  frame.addEventListener('load', () => {
+    let href = '';
+    try{ href = frame.contentWindow.location.href; }catch{ return; } // cross-origin = real payment page
+    if(!href || href === 'about:blank') return;
+    try{
+      if(new URL(href).origin === location.origin) recoverFrameSelfLoad();
+    }catch{}
+  });
+}
 // ---- All-channels embedded frame (Apple Pay, Google Pay, PayAttitude...) ----
 async function loadPayFrame(){
   const msg = $('#co-frame-msg'), frame = $('#co-frame');
@@ -418,6 +452,7 @@ async function loadPayFrame(){
     if(!res.ok) throw new Error(j.error || 'Could not load payment options.');
     if(j.paid){ await finishPaid(); return; }
     if(!frameHostOk(j.authorization_url)) throw new Error('Payment page unavailable - please use the card option or try again.');
+    watchFrameSelfLoad();
     frame.src = j.authorization_url;
     frame.dataset.loaded = ORDER_REF;
     $('#co-frame-full').href = j.authorization_url;

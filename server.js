@@ -754,7 +754,7 @@ async function getFxRates(force){
       if(rowJ?.value && age < FX_TTL_MS){
         const cached = JSON.parse(rowJ.value);
         // Self-heal: if the allowlist grew (new currencies added), the old
-        // cached payload won't cover them — refetch instead of serving stale.
+        // cached payload won't cover them - refetch instead of serving stale.
         const allow = (await getFxSettings()).allowlist || [];
         const missing = (allow || []).filter(c => c !== 'USD' && !(c in cached));
         if(!missing.length){

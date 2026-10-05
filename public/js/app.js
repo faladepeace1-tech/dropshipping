@@ -940,7 +940,7 @@ function renderPricing(){
   tiers.forEach(t=>{
     const el=document.createElement('div'); el.className='price-card'+(t.popular?' popular':'');
     const c = fxConvertFrom(fxUsdCentsFromText(t.price), 'USD', FX.currency);
-    const disp = (c.converted ? '≈ ' : '') + fxFormat(c.amount_cents, c.currency);
+    const disp = fxFormat(c.amount_cents, c.currency);
     el.innerHTML=`${t.popular?'<span class="popular-badge">'+sanitize(T('pricing_popular_badge','Most Popular'))+'</span>':''}<div class="eyebrow" style="margin:0">${sanitize(t.name)}</div><div class="price" title="${sanitize(t.price)} USD">${sanitize(disp)}</div><ul>${t.features.map(f=>`<li>${sanitize(f)}</li>`).join('')}</ul><a class="btn ${t.popular?'btn-primary btn-glow':'btn-ghost'}" href="/checkout?kind=plan&item=${t.key}&currency=${encodeURIComponent(FX.currency)}" style="margin-top:auto">${sanitize(T('pricing_cta_template','Choose {name}').replace('{name}', t.name))} →</a>`;
     const a=el.querySelector('a'); a.addEventListener('click',()=>track('cta_click','pricing-'+t.key,{price:disp}));
     grid.appendChild(el);
@@ -957,7 +957,7 @@ async function loadThemes(){
 function fxThemePrice(th){
   if(!th || !(Number(th.price_cents) > 0)) return th.price_text || '';
   const c = fxConvertFrom(Number(th.price_cents), th.currency || 'USD', FX.currency);
-  return (c.converted ? '≈ ' : '') + fxFormat(c.amount_cents, c.currency);
+  return fxFormat(c.amount_cents, c.currency);
 }
 function renderThemes(){
   const grid=$('#themes-grid'); const empty=$('#themes-empty');
