@@ -398,6 +398,14 @@ function showWalletsFallback(note){
   switchPayTab('more');
   if(note) document.getElementById('co-wallet-note').textContent = note;
 }
+// Only genuine Flutterwave payment hosts may load in the frame - our own
+// site (or anything else) is rejected so it can never nest inside itself.
+function frameHostOk(u){
+  try{
+    const x = new URL(u);
+    return x.protocol === 'https:' && /(^|\.)flutterwave\.com$/.test(x.hostname);
+  }catch{ return false; }
+}
 // ---- All-channels embedded frame (Apple Pay, Google Pay, PayAttitude...) ----
 async function loadPayFrame(){
   const msg = $('#co-frame-msg'), frame = $('#co-frame');
@@ -409,6 +417,7 @@ async function loadPayFrame(){
     const j = await readJson(res, 'payment options');
     if(!res.ok) throw new Error(j.error || 'Could not load payment options.');
     if(j.paid){ await finishPaid(); return; }
+    if(!frameHostOk(j.authorization_url)) throw new Error('Payment page unavailable - please use the card option or try again.');
     frame.src = j.authorization_url;
     frame.dataset.loaded = ORDER_REF;
     $('#co-frame-full').href = j.authorization_url;

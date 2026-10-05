@@ -1190,8 +1190,19 @@ app.post('/api/checkout/flutterwave/link', async (req, res) => {
       payment_options: 'card,banktransfer,account,ussd,nqr,opay,mpesa,mobilemoneyghana,mobilemoneyxaf,mobilemoneyxof,mobilemoneyuganda,mobilemoneyrwanda,mobilemoneyzambia,barter,fawrypay,enaira'
     }, pay.secret, 'hosted-link');
     if(!data.link) throw new Error('Flutterwave did not return a payment link.');
-    await db.prepare('UPDATE orders SET payment_url=? WHERE order_ref=?').run(String(data.link), order.order_ref);
-    res.json({ ok: true, authorization_url: String(data.link) });
+    // GUARANTEE: only a genuine Flutterwave payment host may ever be framed
+    // or saved. Anything else (including our own site) is rejected loudly
+    // instead of rendering inside the checkout.
+    let linkUrl;
+    try{
+      linkUrl = new URL(String(data.link));
+      if(linkUrl.protocol !== 'https:' || !/(^|\.)flutterwave\.com$/.test(linkUrl.hostname)) throw new Error('bad host');
+    }catch{
+      console.error('flw link rejected (not a Flutterwave host):', String(data.link).slice(0, 120));
+      throw new Error('Invalid payment link from gateway.');
+    }
+    await db.prepare('UPDATE orders SET payment_url=? WHERE order_ref=?').run(linkUrl.href, order.order_ref);
+    res.json({ ok: true, authorization_url: linkUrl.href });
   }catch(e){
     console.error('flw link init failed:', e.message);
     if(!res.headersSent) res.status(422).json({ error: e.message || 'Could not load payment options.' });
