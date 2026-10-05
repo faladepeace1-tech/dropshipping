@@ -1051,59 +1051,11 @@ app.post('/api/checkout/flutterwave/link', async (req, res) => {
     if(!res.headersSent) res.status(422).json({ error: e.message || 'Could not load payment options.' });
   }
 });
-// --- Native Bank Transfer: temp virtual account for the exact order amount ---
-// Buyer sends from any bank app; webhook/verify flips the order.
-app.post('/api/checkout/flutterwave/transfer', async (req, res) => {
-  try{
-    const { order_ref } = req.body || {};
-    const order = await db.prepare('SELECT * FROM orders WHERE order_ref=?').get(String(order_ref || ''));
-    if(!order) return res.status(404).json({ error: 'order not found' });
-    if(order.status === 'paid') return res.json({ ok: true, status: 'success' });
-    if(!(order.amount_cents > 0)) return res.status(400).json({ error: 'Free orders need no payment.' });
-    const pay = await getPayConfig();
-    if(!pay.configured) return res.status(422).json({ error: 'Payment gateway not connected yet.' });
-    const data = await flwReq('POST', '/virtual-account-numbers', {
-      email: order.customer_email,
-      tx_ref: order.order_ref,
-      amount: flwAmount(order.amount_cents),
-      currency: String(order.currency || 'USD').toUpperCase()
-    }, pay.secret, 'transfer-va');
-    const acct = data.account_number || (data.data && data.data.account_number) || '';
-    const bankName = data.bank_name || (data.data && data.data.bank_name) || '';
-    if(acct) await db.prepare('UPDATE orders SET cryptomus_order_id=? WHERE order_ref=?').run(packFlwRef('', String(data.order_ref || data.tx_ref || '')), order.order_ref);
-    res.json({ ok: true, status: 'waiting',
-      account_name: data.account_name || '', account_number: acct, bank_name: bankName,
-      amount_text: (order.currency === 'NGN' ? '₦' : '$') + (Number(order.amount_cents) / 100).toLocaleString('en-US'),
-      expires_at: data.expiry_date || data.expires_at || new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-      display_text: data.note || '' });
-  }catch(e){
-    console.error('flw transfer failed:', e.message);
-    if(!res.headersSent) res.status(422).json({ error: e.message || 'Could not start bank transfer.' });
-  }
-});
-// --- Native USSD: dial code on any phone (best-effort params; diag-verified) ---
-app.post('/api/checkout/flutterwave/ussd', async (req, res) => {
-  try{
-    const { order_ref } = req.body || {};
-    const order = await db.prepare('SELECT * FROM orders WHERE order_ref=?').get(String(order_ref || ''));
-    if(!order) return res.status(404).json({ error: 'order not found' });
-    if(order.status === 'paid') return res.json({ ok: true, status: 'success' });
-    if(!(order.amount_cents > 0)) return res.status(400).json({ error: 'Free orders need no payment.' });
-    const pay = await getPayConfig();
-    if(!pay.configured) return res.status(422).json({ error: 'Payment gateway not connected yet.' });
-    const data = await flwReq('POST', '/charges?type=ussd', {
-      tx_ref: order.order_ref,
-      amount: flwAmount(order.amount_cents),
-      currency: String(order.currency || 'USD').toUpperCase(),
-      email: order.customer_email
-    }, pay.secret, 'ussd');
-    if(data.tx_ref) await db.prepare('UPDATE orders SET cryptomus_order_id=? WHERE order_ref=?').run(packFlwRef(data.id, data.flw_ref), order.order_ref);
-    res.json({ ok: true, status: 'waiting', raw: data });
-  }catch(e){
-    console.error('flw ussd failed:', e.message);
-    if(!res.headersSent) res.status(422).json({ error: e.message || 'Could not start USSD payment.' });
-  }
-});
+// NOTE: native temp transfer accounts and direct USSD were removed —
+// Flutterwave's virtual-account API only supports NGN/GHS while this store
+// charges USD, and USSD needs per-bank params. Both channels (plus
+// PayAttitude and wallets) remain available inside the hosted frame below,
+// which handles currencies correctly.
 // --- Re-check a pending order against Flutterwave (resume/3DS fallback) ---
 app.post('/api/checkout/flutterwave/verify', async (req, res) => {
   try{
