@@ -137,11 +137,7 @@ app.set('trust proxy', 1); // Required for Render + Cloudflare (X-Forwarded-For)
 // Security & middleware
 app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
 app.use(cors({ origin: true, credentials: true }));
-app.use(express.json({ limit: '50mb', verify: (req, res, buf) => {
-  // Keep the raw bytes for Paystack webhook HMAC verification (re-stringified
-  // JSON can differ in spacing/key order and would break the signature).
-  if(req.path && req.path.indexOf('/webhook/paystack') !== -1) req.rawBody = Buffer.from(buf);
-} }));
+app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(cookieParser());
 
@@ -181,18 +177,6 @@ app.get(['/privacy.html', '/privacy', '/terms.html', '/terms'], (req, res)=>{
   const file = req.path.startsWith('/terms') ? 'terms.html' : 'privacy.html';
   try { return res.type('html').send(versionedHtml(file)); }
   catch(e){ return res.status(500).type('html').send('<h1>Page unavailable</h1><p><a href="/">Back to Home</a></p>'); }
-});
-// Apple Pay domain verification (Paystack): verification file must be served
-// from /.well-known/ with an application/text content-type. express.static
-// ignores dot-folders by default, so this needs an explicit route.
-app.get('/.well-known/apple-developer-merchantid-domain-association', (req, res) => {
-  try{
-    const fp = path.join(__dirname, 'public', '.well-known', 'apple-developer-merchantid-domain-association');
-    const buf = fs.readFileSync(fp);
-    res.setHeader('Content-Type', 'application/text');
-    res.setHeader('Content-Length', String(buf.length));
-    res.send(buf);
-  }catch(e){ res.status(404).type('text').send('verification file not found'); }
 });
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(UPLOAD_DIR));
@@ -354,7 +338,7 @@ app.get('/api/content', async (req, res) => {
   const rows = await db.prepare('SELECT key,value,type FROM content').all();
   const obj = {};
   // Never expose credentials/tokens publicly (admin reads them via authed endpoints)
-  const SENSITIVE = new Set(['gemini_api_key', 'gemini_api_key_2', 'gemini_api_key_3', 'ai_api_key', 'GEMINI_API_KEY', 'GOOGLE_API_KEY', 'cryptomus_merchant_uuid', 'cryptomus_api_key', 'CRYPTOMUS_MERCHANT', 'CRYPTOMUS_API_KEY', 'paystack_secret_key', 'paystack_public_key', 'PAYSTACK_SECRET_KEY', 'PAYSTACK_PUBLIC_KEY', 'callmebot_api_key', 'CALLMEBOT_API_KEY']);
+  const SENSITIVE = new Set(['gemini_api_key', 'gemini_api_key_2', 'gemini_api_key_3', 'ai_api_key', 'GEMINI_API_KEY', 'GOOGLE_API_KEY', 'cryptomus_merchant_uuid', 'cryptomus_api_key', 'CRYPTOMUS_MERCHANT', 'CRYPTOMUS_API_KEY', 'flw_secret_key', 'flw_public_key', 'flw_enc_key', 'flw_secret_hash', 'FLW_SECRET_KEY', 'FLW_PUBLIC_KEY', 'FLW_ENC_KEY', 'FLW_SECRET_HASH', 'callmebot_api_key', 'CALLMEBOT_API_KEY']);
   rows.forEach(r => {
     if (SENSITIVE.has(r.key)) return; // hide secrets from public
     if (r.key.startsWith('google_') || r.key.startsWith('gmail_')) return; // OAuth tokens + connected Gmail
@@ -702,61 +686,77 @@ function publicTheme(row){
 }
 async function getPayConfig(){
   const get = async (k) => (await db.prepare('SELECT value FROM content WHERE key=?').get(k))?.value || '';
-  const secret = (process.env.PAYSTACK_SECRET_KEY || await get('paystack_secret_key') || '').trim();
-  const pub = (process.env.PAYSTACK_PUBLIC_KEY || await get('paystack_public_key') || '').trim();
-  const testRow = await get('paystack_testmode');
+  const secret = (process.env.FLW_SECRET_KEY || await get('flw_secret_key') || '').trim();
+  const pub = (process.env.FLW_PUBLIC_KEY || await get('flw_public_key') || '').trim();
+  const enc = (process.env.FLW_ENC_KEY || await get('flw_enc_key') || '').trim();
+  const hash = (process.env.FLW_SECRET_HASH || await get('flw_secret_hash') || '').trim();
+  const testRow = await get('flw_testmode');
   const testmode = String(testRow === '' ? 'true' : testRow).toLowerCase() === 'true';
-  const rateRow = await get('paystack_usd_ngn_rate');
-  const usdNgn = parseFloat(String(rateRow || '1500').replace(/[^0-9.]/g, '')) || 1500;
-  return { provider: 'paystack', secret, pub, testmode, usdNgn, configured: !!secret };
+  return { provider: 'flutterwave', secret, pub, enc, hash, testmode, configured: !!secret };
 }
-// Convert a USD-priced item to the currency Paystack will actually charge.
-// Merchants that can't charge USD (typical NG accounts) are charged the NGN
-// equivalent at the admin-set rate. Returns {amount (minor units), currency, text}.
-function paystackChargeAmount(amountCents, currency, usdNgn){
-  const cur = String(currency || 'USD').toUpperCase();
-  if(cur === 'NGN') return { amount: Math.round(Number(amountCents) || 0), currency: 'NGN', text: null };
-  if(cur === 'USD'){
-    const ngn = Math.round((Number(amountCents) || 0) / 100 * (Number(usdNgn) || 1500));
-    return { amount: ngn * 100, currency: 'NGN', text: '≈ ₦' + ngn.toLocaleString('en-US') };
-  }
-  return { amount: Math.round(Number(amountCents) || 0), currency: cur, text: null };
+// Flutterwave v3 helpers. Base https://api.flutterwave.com/v3, auth: Bearer
+// secret key. Card data is held in memory only: never logged, never stored
+// (only references/ids are saved). Amounts are major units (dollars.cents).
+function flwAmount(amountCents){
+  return Number(((Number(amountCents) || 0) / 100).toFixed(2));
 }
-// Paystack INLINE charge: card details are collected in OUR checkout form and
-// charged directly — no redirect, no popup. Card data is held in memory only:
-// never logged, never stored (only Paystack's returned reference is saved).
-// Docs: POST https://api.paystack.co/charge
-// data.status: success | send_pin | send_otp | send_phone | open_url | failed
-async function paystackPost(path, body, secret, label){
+async function flwReq(method, path, body, secret, label, timeoutMs){
   const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), 25000);
+  const t = setTimeout(() => controller.abort(), timeoutMs || 25000);
   const t0 = Date.now();
   try{
-    const resp = await fetch('https://api.paystack.co' + path, {
+    const opts = { method, headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + secret }, signal: controller.signal };
+    if(body !== undefined) opts.body = JSON.stringify(body);
+    const resp = await fetch('https://api.flutterwave.com/v3' + path, opts);
+    const j = await resp.json().catch(() => ({}));
+    console.log('flw ' + label + ' done in ' + (Date.now() - t0) + 'ms, http=' + resp.status,
+      'status=' + (j && j.status));
+    if(!resp.ok || (j.status !== undefined && j.status !== 'success')){
+      throw new Error((j && (j.message || j.error)) || ('Flutterwave error (HTTP ' + resp.status + ')'));
+    }
+    return j.data === undefined ? j : j.data;
+  } catch(e){
+    console.error('flw ' + label + ' failed after ' + (Date.now() - t0) + 'ms:', e.name + ': ' + e.message);
+    throw e;
+  } finally { clearTimeout(t); }
+}
+// 3DES-24 payload encryption (Flutterwave v3 direct charge requirement).
+// Card payloads are encrypted with the merchant encryption key and wrapped
+// as {client: "<base64>"} — plaintext card calls are rejected outright.
+function flwEncrypt3DES(payloadObj, encKey){
+  const key = Buffer.from(String(encKey || ''), 'utf8');
+  if(key.length !== 24) throw new Error('Encryption key not configured (must be 24 characters).');
+  const cipher = crypto.createCipheriv('des-ede3', key, Buffer.alloc(0));
+  let out = cipher.update(JSON.stringify(payloadObj), 'utf8', 'base64');
+  out += cipher.final('base64');
+  return out;
+}
+// Raw POST returning the FULL parsed body (needed: auth model lives in
+// `meta.authorization.mode`, not in data).
+async function flwRawPost(path, body, secret, label, timeoutMs){
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), timeoutMs || 25000);
+  const t0 = Date.now();
+  try{
+    const resp = await fetch('https://api.flutterwave.com/v3' + path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + secret },
       body: JSON.stringify(body),
       signal: controller.signal
     });
     const j = await resp.json().catch(() => ({}));
-    console.log('paystack ' + label + ' done in ' + (Date.now() - t0) + 'ms, http=' + resp.status,
-      'status=' + (j && j.status), 'data.status=' + (j && j.data && j.data.status));
-    if(!resp.ok || j.status !== true || !j.data){
-      // NOTE: top-level `message` is almost always the generic "Charge
-      // attempted" — the real reason lives in data.gateway_response/message.
-      const d = (j && j.data) || {};
-      const detail = d.gateway_response || d.message || j.message || j.error || ('Paystack error (HTTP ' + resp.status + ')');
-      throw new Error(detail);
-    }
-    return j.data;
+    console.log('flw ' + label + ' done in ' + (Date.now() - t0) + 'ms, http=' + resp.status,
+      'status=' + (j && j.status));
+    if(!resp.ok) throw new Error((j && j.message) || ('Flutterwave error (HTTP ' + resp.status + ')'));
+    return j;
   } catch(e){
-    console.error('paystack ' + label + ' failed after ' + (Date.now() - t0) + 'ms:', e.name + ': ' + e.message);
+    console.error('flw ' + label + ' failed after ' + (Date.now() - t0) + 'ms:', e.name + ': ' + e.message);
     throw e;
   } finally { clearTimeout(t); }
 }
-async function paystackCharge({ email, amountCents, currency, usdNgn, orderRef, card, pin, secret }){
-  const chg = paystackChargeAmount(amountCents, currency, usdNgn);
-  console.log('checkout charging', chg.currency, chg.amount, 'for', orderRef);
+// Direct card charge. Returns normalized {outcome, data} where outcome is one
+// of: success | pin_required | otp_required | redirect | failed.
+async function flwChargeCard({ email, name, phone, amountCents, currency, orderRef, card, pin, secret, encKey, baseUrl }){
   const num = String(card.number || '').replace(/\D/g, '');
   const exp = String(card.expiry || '').replace(/\D/g, ''); // MMYY or MMYYYY
   let expMonth = exp.slice(0, 2), expYear = exp.slice(2);
@@ -764,30 +764,55 @@ async function paystackCharge({ email, amountCents, currency, usdNgn, orderRef, 
   if(!/^\d{13,19}$/.test(num)) throw new Error('Card number looks incomplete.');
   if(!/^(0[1-9]|1[0-2])$/.test(expMonth) || !/^20\d{2}$/.test(expYear)) throw new Error('Card expiry looks invalid (MM/YY).');
   if(!/^\d{3,4}$/.test(String(card.cvc || ''))) throw new Error('Card CVC looks invalid.');
-  const body = {
+  if(!encKey) throw new Error('Encryption key not configured — add it in Admin → Integrations.');
+  const isAmex = /^3[47]/.test(num);
+  const payload = {
+    card_number: num, cvv: String(card.cvc), expiry_month: expMonth, expiry_year: expYear,
+    currency: String(currency || 'USD').toUpperCase(),
+    amount: flwAmount(amountCents),
     email: String(email),
-    amount: String(chg.amount),
-    currency: chg.currency,
-    reference: String(orderRef),
-    card: { number: num, cvv: String(card.cvc), expiry_month: expMonth, expiry_year: expYear },
-    metadata: { order_ref: String(orderRef) }
+    fullname: String(name || 'Customer'),
+    tx_ref: String(orderRef),
+    redirect_url: baseUrl + '/checkout?ref=' + encodeURIComponent(String(orderRef))
   };
-  if(pin) body.pin = String(pin);
-  return paystackPost('/charge', body, secret, 'charge');
+  if(isAmex){
+    if(phone) payload.phone_number = String(phone);
+    payload.card_holder_name = String(name || 'Customer');
+  }
+  if(pin) payload.authorization = { mode: 'pin', pin: String(pin) };
+  const j = await flwRawPost('/charges?type=card', { client: flwEncrypt3DES(payload, encKey) }, secret, 'charge-card');
+  const mode = j.meta && j.meta.authorization && j.meta.authorization.mode;
+  const data = j.data || {};
+  const st = String(data.status || '').toLowerCase();
+  if(st === 'successful' || st === 'success') return { outcome: 'success', data };
+  if(mode === 'pin') return { outcome: 'pin_required', data };
+  if(mode === 'otp') return { outcome: 'otp_required', data };
+  if(mode === 'redirect') return { outcome: 'redirect', data, url: (j.meta.authorization && j.meta.authorization.redirect) || '' };
+  if(mode === 'avs_noauth') return { outcome: 'failed', data, message: 'This card needs billing-address verification — please use Bank Transfer or a wallet option instead.' };
+  const failMsg = data.processor_response || data.message || 'Card charge failed.';
+  if(/rave v3/i.test(failMsg)) return { outcome: 'failed', data, message: 'Direct card payments are not enabled on this store yet — please use the Apple Pay / Google Pay options below.' };
+  if(st === 'failed' || data.processor_response) return { outcome: 'failed', data, message: failMsg };
+  return { outcome: 'pending', data };
 }
-// Paystack: verify a transaction by reference. Returns {paid:boolean, detail}.
-async function paystackVerify(reference, secret){
-  const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), 20000);
-  try{
-    const resp = await fetch('https://api.paystack.co/transaction/verify/' + encodeURIComponent(String(reference)), {
-      headers: { 'Authorization': 'Bearer ' + secret },
-      signal: controller.signal
-    });
-    const j = await resp.json().catch(() => ({}));
-    const ok = resp.ok && j.status === true && j.data && j.data.status === 'success';
-    return { paid: !!ok, detail: j && j.data ? { status: j.data.status, amount: j.data.amount, currency: j.data.currency } : { message: (j && j.message) || ('HTTP ' + resp.status) } };
-  } finally { clearTimeout(t); }
+async function flwValidateOtp({ otp, flwRef, secret }){
+  const data = await flwReq('POST', '/validate-charge', { otp: String(otp).trim(), flw_ref: String(flwRef) }, secret, 'validate-otp');
+  const st = String(data && data.status || '').toLowerCase();
+  if(st === 'successful' || st === 'success') return { outcome: 'success', data };
+  return { outcome: 'failed', data, message: (data && (data.processor_response || data.message)) || 'OTP verification failed.' };
+}
+// Verify a transaction by numeric id. Returns {paid:boolean, detail}.
+async function flwVerifyTx(txId, secret){
+  const data = await flwReq('GET', '/transactions/' + encodeURIComponent(String(txId)) + '/verify', undefined, secret, 'verify', 20000);
+  const st = String(data && (data.status || data.tx_status) || '').toLowerCase();
+  const paid = st === 'successful' || st === 'success';
+  return { paid, detail: { status: data && data.status, amount: data && data.amount, currency: data && data.currency } };
+}
+// Pack/unpack provider refs in the existing orders ref column:
+// "<flw tx id>|<flw_ref>". Keeps history readable, no schema change.
+function packFlwRef(txId, flwRef){ return [txId || '', flwRef || ''].join('|'); }
+function unpackFlwRef(s){
+  const parts = String(s || '').split('|');
+  return { txId: parts[0] || '', flwRef: parts[1] || '' };
 }
 async function markOrderPaid(orderRef, paystackRef){
   const order = await db.prepare('SELECT * FROM orders WHERE order_ref=?').get(String(orderRef));
@@ -849,11 +874,6 @@ app.get('/api/themes', async (req, res) => {
 app.get('/api/checkout/item', async (req, res) => {
   const item = await getCheckoutItem(req.query.kind, req.query.ref || req.query.item);
   if(item.error) return res.status(404).json({ error: item.error });
-  try{
-    const pay = await getPayConfig();
-    const chg = paystackChargeAmount(item.amount_cents, item.currency, pay.usdNgn);
-    if(chg.text) item.charge_text = chg.text;
-  }catch{}
   res.json(item);
 });
 // --- Public: order status (for success page polling + download link) ---
@@ -862,7 +882,7 @@ app.get('/api/checkout/order/:ref', async (req, res) => {
   if(!o) return res.status(404).json({ error: 'order not found' });
   const out = { order_ref: o.order_ref, kind: o.kind, item_ref: o.item_ref, item_name: o.item_name,
     amount_text: formatCents(o.amount_cents, o.currency), currency: o.currency, status: o.status,
-    email: o.customer_email || '', provider: 'paystack',
+    email: o.customer_email || '', provider: 'flutterwave',
     payment_url: o.status === 'pending' ? (o.payment_url || '') : '', created_at: o.created_at, paid_at: o.paid_at };
   if(o.status === 'paid' && o.kind === 'theme' && o.download_token){
     out.download_url = '/api/themes/' + encodeURIComponent(o.item_ref) + '/download?token=' + encodeURIComponent(o.download_token);
@@ -901,7 +921,7 @@ app.post('/api/checkout/create', async (req, res) => {
     // Inline flow: order is ready — the buyer now pays with their card inside
     // the checkout page (charge endpoint below). No redirect, no popup.
     await db.prepare('UPDATE orders SET cryptomus_order_id=? WHERE order_ref=?').run(orderRef, orderRef);
-    res.json({ ok: true, order_ref: orderRef, payment_url: null, inline: true, provider: 'paystack' });
+    res.json({ ok: true, order_ref: orderRef, payment_url: null, inline: true, provider: 'flutterwave' });
   }catch(e){
     console.error('checkout create failed:', e.name + ': ' + e.message);
     // NOTE: status 422 (not 502) — hosting proxies replace upstream 502
@@ -911,8 +931,9 @@ app.post('/api/checkout/create', async (req, res) => {
 });
 // --- Inline card charge: buyer pays inside the checkout page ---
 // Body: {order_ref*, card:{number,expiry,cvc}*, pin?} — card data is used for
-// this single Paystack call only, never logged or stored.
-app.post('/api/checkout/paystack/charge', async (req, res) => {
+// this single Flutterwave call only, never logged or stored.
+// Page-facing statuses: success | send_pin | send_otp | open_url | failed.
+app.post('/api/checkout/flutterwave/charge', async (req, res) => {
   try{
     const { order_ref, card, pin } = req.body || {};
     const order = await db.prepare('SELECT * FROM orders WHERE order_ref=?').get(String(order_ref || ''));
@@ -921,25 +942,31 @@ app.post('/api/checkout/paystack/charge', async (req, res) => {
     if(!card) return res.status(400).json({ error: 'card details required' });
     const pay = await getPayConfig();
     if(!pay.configured) return res.status(422).json({ error: 'Payment gateway not connected yet.' });
-    const data = await paystackCharge({
-      email: order.customer_email, amountCents: order.amount_cents, currency: order.currency,
-      usdNgn: pay.usdNgn, orderRef: order.order_ref, card, pin, secret: pay.secret
+    const base = (process.env.PUBLIC_URL || '').trim().replace(/\/$/, '') || (req.protocol + '://' + req.get('host'));
+    const out = await flwChargeCard({
+      email: order.customer_email, name: order.customer_name, phone: order.customer_whatsapp,
+      amountCents: order.amount_cents, currency: order.currency,
+      orderRef: order.order_ref, card, pin, secret: pay.secret, encKey: pay.enc, baseUrl: base
     });
-    if(data.status === 'success'){
-      await markOrderPaid(order.order_ref, data.reference || order.order_ref);
+    if(out.data && (out.data.id || out.data.flw_ref)){
+      await db.prepare('UPDATE orders SET cryptomus_order_id=? WHERE order_ref=?')
+        .run(packFlwRef(out.data.id, out.data.flw_ref), order.order_ref);
+    }
+    if(out.outcome === 'success'){
+      await markOrderPaid(order.order_ref, packFlwRef(out.data && out.data.id, out.data && out.data.flw_ref));
       return res.json({ ok: true, status: 'success' });
     }
-    // Next actions for the page: send_pin | send_otp | send_phone | open_url | failed
-    res.json({ ok: true, status: data.status || 'failed',
-      message: data.gateway_response || data.message || '',
-      url: data.url || '', reference: data.reference || order.order_ref });
+    if(out.outcome === 'pin_required') return res.json({ ok: true, status: 'send_pin', message: (out.data && out.data.processor_response) || '' });
+    if(out.outcome === 'otp_required') return res.json({ ok: true, status: 'send_otp', message: (out.data && out.data.processor_response) || '' });
+    if(out.outcome === 'redirect') return res.json({ ok: true, status: 'open_url', url: out.url || '' });
+    return res.json({ ok: true, status: 'failed', message: out.message || 'Card charge failed.' });
   }catch(e){
-    console.error('paystack charge failed:', e.name + ': ' + e.message);
+    console.error('flw charge failed:', e.name + ': ' + e.message);
     if(!res.headersSent) res.status(422).json({ error: e.message || 'Card charge failed.' });
   }
 });
-// --- Inline OTP / PIN / phone follow-ups ---
-app.post('/api/checkout/paystack/otp', async (req, res) => {
+// --- Inline OTP follow-up (Flutterwave validate-charge) ---
+app.post('/api/checkout/flutterwave/otp', async (req, res) => {
   try{
     const { order_ref, otp } = req.body || {};
     if(!otp) return res.status(400).json({ error: 'OTP required.' });
@@ -947,43 +974,58 @@ app.post('/api/checkout/paystack/otp', async (req, res) => {
     if(!order) return res.status(404).json({ error: 'order not found' });
     const pay = await getPayConfig();
     if(!pay.configured) return res.status(422).json({ error: 'Payment gateway not connected yet.' });
-    const data = await paystackPost('/charge/submit_otp', { otp: String(otp).trim(), reference: order.cryptomus_order_id || order.order_ref }, pay.secret, 'submit_otp');
-    if(data.status === 'success'){
-      await markOrderPaid(order.order_ref, data.reference || order.order_ref);
+    const stored = unpackFlwRef(order.cryptomus_order_id);
+    if(!stored.flwRef) return res.status(422).json({ error: 'No charge to confirm — please pay again.' });
+    const out = await flwValidateOtp({ otp, flwRef: stored.flwRef, secret: pay.secret });
+    if(out.outcome === 'success'){
+      await markOrderPaid(order.order_ref, packFlwRef(out.data && out.data.id, stored.flwRef));
       return res.json({ ok: true, status: 'success' });
     }
-    res.json({ ok: true, status: data.status || 'failed', message: data.gateway_response || data.message || '' });
+    res.json({ ok: true, status: 'failed', message: out.message || '' });
   }catch(e){
-    console.error('paystack otp failed:', e.message);
+    console.error('flw otp failed:', e.message);
     if(!res.headersSent) res.status(422).json({ error: e.message || 'OTP verification failed.' });
   }
 });
-app.post('/api/checkout/paystack/pin', async (req, res) => {
+// --- Inline PIN follow-up (re-charge with PIN included) ---
+app.post('/api/checkout/flutterwave/pin', async (req, res) => {
   try{
-    const { order_ref, pin } = req.body || {};
+    const { order_ref, pin, card } = req.body || {};
     if(!pin) return res.status(400).json({ error: 'PIN required.' });
+    if(!card) return res.status(400).json({ error: 'Card details required.' });
     const order = await db.prepare('SELECT * FROM orders WHERE order_ref=?').get(String(order_ref || ''));
     if(!order) return res.status(404).json({ error: 'order not found' });
     const pay = await getPayConfig();
     if(!pay.configured) return res.status(422).json({ error: 'Payment gateway not connected yet.' });
-    const data = await paystackPost('/charge/submit_pin', { pin: String(pin), reference: order.cryptomus_order_id || order.order_ref }, pay.secret, 'submit_pin');
-    if(data.status === 'success'){
-      await markOrderPaid(order.order_ref, data.reference || order.order_ref);
+    const base = (process.env.PUBLIC_URL || '').trim().replace(/\/$/, '') || (req.protocol + '://' + req.get('host'));
+    const out = await flwChargeCard({
+      email: order.customer_email, name: order.customer_name, phone: order.customer_whatsapp,
+      amountCents: order.amount_cents, currency: order.currency,
+      orderRef: order.order_ref, card, pin, secret: pay.secret, encKey: pay.enc, baseUrl: base
+    });
+    if(out.data && (out.data.id || out.data.flw_ref)){
+      await db.prepare('UPDATE orders SET cryptomus_order_id=? WHERE order_ref=?')
+        .run(packFlwRef(out.data.id, out.data.flw_ref), order.order_ref);
+    }
+    if(out.outcome === 'success'){
+      await markOrderPaid(order.order_ref, packFlwRef(out.data && out.data.id, out.data && out.data.flw_ref));
       return res.json({ ok: true, status: 'success' });
     }
-    res.json({ ok: true, status: data.status || 'send_otp', message: data.gateway_response || data.message || '' });
+    if(out.outcome === 'otp_required') return res.json({ ok: true, status: 'send_otp', message: (out.data && out.data.processor_response) || '' });
+    if(out.outcome === 'redirect') return res.json({ ok: true, status: 'open_url', url: out.url || '' });
+    return res.json({ ok: true, status: 'failed', message: out.message || 'PIN verification failed.' });
   }catch(e){
-    console.error('paystack pin failed:', e.message);
+    console.error('flw pin failed:', e.message);
     if(!res.headersSent) res.status(422).json({ error: e.message || 'PIN verification failed.' });
   }
 });
-// --- Embedded all-channels frame: initialize + return hosted URL for iframe ---
-// No `channels` param is sent on purpose: Paystack then applies the merchant's
-// dashboard Preferences (card, Apple Pay, Google Pay, bank transfer,
-// PayAttitude, Amex, international) automatically. Same order_ref is reused as
-// the Paystack reference, so card-form, iframe, webhook and verify all settle
-// the SAME order.
-app.post('/api/checkout/paystack/frame', async (req, res) => {
+// --- Embedded all-channels frame: Flutterwave hosted link for the iframe ---
+// No `payment_options` filter is sent on purpose: Flutterwave then applies the
+// merchant's dashboard Preferences (card, transfer, USSD, Apple Pay,
+// Google Pay, mobile money, Amex, international) automatically. tx_ref stays
+// our order_ref, so card-form, iframe, webhook and verify all settle the SAME
+// order.
+app.post('/api/checkout/flutterwave/link', async (req, res) => {
   try{
     const { order_ref } = req.body || {};
     const order = await db.prepare('SELECT * FROM orders WHERE order_ref=?').get(String(order_ref || ''));
@@ -992,44 +1034,26 @@ app.post('/api/checkout/paystack/frame', async (req, res) => {
     if(!(order.amount_cents > 0)) return res.status(400).json({ error: 'Free orders need no payment.' });
     const pay = await getPayConfig();
     if(!pay.configured) return res.status(422).json({ error: 'Payment gateway not connected yet.' });
-    const chg = paystackChargeAmount(order.amount_cents, order.currency, pay.usdNgn);
     const base = (process.env.PUBLIC_URL || '').trim().replace(/\/$/, '') || (req.protocol + '://' + req.get('host'));
-    const body = {
-      email: order.customer_email,
-      amount: String(chg.amount),
-      currency: chg.currency,
-      reference: order.order_ref,
-      callback_url: base + '/checkout?ref=' + encodeURIComponent(order.order_ref),
-      metadata: { order_ref: order.order_ref }
-    };
-    const controller = new AbortController();
-    const t = setTimeout(() => controller.abort(), 20000);
-    let j;
-    try{
-      const resp = await fetch('https://api.paystack.co/transaction/initialize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + pay.secret },
-        body: JSON.stringify(body),
-        signal: controller.signal
-      });
-      j = await resp.json().catch(() => ({}));
-      if(!resp.ok || j.status !== true || !j.data || !j.data.authorization_url){
-        throw new Error((j && j.message) || ('Paystack error (HTTP ' + resp.status + ')'));
-      }
-    } finally { clearTimeout(t); }
-    await db.prepare('UPDATE orders SET cryptomus_order_id=?, payment_url=? WHERE order_ref=?')
-      .run(j.data.reference || order.order_ref, j.data.authorization_url, order.order_ref);
-    res.json({ ok: true, authorization_url: j.data.authorization_url, reference: j.data.reference || order.order_ref });
+    const data = await flwReq('POST', '/payments', {
+      tx_ref: order.order_ref,
+      amount: flwAmount(order.amount_cents),
+      currency: String(order.currency || 'USD').toUpperCase(),
+      redirect_url: base + '/checkout?ref=' + encodeURIComponent(order.order_ref),
+      customer: { email: order.customer_email, name: order.customer_name || undefined },
+      customizations: { title: 'NexaTech — ' + order.item_name }
+    }, pay.secret, 'hosted-link');
+    if(!data.link) throw new Error('Flutterwave did not return a payment link.');
+    await db.prepare('UPDATE orders SET payment_url=? WHERE order_ref=?').run(String(data.link), order.order_ref);
+    res.json({ ok: true, authorization_url: String(data.link) });
   }catch(e){
-    console.error('paystack frame init failed:', e.message);
+    console.error('flw link init failed:', e.message);
     if(!res.headersSent) res.status(422).json({ error: e.message || 'Could not load payment options.' });
   }
 });
-// --- Native Bank Transfer (Pay with Transfer): buyer sends to a temp account ---
-// POST /charge {email, amount, bank_transfer:{account_expires_at}} ->
-// {status:'pending_bank_transfer', account_name/number, bank{name}, expires}.
-// Buyer completes in their own bank app; webhook/verify flips the order.
-app.post('/api/checkout/paystack/transfer', async (req, res) => {
+// --- Native Bank Transfer: temp virtual account for the exact order amount ---
+// Buyer sends from any bank app; webhook/verify flips the order.
+app.post('/api/checkout/flutterwave/transfer', async (req, res) => {
   try{
     const { order_ref } = req.body || {};
     const order = await db.prepare('SELECT * FROM orders WHERE order_ref=?').get(String(order_ref || ''));
@@ -1038,31 +1062,50 @@ app.post('/api/checkout/paystack/transfer', async (req, res) => {
     if(!(order.amount_cents > 0)) return res.status(400).json({ error: 'Free orders need no payment.' });
     const pay = await getPayConfig();
     if(!pay.configured) return res.status(422).json({ error: 'Payment gateway not connected yet.' });
-    const chg = paystackChargeAmount(order.amount_cents, order.currency, pay.usdNgn);
-    if(chg.currency !== 'NGN') return res.status(422).json({ error: 'Bank transfer is available for Naira orders only.' });
-    const expires = new Date(Date.now() + 60 * 60 * 1000).toISOString();
-    const data = await paystackPost('/charge', {
-      email: order.customer_email, amount: String(chg.amount), currency: 'NGN',
-      bank_transfer: { account_expires_at: expires },
-      metadata: { order_ref: order.order_ref }
-    }, pay.secret, 'transfer');
-    if(data.status === 'success'){
-      await markOrderPaid(order.order_ref, data.reference || order.order_ref);
-      return res.json({ ok: true, status: 'success' });
-    }
-    if(data.reference) await db.prepare('UPDATE orders SET cryptomus_order_id=? WHERE order_ref=?').run(data.reference, order.order_ref);
+    const data = await flwReq('POST', '/virtual-account-numbers', {
+      email: order.customer_email,
+      tx_ref: order.order_ref,
+      amount: flwAmount(order.amount_cents),
+      currency: String(order.currency || 'USD').toUpperCase()
+    }, pay.secret, 'transfer-va');
+    const acct = data.account_number || (data.data && data.data.account_number) || '';
+    const bankName = data.bank_name || (data.data && data.data.bank_name) || '';
+    if(acct) await db.prepare('UPDATE orders SET cryptomus_order_id=? WHERE order_ref=?').run(packFlwRef('', String(data.order_ref || data.tx_ref || '')), order.order_ref);
     res.json({ ok: true, status: 'waiting',
-      account_name: data.account_name || '', account_number: data.account_number || '',
-      bank_name: (data.bank && data.bank.name) || '', amount_text: '₦' + (chg.amount / 100).toLocaleString('en-US'),
-      expires_at: data.account_expires_at || expires, display_text: data.display_text || '',
-      reference: data.reference || order.order_ref });
+      account_name: data.account_name || '', account_number: acct, bank_name: bankName,
+      amount_text: (order.currency === 'NGN' ? '₦' : '$') + (Number(order.amount_cents) / 100).toLocaleString('en-US'),
+      expires_at: data.expiry_date || data.expires_at || new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      display_text: data.note || '' });
   }catch(e){
-    console.error('paystack transfer failed:', e.message);
+    console.error('flw transfer failed:', e.message);
     if(!res.headersSent) res.status(422).json({ error: e.message || 'Could not start bank transfer.' });
   }
 });
-// --- Re-check a pending order against Paystack (resume/3DS fallback) ---
-app.post('/api/checkout/paystack/verify', async (req, res) => {
+// --- Native USSD: dial code on any phone (best-effort params; diag-verified) ---
+app.post('/api/checkout/flutterwave/ussd', async (req, res) => {
+  try{
+    const { order_ref } = req.body || {};
+    const order = await db.prepare('SELECT * FROM orders WHERE order_ref=?').get(String(order_ref || ''));
+    if(!order) return res.status(404).json({ error: 'order not found' });
+    if(order.status === 'paid') return res.json({ ok: true, status: 'success' });
+    if(!(order.amount_cents > 0)) return res.status(400).json({ error: 'Free orders need no payment.' });
+    const pay = await getPayConfig();
+    if(!pay.configured) return res.status(422).json({ error: 'Payment gateway not connected yet.' });
+    const data = await flwReq('POST', '/charges?type=ussd', {
+      tx_ref: order.order_ref,
+      amount: flwAmount(order.amount_cents),
+      currency: String(order.currency || 'USD').toUpperCase(),
+      email: order.customer_email
+    }, pay.secret, 'ussd');
+    if(data.tx_ref) await db.prepare('UPDATE orders SET cryptomus_order_id=? WHERE order_ref=?').run(packFlwRef(data.id, data.flw_ref), order.order_ref);
+    res.json({ ok: true, status: 'waiting', raw: data });
+  }catch(e){
+    console.error('flw ussd failed:', e.message);
+    if(!res.headersSent) res.status(422).json({ error: e.message || 'Could not start USSD payment.' });
+  }
+});
+// --- Re-check a pending order against Flutterwave (resume/3DS fallback) ---
+app.post('/api/checkout/flutterwave/verify', async (req, res) => {
   try{
     const { order_ref } = req.body || {};
     const order = await db.prepare('SELECT * FROM orders WHERE order_ref=?').get(String(order_ref || ''));
@@ -1070,36 +1113,44 @@ app.post('/api/checkout/paystack/verify', async (req, res) => {
     if(order.status === 'paid') return res.json({ ok: true, status: 'paid' });
     const pay = await getPayConfig();
     if(!pay.configured) return res.status(422).json({ error: 'Payment gateway not connected yet.' });
-    const v = await paystackVerify(order.cryptomus_order_id || order.order_ref, pay.secret);
-    if(v.paid){ await markOrderPaid(order.order_ref, order.cryptomus_order_id || order.order_ref); return res.json({ ok: true, status: 'paid' }); }
-    res.json({ ok: true, status: 'pending', detail: v.detail });
+    // NOTE: never re-POST a charge here to "look up" a transaction — that
+    // could initiate a duplicate live charge. Only verify known tx ids.
+    const stored = unpackFlwRef(order.cryptomus_order_id);
+    if(stored.txId){
+      const v = await flwVerifyTx(stored.txId, pay.secret);
+      if(v.paid){ await markOrderPaid(order.order_ref, packFlwRef(stored.txId, stored.flwRef)); return res.json({ ok: true, status: 'paid' }); }
+      return res.json({ ok: true, status: 'pending', detail: v.detail });
+    }
+    res.json({ ok: true, status: 'pending' });
   }catch(e){
     if(!res.headersSent) res.status(422).json({ error: e.message || 'Verification failed.' });
   }
 });
-// --- Paystack webhook: charge.success -> unlock product ---
-// Signature: HMAC-SHA512 of the RAW body with the secret key.
-app.post('/api/checkout/webhook/paystack', async (req, res) => {
+// --- Flutterwave webhook: verif-hash check -> unlock product ---
+// Flutterwave signs webhooks with the merchant's secret hash in the
+// `verif-hash` header. Event: charge.completed, order matched by tx_ref.
+app.post('/api/checkout/webhook/flutterwave', async (req, res) => {
   try{
     const pay = await getPayConfig();
-    if(pay.configured && pay.secret){
-      const sig = String(req.headers['x-paystack-signature'] || '');
-      const raw = req.rawBody ? Buffer.from(req.rawBody) : Buffer.from(JSON.stringify(req.body || {}));
-      const expected = crypto.createHmac('sha512', pay.secret).update(raw).digest('hex');
-      if(!sig || sig !== expected){
-        console.error('paystack webhook bad signature');
+    if(pay.configured && pay.hash){
+      const sig = String(req.headers['verif-hash'] || '');
+      if(!sig || sig !== pay.hash){
+        console.error('flw webhook bad signature');
         return res.status(403).json({ error: 'bad signature' });
       }
     }
     const data = req.body || {};
-    if(data.event === 'charge.success' && data.data && data.data.status === 'success'){
-      const ref = String(data.data.reference || '');
-      const order = await db.prepare('SELECT * FROM orders WHERE cryptomus_order_id=? OR order_ref=?').get(ref, ref);
-      if(order && order.status !== 'paid') await markOrderPaid(order.order_ref, ref);
+    const evt = String(data.event || '');
+    const tx = data.data || {};
+    const okEvent = evt === 'charge.completed' || String(tx.status || '').toLowerCase() === 'successful';
+    if(okEvent){
+      const txRef = String(tx.tx_ref || tx.txRef || '');
+      const order = txRef ? await db.prepare('SELECT * FROM orders WHERE order_ref=?').get(txRef) : null;
+      if(order && order.status !== 'paid') await markOrderPaid(order.order_ref, packFlwRef(tx.id, ''));
     }
     res.json({ ok: true });
   }catch(e){
-    console.error('paystack webhook failed:', e.message);
+    console.error('flw webhook failed:', e.message);
     res.status(500).json({ error: 'webhook error' });
   }
 });
@@ -1274,60 +1325,65 @@ app.get('/api/admin/checkout-diag', requireAuth, async (req, res) => {
   });
   await step('pay_config', async () => {
     pay = await getPayConfig();
-    return { configured: pay.configured, testmode: pay.testmode, secret_prefix: (pay.secret || '').slice(0, 7), secret_len: (pay.secret || '').length, pub_prefix: (pay.pub || '').slice(0, 7), usd_ngn: pay.usdNgn };
+    return { provider: pay.provider, configured: pay.configured, testmode: pay.testmode,
+      secret_prefix: (pay.secret || '').slice(0, 9), has_pub: !!pay.pub, has_hash: !!pay.hash };
   });
-  await step('paystack_tcp', async () => {
+  await step('flw_tcp', async () => {
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), 12000);
     try{
-      const r = await fetch('https://api.paystack.co/', { signal: ctl.signal });
-      await r.text().catch(() => '');
-      return { http: r.status };
-    } finally { clearTimeout(t); }
-  });
-  await step('paystack_auth', async () => {
-    if(!pay || !pay.configured) throw new Error('skipped: gateway keys not configured');
-    // Lightweight authenticated call (bank list): proves the SECRET key is
-    // valid WITHOUT moving any money.
-    const ctl = new AbortController();
-    const t = setTimeout(() => ctl.abort(), 12000);
-    try{
-      const r = await fetch('https://api.paystack.co/bank?currency=NGN', {
-        headers: { 'Authorization': 'Bearer ' + pay.secret },
+      const r = await fetch('https://api.flutterwave.com/v3/banks/NG', {
+        headers: { 'Authorization': 'Bearer ' + (pay.secret || 'x') },
         signal: ctl.signal
       });
-      const j = await r.json().catch(() => ({}));
-      if(!r.ok || j.status !== true){
-        throw new Error((j.message || ('HTTP ' + r.status)) + ' raw:' + JSON.stringify(j).slice(0, 200));
-      }
-      return { key_valid: true, banks: Array.isArray(j.data) ? j.data.length + ' banks' : typeof j.data };
+      await r.text().catch(() => '');
+      return { http: r.status, reachable: true };
     } finally { clearTimeout(t); }
   });
+  await step('flw_auth', async () => {
+    if(!pay || !pay.configured) throw new Error('skipped: gateway keys not configured');
+    // Lightweight authenticated call (NG bank list): proves the SECRET key is
+    // valid WITHOUT moving any money.
+    const data = await flwReq('GET', '/banks/NG', undefined, pay.secret, 'auth-check', 12000);
+    return { key_valid: true, banks: Array.isArray(data) ? data.length + ' banks' : typeof data };
+  });
   if(String(req.query.charge || req.query.invoice || '') === '1'){
-    await step('paystack_test_charge', async () => {
+    await step('flw_test_charge', async () => {
       if(!pay || !pay.configured) throw new Error('skipped: gateway keys not configured');
-      // Real ₦1,500 test charge attempt with Paystack's published test card.
-      // Expecting `send_pin` — that alone proves live charging works.
-      // Nothing is completed (no PIN submitted), nothing is captured.
-      const data = await paystackCharge({
-        email: 'diagprobe.test@gmail.com', amountCents: 150000, currency: 'NGN', orderRef: testRef,
-        card: { number: '4084084084084081', expiry: '12/30', cvc: '408' },
-        secret: pay.secret
+      // Real $1.00 LIVE charge attempt with test card 5531886652142950.
+      // Any non-config response (pin/otp/redirect/failed/success) proves the
+      // full live path works. Nothing is completed here unless already paid.
+      const out = await flwChargeCard({
+        email: 'diagprobe.test@gmail.com', name: 'Diag Probe', phone: '+2348012345678',
+        amountCents: 100, currency: 'USD', orderRef: testRef,
+        card: { number: '5531886652142950', expiry: '09/32', cvc: '564' },
+        secret: pay.secret, encKey: pay.enc, baseUrl: 'https://localhost/unused'
       });
-      return { paystack_status: data.status, message: data.gateway_response || data.message || '' };
+      if(out.data && (out.data.id || out.data.flw_ref)){
+        await db.prepare('UPDATE orders SET cryptomus_order_id=? WHERE order_ref=?')
+          .run(packFlwRef(out.data.id, out.data.flw_ref), testRef);
+      }
+      return { outcome: out.outcome, message: (out.data && (out.data.processor_response || out.data.message)) || out.message || '' };
     });
   }
   if(String(req.query.channels || '') === '1'){
-    await step('paystack_test_transfer', async () => {
+    await step('flw_test_transfer', async () => {
       if(!pay || !pay.configured) throw new Error('skipped: gateway keys not configured');
       // Transfer account issuance only (buyer would pay into it; we stop here).
-      const data = await paystackPost('/charge', {
-        email: 'diagprobe.test@gmail.com', amount: '150000', currency: 'NGN',
-        bank_transfer: { account_expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString() }
+      const data = await flwReq('POST', '/virtual-account-numbers', {
+        email: 'diagprobe.test@gmail.com', tx_ref: testRef, amount: 100, currency: 'USD', is_permanent: false
       }, pay.secret, 'transfer');
-      return { paystack_status: data.status, has_account: !!(data.account_number) };
+      const acct = data.account_number || (data.data && data.data.account_number) || '';
+      return { status: data.status || 'issued', has_account: !!acct };
     });
-
+    await step('flw_test_ussd', async () => {
+      if(!pay || !pay.configured) throw new Error('skipped: gateway keys not configured');
+      // USSD code issuance probe (buyer would dial it; we stop here).
+      const data = await flwReq('POST', '/charges?type=ussd', {
+        tx_ref: testRef + '-USSD', amount: 1, currency: 'USD', email: 'diagprobe.test@gmail.com'
+      }, pay.secret, 'ussd');
+      return { keys: Object.keys(data || {}), snippet: JSON.stringify(data).slice(0, 400) };
+    });
   }
   await step('db_cleanup', async () => {
     if(testRef) await db.prepare('DELETE FROM orders WHERE order_ref=?').run(testRef);
@@ -1355,11 +1411,12 @@ app.post('/api/admin/notify-test', requireAuth, async (req, res) => {
     });
   }catch(e){ res.status(500).json({ error: e.message }); }
 });
-// --- Admin: payment gateway status (secret key never sent to browser) ---
+// --- Admin: payment gateway status (secrets never sent to browser) ---
 app.get('/api/admin/payments', requireAuth, async (req, res) => {
   const pay = await getPayConfig();
-  res.json({ provider: 'paystack', public_key: pay.pub || '', secret_set: !!pay.secret, testmode: pay.testmode, usd_ngn: String(pay.usdNgn || 1500), configured: pay.configured,
-    callback_url: '/checkout', webhook_url: '/api/checkout/webhook/paystack' });
+  res.json({ provider: 'flutterwave', public_key: pay.pub || '', secret_set: !!pay.secret, enc_set: !!pay.enc,
+    hash_set: !!pay.hash, testmode: pay.testmode, configured: pay.configured,
+    callback_url: '/checkout', webhook_url: '/api/checkout/webhook/flutterwave' });
 });
 // ================= BULK ACTIONS (selection + mass operate) =================
 // Shared id-list sanitizer: caps at 200 ids per call.
