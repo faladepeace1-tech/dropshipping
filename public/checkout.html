@@ -33,7 +33,7 @@
   <div id="co-form-view" class="hidden">
     <div class="eyebrow">Secure Checkout</div>
     <h1 class="h2 gradient-text" id="co-title">Complete Your Purchase</h1>
-    <p class="sub" id="co-subtitle">Pay securely with your card right here - no redirects, no popups. You get instant access the moment payment confirms.</p>
+    <p class="sub" id="co-subtitle">Pay securely via Flutterwave - card, bank transfer, USSD and wallets. You get instant access the moment payment confirms.</p>
     <div class="co-grid">
       <form class="co-card" id="co-form" novalidate>
         <h3 style="margin:0 0 4px">Your details</h3>
@@ -65,24 +65,10 @@
   <div id="co-card-view" class="hidden">
     <div class="co-grid">
       <div class="co-card">
-        <h3 style="margin:0 0 4px">Choose how to pay</h3>
+        <h3 style="margin:0 0 4px">Complete payment</h3>
         <p class="sub" style="margin:0 0 12px;font-size:13px">Order <b id="co-card-ref"></b> · <span id="co-card-amount-line"></span></p>
-        <div class="pay-tabs" id="co-pay-tabs" role="tablist">
-          <button type="button" class="pill active" data-ptab="card" role="tab">💳 Card</button>
-          <button type="button" class="pill" data-ptab="more" role="tab">🏦 Transfer & More</button>
-        </div>
-        <form id="co-card-form" class="pay-pane" data-pane="card" novalidate>
-          <div class="field"><label for="co-cc-num">Card Number *</label><input id="co-cc-num" inputmode="numeric" placeholder="4084 0840 8408 4081" autocomplete="cc-number" maxlength="23"><small>Enter a valid card number</small></div>
-          <div class="co-row">
-            <div class="field"><label for="co-cc-exp">Expiry (MM/YY) *</label><input id="co-cc-exp" inputmode="numeric" placeholder="12/30" autocomplete="cc-exp" maxlength="7"><small>Invalid expiry</small></div>
-            <div class="field"><label for="co-cc-cvc">CVC *</label><input id="co-cc-cvc" inputmode="numeric" placeholder="408" autocomplete="cc-csc" maxlength="4"><small>Invalid CVC</small></div>
-          </div>
-          <div id="co-card-msg" class="co-msg" role="alert"></div>
-          <button type="submit" class="btn btn-primary btn-glow co-pay-btn" id="co-card-pay-btn">Pay <span id="co-card-amount"></span> →</button>
-          <div class="co-trust"><span>🔒 256-bit encrypted</span><span>💳 Verve · Mastercard · Visa · Amex</span></div>
-        </form>
-        <div id="co-pane-wallets" class="pay-pane hidden">
-          <p class="sub" style="font-size:13px" id="co-wallet-note">More ways to pay - bank transfer, USSD, PayAttitude, Apple Pay, Google Pay and cards, all in the secure frame below - same order, same price.</p>
+        <div id="co-pane-wallets" class="pay-pane">
+          <p class="sub" style="font-size:13px" id="co-wallet-note">Pay securely with card, bank transfer, USSD, Apple Pay, Google Pay and more in the secure Flutterwave frame below - same order, same price.</p>
           <div id="co-frame-msg" class="co-msg" role="alert"></div>
           <iframe id="co-frame" title="Secure payment options" allow="payment" style="width:100%;height:640px;border:1px solid var(--border);border-radius:14px;background:#fff"></iframe>
           <div class="co-note" style="margin-top:8px">Frame not loading? <a id="co-frame-full" href="#" target="_blank" rel="noopener">Open the secure page directly →</a></div>

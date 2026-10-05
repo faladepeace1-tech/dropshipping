@@ -1,7 +1,7 @@
 // ============================================================
-// Nexatech Checkout - plans + themes, Flutterwave INLINE card payment.
-// Everything happens inside this page: details -> card form ->
-// bank OTP/PIN (if required) -> success/download. No redirect, no popup.
+// Nexatech Checkout - plans + themes, Flutterwave HOSTED payment.
+// Everything happens via the secure Flutterwave frame (card, bank
+// transfer, USSD, wallets). No inline card handling on this page.
 // ============================================================
 const $ = s => document.querySelector(s);
 let ITEM = null, ORDER_REF = '', BUYER_EMAIL = '', OTP_MODE = 'otp', POLL_N = 0, POLL_TIMER = null, WA_NUM = '19283825389';
@@ -173,80 +173,21 @@ async function createOrder(){
     btn.disabled = false; btn.textContent = 'Continue to Payment →';
   }
 }
-// ---- Step 2: inline card form ----
+// ---- Step 2: hosted Flutterwave frame (only payment method) ----
 function showCardView(){
   $('#co-card-ref').textContent = ORDER_REF;
   $('#co-card-kind').textContent = ITEM.kind === 'theme' ? 'Theme · Instant Download' : 'Launch Package';
   $('#co-card-name').textContent = ITEM.name || '';
   $('#co-card-price').textContent = ITEM.price_text || '';
-  const charge = ITEM.charge_text || ITEM.price_text || '';
-  $('#co-card-amount').textContent = charge;
-  const btn = $('#co-card-pay-btn');
-  if(btn) btn.dataset.amount = charge;
   const fr = $('#co-frame');
   if(fr){ fr.src = 'about:blank'; delete fr.dataset.loaded; }
-  switchPayTab('card');
-  $('#co-card-msg').textContent = '';
+  switchPayTab('more');
   show('co-card-view');
 }
-function validateCard(){
-  let ok = true;
-  const num = $('#co-cc-num'), exp = $('#co-cc-exp'), cvc = $('#co-cc-cvc');
-  const mark = (el, valid) => { el.closest('.field')?.classList.toggle('invalid', !valid); if(!valid) ok = false; };
-  mark(num, num.value.replace(/\D/g, '').length >= 13 && num.value.replace(/\D/g, '').length <= 19);
-  const d = exp.value.replace(/\D/g, '');
-  const mm = d.slice(0, 2);
-  mark(exp, /^(0[1-9]|1[0-2])$/.test(mm) && (d.length === 4 || d.length === 6));
-  mark(cvc, /^\d{3,4}$/.test(cvc.value.trim()));
-  return ok;
-}
-let LAST_CARD = null; // memory only: resent if the bank asks for PIN (never stored)
-async function payWithCard(pin){
-  const msg = $('#co-card-msg');
-  msg.textContent = '';
-  if(!pin && !validateCard()) return;
-  const btn = $('#co-card-pay-btn');
-  btn.disabled = true; btn.textContent = 'Processing payment…';
-  try{
-    const body = { order_ref: ORDER_REF };
-    if(pin){ body.pin = pin; if(LAST_CARD) body.card = LAST_CARD; }
-    else {
-      body.card = { number: $('#co-cc-num').value, expiry: $('#co-cc-exp').value, cvc: $('#co-cc-cvc').value };
-      LAST_CARD = body.card;
-    }
-    const res = await postJson('/api/checkout/flutterwave/charge', body, 'card payment');
-    const j = await readJson(res, 'card payment');
-    if(!res.ok) throw new Error(j.error || 'Card charge failed.');
-    if(j.status === 'success'){
-      await finishPaid();
-    } else if(j.status === 'send_otp'){
-      showOtpView('otp', j.message || 'Your bank sent a one-time code - enter it below to complete payment.');
-    } else if(j.status === 'send_pin'){
-      showOtpView('pin', j.message || 'Your card needs its PIN - enter it below to continue.');
-    } else if(j.status === 'send_phone'){
-      showError('Your bank needs phone verification. ' + (j.message || '') + ' Complete it, then return here and use “Check status”.');
-    } else if(j.status === 'open_url' && j.url){
-      $('#co-redirect-ref').textContent = ORDER_REF;
-      $('#co-pay-link').href = j.url;
-      show('co-redirect-view');
-      try{ window.open(j.url, '_blank', 'noopener'); }catch{}
-      startPolling();
-    } else {
-      const msgText = j.message || 'Card was declined. Try another card or contact your bank.';
-      if(/rave v3/i.test(msgText)){
-        // Direct card entry not enabled on this merchant - fall over to the
-        // secure frame below, where the same card works today (same order).
-        showWalletsFallback('Direct card entry is not enabled on this store yet - please complete with your card below instead (same order, same price).');
-        return;
-      }
-      throw new Error(msgText);
-    }
-  }catch(e){
-    msg.textContent = e.message || 'Payment failed. Please try again.';
-  }finally{
-    btn.disabled = false; btn.innerHTML = 'Pay <span id="co-card-amount">' + (btn.dataset.amount || ITEM.price_text || '') + '</span> →';
-  }
-}
+// Inline card charge removed - all payments go through the hosted frame.
+let LAST_CARD = null;
+function validateCard(){ return true; }
+async function payWithCard(){ loadPayFrame(); }
 // ---- Step 3 (if bank requires): OTP / PIN ----
 function showOtpView(mode, desc){
   OTP_MODE = mode;
@@ -382,15 +323,16 @@ async function resumeByRef(ref){
     showError('We could not find that order. It may have expired - please check out again.');
   }
 }
-// ---- Payment method tabs: card | more (transfer, USSD, wallets in frame) ----
-let PAY_TAB = 'card';
+// ---- Payment method: Flutterwave hosted frame only ----
+// (Inline card charge removed - merchant not enabled for Rave v3 direct
+// charges. The hosted frame handles card, transfer, USSD and wallets.)
+let PAY_TAB = 'more';
 function switchPayTab(name){
-  PAY_TAB = name;
-  document.querySelectorAll('#co-pay-tabs .pill').forEach(p => p.classList.toggle('active', p.dataset.ptab === name));
-  const panes = { card: '#co-card-form', more: '#co-pane-wallets' };
-  ['#co-card-form', '#co-pane-wallets'].forEach(s => $(s)?.classList.add('hidden'));
-  $(panes[name])?.classList.remove('hidden');
-  if(name === 'more') loadPayFrame();
+  PAY_TAB = 'more';
+  document.querySelectorAll('#co-pay-tabs .pill').forEach(p => p.classList.toggle('active', p.dataset.ptab === 'more'));
+  $('#co-card-form')?.classList.add('hidden');
+  $('#co-pane-wallets')?.classList.remove('hidden');
+  loadPayFrame();
 }
 // Fallback target when a native channel is gated: show the all-channels
 // frame with a contextual note (same order, same price).
@@ -422,9 +364,8 @@ async function recoverFrameSelfLoad(){
   }catch{}
   if(paid){ await finishPaid(); return; }
   stopPolling();
-  switchPayTab('card');
   showCardView();
-  const m = $('#co-card-msg');
+  const m = $('#co-frame-msg');
   if(m) m.textContent = 'That attempt did not complete - no money was taken. Please try again or use another method.';
 }
 function watchFrameSelfLoad(){
@@ -451,7 +392,7 @@ async function loadPayFrame(){
     const j = await readJson(res, 'payment options');
     if(!res.ok) throw new Error(j.error || 'Could not load payment options.');
     if(j.paid){ await finishPaid(); return; }
-    if(!frameHostOk(j.authorization_url)) throw new Error('Payment page unavailable - please use the card option or try again.');
+    if(!frameHostOk(j.authorization_url)) throw new Error('Payment page unavailable - please refresh and try again.');
     watchFrameSelfLoad();
     frame.src = j.authorization_url;
     frame.dataset.loaded = ORDER_REF;
@@ -463,20 +404,6 @@ async function loadPayFrame(){
   }
 }
 function formatCardInputs(){
-  const num = $('#co-cc-num');
-  num?.addEventListener('input', ()=>{
-    const d = num.value.replace(/\D/g, '').slice(0, 19);
-    num.value = d.replace(/(.{4})/g, '$1 ').trim();
-  });
-  const exp = $('#co-cc-exp');
-  exp?.addEventListener('input', ()=>{
-    let d = exp.value.replace(/\D/g, '').slice(0, 6);
-    exp.value = d.length > 2 ? d.slice(0, 2) + '/' + d.slice(2) : d;
-  });
-  $('#co-cc-cvc')?.addEventListener('input', ()=>{
-    const c = $('#co-cc-cvc');
-    c.value = c.value.replace(/\D/g, '').slice(0, 4);
-  });
   $('#co-otp-input')?.addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); submitOtp(); } });
 }
 (async function init(){
@@ -485,8 +412,7 @@ function formatCardInputs(){
   try{ fetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_type: 'pageview', element_id: 'checkout', session_id: '', page_url: location.href, utm: {}, metadata: {} }) }).catch(()=>{}); }catch{}
   formatCardInputs();
   $('#co-form')?.addEventListener('submit', e => { e.preventDefault(); createOrder(); });
-  $('#co-card-form')?.addEventListener('submit', e => { e.preventDefault(); payWithCard(); });
-  document.querySelectorAll('#co-pay-tabs .pill').forEach(p => p.addEventListener('click', () => switchPayTab(p.dataset.ptab)));
+  document.querySelectorAll('#co-pay-tabs .pill').forEach(p => p.addEventListener('click', () => switchPayTab('more')));
   $('#co-otp-btn')?.addEventListener('click', submitOtp);
   $('#co-iredirect-check')?.addEventListener('click', async ()=>{
     $('#co-pending-ref').textContent = ORDER_REF;
