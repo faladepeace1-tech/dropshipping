@@ -64,6 +64,75 @@ function mediaKind(u){
   if(/video/i.test(String(u)) && /\.(mp4|webm|mov|m4v|ogg)/i.test(String(u))) return 'video';
   return 'image';
 }
+// ---- Fast video previews: still-picture poster captured from the first
+// frame (canvas snapshot) + deferred video bytes until near viewport.
+// Without this, video cards render as black boxes (poster="") and every
+// video URL starts downloading on page load, slowing the whole section.
+const POSTER_CACHE = new Map();
+function capturePoster(url){
+  if(!url) return Promise.resolve('');
+  if(POSTER_CACHE.has(url)) return POSTER_CACHE.get(url);
+  const p = new Promise((resolve)=>{
+    try{
+      const v = document.createElement('video');
+      v.muted = true; v.playsInline = true; v.preload = 'auto';
+      try{ v.crossOrigin = 'anonymous'; }catch{}
+      const cleanup = ()=>{ try{ v.pause(); v.removeAttribute('src'); v.load(); }catch{} };
+      const done = (dataUrl)=>{ cleanup(); resolve(dataUrl || ''); };
+      const timer = setTimeout(()=>done(''), 8000);
+      v.addEventListener('loadeddata', ()=>{
+        try{
+          const d = v.duration || 1;
+          const t = Number.isFinite(d) && d > 0.6 ? Math.min(0.5, d / 4) : 0.1;
+          try{ v.currentTime = t; }catch{ clearTimeout(timer); done(''); }
+        }catch{ clearTimeout(timer); done(''); }
+      }, { once:true });
+      v.addEventListener('seeked', ()=>{
+        clearTimeout(timer);
+        try{
+          const w = 320, h = Math.max(1, Math.round(w * (v.videoHeight || 9) / (v.videoWidth || 16)));
+          const c = document.createElement('canvas'); c.width = w; c.height = h;
+          c.getContext('2d').drawImage(v, 0, 0, w, h);
+          done(c.toDataURL('image/jpeg', 0.7));
+        }catch{ done(''); }
+      }, { once:true });
+      v.addEventListener('error', ()=>{ clearTimeout(timer); done(''); }, { once:true });
+      v.src = url;
+    }catch{ resolve(''); }
+  });
+  POSTER_CACHE.set(url, p);
+  return p;
+}
+// Deferred video loader: card markup carries data-vsrc (no src), bytes only
+// load when the card is ~300px from the viewport. Poster still-picture is
+// captured at the same time so users see a preview + play badge instantly.
+const LAZY_IO = ('IntersectionObserver' in window) ? new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{
+    if(!e.isIntersecting) return;
+    const el = e.target;
+    try{ LAZY_IO.unobserve(el); }catch{}
+    const src = el.dataset && el.dataset.vsrc;
+    if(!src) return;
+    if(!el.getAttribute('src')){ try{ el.src = src; el.preload = 'metadata'; }catch{} }
+    capturePoster(src).then(p=>{ if(p && !el.poster) el.poster = p; });
+  });
+}, { rootMargin: '300px' }) : null;
+function watchLazyVideo(scope){
+  if(!scope) return;
+  const vids = scope.querySelectorAll ? scope.querySelectorAll('video[data-vsrc]') : [];
+  vids.forEach(v=>{
+    if(!LAZY_IO){ // old browser fallback: load immediately
+      try{ v.src = v.dataset.vsrc; v.preload = 'metadata'; }catch{}
+      capturePoster(v.dataset.vsrc).then(p=>{ if(p) v.poster = p; });
+    } else LAZY_IO.observe(v);
+  });
+}
+function armVideo(v){
+  // Ensure the video has its src before hover-play (mobile tap / desktop hover).
+  try{
+    if(v && v.dataset && v.dataset.vsrc && !v.getAttribute('src')){ v.src = v.dataset.vsrc; v.preload = 'metadata'; }
+  }catch{}
+}
 function youTubeEmbed(u){ return 'https://www.youtube.com/embed/'+youTubeId(u)+'?rel=0'; }
 function vimeoEmbed(u){ return 'https://player.vimeo.com/video/'+vimeoId(u); }
 function driveEmbed(u){ return 'https://drive.google.com/file/d/'+driveId(u)+'/preview'; }
@@ -624,19 +693,20 @@ function renderPortfolio(filter){
     const media = isEmbed
       ? `<iframe src="${embedSrc}" style="width:100%;height:100%;border:0" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe><span style="position:absolute;right:10px;top:10px;background:rgba(0,0,0,.6);color:#fff;padding:4px 8px;border-radius:999px;font-size:10px">VIDEO</span>`
       : isVideo
-        ? `<video src="${item.url}" muted loop playsinline preload="none" poster=""></video><span style="position:absolute;right:10px;top:10px;background:rgba(0,0,0,.6);color:#fff;padding:4px 8px;border-radius:999px;font-size:10px">VIDEO</span>`
+        ? `<video data-vsrc="${item.url}" muted loop playsinline preload="none" poster=""></video><span style="position:absolute;right:10px;top:10px;background:rgba(0,0,0,.6);color:#fff;padding:4px 8px;border-radius:999px;font-size:10px">▶ VIDEO</span>`
         : `<img src="${item.url}" alt="${sanitize(item.alt_text||item.caption)}" loading="lazy" decoding="async" fetchpriority="low" onerror="this.style.opacity=.25">`;
     card.innerHTML=`<div class="card-media">${media}<div class="overlay"><span class="tag">${sanitize(item.category||'Store')}</span><div class="result">${sanitize(item.result_stat||'')}</div><div style="font-size:13px;font-weight:700;margin-top:4px">${sanitize(item.caption||'')}</div><div class="view">${sanitize(T('modal_view_case','View Case Study'))} →</div></div></div>`;
     card.addEventListener('click', ()=> openModal(item, filtered));
     if(isVideo){
       const v=card.querySelector('video');
-      // Load + play only on hover/tap - no autoplay observers per card (was N observers).
-      card.addEventListener('mouseenter', ()=> { try{ v.preload='metadata'; v.play().catch(()=>{}); }catch{} });
+      // Preview bytes + hover-play only when needed - section stays fast.
+      card.addEventListener('mouseenter', ()=> { try{ armVideo(v); v.play().catch(()=>{}); }catch{} });
       card.addEventListener('mouseleave', ()=> { try{ v.pause(); }catch{} });
     }
     frag.appendChild(card);
   });
   grid.appendChild(frag);
+  watchLazyVideo(grid);
 }
 document.addEventListener('click', e=>{
   const pill=e.target?.closest?.('.pill');
@@ -750,10 +820,11 @@ async function loadMedia(){
     if(k==='youtube') c.innerHTML=`<iframe src="${youTubeEmbed(item.url)}" style="width:100%;aspect-ratio:16/10;border:0;border-radius:12px" loading="lazy" allowfullscreen></iframe><p>${sanitize(item.caption||T('proof_caption_fallback','Verified sales proof'))}</p>`;
     else if(k==='vimeo') c.innerHTML=`<iframe src="${vimeoEmbed(item.url)}" style="width:100%;aspect-ratio:16/10;border:0;border-radius:12px" loading="lazy" allowfullscreen></iframe><p>${sanitize(item.caption||T('proof_caption_fallback','Verified sales proof'))}</p>`;
     else if(k==='drive') c.innerHTML=`<iframe src="${driveEmbed(item.url)}" style="width:100%;aspect-ratio:16/10;border:0;border-radius:12px" loading="lazy" allowfullscreen></iframe><p>${sanitize(item.caption||T('proof_caption_fallback','Verified sales proof'))}</p>`;
-    else if(k==='video') c.innerHTML=`<video src="${item.url}" controls muted loop playsinline preload="none" style="width:100%;border-radius:12px;background:#05070f"></video><p>${sanitize(item.caption||T('proof_caption_fallback','Verified sales proof'))}</p>`;
+    else if(k==='video') c.innerHTML=`<video data-vsrc="${item.url}" controls muted loop playsinline preload="none" style="width:100%;border-radius:12px;background:#05070f"></video><p>${sanitize(item.caption||T('proof_caption_fallback','Verified sales proof'))}</p>`;
     else c.innerHTML=`<img src="${item.url}" alt="${sanitize(item.alt_text||'proof')}" loading="lazy" decoding="async" onerror="this.style.opacity=.25"><p>${sanitize(item.caption||T('proof_caption_fallback','Verified sales proof'))}</p>`;
     pGrid.appendChild(c);
-  });}
+  });
+  watchLazyVideo(pGrid);}
   const tGrid=$('#testi-grid'); if(tGrid){ tGrid.innerHTML='';
   testi.forEach(item=>{
     const k=mediaKind(item.url);
@@ -784,7 +855,7 @@ async function loadMedia(){
           card.innerHTML = isEmbed
             ? `<iframe src="${embedSrc}" style="width:100%;aspect-ratio:16/10;border:0" loading="lazy" allowfullscreen></iframe><div class="play-badge"><span>▶</span></div><div class="caption">${sanitize(item.caption||T('review_video_label','Video Review'))}</div>`
             : isVideo
-            ? `<video src="${item.url}" muted loop playsinline preload="none" poster=""></video><div class="play-badge"><span>▶</span></div><div class="caption">${sanitize(item.caption||T('review_video_label','Video Review'))}</div>`
+            ? `<video data-vsrc="${item.url}" muted loop playsinline preload="none" poster=""></video><div class="play-badge"><span>▶</span></div><div class="caption">${sanitize(item.caption||T('review_video_label','Video Review'))}</div>`
             : `<img src="${item.url}" alt="${sanitize(item.alt_text||item.caption||T('review_caption_fallback','Customer Review'))}" loading="lazy" decoding="async" onerror="this.style.opacity=.25"><div class="caption">${sanitize(item.caption||T('review_caption_fallback','Customer Review'))}</div>`;
           card.addEventListener('click', ()=>{
             MODAL_ITEMS=reviews; MODAL_INDEX=reviews.findIndex(x=>x.id===item.id);
@@ -795,11 +866,12 @@ async function loadMedia(){
           });
           if(isVideo){
             const v=card.querySelector('video');
-            card.addEventListener('mouseenter', ()=> { try{ v.preload='metadata'; v.play().catch(()=>{}); }catch{} });
+            card.addEventListener('mouseenter', ()=> { try{ armVideo(v); v.play().catch(()=>{}); }catch{} });
             card.addEventListener('mouseleave', ()=> { try{ v.pause(); }catch{} });
           }
           rGrid.appendChild(card);
         });
+        watchLazyVideo(rGrid);
       }
     }
   }catch(e){ console.error('reviews load',e); }
