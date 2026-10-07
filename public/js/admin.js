@@ -128,6 +128,7 @@ $$('.side-nav button').forEach(b=> b.addEventListener('click', ()=>{
   if(tab==='chats') loadChats();
   if(tab==='overview') loadOverview();
   if(tab==='themes'){ loadThemesAdmin(); }
+  if(tab==='offers'){ fillOffersTexts(); loadOffersAdmin(); }
   if(tab==='orders'){ loadOrdersSection(); }
   if(tab==='settings'){ fillPaymentsForm(); fillNotifyForm(); }
 }));
@@ -3011,6 +3012,157 @@ $('#theme-form')?.addEventListener('submit', (e) => {
   };
   xhr.onerror = () => { btn.disabled = false; pwrap.style.display = 'none'; msg.textContent = 'Upload failed - check connection and retry.'; msg.style.color = '#F87171'; };
   xhr.send(fd);
+});
+// ================= CUSTOM OFFERS (Fiverr-style) =================
+let OFFERS_ADMIN = [], EDITING_OFFER_ID = null;
+function fillOffersTexts(){
+  const g = (id, key) => { const el = $(id); if(el && (el.value === '' || el.dataset.filled !== '1')){ el.value = CONTENT[key] || ''; el.dataset.filled = '1'; } };
+  g('#offers-eyebrow', 'offers_eyebrow'); g('#offers-title', 'offers_title');
+  g('#offers-subtitle', 'offers_subtitle'); g('#offers-empty', 'offers_empty');
+  g('#offers-cta', 'offers_cta_label');
+}
+$('#btn-save-offers-texts')?.addEventListener('click', async () => {
+  const msg = $('#offers-texts-msg');
+  const payload = {
+    offers_eyebrow: $('#offers-eyebrow').value, offers_title: $('#offers-title').value,
+    offers_subtitle: $('#offers-subtitle').value, offers_empty: $('#offers-empty').value,
+    offers_cta_label: $('#offers-cta').value
+  };
+  try{
+    const r = await fetch('/api/content', { method: 'PUT', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(payload) });
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    Object.assign(CONTENT, payload);
+    msg.textContent = 'Saved ✓'; msg.style.color = '#10B981';
+  }catch(e){ msg.textContent = 'Save failed: ' + e.message; msg.style.color = '#F87171'; }
+});
+function offerMoney(cents, cur){
+  const c = String(cur || 'USD').toUpperCase();
+  const sym = c === 'USD' ? '$' : c + ' ';
+  try{ return sym + fmtMoney(cents, c); }
+  catch{
+    const v = (Number(cents) || 0) / 100;
+    return sym + (Number.isInteger(v) ? v.toLocaleString('en-US') : v.toFixed(2));
+  }
+}
+async function loadOffersAdmin(){
+  const list = $('#offers-list');
+  try{
+    const r = await fetch('/api/admin/offers', { headers: authHeaders() });
+    OFFERS_ADMIN = await r.json();
+    if(!list) return;
+    list.innerHTML = '';
+    if(!OFFERS_ADMIN.length){ list.innerHTML = '<p style="color:#64748B;font-size:13px">No custom offers yet - add your first one above.</p>'; return; }
+    OFFERS_ADMIN.forEach(o => {
+      const d = document.createElement('div');
+      d.style.cssText = 'border:1px solid #E2E8F0;border-radius:12px;overflow:hidden;background:#fff;position:relative';
+      d.innerHTML =
+        `<input type="checkbox" class="offer-check" value="${o.id}" title="Select for bulk action" style="position:absolute;left:8px;top:8px;width:18px;height:18px;accent-color:#0B1220;cursor:pointer;z-index:2">` +
+        (o.image_url ? `<img src="${escAttr(o.image_url)}" style="width:100%;aspect-ratio:16/10;object-fit:cover" loading="lazy" onerror="this.style.display='none'">` : '') +
+        `<div style="padding:10px"><b>${escAttr(o.title)}</b><br>` +
+        `<small style="color:#64748B">/${escAttr(o.slug)} · ${escAttr(offerMoney(o.price_cents, o.currency))} · ${o.published ? '<span style="color:#10B981">LIVE</span>' : '<span style="color:#F59E0B">DRAFT</span>'}</small><br>` +
+        (o.delivery_label ? `<small style="color:#64748B">⏱ ${escAttr(o.delivery_label)}</small><br>` : '') +
+        `<small style="color:#64748B">🔗 /checkout?kind=offer&item=${escAttr(o.slug)}</small>` +
+        `<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">` +
+        `<button class="btn btn-ghost" data-act="edit" style="padding:5px 10px;font-size:11px">Edit</button>` +
+        `<button class="btn btn-ghost" data-act="toggle" style="padding:5px 10px;font-size:11px">${o.published ? 'Unpublish' : 'Publish'}</button>` +
+        `<button class="btn btn-ghost" data-act="del" style="padding:5px 10px;font-size:11px;color:#F87171">Delete</button>` +
+        `</div></div>`;
+      d.querySelector('[data-act="edit"]').addEventListener('click', () => editOfferAdmin(o.id));
+      d.querySelector('[data-act="toggle"]').addEventListener('click', async () => {
+        await fetch('/api/admin/offers/' + o.id, { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ published: o.published ? 0 : 1 }) });
+        loadOffersAdmin();
+      });
+      d.querySelector('[data-act="del"]').addEventListener('click', async () => {
+        if(!confirm('Delete "' + o.title + '"? Buyers with pending orders keep their links, but no new orders can start.')) return;
+        await fetch('/api/admin/offers/' + o.id, { method: 'DELETE', headers: authHeaders() });
+        loadOffersAdmin();
+      });
+      list.appendChild(d);
+    });
+    list.querySelectorAll('.offer-check').forEach(c => c.addEventListener('change', updateOffersBulk));
+    updateOffersBulk();
+    const osa = $('#offers-select-all');
+    if(osa && !osa.dataset.bound){ osa.dataset.bound = '1'; osa.addEventListener('change', () => { list.querySelectorAll('.offer-check').forEach(c => { c.checked = osa.checked; }); updateOffersBulk(); }); }
+  }catch(e){ if(list) list.innerHTML = '<p style="color:#F87171">Failed to load offers: ' + escAttr(e.message) + '</p>'; }
+}
+function selectedOfferIds(){
+  return [...document.querySelectorAll('.offer-check:checked')].map(c => parseInt(c.value, 10)).filter(Number.isFinite);
+}
+function updateOffersBulk(){
+  const n = selectedOfferIds().length;
+  const bar = $('#offers-bulkbar');
+  if(bar) bar.style.display = n ? 'flex' : 'none';
+  const c = $('#offers-bulkcount');
+  if(c) c.textContent = n + ' selected';
+  const all = $('#offers-select-all'), boxes = [...document.querySelectorAll('.offer-check')];
+  if(all) all.checked = boxes.length > 0 && boxes.every(b => b.checked);
+}
+document.querySelectorAll('[data-obulk]').forEach(b => b.addEventListener('click', async () => {
+  const ids = selectedOfferIds();
+  if(!ids.length) return;
+  const action = b.dataset.obulk;
+  if(action === 'delete' && !confirm(`Delete ${ids.length} offer(s)? This cannot be undone.`)) return;
+  b.disabled = true;
+  try{ const j = await bulkPost('/api/admin/offers/bulk', action, ids); alert(`${action}: ${j.done}/${j.total}`); }
+  catch(e){ alert('Bulk action failed: ' + e.message); }
+  b.disabled = false;
+  loadOffersAdmin();
+}));
+function editOfferAdmin(id){
+  const o = OFFERS_ADMIN.find(x => x.id === id);
+  if(!o) return;
+  EDITING_OFFER_ID = id;
+  $('#offer-id').value = id;
+  $('#offer-title').value = o.title || '';
+  $('#offer-slug').value = o.slug || '';
+  $('#offer-price').value = ((Number(o.price_cents) || 0) / 100).toFixed(2).replace(/\.00$/, '');
+  $('#offer-currency').value = o.currency || 'USD';
+  $('#offer-delivery').value = o.delivery_label || '';
+  $('#offer-desc').value = o.description || '';
+  $('#offer-image').value = o.image_url || '';
+  $('#offer-published').checked = !!o.published;
+  $('#offer-form-title').innerHTML = 'Edit Custom Offer <small style="font-weight:500;color:#64748B">/' + escAttr(o.slug) + '</small>';
+  $('#offer-submit-btn').textContent = 'Update Offer';
+  $('#offer-cancel-btn')?.classList.remove('hidden');
+  document.querySelector('[data-panel="offers"]')?.scrollIntoView({ behavior: 'smooth' });
+}
+function resetOfferForm(){
+  EDITING_OFFER_ID = null;
+  $('#offer-form')?.reset();
+  $('#offer-id').value = '';
+  $('#offer-currency').value = 'USD';
+  $('#offer-published').checked = true;
+  $('#offer-form-title').innerHTML = 'Add Custom Offer <small style="font-weight:500;color:#64748B">custom price + description - buyers order it like a Fiverr offer</small>';
+  $('#offer-submit-btn').textContent = 'Save Offer';
+  $('#offer-cancel-btn')?.classList.add('hidden');
+}
+$('#offer-cancel-btn')?.addEventListener('click', resetOfferForm);
+$('#offer-form')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const msg = $('#offer-msg'), btn = $('#offer-submit-btn');
+  msg.textContent = ''; msg.style.color = '#64748B';
+  const title = $('#offer-title').value.trim();
+  const price = $('#offer-price').value.trim();
+  if(!title){ msg.textContent = 'Offer title is required.'; msg.style.color = '#F87171'; return; }
+  if(price === '' || !(parseFloat(price) >= 0)){ msg.textContent = 'Price (USD) must be 0 or more (0 = free/test).'; msg.style.color = '#F87171'; return; }
+  const payload = {
+    title, slug: $('#offer-slug').value.trim(), price,
+    currency: $('#offer-currency').value.trim() || 'USD',
+    delivery_label: $('#offer-delivery').value.trim(),
+    description: $('#offer-desc').value,
+    image_url: $('#offer-image').value.trim(),
+    published: $('#offer-published').checked ? 1 : 0
+  };
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try{
+    const url = EDITING_OFFER_ID ? '/api/admin/offers/' + EDITING_OFFER_ID : '/api/admin/offers';
+    const r = await fetch(url, { method: EDITING_OFFER_ID ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(payload) });
+    const j = await r.json().catch(() => ({}));
+    if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    msg.textContent = 'Saved ✓ - live on the homepage after Mentorship.'; msg.style.color = '#10B981';
+    resetOfferForm(); loadOffersAdmin();
+  }catch(err){ msg.textContent = 'Error: ' + err.message; msg.style.color = '#F87171'; }
+  btn.disabled = false; btn.textContent = EDITING_OFFER_ID ? 'Update Offer' : 'Save Offer';
 });
 // ================= ORDERS MANAGEMENT =================
 let ORDERS_ROWS = [];

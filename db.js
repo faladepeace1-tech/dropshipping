@@ -369,6 +369,19 @@ export async function initDb() {
         display_order INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT NOW()
       );
+      CREATE TABLE IF NOT EXISTS custom_offers (
+        id SERIAL PRIMARY KEY,
+        title TEXT NOT NULL,
+        slug TEXT UNIQUE NOT NULL,
+        description TEXT DEFAULT '',
+        price_cents INTEGER NOT NULL DEFAULT 0,
+        currency TEXT DEFAULT 'USD',
+        delivery_label TEXT DEFAULT '',
+        image_url TEXT DEFAULT '',
+        published INTEGER DEFAULT 1,
+        display_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
       CREATE TABLE IF NOT EXISTS orders (
         id SERIAL PRIMARY KEY,
         order_ref TEXT UNIQUE NOT NULL,
@@ -590,6 +603,19 @@ export async function initDb() {
       display_order INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now'))
     );
+    CREATE TABLE IF NOT EXISTS custom_offers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      slug TEXT UNIQUE NOT NULL,
+      description TEXT DEFAULT '',
+      price_cents INTEGER NOT NULL DEFAULT 0,
+      currency TEXT DEFAULT 'USD',
+      delivery_label TEXT DEFAULT '',
+      image_url TEXT DEFAULT '',
+      published INTEGER DEFAULT 1,
+      display_order INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
     CREATE TABLE IF NOT EXISTS orders (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       order_ref TEXT UNIQUE NOT NULL,
@@ -656,6 +682,11 @@ export async function initDb() {
       ['mentorship_subtitle', 'Make sales before paying for mentorship. We prove it first.', 'text'],
       ['mentorship_price', 'Pay After Results', 'text'],
       ['mentorship_bullets', '["Weekly 1:1 strategy calls until first sale","Ad account setup & first campaign launch together","Product testing framework & kill/scale rules","Store CRO audits & A/B tests"]', 'json'],
+      ['offers_eyebrow', 'Custom Offers', 'text'],
+      ['offers_title', 'Need Something Custom?', 'text'],
+      ['offers_subtitle', 'Like a Fiverr custom offer: pick a tailored package below, set price agreed with us, and order in one click.', 'text'],
+      ['offers_empty', 'No custom offers right now - chat with us and we will create one for you.', 'text'],
+      ['offers_cta_label', 'Order Now', 'text'],
       ['testimonials_title', 'What Clients Say', 'text'],
       ['testimonials_subtitle', 'Honest feedback from store owners.', 'text'],
       ['reviews_title', 'Proof You Can See Reviews & Video Testimonials', 'text'],
@@ -1004,13 +1035,14 @@ export async function initDb() {
       ['pricing', 1, 9, 1],
       ['themes', 1, 10, 1],
       ['mentorship', 1, 11, 1],
-      ['testimonials', 1, 12, 1],
-      ['reviews', 1, 13, 1],
-      ['certificates', 1, 14, 1],
-      ['faq', 1, 15, 1],
-      ['lead_form', 1, 16, 1],
-      ['cta_band', 1, 17, 1],
-      ['footer', 1, 18, 0]
+      ['custom_offers', 1, 12, 1],
+      ['testimonials', 1, 13, 1],
+      ['reviews', 1, 14, 1],
+      ['certificates', 1, 15, 1],
+      ['faq', 1, 16, 1],
+      ['lead_form', 1, 17, 1],
+      ['cta_band', 1, 18, 1],
+      ['footer', 1, 19, 0]
   ];
   if (secCount === 0 || forceReset) {
     if (forceReset && secCount !== 0) { try { await db.exec('DELETE FROM sections'); } catch {} }

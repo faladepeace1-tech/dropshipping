@@ -518,6 +518,9 @@ function applyMicroCopy(){
   setText('themes-title', T('themes_title','Premium Store Themes'));
   setText('themes-subtitle', T('themes_subtitle','Ready-made, high-converting themes. Buy once, download instantly, own forever.'));
   setText('mentorship-eyebrow', T('mentorship_eyebrow','Mentorship'));
+  setText('offers-eyebrow', T('offers_eyebrow','Custom Offers'));
+  setText('offers-title', T('offers_title','Need Something Custom?'));
+  setText('offers-subtitle', T('offers_subtitle','Pick a tailored package below and order in one click - same secure checkout.'));
   setText('testimonials-eyebrow', T('testimonials_eyebrow','Testimonials'));
   setText('reviews-eyebrow', T('reviews_eyebrow','Customer Reviews'));
   setText('certs-eyebrow', T('certs_eyebrow','Awards'));
@@ -1002,6 +1005,7 @@ function fillFxSelectors(){
       fillFxSelectors();
       renderPricing();
       renderThemes();
+      renderOffers();
       track('currency_change', el.value);
     };
   }
@@ -1069,6 +1073,41 @@ function renderThemes(){
     frag.appendChild(card);
   });
   grid.appendChild(frag);
+}
+// ---- Custom offers (Fiverr-style: admin sets a custom price, buyer orders in one click) ----
+let OFFERS=[];
+async function loadOffers(){
+  try{
+    const r=await fetch('/api/offers'); OFFERS=await r.json();
+  }catch{ OFFERS=[]; }
+  renderOffers();
+}
+function offerPrice(o){
+  if(!o || !(Number(o.price_cents) > 0)) return (o && o.price_text) || '';
+  const c = fxConvertFrom(Number(o.price_cents), o.currency || 'USD', FX.currency);
+  return fxFormat(c.amount_cents, c.currency);
+}
+function renderOffers(){
+  const grid=$('#offers-grid'); const empty=$('#offers-empty');
+  if(!grid) return;
+  grid.innerHTML='';
+  if(!OFFERS.length){
+    if(empty){ empty.textContent=T('offers_empty','No custom offers right now - chat with us and we will create one for you.'); empty.classList.remove('hidden'); }
+    return;
+  }
+  if(empty) empty.classList.add('hidden');
+  const cta=T('offers_cta_label','Order Now');
+  OFFERS.forEach((o)=>{
+    const el=document.createElement('div'); el.className='price-card';
+    const disp=offerPrice(o);
+    el.innerHTML=`<div class="eyebrow" style="margin:0">${sanitize(o.title)}</div>`
+      + `<div class="price" title="${sanitize(o.price_text || '')}">${sanitize(disp)}</div>`
+      + (o.delivery_label?`<div class="sub" style="margin:0 0 6px;font-size:12px">⏱ ${sanitize(o.delivery_label)}</div>`:'')
+      + `<p class="sub" style="margin:0 0 10px;font-size:13px">${sanitize((o.description||'').slice(0,220))}</p>`
+      + `<a class="btn btn-primary btn-glow" href="/checkout?kind=offer&item=${encodeURIComponent(o.slug)}&currency=${encodeURIComponent(FX.currency)}" style="margin-top:auto">${sanitize(cta)} →</a>`;
+    el.querySelector('a').addEventListener('click',()=>track('cta_click','offer-'+o.slug,{price:disp}));
+    grid.appendChild(el);
+  });
 }
 function openThemeModal(th){
   const item={ id:'theme-'+th.slug, category:'Theme', caption:th.name,
@@ -1702,8 +1741,8 @@ function safeInit(fn){
   safeInit(initReveal);
   // Portfolio + all media feeds concurrently (was sequential awaits)
   try{
-    if(Promise.allSettled) await Promise.allSettled([loadPortfolio(), loadMedia(), loadThemes()]);
-    else for(const f of [loadPortfolio, loadMedia, loadThemes]){ try{ await f(); }catch(e){ console.error('feed failed', e && e.message); } }
+    if(Promise.allSettled) await Promise.allSettled([loadPortfolio(), loadMedia(), loadThemes(), loadOffers()]);
+    else for(const f of [loadPortfolio, loadMedia, loadThemes, loadOffers]){ try{ await f(); }catch(e){ console.error('feed failed', e && e.message); } }
   }
   catch(e){ console.error('feeds failed', e && e.message); }
   safeInit(initReveal);

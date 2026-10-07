@@ -112,8 +112,13 @@ function showError(msg){
   $('#co-error-msg').textContent = msg || 'Could not load this checkout.';
   show('co-error-view');
 }
+function kindLabel(k){
+  if(k === 'theme') return 'Theme · Instant Download';
+  if(k === 'offer') return 'Custom Offer';
+  return 'Launch Package';
+}
 function fillSummary(){
-  $('#co-item-kind').textContent = ITEM.kind === 'theme' ? 'Theme · Instant Download' : 'Launch Package';
+  $('#co-item-kind').textContent = kindLabel(ITEM.kind);
   $('#co-item-name').textContent = ITEM.name || '';
   $('#co-item-desc').textContent = ITEM.description || '';
   $('#co-item-price').textContent = ITEM.price_text || '';
@@ -122,7 +127,7 @@ function fillSummary(){
   const img = $('#co-item-img');
   if(ITEM.preview_url){ img.src = ITEM.preview_url; img.alt = ITEM.name || ''; img.classList.remove('hidden'); }
   else img.classList.add('hidden');
-  $('#co-title').textContent = ITEM.kind === 'theme' ? 'Get the "' + ITEM.name + '" Theme' : 'Get the ' + ITEM.name;
+  $('#co-title').textContent = ITEM.kind === 'theme' ? 'Get the "' + ITEM.name + '" Theme' : ITEM.kind === 'offer' ? 'Order: ' + ITEM.name : 'Get the ' + ITEM.name;
 }
 function validate(){
   let ok = true;
@@ -221,7 +226,7 @@ window.addEventListener('message', (e) => {
 });
 function showCardView(){
   $('#co-card-ref').textContent = ORDER_REF;
-  $('#co-card-kind').textContent = ITEM.kind === 'theme' ? 'Theme · Instant Download' : 'Launch Package';
+  $('#co-card-kind').textContent = kindLabel(ITEM.kind);
   $('#co-card-name').textContent = ITEM.name || '';
   $('#co-card-price').textContent = ITEM.price_text || '';
   const charge = ITEM.price_text || '';

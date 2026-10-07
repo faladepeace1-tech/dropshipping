@@ -686,6 +686,21 @@ function formatCents(cents, currency){
     return sym + (Number.isInteger(v) ? v.toLocaleString('en-US') : v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
   }
 }
+function publicOffer(row){
+  if(!row) return null;
+  const free = !(Number(row.price_cents) > 0);
+  return {
+    id: row.id, title: row.title, slug: row.slug,
+    description: row.description || '',
+    price_cents: row.price_cents, currency: row.currency || 'USD',
+    price_text: free ? 'Free' : formatCents(row.price_cents, row.currency),
+    delivery_label: row.delivery_label || '', image_url: row.image_url || '',
+    published: row.published, display_order: row.display_order
+  };
+}
+function slugifyOffer(s){
+  return String(s || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'offer';
+}
 function publicTheme(row){
   if(!row) return null;
   const free = !(Number(row.price_cents) > 0);
@@ -946,7 +961,7 @@ async function markOrderPaid(orderRef, providerRef){
   });
   return await db.prepare('SELECT * FROM orders WHERE order_ref=?').get(String(orderRef));
 }
-// Resolve anything buyable: a plan (priced via content keys) or a theme.
+// Resolve anything buyable: a plan (priced via content keys), a theme, or a custom offer.
 async function getCheckoutItem(kind, ref){
   const k = String(kind || '').toLowerCase();
   if(k === 'plan'){
@@ -976,6 +991,15 @@ async function getCheckoutItem(kind, ref){
     return { kind: 'theme', ref: t.slug, name: t.name, price_text: t.price_text, amount_cents: t.price_cents,
       currency: t.currency, description: t.description, preview_url: t.preview_url, has_zip: t.has_zip };
   }
+  if(k === 'offer'){
+    const row = await db.prepare('SELECT * FROM custom_offers WHERE (slug=? OR CAST(id AS TEXT)=?) AND published=1').get(String(ref || ''), String(ref || ''));
+    if(!row) return { error: 'Offer not found or unpublished.' };
+    if(row.price_cents == null || row.price_cents < 0) return { error: 'This offer has no price set yet.' };
+    const o = publicOffer(row);
+    return { kind: 'offer', ref: o.slug, name: o.title, price_text: o.price_text, amount_cents: o.price_cents,
+      currency: o.currency, description: o.description, preview_url: o.image_url,
+      delivery_label: o.delivery_label, wa_text: '' };
+  }
   return { error: 'Unknown item kind.' };
 }
 
@@ -985,6 +1009,75 @@ app.get('/api/themes', async (req, res) => {
     const rows = await db.prepare('SELECT * FROM themes WHERE published=1 ORDER BY display_order ASC, id ASC').all();
     res.json(rows.map(publicTheme));
   }catch(e){ res.status(500).json({ error: 'themes unavailable' }); }
+});
+// --- Public: list published custom offers ---
+app.get('/api/offers', async (req, res) => {
+  try{
+    const rows = await db.prepare('SELECT * FROM custom_offers WHERE published=1 ORDER BY display_order ASC, id ASC').all();
+    res.json(rows.map(publicOffer));
+  }catch(e){ res.status(500).json({ error: 'offers unavailable' }); }
+});
+// --- Admin: list all custom offers (incl. unpublished) ---
+app.get('/api/admin/offers', requireAuth, async (req, res) => {
+  const rows = await db.prepare('SELECT * FROM custom_offers ORDER BY display_order ASC, id ASC').all();
+  res.json(rows.map(publicOffer));
+});
+// --- Admin: create custom offer (JSON: title, price USD, description...) ---
+app.post('/api/admin/offers', requireAuth, async (req, res) => {
+  try{
+    const { title, slug, description, price, currency, delivery_label, image_url, published, display_order } = req.body || {};
+    if(!title || !String(title).trim()) return res.status(400).json({ error: 'title required' });
+    const dollars = parseFloat(String(price == null ? '' : price).replace(/[^0-9.]/g, ''));
+    if(!Number.isFinite(dollars) || dollars < 0) return res.status(400).json({ error: 'price (USD) must be 0 or more (0 = free/test)' });
+    let finalSlug = slugifyOffer(slug || title);
+    const clash = await db.prepare('SELECT id FROM custom_offers WHERE slug=?').get(finalSlug);
+    if(clash) finalSlug = finalSlug + '-' + Date.now().toString(36);
+    const maxRow = await db.prepare('SELECT COALESCE(MAX(display_order),-1)+1 as n FROM custom_offers').get();
+    const info = await db.prepare('INSERT INTO custom_offers (title,slug,description,price_cents,currency,delivery_label,image_url,published,display_order) VALUES (?,?,?,?,?,?,?,?,?)')
+      .run(String(title).trim().slice(0, 160), finalSlug, String(description || '').slice(0, 2000),
+        Math.round(dollars * 100), String(currency || 'USD').toUpperCase().slice(0, 8) || 'USD',
+        String(delivery_label || '').slice(0, 120), String(image_url || '').slice(0, 500),
+        parseBool(published ?? 1), parseInt(display_order, 10) || (maxRow ? maxRow.n : 0));
+    res.json(await db.prepare('SELECT * FROM custom_offers WHERE id=?').get(info.lastInsertRowid));
+  }catch(e){ res.status(500).json({ error: 'could not save offer: ' + e.message }); }
+});
+// --- Admin: update custom offer ---
+app.patch('/api/admin/offers/:id', requireAuth, async (req, res) => {
+  try{
+    const ex = await db.prepare('SELECT * FROM custom_offers WHERE id=?').get(req.params.id);
+    if(!ex) return res.status(404).json({ error: 'offer not found' });
+    let slug = ex.slug;
+    if(req.body.slug !== undefined && String(req.body.slug).trim()){
+      const s = slugifyOffer(req.body.slug);
+      const clash = await db.prepare('SELECT id FROM custom_offers WHERE slug=? AND id<>?').get(s, ex.id);
+      slug = clash ? s + '-' + Date.now().toString(36) : s;
+    }
+    let cents = ex.price_cents;
+    if(req.body.price !== undefined && String(req.body.price).trim() !== ''){
+      const d = parseFloat(String(req.body.price).replace(/[^0-9.]/g, ''));
+      if(!Number.isFinite(d) || d < 0) return res.status(400).json({ error: 'price (USD) must be 0 or more (0 = free/test)' });
+      cents = Math.round(d * 100);
+    }
+    const fields = {
+      title: req.body.title !== undefined && String(req.body.title).trim() ? String(req.body.title).trim().slice(0, 160) : ex.title,
+      slug,
+      description: req.body.description !== undefined ? String(req.body.description).slice(0, 2000) : ex.description,
+      price_cents: cents,
+      currency: req.body.currency !== undefined ? (String(req.body.currency).toUpperCase().slice(0, 8) || 'USD') : ex.currency,
+      delivery_label: req.body.delivery_label !== undefined ? String(req.body.delivery_label).slice(0, 120) : ex.delivery_label,
+      image_url: req.body.image_url !== undefined ? String(req.body.image_url).slice(0, 500) : ex.image_url,
+      published: req.body.published !== undefined ? parseBool(req.body.published) : ex.published,
+      display_order: req.body.display_order !== undefined ? (parseInt(req.body.display_order, 10) || 0) : ex.display_order
+    };
+    await db.prepare('UPDATE custom_offers SET title=?,slug=?,description=?,price_cents=?,currency=?,delivery_label=?,image_url=?,published=?,display_order=? WHERE id=?')
+      .run(fields.title, fields.slug, fields.description, fields.price_cents, fields.currency, fields.delivery_label, fields.image_url, fields.published, fields.display_order, ex.id);
+    res.json(await db.prepare('SELECT * FROM custom_offers WHERE id=?').get(ex.id));
+  }catch(e){ res.status(500).json({ error: 'could not update offer: ' + e.message }); }
+});
+// --- Admin: delete custom offer ---
+app.delete('/api/admin/offers/:id', requireAuth, async (req, res) => {
+  await db.prepare('DELETE FROM custom_offers WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
 });
 // --- Public: FX rates (numbers only, cached 12h) ---
 app.get('/api/fx/rates', async (req, res) => {
@@ -1664,6 +1757,20 @@ app.post('/api/admin/themes/bulk', requireAuth, async (req, res) => {
         await db.prepare('DELETE FROM themes WHERE id=?').run(id); done++;
       }catch{}
     }
+  } else return res.status(400).json({ error: 'action must be publish|unpublish|delete' });
+  res.json({ ok: true, action, done, total: ids.length });
+});
+// Custom offers: publish | unpublish | delete
+app.post('/api/admin/offers/bulk', requireAuth, async (req, res) => {
+  const ids = bulkIds(req.body).filter(v => typeof v === 'number');
+  const action = String(req.body?.action || '');
+  if(!ids.length) return res.status(400).json({ error: 'no valid ids' });
+  let done = 0;
+  if(action === 'publish' || action === 'unpublish'){
+    const v = action === 'publish' ? 1 : 0;
+    for(const id of ids){ try{ await db.prepare('UPDATE custom_offers SET published=? WHERE id=?').run(v, id); done++; }catch{} }
+  } else if(action === 'delete'){
+    for(const id of ids){ try{ await db.prepare('DELETE FROM custom_offers WHERE id=?').run(id); done++; }catch{} }
   } else return res.status(400).json({ error: 'action must be publish|unpublish|delete' });
   res.json({ ok: true, action, done, total: ids.length });
 });

@@ -27,6 +27,7 @@
       <button data-tab="content">Content & Theme</button>
       <button data-tab="media">Media Manager</button>
       <button data-tab="themes">Themes / Shop</button>
+      <button data-tab="offers">Custom Offers</button>
       <button data-tab="orders">Orders 💰</button>
       <button data-tab="team">Experts (Team)</button>
       <button data-tab="sections">Sections & Layout</button>
@@ -240,15 +241,70 @@
         </div>
       </section>
 
+      <!-- Custom Offers (Fiverr-style: you set a custom price, buyers order in one click) -->
+      <section data-panel="offers" class="hidden">
+        <div class="card">
+          <h3>Section Texts <small style="font-weight:500;color:#64748B">heading shown on the homepage after Mentorship</small></h3>
+          <div style="display:grid;gap:10px">
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <label style="flex:1;min-width:160px">Eyebrow<input id="offers-eyebrow" placeholder="Custom Offers"></label>
+              <label style="flex:2;min-width:200px">Title<input id="offers-title" placeholder="Need Something Custom?"></label>
+            </div>
+            <label>Subtitle<textarea id="offers-subtitle" rows="2" placeholder="Pick a tailored package below and order in one click..."></textarea></label>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <label style="flex:2;min-width:200px">Empty message<input id="offers-empty" placeholder="No custom offers right now..."></label>
+              <label style="flex:1;min-width:140px">Button label<input id="offers-cta" placeholder="Order Now"></label>
+            </div>
+            <div><button class="btn btn-primary" type="button" id="btn-save-offers-texts">Save Section Texts</button> <span id="offers-texts-msg" style="font-size:13px"></span></div>
+          </div>
+        </div>
+        <div class="card">
+          <h3 id="offer-form-title">Add Custom Offer <small style="font-weight:500;color:#64748B">custom price + description - buyers order it like a Fiverr offer</small></h3>
+          <form id="offer-form" style="display:grid;gap:10px">
+            <input type="hidden" id="offer-id">
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <label style="flex:2;min-width:200px">Offer Title *<input id="offer-title" required placeholder="e.g. Extra 10 Winning Products"></label>
+              <label style="flex:1;min-width:140px">Slug (auto if empty)<input id="offer-slug" placeholder="extra-10-products"></label>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <label style="flex:1;min-width:120px">Price (USD) * - 0 = free/test<input id="offer-price" type="number" min="0" step="0.01" required placeholder="99"></label>
+              <label style="flex:1;min-width:120px">Currency<input id="offer-currency" placeholder="USD" value="USD"></label>
+              <label style="flex:1;min-width:140px">Delivery time<input id="offer-delivery" placeholder="e.g. 3 days"></label>
+              <label style="align-self:end"><input type="checkbox" id="offer-published" checked> Published (visible on site)</label>
+            </div>
+            <label>Description<textarea id="offer-desc" rows="3" placeholder="Exactly what the buyer gets..."></textarea></label>
+            <label>Image URL (optional)<input id="offer-image" placeholder="https://..."></label>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-primary" type="submit" id="offer-submit-btn">Save Offer</button>
+              <button class="btn btn-ghost hidden" type="button" id="offer-cancel-btn">Cancel Edit</button>
+            </div>
+            <div id="offer-msg" style="font-size:13px;min-height:18px"></div>
+          </form>
+        </div>
+        <div class="card">
+          <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap">
+            <h3 style="margin:0">Custom Offers <small style="color:#64748B"> edit, publish/unpublish, delete</small></h3>
+            <label style="display:flex;gap:6px;align-items:center;font-size:12px"><input type="checkbox" id="offers-select-all"> Select all</label>
+          </div>
+          <div id="offers-bulkbar" style="display:none;gap:8px;align-items:center;margin:10px 0;flex-wrap:wrap;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:8px 10px">
+            <b id="offers-bulkcount" style="font-size:12px">0 selected</b>
+            <button class="btn btn-ghost" data-obulk="publish" style="padding:5px 10px;font-size:11px">Publish</button>
+            <button class="btn btn-ghost" data-obulk="unpublish" style="padding:5px 10px;font-size:11px">Unpublish</button>
+            <button class="btn btn-ghost" data-obulk="delete" style="padding:5px 10px;font-size:11px;color:#F87171">Delete</button>
+          </div>
+          <div id="offers-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px"></div>
+        </div>
+      </section>
+
       <!-- Orders -->
       <section data-panel="orders" class="hidden">
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:10px" id="orders-stats"></div>
         <div class="card">
-          <h3>Manage Orders <small style="color:#64748B"> plans + themes - search, select, bulk update, export</small></h3>
+          <h3>Manage Orders <small style="color:#64748B"> plans + themes + offers - search, select, bulk update, export</small></h3>
           <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
             <input id="order-search" placeholder="Search ref, item, name, email..." style="flex:1;min-width:160px">
             <select id="order-status-filter"><option value="">All statuses</option><option value="pending">Pending</option><option value="paid">Paid</option><option value="failed">Failed</option><option value="expired">Expired</option></select>
-            <select id="order-kind-filter"><option value="">Plans + Themes</option><option value="plan">Plans only</option><option value="theme">Themes only</option></select>
+            <select id="order-kind-filter"><option value="">All kinds</option><option value="plan">Plans only</option><option value="theme">Themes only</option><option value="offer">Offers only</option></select>
             <button class="btn btn-ghost" id="btn-refresh-orders" type="button">Refresh</button>
             <a class="btn btn-ghost" id="btn-export-orders" href="/api/admin/orders/export.csv" download>Export CSV ↓</a>
           </div>
