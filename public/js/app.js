@@ -1504,7 +1504,7 @@ function initChat(){
     setTimeout(updWa, 1500);
   }
   function createWhatsAppButton(userText){
-    const waNum = CONTENT.whatsapp_number || '19283825389';
+    const waNum = CONTENT.whatsapp_number || '447411200927';
     const customMsg = `Hi Nexatech 👋, ${userText}`.slice(0,800);
     const url = whatsappLink(waNum, customMsg);
     const a=document.createElement('a');

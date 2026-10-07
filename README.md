@@ -32,7 +32,7 @@ database, then Restore from File (merge-safe, secrets never wiped by empty value
 - Content & Theme (all sections, 2550×1650 reviews wall, logo/favicon upload `/api/admin/upload`)
 - Media Manager (portfolio / sales_proof / testimonials / reviews)
 - Team, Sections order/visibility, Leads CRM, Analytics
-- Integrations: WhatsApp `+19283825389`, Email `saheednexatech@gmail.com`, separate Bot/Form webhooks, Calendly, theme colours (`:root`)
+- Integrations: WhatsApp `+447411200927`, Email `saheednexatech@gmail.com`, separate Bot/Form webhooks, Calendly, theme colours (`:root`)
 
 ## Structure
 ```

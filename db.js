@@ -625,8 +625,8 @@ export async function initDb() {
   const defaults = [
       ['site_name', 'Nexatech Dropshipping Store', 'text'],
       ['tagline', "We don't just build stores we engineer high-converting storefronts backed by real, current sales proof.", 'text'],
-      ['whatsapp_number', '19283825389', 'text'],
-      ['whatsapp_link', 'https://wa.me/19283825389', 'text'],
+      ['whatsapp_number', '447411200927', 'text'],
+      ['whatsapp_link', 'https://wa.me/447411200927', 'text'],
       ['calendly_url', 'https://calendly.com/nexatech/strategy-call', 'text'],
       ['hero_badge', 'Only {remaining} build slots left this month', 'text'],
       ['hero_title', 'Your Profitable Dropshipping Store Built, Launched & Ready to Sell', 'text'],
@@ -677,7 +677,7 @@ export async function initDb() {
       ['cta_band_title', 'Ready to Own a Store That Sells?', 'text'],
       ['cta_band_subtitle', 'Slots are limited by real capacity apply today and lock your build window.', 'text'],
       ['footer_email', 'saheednexatech@gmail.com', 'text'],
-      ['footer_phone', '+1 928 382 5389', 'text'],
+      ['footer_phone', '+44 7411 200927', 'text'],
       ['footer_address', 'Serving clients worldwide', 'text'],
       ['footer_copyright', '© Nexatech Dropshipping Store. All rights reserved.', 'text'],
       ['seo_title', 'Nexatech Dropshipping Store Done For You High Converting Stores', 'text'],
@@ -738,7 +738,7 @@ export async function initDb() {
       ['fx_auto_enabled', 'true', 'boolean'],
       ['fx_currencies', '["USD","EUR","GBP","CAD","INR","NGN","GHS","KES","ZAR","UGX","TZS","RWF","ZMW","XOF","XAF","EGP","MWK","SLE","ETB","GNF","AUD","BRL","COP","MXN","PEN","SGD","AED","SAR","JPY"]', 'json'],
       ['owner_notify_email', 'nexatechdropshipping@gmail.com', 'text'],
-      ['owner_whatsapp', '19283825389', 'text'],
+      ['owner_whatsapp', '447411200927', 'text'],
       ['callmebot_api_key', '', 'text'],
       ['checkout_title', 'Secure Checkout', 'text'],
       ['checkout_subtitle', 'Complete your payment to get instant access.', 'text'],
@@ -928,10 +928,10 @@ export async function initDb() {
       ['chat_wa_continue', 'Continue on WhatsApp', 'text'],
       ['privacy_title', 'Privacy Policy', 'text'],
       ['privacy_last_updated', 'September 3, 2026', 'text'],
-      ['privacy_content', `<h2>Introduction</h2><p>At Nexatech Dropshipping Store, we respect your privacy and are committed to protecting your personal data. This policy explains how we collect, use, and safeguard your information.</p><h2>Information We Collect</h2><p>We collect information you provide via our application form (name, email, WhatsApp, niche preferences) and anonymous analytics (page views, click events) to improve our service.</p><h2>How We Use Your Information</h2><ul><li>To contact you about your store application via WhatsApp/Email</li><li>To personalize your strategy call</li><li>To improve our website and services</li><li>To comply with legal obligations</li></ul><h2>Data Sharing</h2><p>We never sell your data. We may share it with trusted automation tools (e.g., webhooks you configure) solely to fulfill your request.</p><h2>Your Rights</h2><p>You may request access, correction, or deletion of your personal data by emailing saheednexatech@gmail.com.</p><h2>Contact</h2><p>Questions? Email <strong>saheednexatech@gmail.com</strong> or WhatsApp <strong>+1 928 382 5389</strong>.</p>`, 'html'],
+      ['privacy_content', `<h2>Introduction</h2><p>At Nexatech Dropshipping Store, we respect your privacy and are committed to protecting your personal data. This policy explains how we collect, use, and safeguard your information.</p><h2>Information We Collect</h2><p>We collect information you provide via our application form (name, email, WhatsApp, niche preferences) and anonymous analytics (page views, click events) to improve our service.</p><h2>How We Use Your Information</h2><ul><li>To contact you about your store application via WhatsApp/Email</li><li>To personalize your strategy call</li><li>To improve our website and services</li><li>To comply with legal obligations</li></ul><h2>Data Sharing</h2><p>We never sell your data. We may share it with trusted automation tools (e.g., webhooks you configure) solely to fulfill your request.</p><h2>Your Rights</h2><p>You may request access, correction, or deletion of your personal data by emailing saheednexatech@gmail.com.</p><h2>Contact</h2><p>Questions? Email <strong>saheednexatech@gmail.com</strong> or WhatsApp <strong>+44 7411 200927</strong>.</p>`, 'html'],
       ['terms_title', 'Terms and Conditions', 'text'],
       ['terms_last_updated', 'September 3, 2026', 'text'],
-      ['terms_content', `<h2>1. Services</h2><p>Nexatech builds, launches, and hands over done-for-you dropshipping stores. Timelines (7 to 14 days) are estimates and depend on client responsiveness.</p><h2>2. Ownership</h2><p>You own 100% of the store, domain, and assets upon handover. We build in your account.</p><h2>3. Payments & Refunds</h2><p>Due to done-for-you labor, deposits are non-refundable. We revise until handover criteria are met. Support windows: Starter 14 days, Pro 30 days, Elite 60 days.</p><h2>4. Results Disclaimer</h2><p>We provide real, current sales proof but do not guarantee specific revenue. Success depends on traffic, product-market fit, and execution.</p><h2>5. Client Responsibilities</h2><p>You are responsible for running traffic (ads), complying with platform policies, and providing timely feedback.</p><h2>6. Limitation of Liability</h2><p>Our liability is limited to the amount paid for services.</p><h2>7. Governing Law</h2><p>These terms are governed by applicable international commercial law.</p><p>Contact: saheednexatech@gmail.com | +1 928 382 5389</p>`, 'html']
+      ['terms_content', `<h2>1. Services</h2><p>Nexatech builds, launches, and hands over done-for-you dropshipping stores. Timelines (7 to 14 days) are estimates and depend on client responsiveness.</p><h2>2. Ownership</h2><p>You own 100% of the store, domain, and assets upon handover. We build in your account.</p><h2>3. Payments & Refunds</h2><p>Due to done-for-you labor, deposits are non-refundable. We revise until handover criteria are met. Support windows: Starter 14 days, Pro 30 days, Elite 60 days.</p><h2>4. Results Disclaimer</h2><p>We provide real, current sales proof but do not guarantee specific revenue. Success depends on traffic, product-market fit, and execution.</p><h2>5. Client Responsibilities</h2><p>You are responsible for running traffic (ads), complying with platform policies, and providing timely feedback.</p><h2>6. Limitation of Liability</h2><p>Our liability is limited to the amount paid for services.</p><h2>7. Governing Law</h2><p>These terms are governed by applicable international commercial law.</p><p>Contact: saheednexatech@gmail.com | +44 7411 200927</p>`, 'html']
   ];
   const count = await getCount('content');
   const forceReset = process.env.FORCE_DEFAULT_CONTENT === 'true' || process.env.RESET_CONTENT === 'true';
@@ -1137,7 +1137,7 @@ export async function initDb() {
     const tmplCount = await getCount('email_templates');
     if(tmplCount===0){
       const tmplDefaults = [
-        ['Welcome - New Lead','Welcome {{name}}! Your {{storeName}} journey starts','<div style="font-family:Inter,sans-serif;line-height:1.6;color:#0B1220"><p>Hi {{name}},</p><p>Thanks for applying for your <b>{{storeName}}</b> store in the <b>{{preferredNiche}}</b> niche. Our team at <b>Nexatech</b> will review your application and reach out on WhatsApp <b>{{whatsapp}}</b> within 24h.</p><p>While you wait, explore our portfolio and packages on the site.</p><p style="margin-top:16px">- <b>Ifeoluwa (Akinyemmi Ifeoluwa)</b><br>NEXATECH Dropshipping Store<br><a href="https://wa.me/19283825389">WhatsApp</a> • saheednexatech@gmail.com</p></div>','general'],
+        ['Welcome - New Lead','Welcome {{name}}! Your {{storeName}} journey starts','<div style="font-family:Inter,sans-serif;line-height:1.6;color:#0B1220"><p>Hi {{name}},</p><p>Thanks for applying for your <b>{{storeName}}</b> store in the <b>{{preferredNiche}}</b> niche. Our team at <b>Nexatech</b> will review your application and reach out on WhatsApp <b>{{whatsapp}}</b> within 24h.</p><p>While you wait, explore our portfolio and packages on the site.</p><p style="margin-top:16px">- <b>Ifeoluwa (Akinyemmi Ifeoluwa)</b><br>NEXATECH Dropshipping Store<br><a href="https://wa.me/447411200927">WhatsApp</a> • saheednexatech@gmail.com</p></div>','general'],
         ['Follow-up - 48h After Application','Quick check-in, {{name}}','<div style="font-family:Inter,sans-serif;line-height:1.6;color:#0B1220"><p>Hi {{name}},</p><p>Just checking in - did you get our WhatsApp message about your <b>{{storeName}}</b> project?</p><p>We have <b>{{investmentRange}}</b> options and can start your store in 7–14 days. Reply to this email or ping us on WhatsApp to lock your slot.</p><p>- Nexatech</p></div>','followup'],
         ['Nurture - Why Nexatech','Why founders choose Nexatech, {{name}}','<div style="font-family:Inter,sans-serif;line-height:1.6;color:#0B1220"><p>Hi {{name}},</p><p>Many founders come to us after being scammed. Here’s how we’re different:</p><ul><li>100% ownership - we build in <i>your</i> Shopify account</li><li>Video proof + live store walkthroughs</li><li>Winning product research + supplier automation</li><li>30-day scaling roadmap</li></ul><p>Want the mentorship (results BEFORE payment)? Let us know.</p><p>- Nexatech</p></div>','nurture'],
       ];
@@ -1223,19 +1223,27 @@ export async function initDb() {
     try{ const am = (await db.prepare('SELECT value FROM content WHERE key=?').get('ai_model'))?.value; if(am && am.trim() === 'llama-3.3-70b-versatile') await db.prepare("UPDATE content SET value='openai/gpt-oss-20b' WHERE key='ai_model'").run(); }catch{}
     // Gemini-only: provider switcher removed per owner request - always use Gemini rotation
     try{ await db.prepare("INSERT INTO content (key,value,type) VALUES ('ai_provider','gemini','text') ON CONFLICT(key) DO UPDATE SET value='gemini'").run(); }catch{}
-    // contact migration
+    // contact migration: adopt the new owner WhatsApp number when the field
+    // still holds a previous default (old US number or legacy NG number).
+    // An explicitly saved custom value is left untouched.
     const waOld = (await db.prepare('SELECT value FROM content WHERE key=?').get('whatsapp_number'))?.value;
-    if(waOld && waOld.includes('234')) {
-      await db.prepare("UPDATE content SET value=? WHERE key='whatsapp_number'").run('19283825389');
-      await db.prepare("UPDATE content SET value=? WHERE key='whatsapp_link'").run('https://wa.me/19283825389');
+    if(waOld && (waOld.replace(/\D/g, '') === '19283825389' || waOld.includes('234'))) {
+      await db.prepare("UPDATE content SET value=? WHERE key='whatsapp_number'").run('447411200927');
+      await db.prepare("UPDATE content SET value=? WHERE key='whatsapp_link'").run('https://wa.me/447411200927');
     }
+    try{
+      const owOld = (await db.prepare("SELECT value FROM content WHERE key='owner_whatsapp'").get())?.value;
+      if(owOld && (owOld.replace(/\D/g, '') === '19283825389' || owOld.includes('234'))){
+        await db.prepare("UPDATE content SET value=? WHERE key='owner_whatsapp'").run('447411200927');
+      }
+    }catch{}
     const emailOld = (await db.prepare('SELECT value FROM content WHERE key=?').get('footer_email'))?.value;
     if(emailOld && emailOld.includes('hello@')) {
       await db.prepare("UPDATE content SET value=? WHERE key='footer_email'").run('saheednexatech@gmail.com');
     }
     const phoneOld = (await db.prepare('SELECT value FROM content WHERE key=?').get('footer_phone'))?.value;
-    if(phoneOld && phoneOld.includes('234 812')) {
-      await db.prepare("UPDATE content SET value=? WHERE key='footer_phone'").run('+1 928 382 5389');
+    if(phoneOld && (phoneOld.includes('234 812') || phoneOld.includes('928 382'))) {
+      await db.prepare("UPDATE content SET value=? WHERE key='footer_phone'").run('+44 7411 200927');
     }
     // Fix legacy "7 14" -> "7 to 14" in hero / faq / terms
     try { await db.prepare("UPDATE content SET value = REPLACE(value, '7 14 days', '7 to 14 days') WHERE value LIKE '%7 14 days%'").run(); } catch {}
@@ -1334,7 +1342,7 @@ export async function initDb() {
         console.log('Migrated: owner notify email -> nexatechdropshipping@gmail.com');
       }
     }catch{}
-    await ensure('owner_whatsapp','19283825389','text');
+    await ensure('owner_whatsapp','447411200927','text');
     await ensure('callmebot_api_key','','text');
     await ensure('cryptomus_merchant_uuid','852e8f5e-c366-4138-980e-17466ab6b693','text');
     // Adopt the default merchant ID when the field is still empty (or still

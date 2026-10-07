@@ -4,7 +4,7 @@
 // transfer, USSD, wallets). No inline card handling on this page.
 // ============================================================
 const $ = s => document.querySelector(s);
-let ITEM = null, ORDER_REF = '', BUYER_EMAIL = '', OTP_MODE = 'otp', POLL_N = 0, POLL_TIMER = null, WA_NUM = '19283825389';
+let ITEM = null, ORDER_REF = '', BUYER_EMAIL = '', OTP_MODE = 'otp', POLL_N = 0, POLL_TIMER = null, WA_NUM = '447411200927';
 const VIEWS = ['co-loading', 'co-form-view', 'co-card-view', 'co-otp-view', 'co-redirect-view', 'co-pending-view', 'co-success-view', 'co-error-view'];
 
 function show(id){

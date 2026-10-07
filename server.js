@@ -64,7 +64,7 @@ async function buildSiteKnowledge(){
     // Sensitive never included
     const parts = [];
     parts.push(`IDENTITY: Brand=NEXATECH / Nexatech Dropshipping Store, Owner=Akinyemmi Ifeoluwa, Tagline=${m.tagline||''}`);
-    parts.push(`CONTACT: WhatsApp=${m.whatsapp_number||'19283825389'} (https://wa.me/${(m.whatsapp_number||'19283825389').replace(/\D/g,'')}), Email=${m.footer_email||'saheednexatech@gmail.com'}, Phone=${m.footer_phone||'+1 928 382 5389'}, Calendly=${m.calendly_url||''}, Address=${m.footer_address||''}`);
+    parts.push(`CONTACT: WhatsApp=${m.whatsapp_number||'447411200927'} (https://wa.me/${(m.whatsapp_number||'447411200927').replace(/\D/g,'')}), Email=${m.footer_email||'saheednexatech@gmail.com'}, Phone=${m.footer_phone||'+44 7411 200927'}, Calendly=${m.calendly_url||''}, Address=${m.footer_address||''}`);
     parts.push(`HERO: ${m.hero_title||''} | ${m.hero_subtitle||''} | Badge=${m.hero_badge||''} | CTA1=${m.hero_cta_primary||''} CTA2=${m.hero_cta_secondary||''}`);
     parts.push(`HOW IT WORKS: ${m.how_it_works_title||''} - ${m.how_it_works_subtitle||''} | 1) ${m.how_it_works_step1_title||''}: ${m.how_it_works_step1_desc||''} | 2) ${m.how_it_works_step2_title||''}: ${m.how_it_works_step2_desc||''} | 3) ${m.how_it_works_step3_title||''}: ${m.how_it_works_step3_desc||''} | 4) ${m.how_it_works_step4_title||''}: ${m.how_it_works_step4_desc||''}`);
     parts.push(`PRICING (live - quote these exact names and prices everywhere): ${m.pricing_starter_name||'Starter'} ${m.pricing_starter_price||'$149'} (${m.pricing_starter_features||''}) | ${m.pricing_pro_name||'Pro'} ${m.pricing_pro_price||'$299'} (${m.pricing_pro_features||''}) | ${m.pricing_elite_name||'Elite'} ${m.pricing_elite_price||'$599'} (${m.pricing_elite_features||''}) | Mentorship ${m.mentorship_price||'Pay After Results'}: ${m.mentorship_title||''} - ${m.mentorship_subtitle||''} Bullets=${m.mentorship_bullets||''}`);
@@ -2042,7 +2042,7 @@ app.post('/api/leads', leadLimiter, async (req, res) => {
     const effectiveUrl = (formUrlRow?.value?.trim() ? formUrlRow.value.trim() : (legacyRow?.value?.trim() || ''));
     const effectiveEnabled = formUrlRow?.value?.trim() ? (formEnabledRow?.value === 'true') : (legacyEnabledRow?.value === 'true');
     const waRow = await db.prepare('SELECT value FROM content WHERE key=?').get('whatsapp_number');
-    const waNumber = (waRow?.value || '19283825389').replace(/\D/g, '');
+    const waNumber = (waRow?.value || '447411200927').replace(/\D/g, '');
     whatsappFallback = `https://wa.me/${waNumber}?text=${encodeURIComponent(`Hi Nexatech! I just applied for a store launch. Name: ${name}, Niche: ${preferredNiche}, Plan: ${investmentRange}.`)}`;
     if (effectiveEnabled && effectiveUrl) {
       // attempt immediate send
@@ -2718,7 +2718,7 @@ async function getOwnerNotifyConfig(){
   const footerEmail = await get('footer_email');
   return {
     email: (await get('owner_notify_email')) || footerEmail || 'saheednexatech@gmail.com',
-    whatsapp: ((await get('owner_whatsapp')) || (await get('whatsapp_number')) || '19283825389').replace(/\D/g, ''),
+    whatsapp: ((await get('owner_whatsapp')) || (await get('whatsapp_number')) || '447411200927').replace(/\D/g, ''),
     callmebotKey: (await get('callmebot_api_key')) || ''
   };
 }
@@ -2825,9 +2825,9 @@ function getUnsubscribeUrl(email, baseUrl){
 }
 async function getOwnerContact(){
   const get = async (k, fb) => { try{ const r = await db.prepare('SELECT value FROM content WHERE key=?').get(k); return r?.value?.trim() || fb; }catch{ return fb; } };
-  const whatsapp_number = await get('whatsapp_number','19283825389');
+  const whatsapp_number = await get('whatsapp_number','447411200927');
   const footer_email = await get('footer_email','saheednexatech@gmail.com');
-  const footer_phone = await get('footer_phone','+1 928 382 5389');
+  const footer_phone = await get('footer_phone','+44 7411 200927');
   return { whatsapp_number, footer_email, footer_phone };
 }
 // AI-generated subject + inner HTML based on lead request or chat transcript. Falls back to templates if Gemini unavailable.
@@ -2878,7 +2878,7 @@ async function generateFollowupAI({ lead={}, transcript='', kind='form_instant',
   }
 }
 function buildFollowupHtml({ innerHtml, leadName='', whatsappNumber='', whatsappUrl='', unsubscribeUrl='', preheader='' }){
-  const waNum = (whatsappNumber||'19283825389').replace(/\D/g,'');
+  const waNum = (whatsappNumber||'447411200927').replace(/\D/g,'');
   const waUrl = whatsappUrl || `https://wa.me/${waNum}?text=${encodeURIComponent('Hi Nexatech! Following up on my store request.')}`;
   const safeInner = innerHtml || '<p>Thanks for reaching out - we will be in touch shortly.</p>';
   const pre = preheader ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0">${escapeHtml(preheader).slice(0,140)}</div>` : '';
@@ -2966,7 +2966,7 @@ async function sendFollowupEmail({ to, name='', lead=null, leadId=null, sessionI
   if(kind.includes('instant') && !settings.instantEnabled) return { ok:false, skipped:'instant disabled' };
   if(kind.startsWith('daily') && !settings.dailyEnabled) return { ok:false, skipped:'daily disabled' };
   if(await hasFollowupBeenSent({ email, kind, sessionId, dayNumber })) return { ok:false, skipped:'already sent' };
-  const owner = await getOwnerContact().catch(()=> ({ whatsapp_number:'19283825389', footer_email:'saheednexatech@gmail.com', footer_phone:'+1 928 382 5389' }));
+  const owner = await getOwnerContact().catch(()=> ({ whatsapp_number:'447411200927', footer_email:'saheednexatech@gmail.com', footer_phone:'+44 7411 200927' }));
   const unsubUrl = getUnsubscribeUrl(email, baseUrl);
   const gen = await generateFollowupAI({ lead: lead||{ name: displayName, email }, transcript, kind, dayNumber });
   const waPrefill = `Hi Nexatech! ${displayName?displayName.split(' ')[0]+' here - ':''}following up on my store request${lead?.preferredNiche?` (${lead.preferredNiche})`:''}.`;
