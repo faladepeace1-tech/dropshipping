@@ -29,6 +29,14 @@ function getUTM(){
 }
 function sanitize(t){const d=document.createElement('div');d.textContent=t;return d.innerHTML;}
 function whatsappLink(num, msg){ const n=(num||'').replace(/\D/g,''); return `https://wa.me/${n}?text=${encodeURIComponent(msg||'')}`; }
+// Accepts phone/WhatsApp numbers from ALL countries (E.164: max 15 digits):
+// optional + / 00 prefix, spaces, dashes, dots, brackets, slashes.
+function isValidPhone(v){
+  const s = String(v || '').trim();
+  if(!/^[+\d][\d\s\-()./]{5,30}$/.test(s)) return false;
+  const d = s.replace(/\D/g, '').replace(/^00/, '');
+  return d.length >= 7 && d.length <= 15;
+}
 function reducedMotion(){ return window.matchMedia('(prefers-reduced-motion: reduce)').matches || document.body.classList.contains('reduced'); }
 // ---- Media helpers ----
 function stripUrlParams(u){ return String(u||'').split('?')[0].split('#')[0]; }
@@ -1197,7 +1205,7 @@ function validateStep(n){
     let valid=true;
     if(inp.type==='checkbox') valid=inp.checked;
     else if(inp.type==='email') valid=/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inp.value.trim());
-    else if(inp.name==='whatsapp') valid=/^\+?[0-9\s\-()]{7,20}$/.test(inp.value.trim()) && inp.value.replace(/\D/g,'').length>=7;
+    else if(inp.name==='whatsapp') valid=isValidPhone(inp.value);
     else valid=inp.value.trim()!=='';
     if(field) field.classList.toggle('invalid', !valid);
     if(!valid) ok=false;

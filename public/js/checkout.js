@@ -12,6 +12,13 @@ function show(id){
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 function waLink(msg){ return 'https://wa.me/' + String(WA_NUM).replace(/\D/g, '') + '?text=' + encodeURIComponent(msg || ''); }
+// Accepts phone/WhatsApp numbers from ALL countries (E.164: max 15 digits).
+function isValidPhone(v){
+  const s = String(v || '').trim();
+  if(!/^[+\d][\d\s\-()./]{5,30}$/.test(s)) return false;
+  const d = s.replace(/\D/g, '').replace(/^00/, '');
+  return d.length >= 7 && d.length <= 15;
+}
 // Safe JSON reader: if the server returns HTML (proxy error page), throw a
 // human message instead of "Unexpected token '<'...".
 async function readJson(res, label){
@@ -135,7 +142,7 @@ function validate(){
   const mark = (el, valid) => { el.closest('.field')?.classList.toggle('invalid', !valid); if(!valid) ok = false; };
   mark(name, name.value.trim().length >= 2);
   mark(email, /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim()));
-  mark(wa, /^\+?[0-9\s\-()]{7,20}$/.test(wa.value.trim()) && wa.value.replace(/\D/g, '').length >= 7);
+  mark(wa, isValidPhone(wa.value));
   return ok;
 }
 // ---- Step 1: create the order, then show the inline card form ----

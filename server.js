@@ -670,6 +670,14 @@ function slugifyTheme(name){
     .replace(/[^a-z0-9\s-]/g, '').replace(/[\s_]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 80) || ('theme-' + Date.now());
 }
 // "$149" / "1,299.99" / "49" -> cents int. Plans store display prices as text.
+// Accepts phone/WhatsApp numbers from ALL countries (E.164: max 15 digits):
+// optional + / 00 prefix, spaces, dashes, dots, brackets, slashes.
+function isValidPhone(v){
+  const s = String(v == null ? '' : v).trim();
+  if(!/^[+\d][\d\s\-()./]{5,30}$/.test(s)) return false;
+  const d = s.replace(/\D/g, '').replace(/^00/, '');
+  return d.length >= 7 && d.length <= 15;
+}
 function parsePriceToCents(str){
   const n = parseFloat(String(str == null ? '' : str).replace(/[^0-9.]/g, ''));
   if(!Number.isFinite(n) || n <= 0) return 0;
@@ -1135,7 +1143,7 @@ app.post('/api/checkout/create', async (req, res) => {
     const { kind, ref, name, email, whatsapp } = req.body || {};
     if(!name || String(name).trim().length < 2) return res.status(400).json({ error: 'Please enter your name.' });
     if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim())) return res.status(400).json({ error: 'Please enter a valid email.' });
-    if(!whatsapp || String(whatsapp).replace(/\D/g, '').length < 7) return res.status(400).json({ error: 'Please enter a valid WhatsApp number.' });
+    if(!isValidPhone(whatsapp)) return res.status(400).json({ error: 'Please enter a valid WhatsApp number.' });
     const item = await getCheckoutItem(kind, ref);
     if(item.error) return res.status(400).json({ error: item.error });
     // Authoritative conversion: recompute from canonical USD using server
@@ -2116,10 +2124,8 @@ app.post('/api/leads', leadLimiter, async (req, res) => {
     return res.status(400).json({ error: 'Missing required fields' });
   }
   const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  const phoneRe = /^\+?[0-9\s\-()]{7,20}$/;
   if (!emailRe.test(email)) return res.status(400).json({ error: 'Invalid email' });
-  const whatsappDigits = whatsapp.replace(/\D/g, '');
-  if (!phoneRe.test(whatsapp) || whatsappDigits.length < 7) return res.status(400).json({ error: 'Invalid WhatsApp number' });
+  if (!isValidPhone(whatsapp)) return res.status(400).json({ error: 'Invalid WhatsApp number' });
 
   // Determine pipeline stage: high empathy if scammed
   const pipeline_stage = wasScammed === 'yes' ? 'new' : 'new'; // tag via search
