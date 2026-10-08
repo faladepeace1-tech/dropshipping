@@ -1013,7 +1013,7 @@ function fillFxSelectors(){
       fillFxSelectors();
       renderPricing();
       renderThemes();
-      renderOffers();
+      try{ if(document.getElementById('offers-grid')) renderOffers(); }catch{}
       track('currency_change', el.value);
     };
   }
@@ -1749,8 +1749,8 @@ function safeInit(fn){
   safeInit(initReveal);
   // Portfolio + all media feeds concurrently (was sequential awaits)
   try{
-    if(Promise.allSettled) await Promise.allSettled([loadPortfolio(), loadMedia(), loadThemes(), loadOffers()]);
-    else for(const f of [loadPortfolio, loadMedia, loadThemes, loadOffers]){ try{ await f(); }catch(e){ console.error('feed failed', e && e.message); } }
+    if(Promise.allSettled) await Promise.allSettled([loadPortfolio(), loadMedia(), loadThemes()]);
+    else for(const f of [loadPortfolio, loadMedia, loadThemes]){ try{ await f(); }catch(e){ console.error('feed failed', e && e.message); } }
   }
   catch(e){ console.error('feeds failed', e && e.message); }
   safeInit(initReveal);
