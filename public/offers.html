@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Custom Offers - Nexatech</title>
+<meta name="description" content="Fiverr-style custom offers from Nexatech. Pick a tailored package and order securely in one click.">
+<meta name="theme-color" content="#05070f">
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800;900&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<a class="skip-link" href="#offers-main">Skip to offers</a>
+
+<header class="co-header">
+  <div class="container co-header-inner">
+    <a class="logo" href="/"><span id="offers-logo">NEXATECH</span></a>
+    <div style="display:flex;gap:8px;align-items:center">
+      <select id="offers-fx" class="fx-select" aria-label="Currency" style="max-width:110px"></select>
+      <a class="btn btn-ghost" href="/">← Back to site</a>
+    </div>
+  </div>
+</header>
+
+<main class="container" id="offers-main" style="padding:36px 20px 48px;max-width:1020px">
+  <div class="eyebrow" id="offers-eyebrow">Custom Offers</div>
+  <h1 class="h2 gradient-text" id="offers-title">Need Something Custom?</h1>
+  <p class="sub" id="offers-subtitle">Pick a tailored package below and order in one click - same secure checkout.</p>
+  <div id="offers-loading" class="co-card co-center" style="margin-top:18px">
+    <div class="co-spinner" aria-hidden="true"></div>
+    <p class="sub" style="margin:0">Loading custom offers…</p>
+  </div>
+  <div class="pricing perspective-grid" id="offers-grid" style="margin-top:18px"></div>
+  <div id="offers-empty" class="hidden" style="text-align:center;padding:28px;border:1px dashed var(--border);border-radius:16px;color:var(--text-muted);font-size:13px;margin-top:18px">No custom offers right now - chat with us and we will create one for you.</div>
+  <div id="offers-help" class="hidden" style="text-align:center;margin-top:18px">
+    <a class="btn btn-ghost" id="offers-wa" href="#" target="_blank" rel="noopener">Need something else? Chat on WhatsApp →</a>
+  </div>
+</main>
+
+<footer class="co-footer">
+  <div class="container">© <span id="offers-year"></span> Nexatech Dropshipping Store · Secure checkout · <a href="/">Home</a> · <a href="/privacy.html">Privacy</a> · <a href="/terms.html">Terms</a></div>
+</footer>
+
+<script src="/js/offers.js" type="module"></script>
+</body>
+</html>
