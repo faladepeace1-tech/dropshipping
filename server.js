@@ -157,7 +157,7 @@ app.use('/api/', generalLimiter);
 // browsers and CDNs can never serve stale code after you publish backend edits.
 const ASSET_VER = (()=>{ try{
   const h = crypto.createHash('md5');
-  for(const f of ['public/js/app.js','public/js/admin.js','public/js/checkout.js','public/css/style.css','public/css/admin.css','public/index.html','public/admin.html','public/checkout.html']){
+  for(const f of ['public/js/app.js','public/js/admin.js','public/js/checkout.js','public/js/offers.js','public/css/style.css','public/css/admin.css','public/index.html','public/admin.html','public/checkout.html','public/offers.html']){
     try{ const st = fs.statSync(path.join(__dirname, f)); h.update(f + ':' + st.mtimeMs + ':' + st.size); }catch{}
   }
   return h.digest('hex').slice(0,8);
@@ -167,6 +167,7 @@ function versionedHtml(file){
   html = html.split('/js/app.js').join('/js/app.js?v='+ASSET_VER)
              .split('/js/admin.js').join('/js/admin.js?v='+ASSET_VER)
              .split('/js/checkout.js').join('/js/checkout.js?v='+ASSET_VER)
+             .split('/js/offers.js').join('/js/offers.js?v='+ASSET_VER)
              .split('/css/style.css').join('/css/style.css?v='+ASSET_VER)
              .split('/css/admin.css').join('/css/admin.css?v='+ASSET_VER);
   return html;
@@ -179,6 +180,10 @@ app.get('/admin', noCacheHtml((req, res)=> res.type('html').send(versionedHtml('
 app.get(['/checkout', '/checkout.html'], noCacheHtml((req, res)=>{
   try { return res.type('html').send(versionedHtml('checkout.html')); }
   catch(e){ return res.status(500).type('html').send('<h1>Checkout unavailable</h1><p><a href="/">Back to Home</a></p>'); }
+}));
+app.get(['/offers', '/offers.html'], noCacheHtml((req, res)=>{
+  try { return res.type('html').send(versionedHtml('offers.html')); }
+  catch(e){ return res.status(500).type('html').send('<h1>Offers unavailable</h1><p><a href="/">Back to Home</a></p>'); }
 }));
 app.get(['/privacy.html', '/privacy', '/terms.html', '/terms'], noCacheHtml((req, res)=>{
   const file = req.path.startsWith('/terms') ? 'terms.html' : 'privacy.html';
