@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Pricing - Nexatech</title>
+<meta name="description" content="Nexatech pricing: launch packages, mentorship and premium store themes. Pick a tier, order securely in one click.">
+<meta name="theme-color" content="#05070f">
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800;900&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<a class="skip-link" href="#pricing-packages">Skip to pricing</a>
+
+<header class="co-header">
+  <div class="container co-header-inner">
+    <a class="logo" href="/"><span id="pricing-logo">NEXATECH</span></a>
+    <div style="display:flex;gap:8px;align-items:center">
+      <select id="pricing-fx" class="fx-select" aria-label="Currency" style="max-width:110px"></select>
+      <a class="btn btn-ghost" href="/">← Back to site</a>
+    </div>
+  </div>
+</header>
+
+<main class="container" id="pricing-main" style="padding:36px 20px 48px;max-width:1020px">
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:22px">
+    <a class="btn btn-ghost" href="#pricing-packages">Packages</a>
+    <a class="btn btn-ghost" href="#mentorship">Mentorship</a>
+    <a class="btn btn-ghost" href="#themes">Themes</a>
+  </div>
+
+  <section id="pricing-packages">
+    <div class="eyebrow" id="pricing-eyebrow">Pricing</div>
+    <h1 class="h2 gradient-text" id="pricing-title">Packages</h1>
+    <p class="sub" id="pricing-subtitle">Choose your launch tier. Every plan: you own the store 100%.</p>
+    <div id="pricing-loading" class="co-card co-center" style="margin-top:18px">
+      <div class="co-spinner" aria-hidden="true"></div>
+      <p class="sub" style="margin:0">Loading pricing…</p>
+    </div>
+    <div class="pricing perspective-grid" id="pricing-grid" style="margin-top:18px"></div>
+    <div class="mentorship glass glow-border" id="mentorship" style="margin-top:26px">
+      <div>
+        <div class="eyebrow" style="margin:0 0 6px" id="mentorship-eyebrow">Mentorship</div>
+        <h3 style="margin:0" id="mentorship-title">Mentorship - Results Before Payment</h3>
+        <p class="sub" style="margin:6px 0 0" id="mentorship-subtitle">Make sales before paying for mentorship. We prove it first.</p>
+        <ul id="mentorship-bullets" style="margin:10px 0 0;padding-left:18px;color:var(--text);font-size:13px"></ul>
+      </div>
+      <div style="text-align:right">
+        <div style="font-weight:900;font-size:22px" id="mentorship-price">Pay After Results</div>
+        <a class="btn btn-primary btn-glow" id="mentorship-wa" href="#" target="_blank" rel="noopener">Chat about Mentorship →</a>
+      </div>
+    </div>
+  </section>
+
+  <section id="themes" style="margin-top:46px">
+    <div class="eyebrow" id="themes-eyebrow">Theme Store</div>
+    <h2 class="h2 gradient-text" id="themes-title">Premium Store Themes</h2>
+    <p class="sub" id="themes-subtitle">Ready-made, high-converting themes. Buy once, download instantly, own forever.</p>
+    <div class="masonry perspective-grid" id="themes-grid" style="margin-top:18px"></div>
+    <div id="themes-empty" class="hidden" style="text-align:center;padding:28px;border:1px dashed var(--border);border-radius:16px;color:var(--text-muted);font-size:13px;margin-top:18px">No themes available yet - check back soon.</div>
+  </section>
+
+  <div style="text-align:center;margin-top:30px">
+    <a class="btn btn-ghost" id="pricing-wa" href="#" target="_blank" rel="noopener">Not sure which fits? Chat on WhatsApp →</a>
+  </div>
+</main>
+
+<footer class="co-footer">
+  <div class="container">© <span id="pricing-year"></span> Nexatech Dropshipping Store · Secure checkout · <a href="/">Home</a> · <a href="/offers">Custom Offers</a> · <a href="/privacy.html">Privacy</a> · <a href="/terms.html">Terms</a></div>
+</footer>
+
+<div class="modal-backdrop" id="theme-modal" role="dialog" aria-modal="true">
+  <div class="modal glass-strong">
+    <div class="modal-media">
+      <button class="close-x" id="theme-modal-close">✕</button>
+      <img id="theme-modal-img" alt="">
+    </div>
+    <div class="modal-body">
+      <h3 id="theme-modal-title" style="margin:10px 0 6px">Theme</h3>
+      <p id="theme-modal-desc" style="color:var(--text-muted);font-size:13px;line-height:1.6;margin:12px 0 0"></p>
+      <a id="theme-modal-buy" href="#" class="btn btn-primary btn-glow" style="margin-top:16px">Buy Now →</a>
+    </div>
+  </div>
+</div>
+
+<script src="/js/pricing.js" type="module"></script>
+</body>
+</html>

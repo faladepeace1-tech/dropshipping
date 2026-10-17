@@ -428,11 +428,6 @@ function applyTheme(c){
   if(c.how_it_works_step3_desc) $('#step3-desc').textContent=c.how_it_works_step3_desc;
   if(c.how_it_works_step4_title) $('#step4-title').textContent=c.how_it_works_step4_title;
   if(c.how_it_works_step4_desc) $('#step4-desc').textContent=c.how_it_works_step4_desc;
-  if(c.pricing_title) $('#pricing-title').textContent=c.pricing_title;
-  if(c.pricing_subtitle) $('#pricing-subtitle').textContent=c.pricing_subtitle;
-  if(c.mentorship_title) $('#mentorship-title').textContent=c.mentorship_title;
-  if(c.mentorship_subtitle) $('#mentorship-subtitle').textContent=c.mentorship_subtitle;
-  if(c.mentorship_price) $('#mentorship-price').textContent=c.mentorship_price;
   if(c.testimonials_title) $('#testimonials-title').textContent=c.testimonials_title;
   if(c.testimonials_subtitle) $('#testimonials-subtitle').textContent=c.testimonials_subtitle;
   if(c.faq_title) $('#faq-title').textContent=c.faq_title;
@@ -1749,8 +1744,8 @@ function safeInit(fn){
   safeInit(initReveal);
   // Portfolio + all media feeds concurrently (was sequential awaits)
   try{
-    if(Promise.allSettled) await Promise.allSettled([loadPortfolio(), loadMedia(), loadThemes()]);
-    else for(const f of [loadPortfolio, loadMedia, loadThemes]){ try{ await f(); }catch(e){ console.error('feed failed', e && e.message); } }
+    if(Promise.allSettled) await Promise.allSettled([loadPortfolio(), loadMedia()]);
+    else for(const f of [loadPortfolio, loadMedia]){ try{ await f(); }catch(e){ console.error('feed failed', e && e.message); } }
   }
   catch(e){ console.error('feeds failed', e && e.message); }
   safeInit(initReveal);
