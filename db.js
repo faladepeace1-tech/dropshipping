@@ -403,6 +403,85 @@ export async function initDb() {
       );
       CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
       CREATE INDEX IF NOT EXISTS idx_orders_ref ON orders(order_ref);
+
+      -- Private messaging (website clients <-> owner inbox app)
+      CREATE TABLE IF NOT EXISTS dm_users (
+        id SERIAL PRIMARY KEY,
+        name TEXT DEFAULT '',
+        email TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        whatsapp TEXT DEFAULT '',
+        created_at TIMESTAMP DEFAULT NOW(),
+        last_login TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS dm_conversations (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        status TEXT DEFAULT 'open',
+        room_token TEXT DEFAULT '',
+        last_message_at TIMESTAMP,
+        last_message_preview TEXT DEFAULT '',
+        last_sender TEXT DEFAULT '',
+        owner_unread INTEGER DEFAULT 0,
+        user_unread INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_dm_conversations_user ON dm_conversations(user_id);
+      CREATE INDEX IF NOT EXISTS idx_dm_conversations_activity ON dm_conversations(last_message_at);
+      CREATE TABLE IF NOT EXISTS dm_messages (
+        id SERIAL PRIMARY KEY,
+        conversation_id INTEGER NOT NULL,
+        sender TEXT NOT NULL,
+        kind TEXT DEFAULT 'text',
+        body TEXT DEFAULT '',
+        meta TEXT DEFAULT '{}',
+        read_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_dm_messages_conv ON dm_messages(conversation_id, id);
+      CREATE TABLE IF NOT EXISTS dm_offers (
+        id SERIAL PRIMARY KEY,
+        conversation_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        checkout_ref TEXT NOT NULL UNIQUE,
+        description TEXT DEFAULT '',
+        amount_cents INTEGER DEFAULT 0,
+        currency TEXT DEFAULT 'USD',
+        delivery_days INTEGER DEFAULT 0,
+        revisions TEXT DEFAULT '',
+        extras TEXT DEFAULT '[]',
+        selected_extras TEXT DEFAULT '[]',
+        requirements_requested INTEGER DEFAULT 0,
+        requirements_text TEXT DEFAULT '',
+        expires_at TIMESTAMP,
+        status TEXT DEFAULT 'pending',
+        order_ref TEXT DEFAULT '',
+        created_at TIMESTAMP DEFAULT NOW(),
+        responded_at TIMESTAMP,
+        paid_at TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_dm_offers_conv ON dm_offers(conversation_id);
+      CREATE INDEX IF NOT EXISTS idx_dm_offers_status ON dm_offers(status);
+      CREATE TABLE IF NOT EXISTS dm_offer_templates (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT DEFAULT '',
+        amount_cents INTEGER DEFAULT 0,
+        currency TEXT DEFAULT 'USD',
+        delivery_days INTEGER DEFAULT 0,
+        revisions TEXT DEFAULT '',
+        extras TEXT DEFAULT '[]',
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS dm_push_subscriptions (
+        id SERIAL PRIMARY KEY,
+        endpoint TEXT NOT NULL UNIQUE,
+        p256dh TEXT DEFAULT '',
+        auth TEXT DEFAULT '',
+        user_agent TEXT DEFAULT '',
+        created_at TIMESTAMP DEFAULT NOW(),
+        last_seen TIMESTAMP
+      );
     `);
   } else {
     db.exec(`
@@ -637,6 +716,85 @@ export async function initDb() {
     );
     CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
     CREATE INDEX IF NOT EXISTS idx_orders_ref ON orders(order_ref);
+
+    -- Private messaging (website clients <-> owner inbox app)
+    CREATE TABLE IF NOT EXISTS dm_users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT DEFAULT '',
+      email TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      whatsapp TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now')),
+      last_login TEXT
+    );
+    CREATE TABLE IF NOT EXISTS dm_conversations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      status TEXT DEFAULT 'open',
+      room_token TEXT DEFAULT '',
+      last_message_at TEXT,
+      last_message_preview TEXT DEFAULT '',
+      last_sender TEXT DEFAULT '',
+      owner_unread INTEGER DEFAULT 0,
+      user_unread INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_dm_conversations_user ON dm_conversations(user_id);
+    CREATE INDEX IF NOT EXISTS idx_dm_conversations_activity ON dm_conversations(last_message_at);
+    CREATE TABLE IF NOT EXISTS dm_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      conversation_id INTEGER NOT NULL,
+      sender TEXT NOT NULL,
+      kind TEXT DEFAULT 'text',
+      body TEXT DEFAULT '',
+      meta TEXT DEFAULT '{}',
+      read_at TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_dm_messages_conv ON dm_messages(conversation_id, id);
+    CREATE TABLE IF NOT EXISTS dm_offers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      conversation_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      checkout_ref TEXT NOT NULL UNIQUE,
+      description TEXT DEFAULT '',
+      amount_cents INTEGER DEFAULT 0,
+      currency TEXT DEFAULT 'USD',
+      delivery_days INTEGER DEFAULT 0,
+      revisions TEXT DEFAULT '',
+      extras TEXT DEFAULT '[]',
+      selected_extras TEXT DEFAULT '[]',
+      requirements_requested INTEGER DEFAULT 0,
+      requirements_text TEXT DEFAULT '',
+      expires_at TEXT,
+      status TEXT DEFAULT 'pending',
+      order_ref TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now')),
+      responded_at TEXT,
+      paid_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_dm_offers_conv ON dm_offers(conversation_id);
+    CREATE INDEX IF NOT EXISTS idx_dm_offers_status ON dm_offers(status);
+    CREATE TABLE IF NOT EXISTS dm_offer_templates (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      amount_cents INTEGER DEFAULT 0,
+      currency TEXT DEFAULT 'USD',
+      delivery_days INTEGER DEFAULT 0,
+      revisions TEXT DEFAULT '',
+      extras TEXT DEFAULT '[]',
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS dm_push_subscriptions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      endpoint TEXT NOT NULL UNIQUE,
+      p256dh TEXT DEFAULT '',
+      auth TEXT DEFAULT '',
+      user_agent TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now')),
+      last_seen TEXT
+    );
   `);
   }
 

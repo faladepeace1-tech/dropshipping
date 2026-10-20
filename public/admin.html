@@ -34,6 +34,7 @@
       <button data-tab="leads">Leads / CRM</button>
       <button data-tab="campaigns">Campaigns / Email</button>
       <button data-tab="chats">Chatbot 💬</button>
+      <button data-tab="messages">Private Messages ✉️</button>
       <button data-tab="analytics">Analytics</button>
       <button data-tab="settings">Integrations</button>
     </nav>
@@ -557,6 +558,46 @@
             <div id="chat-thread" style="display:grid;gap:8px;margin-top:10px;max-height:520px;overflow:auto;padding:4px">
               <div style="font-size:12px;color:#94A3B8;border:1px dashed #E2E8F0;border-radius:10px;padding:16px;text-align:center">No conversation selected.<br>New chatbot messages appear here automatically after refresh.</div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Private Messages - client portal + owner inbox passcode -->
+      <section data-panel="messages" class="hidden">
+        <div class="cards">
+          <div class="kpi"><small>Client portal</small><strong style="font-size:15px"><a href="/messages" target="_blank" rel="noopener">/messages →</a></strong></div>
+          <div class="kpi"><small>Owner inbox</small><strong style="font-size:15px"><a href="/inbox" target="_blank" rel="noopener">/inbox →</a></strong></div>
+          <div class="kpi"><small>Inbox passcode</small><strong id="dm-pass-status" style="font-size:15px">Checking…</strong></div>
+        </div>
+
+        <div class="grid2" style="align-items:start">
+          <div class="card">
+            <h3>Inbox passcode</h3>
+            <p style="font-size:12px;color:#64748B;margin:6px 0 0">The Nexatech Inbox app unlocks with this private passcode. It is <b>separate from your admin password</b> (which resets on every deploy), so the app keeps working after updates.</p>
+            <label>New passcode (8+ characters)<input id="dm-pass-new" type="password" autocomplete="new-password" placeholder="••••••••"></label>
+            <label>Confirm passcode<input id="dm-pass-confirm" type="password" autocomplete="new-password" placeholder="Repeat passcode"></label>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+              <button class="btn btn-primary" id="btn-dm-save-pass" type="button">Save inbox passcode</button>
+              <button class="btn btn-ghost" id="btn-dm-show-pass" type="button" style="padding:6px 10px;font-size:11px">Show</button>
+            </div>
+            <div id="dm-pass-msg" style="font-size:13px;margin-top:8px;min-height:18px"></div>
+            <p style="font-size:11px;color:#94A3B8;margin:8px 0 0">Changing the passcode signs out any phone still using the old one once its 30-day session expires. Use <b>Lock</b> in the app to sign out immediately.</p>
+          </div>
+
+          <div class="card">
+            <h3>Client chat portal</h3>
+            <p style="font-size:12px;color:#64748B;margin:6px 0 0">Clients create a free account at <code>/messages</code> and chat privately with you - no WhatsApp number needed. New messages trigger an email/WhatsApp alert, and you reply from <code>/inbox</code> or the Android app.</p>
+            <ul style="font-size:12px;color:#475569;line-height:1.8;margin:10px 0 0;padding-left:18px">
+              <li>Private one-to-one chat per client account</li>
+              <li>Custom offers with accept &amp; secure payment <span style="color:#94A3B8">(next step)</span></li>
+              <li>Voice &amp; video calls inside the chat <span style="color:#94A3B8">(next step)</span></li>
+              <li>Installable Android app <span style="color:#94A3B8">(coming after chat tests)</span></li>
+            </ul>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+              <a class="btn btn-primary" href="/messages" target="_blank" rel="noopener">Open client portal →</a>
+              <a class="btn btn-ghost" href="/inbox" target="_blank" rel="noopener">Open inbox →</a>
+            </div>
+            <p style="font-size:11px;color:#94A3B8;margin:12px 0 0">Tip: on your phone, open <code>/inbox</code> once you set the passcode. The APK wraps this same inbox with your logo and home-screen icon.</p>
           </div>
         </div>
       </section>

@@ -19,6 +19,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'nexatech-jwt-secret-change-in-prod-2026';
+// Private messaging uses its own signing keys so a client cookie can never act as
+// owner/admin, even if a token leaks between the two audiences.
+const DM_SECRET = crypto.createHash('sha256').update(String(JWT_SECRET) + ':dm-client-2026').digest('hex');
+const DM_OWNER_SECRET = crypto.createHash('sha256').update(String(JWT_SECRET) + ':dm-owner-2026').digest('hex');
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
 const NEXATECH_BASE_PROMPT = `You are Nexatech Dropshipping Expert's AI assistant, running on his portfolio site to represent him as a Shopify dropshipping expert (NexaTech). Owner's real name is Akinyemmi Ifeoluwa. You are NOT a generic chatbot - you speak with the confidence and specific knowledge of someone who builds and scales Shopify dropshipping stores for a living.
@@ -150,6 +154,8 @@ app.use(cookieParser());
 const generalLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 300 });
 const leadLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, message: { error: 'Too many submissions, try later' } });
 const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: { error: 'Too many login attempts' } });
+const dmAuthLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many attempts - please try again in a few minutes.' } });
+const dmMsgLimiter = rateLimit({ windowMs: 60 * 1000, max: 40, standardHeaders: true, legacyHeaders: false, message: { error: 'You are sending messages too fast - please slow down.' } });
 app.use('/api/', generalLimiter);
 
 // Static
@@ -157,7 +163,7 @@ app.use('/api/', generalLimiter);
 // browsers and CDNs can never serve stale code after you publish backend edits.
 const ASSET_VER = (()=>{ try{
   const h = crypto.createHash('md5');
-  for(const f of ['public/js/app.js','public/js/admin.js','public/js/checkout.js','public/js/offers.js','public/js/pricing.js','public/css/style.css','public/css/admin.css','public/index.html','public/admin.html','public/checkout.html','public/offers.html','public/pricing.html']){
+  for(const f of ['public/js/app.js','public/js/admin.js','public/js/checkout.js','public/js/offers.js','public/js/pricing.js','public/js/messages.js','public/js/inbox.js','public/css/style.css','public/css/admin.css','public/css/dm.css','public/index.html','public/admin.html','public/checkout.html','public/offers.html','public/pricing.html','public/messages.html','public/inbox.html']){
     try{ const st = fs.statSync(path.join(__dirname, f)); h.update(f + ':' + st.mtimeMs + ':' + st.size); }catch{}
   }
   return h.digest('hex').slice(0,8);
@@ -169,8 +175,11 @@ function versionedHtml(file){
              .split('/js/checkout.js').join('/js/checkout.js?v='+ASSET_VER)
              .split('/js/offers.js').join('/js/offers.js?v='+ASSET_VER)
              .split('/js/pricing.js').join('/js/pricing.js?v='+ASSET_VER)
+             .split('/js/messages.js').join('/js/messages.js?v='+ASSET_VER)
+             .split('/js/inbox.js').join('/js/inbox.js?v='+ASSET_VER)
              .split('/css/style.css').join('/css/style.css?v='+ASSET_VER)
-             .split('/css/admin.css').join('/css/admin.css?v='+ASSET_VER);
+             .split('/css/admin.css').join('/css/admin.css?v='+ASSET_VER)
+             .split('/css/dm.css').join('/css/dm.css?v='+ASSET_VER);
   return html;
 }
 app.use((req, res, next)=>{ if(req.query && req.query.v) res.set('Cache-Control','public, max-age=31536000, immutable'); next(); });
@@ -189,6 +198,14 @@ app.get(['/offers', '/offers.html'], noCacheHtml((req, res)=>{
 app.get(['/pricing', '/pricing.html'], noCacheHtml((req, res)=>{
   try { return res.type('html').send(versionedHtml('pricing.html')); }
   catch(e){ return res.status(500).type('html').send('<h1>Pricing unavailable</h1><p><a href="/">Back to Home</a></p>'); }
+}));
+app.get(['/messages', '/messages.html'], noCacheHtml((req, res)=>{
+  try { return res.type('html').send(versionedHtml('messages.html')); }
+  catch(e){ return res.status(500).type('html').send('<h1>Messages unavailable</h1><p><a href="/">Back to Home</a></p>'); }
+}));
+app.get(['/inbox', '/inbox.html'], noCacheHtml((req, res)=>{
+  try { return res.type('html').send(versionedHtml('inbox.html')); }
+  catch(e){ return res.status(500).type('html').send('<h1>Inbox unavailable</h1><p><a href="/">Back to Home</a></p>'); }
 }));
 app.get(['/privacy.html', '/privacy', '/terms.html', '/terms'], noCacheHtml((req, res)=>{
   const file = req.path.startsWith('/terms') ? 'terms.html' : 'privacy.html';
@@ -355,7 +372,7 @@ app.get('/api/content', async (req, res) => {
   const rows = await db.prepare('SELECT key,value,type FROM content').all();
   const obj = {};
   // Never expose credentials/tokens publicly (admin reads them via authed endpoints)
-  const SENSITIVE = new Set(['gemini_api_key', 'gemini_api_key_2', 'gemini_api_key_3', 'ai_api_key', 'GEMINI_API_KEY', 'GOOGLE_API_KEY', 'cryptomus_merchant_uuid', 'cryptomus_api_key', 'CRYPTOMUS_MERCHANT', 'CRYPTOMUS_API_KEY', 'flw_secret_key', 'flw_public_key', 'flw_enc_key', 'flw_secret_hash', 'FLW_SECRET_KEY', 'FLW_PUBLIC_KEY', 'FLW_ENC_KEY', 'FLW_SECRET_HASH', 'callmebot_api_key', 'CALLMEBOT_API_KEY']);
+  const SENSITIVE = new Set(['gemini_api_key', 'gemini_api_key_2', 'gemini_api_key_3', 'ai_api_key', 'GEMINI_API_KEY', 'GOOGLE_API_KEY', 'cryptomus_merchant_uuid', 'cryptomus_api_key', 'CRYPTOMUS_MERCHANT', 'CRYPTOMUS_API_KEY', 'flw_secret_key', 'flw_public_key', 'flw_enc_key', 'flw_secret_hash', 'FLW_SECRET_KEY', 'FLW_PUBLIC_KEY', 'FLW_ENC_KEY', 'FLW_SECRET_HASH', 'callmebot_api_key', 'CALLMEBOT_API_KEY', 'paystack_secret_key', 'paystack_enc_key', 'PAYSTACK_SECRET_KEY', 'PAYSTACK_ENC_KEY', 'dm_owner_passcode_hash', 'dm_vapid_private']);
   rows.forEach(r => {
     if (SENSITIVE.has(r.key)) return; // hide secrets from public
     if (r.key.startsWith('google_') || r.key.startsWith('gmail_')) return; // OAuth tokens + connected Gmail
@@ -387,6 +404,21 @@ app.get('/api/content', async (req, res) => {
     console.error('GET /api/content failed:', e.message);
     res.status(500).json({ error: 'content unavailable', content: {} });
   }
+});
+
+// Lightweight public branding (used by the private chat pages and the APK shell)
+app.get('/api/brand', async (req, res) => {
+  try{
+    const get = async (k) => (await db.prepare('SELECT value FROM content WHERE key=?').get(k))?.value || '';
+    res.set('Cache-Control','public, max-age=300');
+    res.json({
+      site_name: (await get('site_name')) || 'Nexatech',
+      logo_text: (await get('logo_text')) || 'NEXATECH',
+      logo_url: await get('logo_url'),
+      favicon_url: await get('favicon_url'),
+      whatsapp_number: (await get('whatsapp_number')) || '447411200927'
+    });
+  }catch(e){ res.json({ site_name: 'Nexatech', logo_text: 'NEXATECH', logo_url: '', favicon_url: '', whatsapp_number: '447411200927' }); }
 });
 
 app.put('/api/content/:key', requireAuth, async (req, res) => {
@@ -3388,6 +3420,380 @@ app.post('/api/admin/change-password', requireAuth, async (req, res) => {
     }
   }catch{}
   res.json({ ok:true, message: 'Password changed successfully' });
+});
+
+// ==================== Private messaging: client portal + owner inbox ====================
+// Clients sign up on the website and talk to the owner. The owner replies from
+// /inbox (the installable Nexatech Inbox APK wraps this page). Client and owner
+// tokens use separate signing keys so one audience can never act as the other.
+const dmAlertAt = new Map();
+const dmUserClients = new Map(); // conversationId -> Set<res> (client SSE)
+const dmOwnerClients = new Set(); // owner SSE connections
+
+function dmCookieSecure(req){
+  return !!(req.secure || String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() === 'https');
+}
+function dmSetUserCookie(req, res, token){
+  res.cookie('dm_token', token, { httpOnly:true, sameSite:'lax', secure: dmCookieSecure(req), maxAge: 30*24*60*60*1000, path:'/' });
+}
+function dmSetOwnerCookie(req, res, token){
+  res.cookie('dm_owner_token', token, { httpOnly:true, sameSite:'lax', secure: dmCookieSecure(req), maxAge: 30*24*60*60*1000, path:'/' });
+}
+function dmSameOrigin(req, res, next){
+  if(req.method === 'GET' || req.method === 'HEAD') return next();
+  const origin = req.get('origin');
+  if(!origin) return next();
+  try{
+    const u = new URL(origin);
+    const hosts = [req.get('host')];
+    for(const raw of String(process.env.PUBLIC_URL || '').split(',')){
+      try{ if(raw.trim()) hosts.push(new URL(raw.trim()).host); }catch{}
+    }
+    if(hosts.filter(Boolean).includes(u.host)) return next();
+  }catch{}
+  return res.status(403).json({ error: 'Bad origin' });
+}
+function dmTokenFrom(req, name){
+  const auth = String(req.get('authorization') || '');
+  return req.cookies?.[name] || (auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '');
+}
+async function requireDmUser(req, res, next){
+  try{
+    const token = dmTokenFrom(req, 'dm_token');
+    if(!token) return res.status(401).json({ error: 'Please sign in to continue.' });
+    const payload = jwt.verify(token, DM_SECRET);
+    if(!payload || payload.kind !== 'dm_user' || !payload.id) return res.status(401).json({ error: 'Session expired - please sign in again.' });
+    const user = await db.prepare('SELECT id,name,email,whatsapp,created_at FROM dm_users WHERE id=?').get(payload.id);
+    if(!user) return res.status(401).json({ error: 'Account not found.' });
+    req.dmUser = user;
+    next();
+  }catch(e){ return res.status(401).json({ error: 'Session expired - please sign in again.' }); }
+}
+async function requireDmOwner(req, res, next){
+  try{
+    const token = dmTokenFrom(req, 'dm_owner_token');
+    if(!token) return res.status(401).json({ error: 'Inbox locked.' });
+    const payload = jwt.verify(token, DM_OWNER_SECRET);
+    if(!payload || payload.kind !== 'dm_owner') return res.status(401).json({ error: 'Inbox locked.' });
+    req.dmOwner = payload;
+    next();
+  }catch(e){ return res.status(401).json({ error: 'Inbox locked.' }); }
+}
+async function dmGetConversationForUser(userId){
+  let conv = await db.prepare('SELECT * FROM dm_conversations WHERE user_id=? ORDER BY id ASC LIMIT 1').get(userId);
+  if(!conv){
+    const info = await db.prepare("INSERT INTO dm_conversations (user_id,status,room_token,last_message_at,last_message_preview,last_sender) VALUES (?,?,?,datetime('now'),?,?)")
+      .run(userId, 'open', crypto.randomBytes(18).toString('hex'), 'Conversation started', 'system');
+    conv = await db.prepare('SELECT * FROM dm_conversations WHERE id=?').get(info.lastInsertRowid);
+  }
+  return conv;
+}
+function dmMessageOut(row){
+  if(!row) return null;
+  let meta = {};
+  try{ meta = JSON.parse(row.meta || '{}') || {}; }catch{}
+  return { id: row.id, conversation_id: row.conversation_id, sender: row.sender, kind: row.kind || 'text',
+    body: row.body || '', meta, read_at: row.read_at || null, created_at: row.created_at };
+}
+function dmPreview(text){ return String(text || '').replace(/\s+/g, ' ').trim().slice(0, 140); }
+async function dmTouchConversation(convId, sender, body, bumpUnreadFor){
+  const unreadSql = bumpUnreadFor === 'owner' ? ', owner_unread=COALESCE(owner_unread,0)+1'
+    : bumpUnreadFor === 'user' ? ', user_unread=COALESCE(user_unread,0)+1' : '';
+  await db.prepare(`UPDATE dm_conversations SET last_message_at=datetime('now'), last_message_preview=?, last_sender=?${unreadSql} WHERE id=?`)
+    .run(dmPreview(body), sender, convId);
+}
+function dmSseOpen(req, res){
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders?.();
+  res.write('retry: 5000\n\n');
+}
+function dmSseWrite(res, event, data){
+  try{
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    if(typeof res.flush === 'function') res.flush();
+  }catch{}
+}
+function dmBroadcastUser(conversationId, event, data){
+  const set = dmUserClients.get(Number(conversationId));
+  if(!set) return;
+  for(const res of set) dmSseWrite(res, event, data);
+}
+function dmBroadcastOwner(event, data){
+  for(const res of dmOwnerClients) dmSseWrite(res, event, data);
+}
+async function dmConversationSummary(convId){
+  return await db.prepare(`SELECT c.id,c.status,c.last_message_at,c.last_message_preview,c.last_sender,c.owner_unread,c.user_unread,c.created_at,
+      u.id AS user_id,u.name,u.email,u.whatsapp
+    FROM dm_conversations c JOIN dm_users u ON u.id=c.user_id WHERE c.id=?`).get(convId);
+}
+function dmOwnerAlert(user, conv, body){
+  const now = Date.now();
+  const last = dmAlertAt.get(conv.id) || 0;
+  if(now - last < 120000) return; // at most one email/WhatsApp alert per conversation every 2 min
+  dmAlertAt.set(conv.id, now);
+  notifyOwner({
+    subject: `New message from ${user.name || user.email}`,
+    html: `<div style="font-family:Inter,sans-serif;line-height:1.6"><h3>New private message</h3><p><b>${escapeHtml(user.name || 'Client')}</b> (${escapeHtml(user.email)})<br><b>WhatsApp:</b> ${escapeHtml(user.whatsapp || '-')}</p><blockquote style="border-left:3px solid #00D1FF;margin:12px 0;padding:6px 12px;color:#334155">${escapeHtml(dmPreview(body))}</blockquote><p><a href="/inbox">Open Nexatech Inbox</a></p></div>`,
+    text: `New message from ${user.name || user.email}: ${dmPreview(body)}\nOpen /inbox to reply.`
+  });
+}
+
+// --- Client auth ---
+app.post('/api/dm/signup', dmAuthLimiter, dmSameOrigin, async (req, res) => {
+  try{
+    const name = String(req.body?.name || '').trim().slice(0, 120);
+    const email = String(req.body?.email || '').trim().toLowerCase().slice(0, 254);
+    const whatsapp = String(req.body?.whatsapp || '').trim().slice(0, 40);
+    const password = String(req.body?.password || '');
+    if(name.length < 2) return res.status(400).json({ error: 'Please enter your name.' });
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Please enter a valid email address.' });
+    if(!isValidPhone(whatsapp)) return res.status(400).json({ error: 'Please enter a valid WhatsApp number (with country code).' });
+    if(password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+    if(password.length > 200) return res.status(400).json({ error: 'Password is too long.' });
+    const exists = await db.prepare('SELECT id FROM dm_users WHERE email=?').get(email);
+    if(exists) return res.status(409).json({ error: 'An account with this email already exists. Please log in.' });
+    let info;
+    try{
+      info = await db.prepare('INSERT INTO dm_users (name,email,password_hash,whatsapp) VALUES (?,?,?,?)')
+        .run(name, email, bcrypt.hashSync(password, 10), whatsapp);
+    }catch(e){
+      if(/unique|duplicate/i.test(e.message || '')) return res.status(409).json({ error: 'An account with this email already exists. Please log in.' });
+      throw e;
+    }
+    const user = await db.prepare('SELECT id,name,email,whatsapp,created_at FROM dm_users WHERE id=?').get(info.lastInsertRowid);
+    const conv = await dmGetConversationForUser(user.id);
+    const welcome = `Welcome to Nexatech, ${name.split(/\s+/)[0]}. Send a message here and Ifeoluwa will reply from the Nexatech Inbox app.`;
+    await db.prepare("INSERT INTO dm_messages (conversation_id,sender,kind,body) VALUES (?,?,?,?)").run(conv.id, 'system', 'system', welcome);
+    await dmTouchConversation(conv.id, 'system', welcome, null);
+    const token = jwt.sign({ kind:'dm_user', id:user.id, email:user.email }, DM_SECRET, { expiresIn:'30d' });
+    dmSetUserCookie(req, res, token);
+    notifyOwner({
+      subject: 'New client account: ' + name,
+      html: `<div style="font-family:Inter,sans-serif;line-height:1.6"><h3>New client signed up</h3><p><b>${escapeHtml(name)}</b><br>${escapeHtml(email)}<br>WhatsApp: ${escapeHtml(whatsapp)}</p><p><a href="/inbox">Open Nexatech Inbox</a></p></div>`,
+      text: `New client account: ${name} (${email}, ${whatsapp}). Open /inbox.`
+    });
+    res.json({ ok:true, user, conversation:{ id:conv.id, status:conv.status } });
+  }catch(e){
+    console.error('dm signup failed:', e.message);
+    res.status(500).json({ error: 'Could not create your account. Please try again.' });
+  }
+});
+
+app.post('/api/dm/login', dmAuthLimiter, dmSameOrigin, async (req, res) => {
+  try{
+    const email = String(req.body?.email || '').trim().toLowerCase().slice(0, 254);
+    const password = String(req.body?.password || '');
+    if(!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
+    const row = await db.prepare('SELECT * FROM dm_users WHERE email=?').get(email);
+    let ok = false;
+    if(row){ try{ ok = bcrypt.compareSync(password, row.password_hash); }catch{} }
+    if(!ok) return res.status(401).json({ error: 'Invalid email or password.' });
+    await db.prepare("UPDATE dm_users SET last_login=datetime('now') WHERE id=?").run(row.id);
+    const conv = await dmGetConversationForUser(row.id);
+    const token = jwt.sign({ kind:'dm_user', id:row.id, email:row.email }, DM_SECRET, { expiresIn:'30d' });
+    dmSetUserCookie(req, res, token);
+    res.json({ ok:true, user:{ id:row.id, name:row.name, email:row.email, whatsapp:row.whatsapp }, conversation:{ id:conv.id, status:conv.status } });
+  }catch(e){
+    console.error('dm login failed:', e.message);
+    res.status(500).json({ error: 'Could not sign you in. Please try again.' });
+  }
+});
+
+app.post('/api/dm/logout', dmSameOrigin, (req, res) => {
+  res.clearCookie('dm_token', { path:'/' });
+  res.json({ ok:true });
+});
+
+app.get('/api/dm/me', requireDmUser, async (req, res) => {
+  try{
+    const conv = await dmGetConversationForUser(req.dmUser.id);
+    res.json({ ok:true, user:req.dmUser, conversation:{ id:conv.id, status:conv.status, user_unread:conv.user_unread || 0 } });
+  }catch(e){ res.status(500).json({ error: 'Could not load your conversation.' }); }
+});
+
+// --- Client messages ---
+app.get('/api/dm/messages', requireDmUser, async (req, res) => {
+  try{
+    const conv = await dmGetConversationForUser(req.dmUser.id);
+    const after = parseInt(req.query.after, 10) || 0;
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 120));
+    let rows;
+    if(after > 0){
+      rows = await db.prepare('SELECT * FROM dm_messages WHERE conversation_id=? AND id>? ORDER BY id ASC LIMIT ?').all(conv.id, after, limit);
+    }else{
+      rows = await db.prepare('SELECT * FROM (SELECT * FROM dm_messages WHERE conversation_id=? ORDER BY id DESC LIMIT ?) t ORDER BY id ASC').all(conv.id, limit);
+    }
+    res.json({ ok:true, conversation:{ id:conv.id, status:conv.status, user_unread:conv.user_unread || 0 }, messages: rows.map(dmMessageOut) });
+  }catch(e){
+    console.error('dm messages failed:', e.message);
+    res.status(500).json({ error: 'Could not load messages.' });
+  }
+});
+
+app.post('/api/dm/messages', requireDmUser, dmSameOrigin, dmMsgLimiter, async (req, res) => {
+  try{
+    const body = String(req.body?.body || '').trim();
+    if(!body) return res.status(400).json({ error: 'Type a message first.' });
+    if(body.length > 2000) return res.status(400).json({ error: 'Message is too long (max 2000 characters).' });
+    const conv = await dmGetConversationForUser(req.dmUser.id);
+    if(conv.status !== 'open') return res.status(403).json({ error: 'This conversation is closed.' });
+    const info = await db.prepare('INSERT INTO dm_messages (conversation_id,sender,kind,body) VALUES (?,?,?,?)').run(conv.id, 'user', 'text', body);
+    await dmTouchConversation(conv.id, 'user', body, 'owner');
+    const msg = dmMessageOut(await db.prepare('SELECT * FROM dm_messages WHERE id=?').get(info.lastInsertRowid));
+    dmBroadcastUser(conv.id, 'message', { conversation_id:conv.id, message:msg });
+    const summary = await dmConversationSummary(conv.id);
+    dmBroadcastOwner('message', { conversation_id:conv.id, message:msg, conversation:summary });
+    dmOwnerAlert(req.dmUser, conv, body);
+    res.json({ ok:true, message:msg });
+  }catch(e){
+    console.error('dm send failed:', e.message);
+    res.status(500).json({ error: 'Could not send your message.' });
+  }
+});
+
+app.post('/api/dm/messages/read', requireDmUser, dmSameOrigin, async (req, res) => {
+  try{
+    const conv = await dmGetConversationForUser(req.dmUser.id);
+    await db.prepare("UPDATE dm_messages SET read_at=datetime('now') WHERE conversation_id=? AND sender='owner' AND read_at IS NULL").run(conv.id);
+    await db.prepare('UPDATE dm_conversations SET user_unread=0 WHERE id=?').run(conv.id);
+    res.json({ ok:true });
+  }catch(e){ res.status(500).json({ error: 'Could not update read state.' }); }
+});
+
+// Live updates (SSE). Same-origin EventSource sends the dm_token cookie automatically.
+app.get('/api/dm/stream', requireDmUser, async (req, res) => {
+  try{
+    const conv = await dmGetConversationForUser(req.dmUser.id);
+    dmSseOpen(req, res);
+    const set = dmUserClients.get(conv.id) || new Set();
+    set.add(res);
+    dmUserClients.set(conv.id, set);
+    dmSseWrite(res, 'ready', { conversation_id:conv.id });
+    const hb = setInterval(()=>{ try{ res.write(': ping\n\n'); if(typeof res.flush === 'function') res.flush(); }catch{} }, 25000);
+    req.on('close', ()=>{
+      clearInterval(hb);
+      set.delete(res);
+      if(!set.size) dmUserClients.delete(conv.id);
+    });
+  }catch(e){ try{ res.status(500).end(); }catch{} }
+});
+
+// --- Owner inbox auth (separate passcode, not the admin password) ---
+app.get('/api/dm/owner/status', async (req, res) => {
+  try{
+    const row = await db.prepare("SELECT value FROM content WHERE key='dm_owner_passcode_hash'").get();
+    res.json({ configured: !!(row && row.value) });
+  }catch(e){ res.json({ configured:false }); }
+});
+
+app.post('/api/dm/owner/setup', requireAuth, async (req, res) => {
+  try{
+    const passcode = String(req.body?.passcode || '');
+    if(passcode.length < 8) return res.status(400).json({ error: 'Inbox passcode must be at least 8 characters.' });
+    if(passcode.length > 200) return res.status(400).json({ error: 'Passcode is too long.' });
+    const hash = bcrypt.hashSync(passcode, 10);
+    await db.prepare("INSERT INTO content (key,value,type,updated_at) VALUES (?,?,?,datetime('now')) ON CONFLICT(key) DO UPDATE SET value=excluded.value, type=excluded.type, updated_at=datetime('now')")
+      .run('dm_owner_passcode_hash', hash, 'text');
+    res.json({ ok:true, message:'Inbox passcode saved. Log in at /inbox on your phone.' });
+  }catch(e){
+    console.error('dm owner setup failed:', e.message);
+    res.status(500).json({ error: 'Could not save the passcode.' });
+  }
+});
+
+app.post('/api/dm/owner/login', dmAuthLimiter, dmSameOrigin, async (req, res) => {
+  try{
+    const passcode = String(req.body?.passcode || '');
+    if(!passcode) return res.status(400).json({ error: 'Enter your inbox passcode.' });
+    const row = await db.prepare("SELECT value FROM content WHERE key='dm_owner_passcode_hash'").get();
+    if(!row || !row.value) return res.status(409).json({ error: 'Inbox passcode is not set yet. Set it in Admin -> Messages.' });
+    let ok = false;
+    try{ ok = bcrypt.compareSync(passcode, row.value); }catch{}
+    if(!ok) return res.status(401).json({ error: 'Wrong passcode.' });
+    const token = jwt.sign({ kind:'dm_owner', role:'owner' }, DM_OWNER_SECRET, { expiresIn:'30d' });
+    dmSetOwnerCookie(req, res, token);
+    res.json({ ok:true });
+  }catch(e){
+    console.error('dm owner login failed:', e.message);
+    res.status(500).json({ error: 'Could not unlock the inbox.' });
+  }
+});
+
+app.post('/api/dm/owner/logout', dmSameOrigin, (req, res) => {
+  res.clearCookie('dm_owner_token', { path:'/' });
+  res.json({ ok:true });
+});
+
+app.get('/api/dm/owner/me', requireDmOwner, (req, res) => res.json({ ok:true, owner:true }));
+
+app.get('/api/dm/owner/conversations', requireDmOwner, async (req, res) => {
+  try{
+    const rows = await db.prepare(`SELECT c.id,c.status,c.last_message_at,c.last_message_preview,c.last_sender,c.owner_unread,c.user_unread,c.created_at,
+        u.id AS user_id,u.name,u.email,u.whatsapp
+      FROM dm_conversations c JOIN dm_users u ON u.id=c.user_id
+      ORDER BY COALESCE(c.last_message_at,c.created_at) DESC LIMIT 200`).all();
+    res.json({ ok:true, conversations:rows });
+  }catch(e){
+    console.error('dm owner list failed:', e.message);
+    res.status(500).json({ error: 'Could not load conversations.' });
+  }
+});
+
+app.post('/api/dm/owner/conversations/:id/read', requireDmOwner, dmSameOrigin, async (req, res) => {
+  try{
+    const conv = await db.prepare('SELECT id FROM dm_conversations WHERE id=?').get(req.params.id);
+    if(!conv) return res.status(404).json({ error: 'Conversation not found.' });
+    await db.prepare('UPDATE dm_conversations SET owner_unread=0 WHERE id=?').run(conv.id);
+    await db.prepare("UPDATE dm_messages SET read_at=datetime('now') WHERE conversation_id=? AND sender='user' AND read_at IS NULL").run(conv.id);
+    res.json({ ok:true });
+  }catch(e){ res.status(500).json({ error: 'Could not update read state.' }); }
+});
+
+app.get('/api/dm/owner/conversations/:id/messages', requireDmOwner, async (req, res) => {
+  try{
+    const conv = await db.prepare('SELECT * FROM dm_conversations WHERE id=?').get(req.params.id);
+    if(!conv) return res.status(404).json({ error: 'Conversation not found.' });
+    const user = await db.prepare('SELECT id,name,email,whatsapp FROM dm_users WHERE id=?').get(conv.user_id);
+    const rows = await db.prepare('SELECT * FROM (SELECT * FROM dm_messages WHERE conversation_id=? ORDER BY id DESC LIMIT 300) t ORDER BY id ASC').all(conv.id);
+    await db.prepare('UPDATE dm_conversations SET owner_unread=0 WHERE id=?').run(conv.id);
+    await db.prepare("UPDATE dm_messages SET read_at=datetime('now') WHERE conversation_id=? AND sender='user' AND read_at IS NULL").run(conv.id);
+    res.json({ ok:true, conversation:{ ...conv, user }, messages:rows.map(dmMessageOut) });
+  }catch(e){
+    console.error('dm owner thread failed:', e.message);
+    res.status(500).json({ error: 'Could not load this conversation.' });
+  }
+});
+
+app.post('/api/dm/owner/conversations/:id/messages', requireDmOwner, dmSameOrigin, dmMsgLimiter, async (req, res) => {
+  try{
+    const body = String(req.body?.body || '').trim();
+    if(!body) return res.status(400).json({ error: 'Type a message first.' });
+    if(body.length > 2000) return res.status(400).json({ error: 'Message is too long (max 2000 characters).' });
+    const conv = await db.prepare('SELECT * FROM dm_conversations WHERE id=?').get(req.params.id);
+    if(!conv) return res.status(404).json({ error: 'Conversation not found.' });
+    if(conv.status !== 'open') return res.status(403).json({ error: 'This conversation is closed.' });
+    const info = await db.prepare('INSERT INTO dm_messages (conversation_id,sender,kind,body) VALUES (?,?,?,?)').run(conv.id, 'owner', 'text', body);
+    await dmTouchConversation(conv.id, 'owner', body, 'user');
+    const msg = dmMessageOut(await db.prepare('SELECT * FROM dm_messages WHERE id=?').get(info.lastInsertRowid));
+    dmBroadcastUser(conv.id, 'message', { conversation_id:conv.id, message:msg });
+    const summary = await dmConversationSummary(conv.id);
+    dmBroadcastOwner('message', { conversation_id:conv.id, message:msg, conversation:summary });
+    res.json({ ok:true, message:msg });
+  }catch(e){
+    console.error('dm owner send failed:', e.message);
+    res.status(500).json({ error: 'Could not send the reply.' });
+  }
+});
+
+app.get('/api/dm/owner/stream', requireDmOwner, async (req, res) => {
+  dmSseOpen(req, res);
+  dmOwnerClients.add(res);
+  dmSseWrite(res, 'ready', { ok:true });
+  const hb = setInterval(()=>{ try{ res.write(': ping\n\n'); if(typeof res.flush === 'function') res.flush(); }catch{} }, 25000);
+  req.on('close', ()=>{ clearInterval(hb); dmOwnerClients.delete(res); });
 });
 
 // Admin stats cache refresh (nightly job endpoint also)

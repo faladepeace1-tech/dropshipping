@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Nexatech Inbox</title>
+<meta name="description" content="Nexatech Inbox - private owner inbox for replying to client messages.">
+<meta name="theme-color" content="#05070f">
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" id="inbox-favicon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800;900&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/style.css">
+<link rel="stylesheet" href="/css/dm.css">
+</head>
+<body class="dm-page">
+
+<!-- ============ LOCK ============ -->
+<div class="dm-auth" id="inbox-auth">
+  <div class="dm-auth-card">
+    <div class="dm-brand">
+      <img class="dm-logo" data-brand-logo alt="Nexatech logo" hidden>
+      <span class="dm-logo-fallback" data-brand-fallback>N</span>
+      <span class="dm-brand-text"><b data-brand-name>NEXATECH</b><small>Owner inbox</small></span>
+    </div>
+
+    <h1 class="dm-auth-title">Nexatech Inbox</h1>
+    <p class="dm-auth-sub">Private owner access. Enter your inbox passcode to read and reply to client messages.</p>
+
+    <form class="dm-form" id="inbox-passcode-form" novalidate>
+      <input type="text" name="username" autocomplete="username" value="owner" hidden>
+      <div class="dm-field">
+        <label for="inbox-passcode">Inbox passcode</label>
+        <div class="dm-password-wrap">
+          <input id="inbox-passcode" name="passcode" type="password" autocomplete="current-password" placeholder="Your private passcode" required>
+          <button type="button" class="dm-eye" data-eye="inbox-passcode" aria-label="Show passcode">Show</button>
+        </div>
+      </div>
+      <div class="dm-error" id="inbox-auth-error" role="alert"></div>
+      <button type="submit" class="dm-btn dm-btn-primary" id="inbox-unlock">Unlock inbox</button>
+    </form>
+
+    <div class="dm-auth-foot" id="inbox-setup-note" hidden>
+      No passcode set yet. Open <a href="/admin" target="_blank" rel="noopener">Admin → Messages</a> and save an inbox passcode first.
+    </div>
+    <div class="dm-secure-note">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+      Separate from the admin password - revocable anytime
+    </div>
+    <div class="dm-auth-foot"><a href="/">← Back to website</a></div>
+  </div>
+</div>
+
+<!-- ============ INBOX ============ -->
+<div class="inbox-shell dm-hidden" id="inbox-app">
+  <aside class="inbox-sidebar">
+    <div class="inbox-side-head">
+      <img class="dm-logo" data-brand-logo alt="Nexatech logo" hidden>
+      <span class="dm-logo-fallback" data-brand-fallback>N</span>
+      <span class="inbox-side-title">
+        <b>Nexatech Inbox</b>
+        <small id="inbox-count">Loading conversations…</small>
+      </span>
+      <span class="inbox-side-actions">
+        <button type="button" class="dm-icon-btn" id="inbox-lock" title="Lock inbox">Lock</button>
+      </span>
+    </div>
+    <div class="inbox-search">
+      <input id="inbox-search" type="search" placeholder="Search name, email or WhatsApp" autocomplete="off" aria-label="Search conversations">
+    </div>
+    <div class="inbox-list" id="inbox-list" role="list">
+      <div class="inbox-empty-list">Loading conversations…</div>
+    </div>
+    <div class="inbox-side-foot">
+      <span id="inbox-connection-text">Connecting…</span>
+      <span class="dm-status offline" id="inbox-connection"><i></i></span>
+    </div>
+  </aside>
+
+  <main class="inbox-main">
+    <header class="dm-header inbox-thread-head dm-hidden" id="inbox-thread-head">
+      <button type="button" class="dm-icon-btn inbox-back" id="inbox-back" aria-label="Back to conversations">←</button>
+      <span class="inbox-avatar" id="inbox-client-avatar">?</span>
+      <div class="dm-header-name">
+        <b id="inbox-client-name">Select a conversation</b>
+        <small id="inbox-client-meta"></small>
+      </div>
+      <div class="dm-header-actions">
+        <a class="dm-icon-btn dm-hidden" id="inbox-wa" href="#" target="_blank" rel="noopener">WhatsApp</a>
+      </div>
+    </header>
+
+    <div class="inbox-main-empty" id="inbox-main-empty">
+      <div class="dm-empty">
+        <span class="dm-empty-badge" aria-hidden="true">✦</span>
+        <b>Your private client inbox</b>
+        <span>Select a conversation to read and reply. New messages arrive here instantly while the inbox is open - and by email/WhatsApp when it is closed.</span>
+      </div>
+    </div>
+
+    <div class="dm-thread dm-hidden" id="inbox-thread" aria-live="polite"></div>
+
+    <div class="dm-composer dm-hidden" id="inbox-composer">
+      <form id="inbox-form">
+        <textarea id="inbox-input" rows="1" maxlength="2000" placeholder="Reply as Ifeoluwa..." aria-label="Reply" autocomplete="off"></textarea>
+        <button type="submit" class="dm-send" id="inbox-send" aria-label="Send reply" title="Send">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/></svg>
+        </button>
+      </form>
+      <div class="dm-composer-hint">Enter to send · Shift + Enter for a new line</div>
+    </div>
+  </main>
+</div>
+
+<div class="dm-toast" id="inbox-toast" role="status"></div>
+
+<script type="module" src="/js/inbox.js"></script>
+</body>
+</html>

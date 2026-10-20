@@ -536,3 +536,88 @@ main, .footer{position:relative;z-index:1}
 @media(max-width:760px){
   .hero::before{display:none}
 }
+
+/* ===== Private messages promo ===== */
+.dm-promo{padding:34px 0 8px;position:relative}
+.dm-promo-card{
+  position:relative;display:grid;grid-template-columns:1.05fr .95fr;gap:clamp(22px,4vw,42px);align-items:center;
+  background:linear-gradient(135deg,#060d19 0%,#0a1a31 52%,#11122c 100%);
+  border:1px solid rgba(0,209,255,.18);border-radius:26px;
+  padding:clamp(22px,4vw,40px);overflow:hidden;
+  box-shadow:0 24px 70px rgba(11,18,32,.2);
+}
+.dm-promo-card::before{
+  content:"";position:absolute;width:440px;height:440px;right:-120px;top:-170px;pointer-events:none;
+  background:radial-gradient(circle,rgba(0,209,255,.22),transparent 65%);
+}
+.dm-promo-card::after{
+  content:"";position:absolute;width:360px;height:360px;left:-140px;bottom:-180px;pointer-events:none;
+  background:radial-gradient(circle,rgba(124,58,237,.2),transparent 66%);
+}
+.dm-promo-copy{position:relative;z-index:1;color:#eaf4ff}
+.dm-promo-eyebrow{
+  display:inline-flex;align-items:center;gap:8px;font-size:10.5px;font-weight:800;letter-spacing:.16em;
+  text-transform:uppercase;color:#7fe3ff;margin-bottom:10px;
+}
+.dm-promo-eyebrow span{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 12px rgba(0,209,255,.9)}
+.dm-promo-title{
+  font-family:var(--display);font-size:clamp(24px,3.2vw,36px);line-height:1.12;letter-spacing:-.025em;
+  margin:0 0 10px;color:#fff;
+}
+.dm-promo-sub{margin:0;color:#a8bbd4;font-size:clamp(13px,1.3vw,14.5px);line-height:1.65;max-width:52ch}
+.dm-promo-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+.dm-promo-actions .btn{padding:11px 18px}
+.dm-promo .btn-ghost{color:#e6f1ff;border-color:rgba(255,255,255,.24);background:rgba(255,255,255,.05)}
+.dm-promo .btn-ghost:hover{background:rgba(255,255,255,.11);border-color:rgba(255,255,255,.36)}
+.dm-promo-points{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:18px;font-size:11.5px;color:#93a9c4;font-weight:600}
+.dm-promo-points span{display:inline-flex;align-items:center;gap:7px}
+.dm-promo-points span::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--accent);box-shadow:0 0 10px rgba(0,209,255,.8)}
+.dm-promo-visual{position:relative;z-index:1;display:grid;place-items:center}
+.dm-promo-phone{
+  width:min(340px,100%);display:grid;gap:9px;padding:16px;
+  background:linear-gradient(180deg,#0b1626,#060d18);
+  border:1px solid rgba(148,163,184,.22);border-radius:24px;
+  box-shadow:0 30px 70px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.05);
+  transform:rotate(-1.4deg);
+}
+.dm-promo-phone-head{display:flex;align-items:center;gap:10px;padding-bottom:10px;border-bottom:1px solid rgba(148,163,184,.14)}
+.dm-promo-avatar{
+  width:36px;height:36px;border-radius:12px;display:grid;place-items:center;font-weight:900;font-size:13px;color:#04121f;
+  background:linear-gradient(135deg,var(--accent),#5a9bff);
+}
+.dm-promo-phone-name{display:grid;gap:1px;line-height:1.2}
+.dm-promo-phone-name b{font-size:12px;color:#eaf4ff}
+.dm-promo-phone-name small{font-size:9.5px;color:#34d399}
+.dm-promo-bubble{
+  max-width:88%;padding:8px 11px;border-radius:13px;font-size:11px;line-height:1.5;
+  border:1px solid rgba(148,163,184,.14);
+}
+.dm-promo-bubble.them{background:#111d31;color:#d8e5f5;border-bottom-left-radius:5px}
+.dm-promo-bubble.me{
+  justify-self:end;background:linear-gradient(135deg,#00c6f2,#5a9bff);color:#04121f;font-weight:600;
+  border:0;border-bottom-right-radius:5px;
+}
+.dm-promo-offer{
+  display:grid;gap:4px;padding:11px 12px;border-radius:14px;
+  background:rgba(0,209,255,.07);border:1px solid rgba(0,209,255,.26);
+}
+.dm-promo-offer small{font-size:8px;letter-spacing:.14em;font-weight:900;color:#7fe3ff}
+.dm-promo-offer b{font-family:var(--display);font-size:21px;color:#fff;line-height:1}
+.dm-promo-offer > span:not(.dm-promo-offer-btn){font-size:9.5px;color:#9fb4cf}
+.dm-promo-offer-btn{
+  justify-self:start;margin-top:3px;padding:5px 10px;border-radius:99px;
+  background:linear-gradient(135deg,var(--accent),#5a9bff);color:#04121f;font-size:9.5px;font-weight:900;
+}
+.dm-promo-caption{text-align:center;font-size:8.5px;letter-spacing:.08em;text-transform:uppercase;color:#5f728c}
+@media(max-width:860px){
+  .dm-promo-card{grid-template-columns:1fr;gap:26px}
+  .dm-promo-phone{transform:none;width:min(360px,100%)}
+  .dm-promo-visual{order:2}
+}
+@media(max-width:520px){
+  .dm-promo{padding-top:20px}
+  .dm-promo-card{padding:20px;border-radius:20px}
+  .dm-promo-actions{flex-direction:column}
+  .dm-promo-actions .btn{width:100%;justify-content:center}
+  .dm-promo-points{gap:7px 14px}
+}

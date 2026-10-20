@@ -126,6 +126,7 @@ $$('.side-nav button').forEach(b=> b.addEventListener('click', ()=>{
   if(tab==='sections') loadSections();
   if(tab==='campaigns'){ loadCampaigns(); loadTemplates(); loadGmailStatus(); loadOutbox(); }
   if(tab==='chats') loadChats();
+  if(tab==='messages') loadDmStatus();
   if(tab==='overview') loadOverview();
   if(tab==='themes'){ loadThemesAdmin(); }
   if(tab==='offers'){ fillOffersTexts(); loadOffersAdmin(); }
@@ -3341,4 +3342,57 @@ $('#btn-orders-bulk-del')?.addEventListener('click', async () => {
   try{ const j = await bulkPost('/api/admin/orders/bulk', 'delete', ids); alert(`Deleted ${j.done}/${j.total}`); }
   catch(e){ alert('Bulk delete failed: ' + e.message); }
   loadOrdersSection();
+});
+
+// ---- Private Messages: owner inbox passcode ----
+async function loadDmStatus(){
+  const el = $('#dm-pass-status');
+  if(!el) return;
+  try{
+    const r = await fetch('/api/dm/owner/status');
+    const j = await r.json().catch(()=>({}));
+    el.textContent = j.configured ? 'Set ✓' : 'Not set';
+    el.style.color = j.configured ? '#34D399' : '#F59E0B';
+  }catch{
+    el.textContent = 'Unknown';
+    el.style.color = '#94A3B8';
+  }
+}
+$('#btn-dm-show-pass')?.addEventListener('click', () => {
+  const a = $('#dm-pass-new'), b = $('#dm-pass-confirm'), btn = $('#btn-dm-show-pass');
+  if(!a || !b) return;
+  const show = a.type === 'password';
+  a.type = show ? 'text' : 'password';
+  b.type = show ? 'text' : 'password';
+  btn.textContent = show ? 'Hide' : 'Show';
+});
+$('#btn-dm-save-pass')?.addEventListener('click', async () => {
+  const a = $('#dm-pass-new'), b = $('#dm-pass-confirm'), msg = $('#dm-pass-msg'), btn = $('#btn-dm-save-pass');
+  if(!a || !b || !msg) return;
+  msg.textContent = '';
+  const passcode = a.value;
+  if(passcode.length < 8){ msg.style.color = '#F87171'; msg.textContent = 'Passcode must be at least 8 characters.'; return; }
+  if(passcode !== b.value){ msg.style.color = '#F87171'; msg.textContent = 'Passcodes do not match.'; return; }
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.textContent = 'Saving...';
+  try{
+    const r = await fetch('/api/dm/owner/setup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ passcode })
+    });
+    const j = await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error || 'Could not save the passcode.');
+    msg.style.color = '#34D399';
+    msg.textContent = j.message || 'Inbox passcode saved.';
+    a.value = ''; b.value = '';
+    loadDmStatus();
+  }catch(e){
+    msg.style.color = '#F87171';
+    msg.textContent = e.message;
+  }finally{
+    btn.disabled = false;
+    btn.textContent = original;
+  }
 });
