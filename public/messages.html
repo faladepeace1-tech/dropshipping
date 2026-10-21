@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Messages - Nexatech</title>
-<meta name="description" content="Message Nexatech privately. Create a free account, chat directly with Ifeoluwa, receive custom offers and pay securely.">
+<meta name="description" content="Message Nexatech privately. Create a free account, chat directly, receive custom offers and pay securely.">
 <meta property="og:title" content="Messages - Nexatech">
 <meta property="og:description" content="Private messaging with Nexatech. Create an account, chat directly and receive custom offers in one place.">
 <meta property="og:type" content="website">
@@ -63,7 +63,7 @@
         </div>
       </div>
       <div class="dm-error" id="dm-signup-error" role="alert"></div>
-      <button type="submit" class="dm-btn dm-btn-primary" id="dm-signup-submit">Create account &amp; start chat</button>
+      <button type="submit" class="dm-btn dm-btn-primary" id="dm-signup-submit">Create account & start chat</button>
     </form>
 
     <form class="dm-form dm-hidden" id="dm-login-form" novalidate>
@@ -80,7 +80,7 @@
       </div>
       <div class="dm-error" id="dm-login-error" role="alert"></div>
       <button type="submit" class="dm-btn dm-btn-primary" id="dm-login-submit">Log in</button>
-    </form>
+    </div>
 
     <div class="dm-auth-foot">
       <span id="dm-auth-switch">Already have an account? <a href="/messages?login=1" id="dm-switch-login">Log in</a></span>
@@ -88,7 +88,7 @@
     </div>
     <div class="dm-secure-note">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
-      Private &amp; secure - only you and Ifeoluwa can read this chat
+      Private & secure - only you and Ifeoluwa can read this chat
     </div>
   </div>
 </div>
@@ -134,6 +134,81 @@
 
 <div class="dm-toast" id="dm-toast" role="status"></div>
 
+<script type="module">
+/* ===== Auth switching ===== */
+const els = {
+  signupForm: $('#dm-signup-form'),
+  loginForm: $('#dm-login-form'),
+  signupError: $('#dm-signup-error'),
+  loginError: $('#dm-login-error'),
+  switchWrap: $('#dm-auth-switch')
+};
 
+function setHidden(els, login) {
+  if (login) {
+    els.signupForm.addClass('dm-hidden');
+    els.loginForm.removeClass('dm-hidden');
+  } else {
+    els.signupForm.removeClass('dm-hidden');
+    els.loginForm.addClass('dm-hidden');
+  }
+}
+
+els.signupForm?.addEventListener('submit', (e) => {
+  e.preventDefault();
+  submitAuth('signup', els.signupForm, els.signupError);
+});
+
+els.loginForm?.addEventListener('submit', (e) => {
+  e.preventDefault();
+  submitAuth('login', els.loginForm, els.loginError);
+});
+
+function submitAuth(kind, form, errorEl) {
+  const btn = form.querySelector('button[type="submit"]');
+  const original = btn.textContent;
+  errorEl.textContent = '';
+  btn.disabled = true;
+  btn.textContent = kind === 'signup' ? 'Creating account...' : 'Logging in...';
+  
+  // Simulate auth - in real app this would be an API call
+  setTimeout(() => {
+    btn.disabled = false;
+    btn.textContent = original;
+    setHidden(els, kind === 'login');
+    if (kind === 'login') {
+      toast('Login successful - you can now send messages');
+    } else {
+      toast('Account created - you can now start chat');
+    }
+  }, 1000);
+});
+
+/* ============ CHAT ============ */
+const state = {
+  me: null,
+  conversation: null,
+  messages: new Map(),
+  lastId: 0
+};
+
+function toast(msg) {
+  const toast = $('#dm-toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+$('#dm-call-btn')?.addEventListener('click', () => startCall('voice'));
+$('#dm-video-btn')?.addEventListener('click', () => startCall('video'));
+
+function startCall(mode) {
+  // In real app, this would call the API to start a call
+  toast(`Starting ${mode} call...`);
+}
+
+/* ============ Initial state ===== */
+setHidden(els, false);  // Show login form by default
+</script>
 </body>
 </html>
