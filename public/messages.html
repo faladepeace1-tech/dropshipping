@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Messages - Nexatech</title>
-<meta name="description" content="Private messaging with Nexatech. Create a free account, chat directly, receive custom offers and pay securely.">
+<meta name="description" content="Message Nexatech privately. Create a free account, chat directly with Ifeoluwa, receive custom offers and pay securely.">
 <meta property="og:title" content="Messages - Nexatech">
 <meta property="og:description" content="Private messaging with Nexatech. Create an account, chat directly and receive custom offers in one place.">
 <meta property="og:type" content="website">
@@ -19,7 +19,7 @@
 <link rel="icon" id="dm-favicon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800;900&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/style.css">
 <link rel="stylesheet" href="/css/dm.css">
 </head>
@@ -47,11 +47,11 @@
         <label for="dm-su-name">Your name</label>
         <input id="dm-su-name" name="name" autocomplete="name" placeholder="e.g. Ada Lovelace" required>
       </div>
-      <div class="dm-field">
+      <div class="dm.field">
         <label for="dm-su-email">Email</label>
         <input id="dm-su-email" name="email" type="email" autocomplete="email" inputmode="email" placeholder="you@example.com" required>
       </div>
-      <div class="dm-field">
+      <div class="dm.field">
         <label for="dm-su-whatsapp">WhatsApp number</label>
         <input id="dm-su-whatsapp" name="whatsapp" type="tel" autocomplete="tel" inputmode="tel" placeholder="+44 7700 900123" required>
       </div>
@@ -62,23 +62,23 @@
           <button type="button" class="dm-eye" data-eye="dm-su-password" aria-label="Show password">Show</button>
         </div>
       </div>
-      <div class="dm-error" id="dm-signup-error" role="alert"></div>
+      <div class="dm.error" id="dm-signup-error" role="alert"></div>
       <button type="submit" class="dm-btn dm-btn-primary" id="dm-signup-submit">Create account & start chat</button>
     </form>
 
     <form class="dm-form dm-hidden" id="dm-login-form" novalidate>
-      <div class="dm-field">
+      <div class="dm.field">
         <label for="dm-li-email">Email</label>
         <input id="dm-li-email" name="email" type="email" autocomplete="email" inputmode="email" placeholder="you@example.com" required>
       </div>
       <div class="dm.field">
         <label for="dm-li-password">Password</label>
-        <div class="dm-password-wrap">
+        <div class="dm.password-wrap">
           <input id="dm-li-password" name="password" type="password" autocomplete="current-password" placeholder="Your password" required>
           <button type="button" class="dm-eye" data-eye="dm-li-password" aria-label="Show password">Show</button>
         </div>
       </div>
-      <div class="dm-error" id="dm-login-error" role="alert"></div>
+      <div class="dm.error" id="dm-login-error" role="alert"></div>
       <button type="submit" class="dm-btn dm-btn-primary" id="dm-login-submit">Log in</button>
     </form>
 
@@ -86,87 +86,54 @@
       <span id="dm-auth-switch">Already have an account? <a href="/messages?login=1" id="dm-switch-login">Log in</a></span>
       <br>Forgot your password? <a id="dm-wa-link" href="https://wa.me/447411200927?text=Hi%20Nexatech%2C%20I%20need%20help%20with%20my%20Messages%20account" target="_blank" rel="noopener">Message me on WhatsApp</a>.
     </div>
-    <div class="dm-secure-note">
+    <div class="dm.secure-note">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
       Private & secure - only you and Ifeoluwa can read this chat
     </div>
   </div>
 </div>
 
-<script type="module">
-/* ===== Auth switching ===== */
-const els = {
-  signupForm: $('#dm-signup-form'),
-  loginForm: $('#dm-login-form'),
-  signupError: $('#dm-signup-error'),
-  loginError: $('#dm-login-error'),
-  switchWrap: $('#dm-auth-switch')
-};
+<!-- ============ CHAT ============ -->
+<div class="dm-shell dm-hidden" id="dm-chat">
+  <header class="dm-header">
+    <img class="dm-logo" data-brand-logo alt="Nexatech logo" hidden>
+    <span class="dm-logo-fallback" data-brand-fallback>N</span>
+    <div class="dm-header-name">
+      <b id="dm-chat-name">Ifeoluwa - Nexatech</b>
+      <span class="dm-status" id="dm-connection"><i></i> <span id="dm-connection-text">Connected</span></span>
+    </div>
+    <div class="dm-header-actions">
+      <button type="button" class="dm-icon-btn dm-push-btn dm-hidden" id="dm-push-btn" title="Enable message notifications" aria-label="Enable message notifications" aria-pressed="false">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+      </button>
+      <button type="button" class="dm-icon-btn" id="dm-call-btn" title="Start a voice call">Call</button>
+      <button type="button" class="dm-icon-btn" id="dm-video-btn" title="Start a video call">Video</button>
+      <a class="dm-icon-btn" href="/" title="Back to website">Site</a>
+      <button type="button" class="dm-icon-btn" id="dm-logout">Log out</button>
+    </div>
+  </header>
 
-function setHidden(els, login) {
-  if (login) {
-    els.signupForm.addClass('dm-hidden');
-    els.loginForm.removeClass('dm-hidden');
-  } else {
-    els.signupForm.removeClass('dm-hidden');
-    els.loginForm.addClass('dm-hidden');
-  }
-}
+  <main class="dm-thread" id="dm-thread" aria-live="polite">
+    <div class="dm.empty" id="dm-empty">
+      <span class="dm-empty-badge" aria-hidden="true">✦</span>
+      <b>This is the start of your private chat</b>
+      <span>Send a message below. Ifeoluwa gets notified instantly and replies here - you can also receive custom offers and pay securely in this chat.</span>
+    </div>
+  </main>
 
-els.signupForm?.addEventListener('submit', (e) => {
-  e.preventDefault();
-  submitAuth('signup', els.signupForm, els.signupError);
-});
+  <div class="dm.composer">
+    <form id="dm-form">
+      <textarea id="dm-input" rows="1" maxlength="2000" placeholder="Type a message..." aria-label="Message" autocomplete="off"></textarea>
+      <button type="submit" class="dm.send" id="dm-send" aria-label="Send message" title="Send">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/></svg>
+      </button>
+    </form>
+    <div class="dm.composer-hint">Enter to send · Shift + Enter for a new line</div>
+  </div>
+</div>
 
-els.loginForm?.addEventListener('submit', (e) => {
-  e.preventDefault();
-  submitAuth('login', els.loginForm, els.loginError);
-});
+<div class="dm.toast" id="dm-toast" role="status"></div>
 
-function submitAuth(kind, form, errorEl) {
-  const btn = form.querySelector('button[type="submit"]');
-  const original = btn.textContent;
-  errorEl.textContent = '';
-  btn.disabled = true;
-  btn.textContent = kind === 'signup' ? 'Creating account...' : 'Logging in...';
-  
-  setTimeout(() => {
-    btn.disabled = false;
-    btn.textContent = original;
-    setHidden(els, kind === 'login');
-    if (kind === 'login') {
-      toast('Login successful - you can now send messages');
-    } else {
-      toast('Account created - you can now start chat');
-    }
-  }, 1000);
-}
-
-function toast(msg) {
-  const toast = $('#dm-toast');
-  if (!toast) {
-    const t = document.createElement('div');
-    t.id = 'dm-toast';
-    t.setAttribute('role', 'status');
-    t.style.cssText = 'position:fixed;bottom:2rem;left:50%;transform:translateX(-50%);background:var(--dm-color-bg-alt);color:var(--dm-color-text);padding:0.75rem 1.25rem;border-radius:var(--dm-radius);font-size:0.875rem;opacity:0;transition:opacity 0.3s;z-index:9999;';
-    document.body.appendChild(t);
-    toast = t;
-    $('#dm-toast') = t;
-  }
-  toast.textContent = msg;
-  toast.classList.add('show');
-  setTimeout(() => toast.classList.remove('show'), 3000);
-}
-
-/* ============ Password toggle ===== */
-document.querySelectorAll('.dm-eye').forEach(btn => {
-  const input = $(btn.getAttribute('data-eye'));
-  btn.addEventListener('click', () => {
-    const type = input.getAttribute('type') === 'password' ? 'text' : 'password';
-    input.setAttribute('type', type);
-    btn.textContent = type === 'password' ? 'Show' : 'Hide';
-  });
-});
-</script>
+<script type="module" src="/js/messages.js"></script>
 </body>
 </html>
