@@ -1223,7 +1223,8 @@ app.post('/api/checkout/create', async (req, res) => {
     const { kind, ref, name, email, whatsapp } = req.body || {};
     if(!name || String(name).trim().length < 2) return res.status(400).json({ error: 'Please enter your name.' });
     if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim())) return res.status(400).json({ error: 'Please enter a valid email.' });
-    if(!isValidPhone(whatsapp)) return res.status(400).json({ error: 'Please enter a valid WhatsApp number.' });
+    const wh = String(whatsapp || '').trim();
+    if(wh && !isValidPhone(wh)) return res.status(400).json({ error: 'Please enter a valid WhatsApp number.' });
     const item = await getCheckoutItem(kind, ref);
     if(item.error) return res.status(400).json({ error: item.error });
     // Authoritative conversion: recompute from canonical USD using server
@@ -4213,6 +4214,34 @@ app.post('/api/dm/owner/conversations/:id/call', requireDmOwner, dmSameOrigin, a
     console.error('dm owner call failed:', e.message);
     res.status(500).json({ error: 'Could not start the call.' });
   }
+});
+
+app.post('/api/dm/owner/conversations/:id/accept', requireDmOwner, dmSameOrigin, async (req, res) => {
+  try{
+    const conv = await db.prepare('SELECT * FROM dm_conversations WHERE id=?').get(req.params.id);
+    if(!conv) return res.status(404).json({ error: 'Conversation not found.' });
+    const body = 'Accepted a ' + (req.body && req.body.mode ? 'voice' : 'video') + ' call';
+    await db.prepare('INSERT INTO dm_messages (conversation_id,sender,kind,body,meta) VALUES (?,?,?,?,?)')
+      .run(conv.id, 'owner', 'call', body, JSON.stringify({ kind: 'call_accepted', room: conv.room_token, started_by: 'owner' }));
+    const msg = await db.prepare('SELECT * FROM dm_messages WHERE conversation_id=? ORDER BY id DESC LIMIT 1').get(conv.id);
+    dmBroadcastUser(conv.id, 'message', { conversation_id: conv.id, message: msg });
+    dmBroadcastOwner('message', { conversation_id: conv.id, message: msg, conversation: await dmConversationSummary(conv.id) });
+    res.json({ ok:true });
+  }catch(e){ console.error('accept call failed:', e.message); res.status(500).json({ error: 'Could not accept call.' }); }
+});
+
+app.post('/api/dm/owner/conversations/:id/decline', requireDmOwner, dmSameOrigin, async (req, res) => {
+  try{
+    const conv = await db.prepare('SELECT * FROM dm_conversations WHERE id=?').get(req.params.id);
+    if(!conv) return res.status(404).json({ error: 'Conversation not found.' });
+    const body = 'Declined a ' + (req.body && req.body.mode ? 'voice' : 'video') + ' call';
+    await db.prepare('INSERT INTO dm_messages (conversation_id,sender,kind,body,meta) VALUES (?,?,?,?,?)')
+      .run(conv.id, 'owner', 'call', body, JSON.stringify({ kind: 'call_declined', room: conv.room_token, started_by: 'owner' }));
+    const msg = await db.prepare('SELECT * FROM dm_messages WHERE conversation_id=? ORDER BY id DESC LIMIT 1').get(conv.id);
+    dmBroadcastUser(conv.id, 'message', { conversation_id: conv.id, message: msg });
+    dmBroadcastOwner('message', { conversation_id: conv.id, message: msg, conversation: await dmConversationSummary(conv.id) });
+    res.json({ ok:true });
+  }catch(e){ console.error('decline call failed:', e.message); res.status(500).json({ error: 'Could not decline call.' }); }
 });
 
 app.get('/api/dm/owner/stream', requireDmOwner, async (req, res) => {

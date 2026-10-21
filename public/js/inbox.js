@@ -183,11 +183,25 @@ function closeCallOverlay() {
   overlay.remove();
 }
 
-function openCallOverlay(mode, room) {
+function playCallRingtone() {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.frequency.value = 440;
+  osc.connect(gain).connect(ctx.destination);
+  gain.gain.setValueAtTime(0.3, ctx.currentTime);
+  osc.start(ctx.currentTime);
+  osc.stop(ctx.currentTime + 3);
+}
+
+function openCallOverlay(mode, room, isIncoming, callerName) {
   closeCallOverlay();
   const overlay = document.createElement('div');
   overlay.className = 'dm-call-overlay';
   overlay.id = 'inbox-call-overlay';
+
+  // Ringtone for incoming calls only
+  if (isIncoming) playCallRingtone();
 
   const bar = document.createElement('div');
   bar.className = 'dm-call-bar';
@@ -197,12 +211,38 @@ function openCallOverlay(mode, room) {
   const sub = document.createElement('small');
   sub.textContent = 'Nexatech private call';
   text.append(title, sub);
-  const end = document.createElement('button');
-  end.type = 'button';
-  end.className = 'dm-btn dm-btn-ghost';
-  end.textContent = 'End call';
-  end.addEventListener('click', closeCallOverlay);
-  bar.append(text, end);
+
+  const actions = document.createElement('div');
+  actions.className = 'dm-call-actions';
+
+  if (isIncoming) {
+    const accept = document.createElement('button');
+    accept.type = 'button';
+    accept.className = 'dm-btn dm-btn-primary';
+    accept.textContent = 'Accept';
+    accept.addEventListener('click', () => {
+      closeCallOverlay();
+      const convId = state.activeId;
+      if (convId) api('/api/dm/owner/conversations/' + encodeURIComponent(convId) + '/accept', { method: 'POST' }).then(() => addMessage(`You accepted the ${mode} call`, true));
+    });
+    const decline = document.createElement('button');
+    decline.type = 'button';
+    decline.className = 'dm-btn dm-btn-ghost';
+    decline.textContent = 'Decline';
+    decline.addEventListener('click', () => {
+      closeCallOverlay();
+      const convId = state.activeId;
+      if (convId) api('/api/dm/owner/conversations/' + encodeURIComponent(convId) + '/decline', { method: 'POST' }).then(() => addMessage(`Call declined`, true));
+    });
+    actions.append(accept, decline);
+  } else {
+    const end = document.createElement('button');
+    end.type = 'button';
+    end.className = 'dm-btn dm-btn-ghost';
+    end.textContent = 'End call';
+    end.addEventListener('click', closeCallOverlay);
+    actions.append(end);
+  }
 
   const frame = document.createElement('iframe');
   frame.src = jitsiUrl(room, mode);
@@ -210,9 +250,12 @@ function openCallOverlay(mode, room) {
   frame.setAttribute('allowfullscreen', '');
   frame.title = title.textContent;
 
+  bar.append(text, actions);
   overlay.append(bar, frame);
   document.body.appendChild(overlay);
 }
+
+
 
 async function startCall(mode) {
   const convId = state.activeId;
@@ -223,7 +266,8 @@ async function startCall(mode) {
       body: JSON.stringify({ mode })
     });
     if (data.message && Number(state.activeId) === Number(convId)) addMessage(data.message, true);
-    openCallOverlay(data.mode || mode, data.room);
+    
+    openCallOverlay(data.mode || mode, data.room, false, 'Ifeoluwa');
   } catch (e) {
     if (e.status === 401) return showLock('Your inbox session expired - unlock again.');
     toast(e.message);
@@ -542,7 +586,15 @@ function messageElement(msg) {
     return system;
   }
   if (msg.kind === 'offer' && msg.offer) return offerElement(msg);
-  if (msg.kind === 'call') return callElement(msg);
+  if (msg.kind === 'call') {
+    const meta = JSON.parse(msg.meta || '{}');
+    if (state.activeId && String(meta.conversation_id) === String(state.activeId)) {
+      const caller = meta.started_by === 'user' ? 'Client' : 'Ifeoluwa';
+      openCallOverlay(meta.mode || 'video', meta.room, true, caller);
+      return;
+    }
+    return callElement(msg);
+}
   const mine = msg.sender === state.side;
   const row = document.createElement('div');
   row.className = 'dm-row ' + (mine ? 'mine' : 'theirs');

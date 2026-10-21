@@ -128,7 +128,7 @@ function kindLabel(k){
 function applyPrefill(item){
   const prefill = item && item.prefill;
   if(!prefill) return;
-  const pairs = [['#co-name', prefill.name], ['#co-email', prefill.email], ['#co-whatsapp', prefill.whatsapp]];
+  const pairs = [['#co-name', prefill.name], ['#co-email', prefill.email]];
   pairs.forEach(([selector, value]) => {
     const el = $(selector);
     if(el && !el.value) el.value = String(value || '');
@@ -148,11 +148,10 @@ function fillSummary(){
 }
 function validate(){
   let ok = true;
-  const name = $('#co-name'), email = $('#co-email'), wa = $('#co-whatsapp');
+  const name = $('#co-name'), email = $('#co-email');
   const mark = (el, valid) => { el.closest('.field')?.classList.toggle('invalid', !valid); if(!valid) ok = false; };
   mark(name, name.value.trim().length >= 2);
   mark(email, /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim()));
-  mark(wa, isValidPhone(wa.value));
   return ok;
 }
 // ---- Step 1: create the order, then show the inline card form ----
@@ -163,11 +162,10 @@ async function createOrder(){
   const btn = $('#co-pay-btn');
   btn.disabled = true; btn.textContent = 'Creating your order…';
   try{
-    const res = await postJson('/api/checkout/create', {
-      kind: ITEM.kind, ref: ITEM.ref, currency: BUY_CUR,
+const res = await postJson('/api/checkout/create', {
+      kind: ITEM.kind, ref: ITEM.ref, currency: BUYER_CUR,
       name: $('#co-name').value.trim(),
-      email: $('#co-email').value.trim(),
-      whatsapp: $('#co-whatsapp').value.trim()
+      email: $('#co-email').value.trim()
     }, 'order');
     const j = await readJson(res, 'order');
     if(!res.ok) throw new Error(j.error || 'Could not create order.');
