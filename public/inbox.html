@@ -7,6 +7,12 @@
 <meta name="description" content="Nexatech Inbox - private owner inbox for replying to client messages.">
 <meta name="theme-color" content="#05070f">
 <meta name="robots" content="noindex,nofollow">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Nexatech Inbox">
+<link rel="manifest" href="/inbox.webmanifest">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
 <link rel="icon" id="inbox-favicon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -87,6 +93,9 @@
         <small id="inbox-client-meta"></small>
       </div>
       <div class="dm-header-actions">
+        <button type="button" class="dm-icon-btn dm-push-btn dm-hidden" id="inbox-push-btn" title="Enable message notifications" aria-label="Enable message notifications" aria-pressed="false">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+        </button>
         <button type="button" class="dm-icon-btn" id="inbox-offer-btn" title="Send a custom offer">Offer</button>
         <button type="button" class="dm-icon-btn" id="inbox-call-btn" title="Start a voice call">Call</button>
         <button type="button" class="dm-icon-btn" id="inbox-video-btn" title="Start a video call">Video</button>

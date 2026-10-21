@@ -141,6 +141,9 @@ body.dm-page [hidden]{ display:none !important; }
   padding:8px 10px; font-size:11.5px; font-weight:700; cursor:pointer; transition:.2s;
 }
 .dm-icon-btn:hover{ color:#fff; background:rgba(255,255,255,.06); border-color:var(--dm-line); }
+.dm-push-btn{ display:inline-flex; align-items:center; justify-content:center; padding:8px; }
+.dm-push-btn.is-on{ color:#7fe9ff; background:rgba(0,209,255,.1); border-color:rgba(0,209,255,.28); }
+.dm-push-btn.is-on svg{ filter:drop-shadow(0 0 6px rgba(0,209,255,.6)); }
 .dm-thread{
   flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;
   padding:20px clamp(12px,3vw,22px); display:flex; flex-direction:column; gap:9px;

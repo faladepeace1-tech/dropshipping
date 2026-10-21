@@ -1,3 +1,5 @@
+import { setupDmPush } from './push.js';
+
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
@@ -988,6 +990,7 @@ async function boot() {
   try {
     await api('/api/dm/owner/me');
     showInbox();
+    setupDmPush({ role:'owner', button:$('#inbox-push-btn'), toast });
     await refreshConversations();
     connectStream();
     startPolling();

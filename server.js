@@ -12,6 +12,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import cron from 'node-cron';
 import crypto from 'crypto';
+import webpush from 'web-push';
 import { initDb, getDb, reseedDefaults, usePg } from './db.js';
 import { google } from 'googleapis';
 
@@ -23,6 +24,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'nexatech-jwt-secret-change-in-prod
 // owner/admin, even if a token leaks between the two audiences.
 const DM_SECRET = crypto.createHash('sha256').update(String(JWT_SECRET) + ':dm-client-2026').digest('hex');
 const DM_OWNER_SECRET = crypto.createHash('sha256').update(String(JWT_SECRET) + ':dm-owner-2026').digest('hex');
+let DM_PUSH = null;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
 const NEXATECH_BASE_PROMPT = `You are Nexatech Dropshipping Expert's AI assistant, running on his portfolio site to represent him as a Shopify dropshipping expert (NexaTech). Owner's real name is Akinyemmi Ifeoluwa. You are NOT a generic chatbot - you speak with the confidence and specific knowledge of someone who builds and scales Shopify dropshipping stores for a living.
@@ -93,6 +95,7 @@ try { if (!fs.existsSync(TMP_UPLOAD_DIR)) fs.mkdirSync(TMP_UPLOAD_DIR, { recursi
 
 await initDb();
 const db = getDb();
+await initDmPush();
 
 // Ensure admin password is 123450000 (canonical) - updated per owner request
 try {
@@ -1021,6 +1024,8 @@ async function markOrderPaid(orderRef, providerRef){
         dmBroadcastOwner('message', { conversation_id: offer.conversation_id, message: msg, conversation: summary });
         const fresh = await db.prepare('SELECT * FROM dm_offers WHERE id=?').get(offer.id);
         dmBroadcastOffer(offer.conversation_id, publicDmOffer(fresh));
+        dmPushOwner({ title:'Custom offer paid', body:'Order ' + order.order_ref + ' - ' + formatCents(order.amount_cents, order.currency) + ' received.', url:'/inbox', tag:'dm-owner-' + offer.conversation_id });
+        dmPushUser(offer.user_id, { title:'Payment received', body:'Your custom order is confirmed. Ifeoluwa will keep you updated in Messages.', url:'/messages', tag:'dm-' + offer.conversation_id });
       }
     }catch(e){ console.error('dm offer payment update failed:', e.message); }
   }
@@ -3529,6 +3534,95 @@ function dmMessageOut(row){
     body: row.body || '', meta, read_at: row.read_at || null, created_at: row.created_at };
 }
 function dmPreview(text){ return String(text || '').replace(/\s+/g, ' ').trim().slice(0, 140); }
+async function initDmPush(){
+  try{
+    const envPublic = String(process.env.VAPID_PUBLIC_KEY || '').trim();
+    const envPrivate = String(process.env.VAPID_PRIVATE_KEY || '').trim();
+    let publicKey = '';
+    let privateKey = '';
+    if(envPublic && envPrivate){
+      publicKey = envPublic;
+      privateKey = envPrivate;
+    }else{
+      const rows = await db.prepare("SELECT key,value FROM content WHERE key IN ('dm_vapid_public','dm_vapid_private')").all();
+      const stored = new Map((rows || []).map(row => [row.key, String(row.value || '')]));
+      publicKey = stored.get('dm_vapid_public') || '';
+      privateKey = stored.get('dm_vapid_private') || '';
+      if(!publicKey || !privateKey){
+        const keys = webpush.generateVAPIDKeys();
+        publicKey = keys.publicKey;
+        privateKey = keys.privateKey;
+        await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('dm_vapid_public', publicKey, 'text');
+        await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('dm_vapid_private', privateKey, 'text');
+        console.log('Generated DM push VAPID keys');
+      }
+    }
+    const subject = String(process.env.VAPID_SUBJECT || 'mailto:saheednexatech@gmail.com').trim();
+    webpush.setVapidDetails(subject, publicKey, privateKey);
+    DM_PUSH = { publicKey };
+  }catch(e){
+    DM_PUSH = null;
+    console.error('dm push init failed:', e.message);
+  }
+}
+function dmPushSubscription(body){
+  const sub = body && (body.subscription || body);
+  const endpoint = String(sub && sub.endpoint || '').trim();
+  const keys = sub && sub.keys || {};
+  const p256dh = String(keys.p256dh || '').trim();
+  const auth = String(keys.auth || '').trim();
+  if(!/^https:\/\//i.test(endpoint) || endpoint.length > 2048) return { error:'Invalid push endpoint.' };
+  if(!p256dh || !auth || p256dh.length > 512 || auth.length > 128) return { error:'Invalid push subscription keys.' };
+  return { endpoint, p256dh, auth };
+}
+async function dmSavePushSubscription(req, res, role, userId){
+  if(!DM_PUSH) return res.status(503).json({ error:'Notifications are not ready yet. Try again in a moment.' });
+  try{
+    const sub = dmPushSubscription(req.body || {});
+    if(sub.error) return res.status(400).json({ error:sub.error });
+    const ua = String(req.headers['user-agent'] || '').slice(0, 300);
+    const existing = await db.prepare('SELECT id FROM dm_push_subscriptions WHERE endpoint=?').get(sub.endpoint);
+    if(existing){
+      await db.prepare("UPDATE dm_push_subscriptions SET p256dh=?, auth=?, role=?, user_id=?, user_agent=?, last_seen=datetime('now') WHERE endpoint=?")
+        .run(sub.p256dh, sub.auth, role, userId, ua, sub.endpoint);
+    }else{
+      await db.prepare("INSERT INTO dm_push_subscriptions (endpoint,p256dh,auth,role,user_id,user_agent,last_seen) VALUES (?,?,?,?,?,?,datetime('now'))")
+        .run(sub.endpoint, sub.p256dh, sub.auth, role, userId, ua);
+    }
+    res.json({ ok:true, public_key:DM_PUSH.publicKey });
+  }catch(e){
+    console.error('dm push subscribe failed:', e.message);
+    res.status(500).json({ error:'Could not enable notifications.' });
+  }
+}
+async function dmSendPush(role, userId, payload){
+  if(!DM_PUSH) return;
+  try{
+    const rows = role === 'owner'
+      ? await db.prepare("SELECT endpoint,p256dh,auth FROM dm_push_subscriptions WHERE role='owner'").all()
+      : await db.prepare("SELECT endpoint,p256dh,auth FROM dm_push_subscriptions WHERE role='user' AND user_id=?").all(userId);
+    if(!rows || !rows.length) return;
+    const data = JSON.stringify({
+      title: String(payload && payload.title || 'Nexatech').slice(0, 80),
+      body: dmPreview(payload && payload.body || '').slice(0, 180),
+      url: String(payload && payload.url || (role === 'owner' ? '/inbox' : '/messages')).slice(0, 500),
+      tag: String(payload && payload.tag || 'nexatech-message').slice(0, 80)
+    });
+    await Promise.all(rows.map(async row => {
+      try{
+        await webpush.sendNotification({ endpoint:row.endpoint, keys:{ p256dh:row.p256dh, auth:row.auth } }, data);
+      }catch(e){
+        if([404, 410].includes(Number(e.statusCode))){
+          try{ await db.prepare('DELETE FROM dm_push_subscriptions WHERE endpoint=?').run(row.endpoint); }catch{}
+        }else{
+          console.error('dm push send failed:', e.statusCode || e.message);
+        }
+      }
+    }));
+  }catch(e){ console.error('dm push lookup failed:', e.message); }
+}
+function dmPushUser(userId, payload){ dmSendPush('user', userId, payload).catch(()=>{}); }
+function dmPushOwner(payload){ dmSendPush('owner', null, payload).catch(()=>{}); }
 const DM_REVISIONS = ['0', '1', '2', '3', '5', 'unlimited'];
 function dmJson(value, fallback){
   try{ const out = JSON.parse(value || ''); return out == null ? fallback : out; }catch{ return fallback; }
@@ -3760,6 +3854,15 @@ app.get('/api/dm/me', requireDmUser, async (req, res) => {
   }catch(e){ res.status(500).json({ error: 'Could not load your conversation.' }); }
 });
 
+app.get('/api/dm/push/public-key', (req, res) => {
+  if(!DM_PUSH) return res.status(503).json({ error: 'Notifications are not configured yet.' });
+  res.json({ ok:true, key:DM_PUSH.publicKey });
+});
+
+app.post('/api/dm/push/subscribe', requireDmUser, dmSameOrigin, async (req, res) => {
+  await dmSavePushSubscription(req, res, 'user', req.dmUser.id);
+});
+
 // --- Client messages ---
 app.get('/api/dm/messages', requireDmUser, async (req, res) => {
   try{
@@ -3793,6 +3896,7 @@ app.post('/api/dm/messages', requireDmUser, dmSameOrigin, dmMsgLimiter, async (r
     const summary = await dmConversationSummary(conv.id);
     dmBroadcastOwner('message', { conversation_id:conv.id, message:msg, conversation:summary });
     dmOwnerAlert(req.dmUser, conv, body);
+    dmPushOwner({ title:'New message from ' + (req.dmUser.name || 'a client'), body, url:'/inbox', tag:'dm-owner-' + conv.id });
     res.json({ ok:true, message:msg });
   }catch(e){
     console.error('dm send failed:', e.message);
@@ -3875,6 +3979,10 @@ app.post('/api/dm/owner/logout', dmSameOrigin, (req, res) => {
 
 app.get('/api/dm/owner/me', requireDmOwner, (req, res) => res.json({ ok:true, owner:true }));
 
+app.post('/api/dm/owner/push/subscribe', requireDmOwner, dmSameOrigin, async (req, res) => {
+  await dmSavePushSubscription(req, res, 'owner', null);
+});
+
 app.get('/api/dm/owner/conversations', requireDmOwner, async (req, res) => {
   try{
     const rows = await db.prepare(`SELECT c.id,c.status,c.room_token,c.last_message_at,c.last_message_preview,c.last_sender,c.owner_unread,c.user_unread,c.created_at,
@@ -3927,6 +4035,7 @@ app.post('/api/dm/owner/conversations/:id/messages', requireDmOwner, dmSameOrigi
     dmBroadcastUser(conv.id, 'message', { conversation_id:conv.id, message:msg });
     const summary = await dmConversationSummary(conv.id);
     dmBroadcastOwner('message', { conversation_id:conv.id, message:msg, conversation:summary });
+    dmPushUser(conv.user_id, { title:'New message from Ifeoluwa', body, url:'/messages', tag:'dm-' + conv.id });
     res.json({ ok:true, message:msg });
   }catch(e){
     console.error('dm owner send failed:', e.message);
@@ -3966,6 +4075,7 @@ app.post('/api/dm/owner/conversations/:id/offers', requireDmOwner, dmSameOrigin,
     dmBroadcastUser(conv.id, 'message', { conversation_id: conv.id, message: msg });
     const summary = await dmConversationSummary(conv.id);
     dmBroadcastOwner('message', { conversation_id: conv.id, message: msg, conversation: summary });
+    dmPushUser(conv.user_id, { title:'New custom offer', body:preview + ' - open Messages to review and pay.', url:'/messages', tag:'dm-' + conv.id });
     res.json({ ok:true, offer, message: msg });
   }catch(e){
     console.error('dm offer create failed:', e.message);
@@ -3998,6 +4108,7 @@ app.post('/api/dm/offers/:id/accept', requireDmUser, dmSameOrigin, async (req, r
     offer = await db.prepare('SELECT * FROM dm_offers WHERE id=?').get(offer.id);
     const out = publicDmOffer(offer);
     dmBroadcastOffer(conv.id, out);
+    dmPushOwner({ title:'Offer accepted', body:(req.dmUser.name || 'A client') + ' accepted ' + out.total_text + ' - payment pending.', url:'/inbox', tag:'dm-owner-' + conv.id });
     res.json({ ok:true, offer:out, checkout_url:'/checkout?kind=dm&item=' + encodeURIComponent(offer.checkout_ref) });
   }catch(e){
     console.error('dm offer accept failed:', e.message);
@@ -4016,6 +4127,7 @@ app.post('/api/dm/offers/:id/decline', requireDmUser, dmSameOrigin, async (req, 
     const fresh = await db.prepare('SELECT * FROM dm_offers WHERE id=?').get(offer.id);
     const out = publicDmOffer(fresh);
     dmBroadcastOffer(conv.id, out);
+    dmPushOwner({ title:'Offer declined', body:(req.dmUser.name || 'A client') + ' declined the ' + out.total_text + ' offer.', url:'/inbox', tag:'dm-owner-' + conv.id });
     res.json({ ok:true, offer:out });
   }catch(e){
     console.error('dm offer decline failed:', e.message);
@@ -4072,6 +4184,13 @@ async function dmStartCall(conv, sender, displayName, mode, res){
   dmBroadcastUser(conv.id, 'message', { conversation_id: conv.id, message: msg });
   const summary = await dmConversationSummary(conv.id);
   dmBroadcastOwner('message', { conversation_id: conv.id, message: msg, conversation: summary });
+  const callPush = {
+    title: sender === 'user' ? 'Incoming call from a client' : 'Incoming call from Ifeoluwa',
+    body: safeMode === 'voice' ? 'Tap to join the private voice room.' : 'Tap to join the private video room.',
+    url: sender === 'user' ? '/inbox' : '/messages',
+    tag: 'dm-call-' + conv.id
+  };
+  if(sender === 'user') dmPushOwner(callPush); else dmPushUser(conv.user_id, callPush);
   res.json({ ok:true, mode: safeMode, room, url: dmCallUrl(room, safeMode), message: msg });
 }
 app.post('/api/dm/call', requireDmUser, dmSameOrigin, async (req, res) => {

@@ -1,3 +1,5 @@
+import { setupDmPush, clearDmPush } from './push.js';
+
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
@@ -711,6 +713,7 @@ function bind() {
   els.logout?.addEventListener('click', async () => {
     els.logout.disabled = true;
     try { await api('/api/dm/logout', { method: 'POST', body: '{}' }); } catch {}
+    await clearDmPush();
     disconnectStream();
     clearInterval(state.pollTimer);
     location.replace('/messages');
@@ -736,6 +739,7 @@ async function boot() {
     const data = await api('/api/dm/me');
     showChat(data.user);
     await startChat();
+    setupDmPush({ role:'user', button:$('#dm-push-btn'), toast });
   } catch (e) {
     showAuth();
     if (e.status && e.status !== 401) toast(e.message);

@@ -478,6 +478,8 @@ export async function initDb() {
         endpoint TEXT NOT NULL UNIQUE,
         p256dh TEXT DEFAULT '',
         auth TEXT DEFAULT '',
+        role TEXT DEFAULT 'user',
+        user_id INTEGER,
         user_agent TEXT DEFAULT '',
         created_at TIMESTAMP DEFAULT NOW(),
         last_seen TIMESTAMP
@@ -791,12 +793,16 @@ export async function initDb() {
       endpoint TEXT NOT NULL UNIQUE,
       p256dh TEXT DEFAULT '',
       auth TEXT DEFAULT '',
+      role TEXT DEFAULT 'user',
+      user_id INTEGER,
       user_agent TEXT DEFAULT '',
       created_at TEXT DEFAULT (datetime('now')),
       last_seen TEXT
     );
   `);
   }
+  try{ await db.prepare("ALTER TABLE dm_push_subscriptions ADD COLUMN role TEXT DEFAULT 'user'").run(); }catch{}
+  try{ await db.prepare('ALTER TABLE dm_push_subscriptions ADD COLUMN user_id INTEGER').run(); }catch{}
 
   // Helper to handle async get
   const getCount = async (table) => {
