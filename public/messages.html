@@ -37,9 +37,9 @@ const effectiveName = urlName || storedName;
 // Show chat if we have a name, otherwise show entry
 if (effectiveName) {
   // Hide name entry, show chat
-  $('#dm-name-entry')?.addClass('dm-hidden');
-  $('#dm-chat')?.removeClass('dm-hidden');
-  $('#dm-chat-name')?.textContent = `${effectiveName} - Nexatech`;
+  document.getElementById('dm-name-entry')?.classList.add('dm-hidden');
+  document.getElementById('dm-chat')?.classList.remove('dm-hidden');
+  document.getElementById('dm-chat-name')?.textContent = `${effectiveName} - Nexatech`;
   
   // Also save to localStorage if not already set (from URL)
   if (!storedName) {
@@ -47,8 +47,8 @@ if (effectiveName) {
   }
 } else {
   // Show name entry form
-  $('#dm-name-entry')?.removeClass('dm-hidden');
-  $('#dm-chat')?.addClass('dm-hidden');
+  document.getElementById('dm-name-entry')?.classList.remove('dm-hidden');
+  document.getElementById('dm-chat')?.classList.add('dm-hidden');
 }
 </script>
 
@@ -120,11 +120,11 @@ if (effectiveName) {
 
 <script type="module">
 /* ===== Name form submission ===== */
-$('#dm-name-form')?.addEventListener('submit', (e) => {
+document.getElementById('dm-name-form')?.addEventListener('submit', (e) => {
   e.preventDefault();
-  const nameInput = $('#dm-enter-name');
+  const nameInput = document.getElementById('dm-enter-name');
   const name = nameInput.value.trim();
-  const errorEl = $('#dm-name-error');
+  const errorEl = document.getElementById('dm-name-error');
 
   if (!name) {
     errorEl.textContent = 'Please enter your name';
@@ -141,12 +141,28 @@ $('#dm-name-form')?.addEventListener('submit', (e) => {
   localStorage.setItem('dm_user_name', name);
   
   // Show chat
-  $('#dm-name-entry')?.addClass('dm-hidden');
-  $('#dm-chat')?.removeClass('dm-hidden');
-  $('#dm-chat-name')?.textContent = `${name} - Nexatech`;
+  document.getElementById('dm-name-entry')?.classList.add('dm-hidden');
+  document.getElementById('dm-chat')?.classList.remove('dm-hidden');
+  document.getElementById('dm-chat-name')?.textContent = `${name} - Nexatech`;
   
-  toast(`Welcome, ${name}!`);
+  showToast(`Welcome, ${name}!`);
 });
+
+/* ===== Helper: show toast ===== */
+function showToast(msg) {
+  const toast = document.getElementById('dm-toast');
+  if (!toast) {
+    const t = document.createElement('div');
+    t.id = 'dm-toast';
+    t.setAttribute('role', 'status');
+    t.style.cssText = 'position:fixed;bottom:2rem;left:50%;transform:translateX(-50%);background:var(--dm-color-bg-alt);color:var(--dm-color-text);padding:0.75rem 1.25rem;border-radius:var(--dm-radius);font-size:0.875rem;opacity:0;transition:opacity 0.3s;z-index:9999;';
+    document.body.appendChild(t);
+    toast = t;
+  }
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 3000);
+}
 
 /* ===== Chat functionality ===== */
 const state = {
@@ -155,34 +171,12 @@ const state = {
   lastDate: null
 };
 
-function toast(msg) {
-  const toast = $('#dm-toast');
-  if (!toast) {
-    const t = document.createElement('div');
-    t.id = 'dm-toast';
-    t.setAttribute('role', 'status');
-    t.style.cssText = 'position:fixed;bottom:2rem;left:50%;transform:translateX(-50%);background:var(--dm-color-bg-alt);color:var(--dm-color-text);padding:0.75rem 1.25rem;border-radius:var(--dm-radius);font-size:0.875rem;opacity:0;transition:opacity 0.3s;z-index:9999;';
-    document.body.appendChild(t);
-    toast = t;
-    $('#dm-toast') = t;
-  }
-  toast.textContent = msg;
-  toast.classList.add('show');
-  setTimeout(() => toast.classList.remove('show'), 3000);
-}
-
-function scrollBottom() {
-  const thread = $('#dm-thread');
-  if (!thread) return;
-  thread.scrollTop = thread.scrollHeight;
-}
-
 /* Call buttons */
-$('#dm-call-btn')?.addEventListener('click', () => startCall('voice'));
-$('#dm-video-btn')?.addEventListener('click', () => startCall('video'));
+document.getElementById('dm-call-btn')?.addEventListener('click', () => startCall('voice'));
+document.getElementById('dm-video-btn')?.addEventListener('click', () => startCall('video'));
 
 function startCall(mode) {
-  toast(`Starting ${mode} call...`);
+  showToast(`Starting ${mode} call...`);
 }
 
 /* Message handling */
@@ -191,7 +185,7 @@ function addMessage(msg, forceScroll) {
   state.messages.set(msg.id, msg);
   if (msg.id > state.lastId) state.lastId = msg.id;
   
-  if ($('#dm-empty')) $('#dm-empty').addClass('dm-hidden');
+  if (document.getElementById('dm-empty')) document.getElementById('dm-empty').classList.add('dm-hidden');
   
   const date = new Date(msg.created_at);
   const isToday = new Date().toDateString() === new Date(msg.created_at).toDateString();
@@ -218,11 +212,11 @@ function addMessage(msg, forceScroll) {
     const sep = document.createElement('div');
     sep.className = 'dm-day';
     sep.textContent = state.lastDate;
-    $('#dm-thread').appendChild(sep);
+    document.getElementById('dm-thread').appendChild(sep);
   }
   state.lastDate = dayStr;
   
-  $('#dm-thread').appendChild(row);
+  document.getElementById('dm-thread').appendChild(row);
   scrollBottom();
 }
 
@@ -238,9 +232,9 @@ function formatTime(dateStr) {
 }
 
 /* ============ Composer ===== */
-$('#dm-form')?.addEventListener('submit', (e) => {
+document.getElementById('dm-form')?.addEventListener('submit', (e) => {
   e.preventDefault();
-  const input = $('#dm-input');
+  const input = document.getElementById('dm-input');
   const value = input.value.trim();
   if (!value) return;
   
@@ -255,7 +249,7 @@ $('#dm-form')?.addEventListener('submit', (e) => {
   
   addMessage(msg);
   input.value = '';
-  toast('Message sent');
+  showToast('Message sent');
 });
 </script>
 </body>
