@@ -10,7 +10,27 @@
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary">
 <meta name="theme-color" content="#05070f">
-<meta name="mobile-web-app-capable" content="yes">
+<style>
+  /* Dark mode with light text */
+  body.dm-page {
+    background: #05070f;
+    color: #e2e8f0;
+  }
+  .dm-auth-card, .dm-shell, .dm-thread, .dm-empty, .dm-composer, .dm-toast {
+    background: var(--dm-color-bg-alt, #0f172a) !important;
+    color: var(--dm-color-text, #e2e8f0) !important;
+  }
+  .dm-bubble, .dm-row .theirs .dm-bubble {
+    background: var(--dm-color-bg, #1e293b) !important;
+    color: #e2e8f0 !important;
+  }
+  .dm-meta, .dm-day {
+    color: #94a3b8 !important;
+  }
+  .dm-empty-badge {
+    filter: invert(1) !important;
+  }
+</style>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Nexatech">
@@ -61,7 +81,7 @@ if (effectiveName) {
     </div>
 
     <h1 class="dm-auth-title">Start chatting</h1>
-    <p class="dm-auth-sub">Enter your name to message Ifeoluwa privately. No account needed.</p>
+    <p class="dm-auth-sub">Enter your name to message Nexatech privately. No account needed.</p>
 
     <form class="dm-form" id="dm-name-form" novalidate>
       <div class="dm-field">
@@ -83,7 +103,7 @@ if (effectiveName) {
     <img class="dm-logo" data-brand-logo alt="Nexatech logo" hidden>
     <span class="dm-logo-fallback" data-brand-fallback>N</span>
     <div class="dm-header-name">
-      <b id="dm-chat-name">Ifeoluwa - Nexatech</b>
+      <b id="dm-chat-name">Nexatech - Nexatech</b>
       <span class="dm-status" id="dm-connection"><i></i> <span id="dm-connection-text">Connected</span></span>
     </div>
     <div class="dm-header-actions">
@@ -101,7 +121,7 @@ if (effectiveName) {
     <div class="dm-empty" id="dm-empty">
       <span class="dm-empty-badge" aria-hidden="true">✦</span>
       <b>Welcome!</b>
-      <span>Your messages will appear here. Ifeoluwa can reply in this chat.</span>
+      <span>Your messages will appear here. Nexatech can reply in this chat.</span>
     </div>
   </main>
 
