@@ -93,6 +93,138 @@
   </div>
 </div>
 
+<!-- ============ CHAT ============ -->
+<div class="dm-shell dm-hidden" id="dm-chat">
+  <header class="dm-header">
+    <img class="dm-logo" data-brand-logo alt="Nexatech logo" hidden>
+    <span class="dm-logo-fallback" data-brand-fallback>N</span>
+    <div class="dm-header-name">
+      <b id="dm-chat-name">Ifeoluwa - Nexatech</b>
+      <span class="dm-status" id="dm-connection"><i></i> <span id="dm-connection-text">Connected</span></span>
+    </div>
+    <div class="dm-header-actions">
+      <button type="button" class="dm-icon-btn dm-push-btn dm-hidden" id="dm-push-btn" title="Enable message notifications" aria-label="Enable message notifications" aria-pressed="false">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+      </button>
+      <button type="button" class="dm-icon-btn" id="dm-call-btn" title="Start a voice call">Call</button>
+      <button type="button" class="dm-icon-btn" id="dm-video-btn" title="Start a video call">Video</button>
+      <a class="dm-icon-btn" href="/" title="Back to website">Site</a>
+      <button type="button" class="dm-icon-btn" id="dm-logout">Log out</button>
+    </div>
+  </header>
+
+  <main class="dm-thread" id="dm-thread" aria-live="polite">
+    <div class="dm-empty" id="dm-empty">
+      <span class="dm-empty-badge" aria-hidden="true">✦</span>
+      <b>This is the start of your private chat</b>
+      <span>Send a message below. Ifeoluwa gets notified instantly and replies here - you can also receive custom offers and pay securely in this chat.</span>
+    </div>
+  </main>
+
+  <div class="dm-composer">
+    <form id="dm-form">
+      <textarea id="dm-input" rows="1" maxlength="2000" placeholder="Type a message..." aria-label="Message" autocomplete="off"></textarea>
+      <button type="submit" class="dm-send" id="dm-send" aria-label="Send message" title="Send">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/></svg>
+      </button>
+    </form>
+    <div class="dm-composer-hint">Enter to send · Shift + Enter for a new line</div>
+  </div>
+
+  <div class="dm-toast" id="dm-toast" role="status"></div>
+</div>
+
+<!-- ============ OFFER MODAL ============ -->
+<div class="dm-modal dm-hidden" id="inbox-offer-modal">
+  <div class="dm-modal-card" role="dialog" aria-modal="true" aria-labelledby="inbox-offer-title">
+    <header class="dm-modal-head">
+      <div>
+        <b id="inbox-offer-title">Send a custom offer</b>
+        <small>Build the scope, price and extras. The client accepts and pays in the chat.</small>
+      </div>
+      <button type="button" class="dm-icon-btn" id="inbox-offer-close" aria-label="Close offer builder">Close</button>
+    </header>
+    <form id="inbox-offer-form" class="dm-modal-body">
+      <div class="dm-field">
+        <label for="inbox-offer-template">Start from a template</label>
+        <div class="dm-template-row">
+          <select id="inbox-offer-template"><option value="">Start from scratch</option></select>
+          <button type="button" class="dm-btn dm-btn-ghost" id="inbox-offer-save-template">Save current as template</button>
+        </div>
+      </div>
+      <div class="dm-field">
+        <label for="inbox-offer-description">What is included</label>
+        <textarea id="inbox-offer-description" rows="4" maxlength="1200" placeholder="Describe the work, deliverables and anything the client should know..." required></textarea>
+      </div>
+      <div class="dm-form-grid">
+        <div class="dm-field">
+          <label for="inbox-offer-amount">Price (USD)</label>
+          <input id="inbox-offer-amount" type="number" min="0" max="100000" step="0.01" value="50.00" required>
+        </div>
+        <div class="dm-field">
+          <label for="inbox-offer-delivery">Delivery time</label>
+          <select id="inbox-offer-delivery">
+            <option value="1">1 day</option>
+            <option value="2">2 days</option>
+            <option value="3">3 days</option>
+            <option value="5">5 days</option>
+            <option value="7" selected>7 days</option>
+            <option value="10">10 days</option>
+            <option value="14">14 days</option>
+            <option value="21">21 days</option>
+            <option value="30">30 days</option>
+          </select>
+        </div>
+        <div class="dm-field">
+          <label for="inbox-offer-revisions">Revisions</label>
+          <select id="inbox-offer-revisions">
+            <option value="0">No revisions</option>
+            <option value="1" selected>1 revision</option>
+            <option value="2">2 revisions</option>
+            <option value="3">3 revisions</option>
+            <option value="5">5 revisions</option>
+            <option value="unlimited">Unlimited</option>
+          </select>
+        </div>
+        <div class="dm-field">
+          <label for="inbox-offer-expiry">Client response window</label>
+          <select id="inbox-offer-expiry">
+            <option value="0" selected>No expiry</option>
+            <option value="3">3 days</option>
+            <option value="7">7 days</option>
+            <option value="14">14 days</option>
+            <option value="30">30 days</option>
+          </select>
+        </div>
+      </div>
+      <fieldset class="dm-field dm-extras-field">
+        <legend>Optional extras (up to 3)</legend>
+        <div class="inbox-offer-extra-row">
+          <input class="offer-extra-label" type="text" maxlength="80" placeholder="Extra name (e.g. logo design)">
+          <input class="offer-extra-price" type="number" min="0" max="100000" step="0.01" placeholder="Price USD">
+        </div>
+        <div class="inbox-offer-extra-row">
+          <input class="offer-extra-label" type="text" maxlength="80" placeholder="Extra name">
+          <input class="offer-extra-price" type="number" min="0" max="100000" step="0.01" placeholder="Price USD">
+        </div>
+        <div class="inbox-offer-extra-row">
+          <input class="offer-extra-label" type="text" maxlength="80" placeholder="Extra name">
+          <input class="offer-extra-price" type="number" min="0" max="100000" step="0.01" placeholder="Price USD">
+        </div>
+      </fieldset>
+      <label class="dm-check">
+        <input id="inbox-offer-requirements" type="checkbox">
+        <span>Ask the client to add project requirements before they accept</span>
+      </label>
+      <div class="dm-error" id="inbox-offer-error" role="alert"></div>
+      <div class="dm-modal-actions">
+        <button type="button" class="dm-btn dm-btn-ghost" id="inbox-offer-cancel">Cancel</button>
+        <button type="submit" class="dm-btn dm-btn-primary" id="inbox-offer-send">Send offer</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script type="module">
 /* ===== Auth switching ===== */
 const els = {
@@ -142,6 +274,24 @@ function submitAuth(kind, form, errorEl) {
   }, 1000);
 }
 
+/* ============ Password toggle ===== */
+document.querySelectorAll('.dm-eye').forEach(btn => {
+  const input = $(btn.getAttribute('data-eye'));
+  btn.addEventListener('click', () => {
+    const type = input.getAttribute('type') === 'password' ? 'text' : 'password';
+    input.setAttribute('type', type);
+    btn.textContent = type === 'password' ? 'Show' : 'Hide';
+  });
+});
+
+/* ============ Chat functionality ===== */
+const state = {
+  me: null,
+  conversation: null,
+  messages: new Map(),
+  lastId: 0
+};
+
 function toast(msg) {
   const toast = $('#dm-toast');
   if (!toast) {
@@ -158,14 +308,110 @@ function toast(msg) {
   setTimeout(() => toast.classList.remove('show'), 3000);
 }
 
-/* ============ Password toggle ===== */
-document.querySelectorAll('.dm-eye').forEach(btn => {
-  const input = $(btn.getAttribute('data-eye'));
-  btn.addEventListener('click', () => {
-    const type = input.getAttribute('type') === 'password' ? 'text' : 'password';
-    input.setAttribute('type', type);
-    btn.textContent = type === 'password' ? 'Show' : 'Hide';
-  });
+function scrollBottom() {
+  const thread = $('#dm-thread');
+  if (!thread) return;
+  thread.scrollTop = thread.scrollHeight;
+}
+
+/* Call buttons */
+$('#dm-call-btn')?.addEventListener('click', () => startCall('voice'));
+$('#dm-video-btn')?.addEventListener('click', () => startCall('video'));
+
+function startCall(mode) {
+  toast(`Starting ${mode} call...`);
+}
+
+/* Message handling */
+function addMessage(msg, forceScroll) {
+  if (!msg || !msg.id || state.messages.has(msg.id)) return;
+  state.messages.set(msg.id, msg);
+  if (msg.id > state.lastId) state.lastId = msg.id;
+  
+  if ($('#dm-empty')) $('#dm-empty').addClass('dm-hidden');
+  
+  const date = new Date(msg.created_at);
+  const isToday = new Date().toDateString() === new Date(msg.created_at).toDateString();
+  const dayStr = isToday ? 'Today' : formatDate(msg.created_at);
+  
+  const row = document.createElement('div');
+  row.className = 'dm-row ' + (msg.sender === 'owner' ? 'theirs' : 'mine');
+  
+  const bubble = document.createElement('div');
+  bubble.className = 'dm-bubble';
+  bubble.textContent = msg.body || '';
+  
+  const meta = document.createElement('div');
+  meta.className = 'dm-meta';
+  const time = document.createElement('span');
+  time.textContent = formatTime(msg.created_at);
+  meta.appendChild(time);
+  
+  if (msg.sender === 'owner') {
+    const ticks = document.createElement('span');
+    ticks.textContent = msg.read_at ? '✓✓' : '✓';
+    ticks.title = msg.read_at ? 'Read' : 'Delivered';
+    meta.appendChild(ticks);
+  }
+  
+  row.appendChild(bubble);
+  row.appendChild(meta);
+  
+  // Add day separator if needed
+  const lastDate = state.lastDate;
+  state.lastDate = dayStr;
+  if (lastDate !== dayStr && state.lastDate) {
+    const sep = document.createElement('div');
+    sep.className = 'dm-day';
+    sep.textContent = dayStr;
+    $('#dm-thread').appendChild(sep);
+  }
+  
+  $('#dm-thread').appendChild(row);
+  scrollBottom();
+}
+
+/* format helpers */
+function formatDate(dateStr) {
+  const d = new Date(dateStr);
+  const options = { weekday: 'short', month: 'short', day: 'numeric' };
+  return d.toLocaleDateString(undefined, options);
+}
+
+function formatTime(dateStr) {
+  const d = new Date(dateStr);
+  return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+}
+
+/* ============ Offer modal ===== */
+$('#inbox-offer-close')?.addEventListener('click', () => $('#inbox-offer-modal').addClass('dm-hidden'));
+
+$('#inbox-offer-form')?.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const preview = $('#inbox-offer-description')?.value?.substring(0, 50) + '...';
+  toast('Offer submitted - client will review in chat');
+  $('#inbox-offer-modal').addClass('dm-hidden');
+});
+
+/* ============ Auth state management ===== */
+els.switchWrap?.addEventListener('click', (e) => {
+  e.preventDefault();
+  const login = e.target.getAttribute('href')?.includes('login=1');
+  setHidden(els, login);
+});
+
+/* ============ Initial state ===== */
+setHidden(els, false);  // Show login form by default
+
+/* ============ Form submissions ===== */
+els.signupForm?.addEventListener('submit', (e) => {
+  e.preventDefault();
+  submitAuth('signup', els.signupForm, els.signupError);
+});
+
+els.loginForm?.addEventListener('submit', (e) => {
+  e.preventDefault();
+  submitAuth('login', els.loginForm, els.loginError);
 });
 </script>
 </body>
