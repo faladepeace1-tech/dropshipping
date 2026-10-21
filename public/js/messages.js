@@ -198,6 +198,287 @@ function timeLabel(date) {
   return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }
 
+function money(cents) {
+  return '$' + (Number(cents || 0) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function offerStatus(offer) {
+  if (offer.status === 'pending' && offer.expired) return 'expired';
+  return offer.status || 'pending';
+}
+
+function offerStatusText(status) {
+  if (status === 'accepted') return 'Accepted - pay to start';
+  if (status === 'paid') return 'Paid';
+  if (status === 'declined') return 'Declined';
+  if (status === 'expired') return 'Expired';
+  return 'Awaiting your response';
+}
+
+function jitsiUrl(room, mode) {
+  const safe = encodeURIComponent('nexatech-' + String(room || '').replace(/[^a-z0-9]/gi, ''));
+  return 'https://meet.jit.si/' + safe + '#config.prejoinPageEnabled=false&config.disableDeepLinking=true'
+    + '&config.startWithAudioMuted=false&config.startWithVideoMuted=' + (mode === 'voice' ? 'true' : 'false')
+    + '&interfaceConfig.SHOW_JITSI_WATERMARK=false&interfaceConfig.SHOW_BRAND_WATERMARK=false';
+}
+
+function closeCallOverlay() {
+  const overlay = $('#dm-call-overlay');
+  if (!overlay) return;
+  const frame = overlay.querySelector('iframe');
+  if (frame) frame.src = 'about:blank';
+  overlay.remove();
+}
+
+function openCallOverlay(mode, room) {
+  closeCallOverlay();
+  const overlay = document.createElement('div');
+  overlay.className = 'dm-call-overlay';
+  overlay.id = 'dm-call-overlay';
+
+  const bar = document.createElement('div');
+  bar.className = 'dm-call-bar';
+  const text = document.createElement('div');
+  const title = document.createElement('b');
+  title.textContent = mode === 'voice' ? 'Voice call' : 'Video call';
+  const sub = document.createElement('small');
+  sub.textContent = 'Nexatech private call';
+  text.append(title, sub);
+  const end = document.createElement('button');
+  end.type = 'button';
+  end.className = 'dm-btn dm-btn-ghost';
+  end.textContent = 'End call';
+  end.addEventListener('click', closeCallOverlay);
+  bar.append(text, end);
+
+  const frame = document.createElement('iframe');
+  frame.src = jitsiUrl(room, mode);
+  frame.allow = 'camera; microphone; display-capture; autoplay; clipboard-write; fullscreen';
+  frame.setAttribute('allowfullscreen', '');
+  frame.title = title.textContent;
+
+  overlay.append(bar, frame);
+  document.body.appendChild(overlay);
+}
+
+async function startCall(mode) {
+  if (!state.me) return;
+  try {
+    const data = await api('/api/dm/call', { method: 'POST', body: JSON.stringify({ mode }) });
+    if (data.message) addMessage(data.message, true);
+    openCallOverlay(data.mode || mode, data.room);
+  } catch (e) {
+    toast(e.message);
+  }
+}
+
+function offerElement(msg) {
+  const offer = msg.offer;
+  const status = offerStatus(offer);
+  const extras = Array.isArray(offer.extras) ? offer.extras : [];
+  const selected = new Set((offer.selected_extras || []).map(Number));
+
+  const row = document.createElement('div');
+  row.className = 'dm-row ' + (msg.sender === 'user' ? 'mine' : 'theirs');
+  row.dataset.offerId = String(offer.id);
+
+  const card = document.createElement('div');
+  card.className = 'dm-offer';
+
+  const head = document.createElement('div');
+  head.className = 'dm-offer-head';
+  const title = document.createElement('b');
+  title.textContent = 'Custom offer';
+  const badge = document.createElement('span');
+  badge.className = 'dm-offer-status ' + status;
+  badge.textContent = offerStatusText(status);
+  head.append(title, badge);
+
+  const body = document.createElement('div');
+  body.className = 'dm-offer-body';
+
+  const description = document.createElement('div');
+  description.className = 'dm-offer-desc';
+  description.textContent = offer.description || '';
+
+  const price = document.createElement('div');
+  price.className = 'dm-offer-price';
+  function paintPrice() {
+    const total = Number(offer.amount_cents || 0) + [...selected].reduce((sum, i) => sum + (Number(extras[i]?.price_cents) || 0), 0);
+    price.textContent = money(total);
+    const unit = document.createElement('small');
+    unit.textContent = 'USD - one-time';
+    price.appendChild(unit);
+  }
+  paintPrice();
+
+  const facts = document.createElement('div');
+  facts.className = 'dm-offer-facts';
+  const delivery = document.createElement('span');
+  delivery.className = 'dm-offer-fact';
+  delivery.textContent = (offer.delivery_days || 0) + ' day delivery';
+  const revisions = document.createElement('span');
+  revisions.className = 'dm-offer-fact';
+  revisions.textContent = offer.revisions === 'unlimited' ? 'Unlimited revisions' : (offer.revisions || '0') + ' revision' + (Number(offer.revisions) === 1 ? '' : 's');
+  facts.append(delivery, revisions);
+  if (offer.expires_at && status === 'pending') {
+    const expires = document.createElement('span');
+    expires.className = 'dm-offer-fact';
+    expires.textContent = 'Expires ' + toDate(offer.expires_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    facts.appendChild(expires);
+  }
+  if (offer.status === 'paid' && offer.order_ref) {
+    const order = document.createElement('span');
+    order.className = 'dm-offer-fact';
+    order.textContent = 'Order ' + offer.order_ref;
+    facts.appendChild(order);
+  }
+
+  body.append(description, price, facts);
+
+  if (extras.length) {
+    const extraWrap = document.createElement('div');
+    extraWrap.className = 'dm-offer-extras';
+    extras.forEach((extra, index) => {
+      const label = document.createElement('label');
+      label.className = 'dm-offer-extra';
+      const check = document.createElement('input');
+      check.type = 'checkbox';
+      check.checked = selected.has(index);
+      check.disabled = status !== 'pending';
+      check.addEventListener('change', () => {
+        if (check.checked) selected.add(index); else selected.delete(index);
+        paintPrice();
+      });
+      const name = document.createElement('span');
+      name.textContent = extra.label;
+      const amount = document.createElement('b');
+      amount.textContent = (extra.price_cents ? '+' : '') + money(extra.price_cents);
+      label.append(check, name, amount);
+      extraWrap.appendChild(label);
+    });
+    body.appendChild(extraWrap);
+  }
+
+  let requirements = null;
+  if (offer.requirements_requested && status === 'pending') {
+    requirements = document.createElement('textarea');
+    requirements.className = 'dm-offer-requirements';
+    requirements.placeholder = 'Tell Ifeoluwa what you need before you pay...';
+    requirements.maxLength = 4000;
+    requirements.rows = 3;
+    const reqLabel = document.createElement('label');
+    reqLabel.className = 'dm-offer-req-label';
+    reqLabel.textContent = 'Project requirements';
+    body.append(reqLabel, requirements);
+  } else if (offer.requirements_text) {
+    const req = document.createElement('div');
+    req.className = 'dm-offer-requirements-saved';
+    req.textContent = 'Your requirements: ' + offer.requirements_text;
+    body.appendChild(req);
+  }
+
+  card.append(head, body);
+
+  if (status === 'pending') {
+    const actions = document.createElement('div');
+    actions.className = 'dm-offer-actions';
+    const accept = document.createElement('button');
+    accept.type = 'button';
+    accept.className = 'dm-btn dm-btn-primary';
+    accept.textContent = 'Accept & pay';
+    const decline = document.createElement('button');
+    decline.type = 'button';
+    decline.className = 'dm-btn dm-btn-ghost';
+    decline.textContent = 'Decline';
+    accept.addEventListener('click', async () => {
+      if (offer.requirements_requested && (!requirements || requirements.value.trim().length < 2)) {
+        toast('Add your requirements before accepting.');
+        requirements?.focus();
+        return;
+      }
+      accept.disabled = true;
+      decline.disabled = true;
+      accept.textContent = 'Accepting...';
+      try {
+        const data = await api('/api/dm/offers/' + encodeURIComponent(offer.id) + '/accept', {
+          method: 'POST',
+          body: JSON.stringify({
+            selected_extras: [...selected],
+            requirements_text: requirements ? requirements.value.trim() : ''
+          })
+        });
+        if (data.checkout_url) location.href = data.checkout_url;
+      } catch (e) {
+        toast(e.message);
+        accept.disabled = false;
+        decline.disabled = false;
+        accept.textContent = 'Accept & pay';
+      }
+    });
+    decline.addEventListener('click', async () => {
+      if (!confirm('Decline this offer?')) return;
+      decline.disabled = true;
+      try {
+        const data = await api('/api/dm/offers/' + encodeURIComponent(offer.id) + '/decline', { method: 'POST', body: '{}' });
+        if (data.offer) applyOfferUpdate(data.offer);
+      } catch (e) {
+        toast(e.message);
+        decline.disabled = false;
+      }
+    });
+    actions.append(accept, decline);
+    card.appendChild(actions);
+  } else if (status === 'accepted') {
+    const actions = document.createElement('div');
+    actions.className = 'dm-offer-actions';
+    const pay = document.createElement('a');
+    pay.className = 'dm-btn dm-btn-primary';
+    pay.href = '/checkout?kind=dm&item=' + encodeURIComponent(offer.checkout_ref);
+    pay.textContent = 'Complete payment';
+    actions.appendChild(pay);
+    card.appendChild(actions);
+  }
+
+  const meta = document.createElement('div');
+  meta.className = 'dm-meta';
+  meta.textContent = timeLabel(toDate(msg.created_at));
+  row.append(card, meta);
+  return row;
+}
+
+function callElement(msg) {
+  const meta = msg.meta || {};
+  const mode = meta.mode === 'voice' ? 'voice' : 'video';
+  const row = document.createElement('div');
+  row.className = 'dm-row ' + (msg.sender === 'user' ? 'mine' : 'theirs');
+  const card = document.createElement('div');
+  card.className = 'dm-call-card';
+  const icon = document.createElement('span');
+  icon.className = 'dm-call-icon';
+  icon.innerHTML = mode === 'voice'
+    ? '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.8a2 2 0 0 1-.5 2.1L8 10a16 16 0 0 0 6 6l1.4-1.3a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg>'
+    : '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="m16 11 6-4v10l-6-4"/></svg>';
+  const text = document.createElement('div');
+  const title = document.createElement('b');
+  title.textContent = mode === 'voice' ? 'Voice call started' : 'Video call started';
+  const sub = document.createElement('small');
+  sub.textContent = 'Tap join to enter the private room';
+  text.append(title, sub);
+  const join = document.createElement('button');
+  join.type = 'button';
+  join.className = 'dm-btn dm-btn-primary';
+  join.textContent = 'Join';
+  join.disabled = !meta.room;
+  join.addEventListener('click', () => openCallOverlay(mode, meta.room));
+  card.append(icon, text, join);
+  const metaEl = document.createElement('div');
+  metaEl.className = 'dm-meta';
+  metaEl.textContent = timeLabel(toDate(msg.created_at));
+  row.append(card, metaEl);
+  return row;
+}
+
 function nearBottom() {
   if (!els.thread) return true;
   return els.thread.scrollHeight - els.thread.scrollTop - els.thread.clientHeight < 140;
@@ -218,6 +499,8 @@ function messageElement(msg) {
     system.textContent = msg.body || '';
     return system;
   }
+  if (msg.kind === 'offer' && msg.offer) return offerElement(msg);
+  if (msg.kind === 'call') return callElement(msg);
   const row = document.createElement('div');
   row.className = 'dm-row ' + (msg.sender === 'user' ? 'mine' : 'theirs');
   const bubble = document.createElement('div');
@@ -273,6 +556,18 @@ function renderAll(rows) {
   scrollBottom(true);
 }
 
+function applyOfferUpdate(offer) {
+  if (!offer || !offer.id) return;
+  let changed = false;
+  state.messages.forEach((msg) => {
+    if (msg.offer && Number(msg.offer.id) === Number(offer.id)) {
+      msg.offer = offer;
+      changed = true;
+    }
+  });
+  if (changed) renderAll([...state.messages.values()]);
+}
+
 async function loadMessages() {
   const data = await api('/api/dm/messages');
   state.conversation = data.conversation || null;
@@ -319,6 +614,13 @@ function connectStream() {
       try {
         const data = JSON.parse(event.data);
         if (data && data.message) addMessage(data.message);
+        setOnline(true);
+      } catch {}
+    });
+    es.addEventListener('offer', (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data && data.offer) applyOfferUpdate(data.offer);
         setOnline(true);
       } catch {}
     });
@@ -394,6 +696,9 @@ function bind() {
     submitAuth('login', els.loginForm, els.loginError);
   });
 
+  $('#dm-call-btn')?.addEventListener('click', () => startCall('voice'));
+  $('#dm-video-btn')?.addEventListener('click', () => startCall('video'));
+
   els.form?.addEventListener('submit', (e) => { e.preventDefault(); sendMessage(); });
   els.input?.addEventListener('input', autoGrow);
   els.input?.addEventListener('keydown', (e) => {
@@ -418,7 +723,7 @@ function bind() {
     }
   });
 
-  window.addEventListener('pagehide', disconnectStream);
+  window.addEventListener('pagehide', () => { closeCallOverlay(); disconnectStream(); });
 
   const login = new URLSearchParams(location.search).get('login');
   setTab(login ? 'login' : 'signup');

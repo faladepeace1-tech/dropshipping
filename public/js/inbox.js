@@ -148,6 +148,358 @@ function timeLabel(date) {
   return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }
 
+function money(cents) {
+  return '$' + (Number(cents || 0) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function offerStatus(offer) {
+  if (offer.status === 'pending' && offer.expired) return 'expired';
+  return offer.status || 'pending';
+}
+
+function offerStatusText(status) {
+  if (status === 'pending') return 'Sent';
+  if (status === 'accepted') return 'Accepted - awaiting payment';
+  if (status === 'paid') return 'Paid';
+  if (status === 'declined') return 'Declined';
+  if (status === 'expired') return 'Expired';
+  return status;
+}
+
+function jitsiUrl(room, mode) {
+  const safe = encodeURIComponent('nexatech-' + String(room || '').replace(/[^a-z0-9]/gi, ''));
+  return 'https://meet.jit.si/' + safe + '#config.prejoinPageEnabled=false&config.disableDeepLinking=true'
+    + '&config.startWithAudioMuted=false&config.startWithVideoMuted=' + (mode === 'voice' ? 'true' : 'false')
+    + '&interfaceConfig.SHOW_JITSI_WATERMARK=false&interfaceConfig.SHOW_BRAND_WATERMARK=false';
+}
+
+function closeCallOverlay() {
+  const overlay = $('#inbox-call-overlay');
+  if (!overlay) return;
+  const frame = overlay.querySelector('iframe');
+  if (frame) frame.src = 'about:blank';
+  overlay.remove();
+}
+
+function openCallOverlay(mode, room) {
+  closeCallOverlay();
+  const overlay = document.createElement('div');
+  overlay.className = 'dm-call-overlay';
+  overlay.id = 'inbox-call-overlay';
+
+  const bar = document.createElement('div');
+  bar.className = 'dm-call-bar';
+  const text = document.createElement('div');
+  const title = document.createElement('b');
+  title.textContent = mode === 'voice' ? 'Voice call' : 'Video call';
+  const sub = document.createElement('small');
+  sub.textContent = 'Nexatech private call';
+  text.append(title, sub);
+  const end = document.createElement('button');
+  end.type = 'button';
+  end.className = 'dm-btn dm-btn-ghost';
+  end.textContent = 'End call';
+  end.addEventListener('click', closeCallOverlay);
+  bar.append(text, end);
+
+  const frame = document.createElement('iframe');
+  frame.src = jitsiUrl(room, mode);
+  frame.allow = 'camera; microphone; display-capture; autoplay; clipboard-write; fullscreen';
+  frame.setAttribute('allowfullscreen', '');
+  frame.title = title.textContent;
+
+  overlay.append(bar, frame);
+  document.body.appendChild(overlay);
+}
+
+async function startCall(mode) {
+  const convId = state.activeId;
+  if (!convId) return;
+  try {
+    const data = await api('/api/dm/owner/conversations/' + encodeURIComponent(convId) + '/call', {
+      method: 'POST',
+      body: JSON.stringify({ mode })
+    });
+    if (data.message && Number(state.activeId) === Number(convId)) addMessage(data.message, true);
+    openCallOverlay(data.mode || mode, data.room);
+  } catch (e) {
+    if (e.status === 401) return showLock('Your inbox session expired - unlock again.');
+    toast(e.message);
+  }
+}
+
+function offerFormValues() {
+  const extras = $$('.inbox-offer-extra-row').map((row) => ({
+    label: row.querySelector('.offer-extra-label')?.value.trim() || '',
+    price: row.querySelector('.offer-extra-price')?.value || ''
+  })).filter((e) => e.label);
+  return {
+    description: $('#inbox-offer-description')?.value.trim() || '',
+    amount: $('#inbox-offer-amount')?.value || '',
+    delivery_days: $('#inbox-offer-delivery')?.value || '7',
+    revisions: $('#inbox-offer-revisions')?.value || '1',
+    extras,
+    requirements_requested: $('#inbox-offer-requirements')?.checked ? 1 : 0,
+    expires_in_days: $('#inbox-offer-expiry')?.value || '0'
+  };
+}
+
+function fillOfferForm(template) {
+  if (!template) return;
+  const desc = $('#inbox-offer-description');
+  if (desc) desc.value = template.description || '';
+  const amount = $('#inbox-offer-amount');
+  if (amount) amount.value = (Number(template.amount_cents || 0) / 100).toFixed(2);
+  const delivery = $('#inbox-offer-delivery');
+  if (delivery) delivery.value = String(template.delivery_days || 7);
+  const revisions = $('#inbox-offer-revisions');
+  if (revisions) revisions.value = template.revisions || '1';
+  $$('.inbox-offer-extra-row').forEach((row, index) => {
+    const extra = Array.isArray(template.extras) ? template.extras[index] : null;
+    const label = row.querySelector('.offer-extra-label');
+    const price = row.querySelector('.offer-extra-price');
+    if (label) label.value = extra ? extra.label : '';
+    if (price) price.value = extra ? (Number(extra.price_cents || 0) / 100).toFixed(2) : '';
+  });
+}
+
+async function loadOfferTemplates(selectId) {
+  const select = document.getElementById(selectId);
+  if (!select) return;
+  try {
+    const data = await api('/api/dm/owner/offer-templates');
+    const templates = Array.isArray(data.templates) ? data.templates : [];
+    select.innerHTML = '<option value="">Start from scratch</option>';
+    templates.forEach((template) => {
+      const option = document.createElement('option');
+      option.value = String(template.id);
+      option.textContent = template.name;
+      option.dataset.template = JSON.stringify(template);
+      select.appendChild(option);
+    });
+  } catch {}
+}
+
+function openOfferModal() {
+  if (!state.activeId) return toast('Open a conversation first.');
+  const modal = $('#inbox-offer-modal');
+  if (!modal) return;
+  const error = $('#inbox-offer-error');
+  if (error) error.textContent = '';
+  const form = $('#inbox-offer-form');
+  if (form && !form.dataset.bound) {
+    form.dataset.bound = '1';
+    $('#inbox-offer-template')?.addEventListener('change', (e) => {
+      const option = e.target.selectedOptions[0];
+      if (!option || !option.dataset.template) return;
+      try { fillOfferForm(JSON.parse(option.dataset.template)); } catch {}
+    });
+    $('#inbox-offer-save-template')?.addEventListener('click', async () => {
+      const values = offerFormValues();
+      const name = prompt('Template name:', values.description.slice(0, 40) || 'My offer');
+      if (!name) return;
+      try {
+        await api('/api/dm/owner/offer-templates', { method: 'POST', body: JSON.stringify({ ...values, name }) });
+        await loadOfferTemplates('inbox-offer-template');
+        toast('Template saved.');
+      } catch (e) { toast(e.message); }
+    });
+  }
+  loadOfferTemplates('inbox-offer-template');
+  modal.classList.remove('dm-hidden');
+  setTimeout(() => $('#inbox-offer-description')?.focus(), 80);
+}
+
+function closeOfferModal() {
+  $('#inbox-offer-modal')?.classList.add('dm-hidden');
+}
+
+async function sendOffer() {
+  const convId = state.activeId;
+  if (!convId) return;
+  const form = $('#inbox-offer-form');
+  const error = $('#inbox-offer-error');
+  const btn = $('#inbox-offer-send');
+  if (!form) return;
+  const values = offerFormValues();
+  if (error) error.textContent = '';
+  btn.disabled = true;
+  btn.textContent = 'Sending...';
+  try {
+    const data = await api('/api/dm/owner/conversations/' + encodeURIComponent(convId) + '/offers', {
+      method: 'POST',
+      body: JSON.stringify(values)
+    });
+    closeOfferModal();
+    if (data.message && Number(state.activeId) === Number(convId)) addMessage(data.message, true);
+    upsertConversation({
+      ...(conversationById(convId) || {}),
+      id: convId,
+      last_message_at: new Date().toISOString(),
+      last_message_preview: 'Custom offer - ' + (data.offer?.total_text || ''),
+      last_sender: 'owner',
+      owner_unread: 0
+    });
+    renderList();
+    toast('Offer sent.');
+    form.reset();
+    $$('.inbox-offer-extra-row').forEach((row) => {
+      row.querySelector('.offer-extra-label').value = '';
+      row.querySelector('.offer-extra-price').value = '';
+    });
+  } catch (e) {
+    if (error) error.textContent = e.message;
+    else toast(e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Send offer';
+  }
+}
+
+function offerElement(msg) {
+  const offer = msg.offer;
+  const status = offerStatus(offer);
+  const extras = Array.isArray(offer.extras) ? offer.extras : [];
+  const selected = new Set((offer.selected_extras || []).map(Number));
+
+  const row = document.createElement('div');
+  row.className = 'dm-row ' + (msg.sender === state.side ? 'mine' : 'theirs');
+  row.dataset.offerId = String(offer.id);
+
+  const card = document.createElement('div');
+  card.className = 'dm-offer';
+
+  const head = document.createElement('div');
+  head.className = 'dm-offer-head';
+  const title = document.createElement('b');
+  title.textContent = 'Custom offer';
+  const badge = document.createElement('span');
+  badge.className = 'dm-offer-status ' + status;
+  badge.textContent = offerStatusText(status);
+  head.append(title, badge);
+
+  const body = document.createElement('div');
+  body.className = 'dm-offer-body';
+  const description = document.createElement('div');
+  description.className = 'dm-offer-desc';
+  description.textContent = offer.description || '';
+
+  const price = document.createElement('div');
+  price.className = 'dm-offer-price';
+  price.textContent = money(offer.total_cents);
+  const unit = document.createElement('small');
+  unit.textContent = 'USD - one-time';
+  price.appendChild(unit);
+
+  const facts = document.createElement('div');
+  facts.className = 'dm-offer-facts';
+  const delivery = document.createElement('span');
+  delivery.className = 'dm-offer-fact';
+  delivery.textContent = (offer.delivery_days || 0) + ' day delivery';
+  const revisions = document.createElement('span');
+  revisions.className = 'dm-offer-fact';
+  revisions.textContent = offer.revisions === 'unlimited' ? 'Unlimited revisions' : (offer.revisions || '0') + ' revision' + (Number(offer.revisions) === 1 ? '' : 's');
+  facts.append(delivery, revisions);
+  if (offer.expires_at && offer.status === 'pending') {
+    const expires = document.createElement('span');
+    expires.className = 'dm-offer-fact';
+    expires.textContent = 'Expires ' + toDate(offer.expires_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    facts.appendChild(expires);
+  }
+  if (offer.order_ref) {
+    const order = document.createElement('span');
+    order.className = 'dm-offer-fact';
+    order.textContent = 'Order ' + offer.order_ref;
+    facts.appendChild(order);
+  }
+  body.append(description, price, facts);
+
+  if (extras.length) {
+    const extraWrap = document.createElement('div');
+    extraWrap.className = 'dm-offer-extras';
+    extras.forEach((extra, index) => {
+      const item = document.createElement('div');
+      item.className = 'dm-offer-extra';
+      const check = document.createElement('span');
+      check.className = 'dm-offer-check' + (selected.has(index) ? ' on' : '');
+      check.textContent = selected.has(index) ? 'Yes' : 'No';
+      const name = document.createElement('span');
+      name.textContent = extra.label;
+      const amount = document.createElement('b');
+      amount.textContent = (extra.price_cents ? '+' : '') + money(extra.price_cents);
+      item.append(check, name, amount);
+      extraWrap.appendChild(item);
+    });
+    body.appendChild(extraWrap);
+  }
+
+  if (offer.requirements_text) {
+    const req = document.createElement('div');
+    req.className = 'dm-offer-requirements-saved';
+    req.textContent = 'Client requirements: ' + offer.requirements_text;
+    body.appendChild(req);
+  }
+
+  card.append(head, body);
+
+  if (offer.status === 'accepted') {
+    const actions = document.createElement('div');
+    actions.className = 'dm-offer-actions';
+    const copy = document.createElement('button');
+    copy.type = 'button';
+    copy.className = 'dm-btn dm-btn-ghost';
+    copy.textContent = 'Copy payment link';
+    copy.addEventListener('click', async () => {
+      const link = location.origin + '/checkout?kind=dm&item=' + encodeURIComponent(offer.checkout_ref);
+      try {
+        await navigator.clipboard.writeText(link);
+        toast('Payment link copied.');
+      } catch {
+        prompt('Copy this payment link:', link);
+      }
+    });
+    actions.appendChild(copy);
+    card.appendChild(actions);
+  }
+
+  const meta = document.createElement('div');
+  meta.className = 'dm-meta';
+  meta.textContent = timeLabel(toDate(msg.created_at));
+  row.append(card, meta);
+  return row;
+}
+
+function callElement(msg) {
+  const meta = msg.meta || {};
+  const mode = meta.mode === 'voice' ? 'voice' : 'video';
+  const mine = msg.sender === state.side;
+  const row = document.createElement('div');
+  row.className = 'dm-row ' + (mine ? 'mine' : 'theirs');
+  const card = document.createElement('div');
+  card.className = 'dm-call-card';
+  const icon = document.createElement('span');
+  icon.className = 'dm-call-icon';
+  icon.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="m16 11 6-4v10l-6-4"/></svg>';
+  const text = document.createElement('div');
+  const title = document.createElement('b');
+  title.textContent = mode === 'voice' ? 'Voice call started' : 'Video call started';
+  const sub = document.createElement('small');
+  sub.textContent = mine ? 'You started this call' : 'Client started this call';
+  text.append(title, sub);
+  const join = document.createElement('button');
+  join.type = 'button';
+  join.className = 'dm-btn dm-btn-primary';
+  join.textContent = 'Join';
+  join.disabled = !meta.room;
+  join.addEventListener('click', () => openCallOverlay(mode, meta.room));
+  card.append(icon, text, join);
+  const metaEl = document.createElement('div');
+  metaEl.className = 'dm-meta';
+  metaEl.textContent = timeLabel(toDate(msg.created_at));
+  row.append(card, metaEl);
+  return row;
+}
+
 function listTime(value) {
   const d = toDate(value);
   if (!d.getTime()) return '';
@@ -187,6 +539,8 @@ function messageElement(msg) {
     system.textContent = msg.body || '';
     return system;
   }
+  if (msg.kind === 'offer' && msg.offer) return offerElement(msg);
+  if (msg.kind === 'call') return callElement(msg);
   const mine = msg.sender === state.side;
   const row = document.createElement('div');
   row.className = 'dm-row ' + (mine ? 'mine' : 'theirs');
@@ -237,6 +591,18 @@ function renderAll(rows) {
   state.lastDay = '';
   rows.forEach((msg) => addMessage(msg, false));
   scrollBottom(true);
+}
+
+function applyOfferUpdate(offer) {
+  if (!offer || !offer.id) return;
+  let changed = false;
+  state.messages.forEach((msg) => {
+    if (msg.offer && Number(msg.offer.id) === Number(offer.id)) {
+      msg.offer = offer;
+      changed = true;
+    }
+  });
+  if (changed) renderAll([...state.messages.values()]);
 }
 
 function conversationById(id) {
@@ -505,6 +871,13 @@ function connectStream() {
         setOnline(true);
       } catch {}
     });
+    es.addEventListener('offer', (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data && data.offer) applyOfferUpdate(data.offer);
+        setOnline(true);
+      } catch {}
+    });
     es.onerror = () => setOnline(false);
   } catch {}
 }
@@ -576,6 +949,16 @@ function bind() {
     els.shell?.classList.remove('thread-open');
   });
 
+  $('#inbox-offer-btn')?.addEventListener('click', openOfferModal);
+  $('#inbox-offer-close')?.addEventListener('click', closeOfferModal);
+  $('#inbox-offer-cancel')?.addEventListener('click', closeOfferModal);
+  $('#inbox-offer-modal')?.addEventListener('click', (e) => {
+    if (e.target && e.target.id === 'inbox-offer-modal') closeOfferModal();
+  });
+  $('#inbox-offer-form')?.addEventListener('submit', (e) => { e.preventDefault(); sendOffer(); });
+  $('#inbox-call-btn')?.addEventListener('click', () => startCall('voice'));
+  $('#inbox-video-btn')?.addEventListener('click', () => startCall('video'));
+
   els.form?.addEventListener('submit', (e) => { e.preventDefault(); sendReply(); });
   els.input?.addEventListener('input', autoGrow);
   els.input?.addEventListener('keydown', (e) => {
@@ -592,7 +975,11 @@ function bind() {
     }
   });
 
-  window.addEventListener('pagehide', disconnectStream);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { closeOfferModal(); closeCallOverlay(); }
+  });
+
+  window.addEventListener('pagehide', () => { closeCallOverlay(); disconnectStream(); });
 }
 
 async function boot() {

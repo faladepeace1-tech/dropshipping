@@ -120,9 +120,19 @@ function showError(msg){
   show('co-error-view');
 }
 function kindLabel(k){
-  if(k === 'theme') return 'Theme · Instant Download';
+  if(k === 'theme') return 'Theme - Instant Download';
   if(k === 'offer') return 'Custom Offer';
+  if(k === 'dm') return 'Custom Offer - From Messages';
   return 'Launch Package';
+}
+function applyPrefill(item){
+  const prefill = item && item.prefill;
+  if(!prefill) return;
+  const pairs = [['#co-name', prefill.name], ['#co-email', prefill.email], ['#co-whatsapp', prefill.whatsapp]];
+  pairs.forEach(([selector, value]) => {
+    const el = $(selector);
+    if(el && !el.value) el.value = String(value || '');
+  });
 }
 function fillSummary(){
   $('#co-item-kind').textContent = kindLabel(ITEM.kind);
@@ -134,7 +144,7 @@ function fillSummary(){
   const img = $('#co-item-img');
   if(ITEM.preview_url){ img.src = ITEM.preview_url; img.alt = ITEM.name || ''; img.classList.remove('hidden'); }
   else img.classList.add('hidden');
-  $('#co-title').textContent = ITEM.kind === 'theme' ? 'Get the "' + ITEM.name + '" Theme' : ITEM.kind === 'offer' ? 'Order: ' + ITEM.name : 'Get the ' + ITEM.name;
+  $('#co-title').textContent = ITEM.kind === 'theme' ? 'Get the "' + ITEM.name + '" Theme' : ITEM.kind === 'offer' ? 'Order: ' + ITEM.name : ITEM.kind === 'dm' ? 'Pay for your custom order' : 'Get the ' + ITEM.name;
 }
 function validate(){
   let ok = true;
@@ -361,10 +371,11 @@ function showSuccess(o){
     $('#co-plan-wrap').classList.add('hidden');
     $('#co-download').href = o.download_url;
   } else {
-    $('#co-plan-wrap').classList.remove('hidden');
+    $('#co-plan-wrap').classList.toggle('hidden', o.kind === 'dm');
     $('#co-download-wrap').classList.add('hidden');
     $('#co-plan-wa').href = waLink('Hi Nexatech! I just paid for the ' + o.item_name + ' (order ' + o.order_ref + '). What is the next step?');
   }
+  $('#co-messages-wrap')?.classList.toggle('hidden', o.kind !== 'dm');
   show('co-success-view');
 }
 // ---- Resume: returning buyer re-checks live, or retries card ----
@@ -394,6 +405,7 @@ async function resumeByRef(ref){
     const ij = await readJson(ir, 'item details');
     if(!ir.ok) throw new Error(ij.error || 'Item not available.');
     ITEM = ij;
+    applyPrefill(ITEM);
     showCardView();
   }catch{
     showError('We could not find that order. It may have expired - please check out again.');
@@ -542,6 +554,7 @@ function formatCardInputs(){
     const j = await readJson(r, 'item details');
     if(!r.ok) throw new Error(j.error || 'Item not available.');
     ITEM = j;
+    applyPrefill(ITEM);
     fillSummary();
     show('co-form-view');
   }catch(e){

@@ -1003,6 +1003,27 @@ async function markOrderPaid(orderRef, providerRef){
     .run(String(providerRef || order.cryptomus_order_id || ''), token, String(orderRef));
   try{ await db.prepare("INSERT INTO events (event_type,element_id,session_id,page_url,metadata) VALUES (?,?,?,?,?)")
     .run('checkout_paid', order.kind + ':' + order.item_ref, '', '', JSON.stringify({ order_ref: String(orderRef) })); }catch{}
+  // Custom chat offers: mark paid and post a receipt into the conversation.
+  if(order.kind === 'dm'){
+    try{
+      const offer = await db.prepare('SELECT * FROM dm_offers WHERE checkout_ref=?').get(String(order.item_ref));
+      const paid = offer && offer.status === 'accepted'
+        ? await db.prepare("UPDATE dm_offers SET status='paid', order_ref=?, paid_at=datetime('now') WHERE id=? AND status='accepted'").run(order.order_ref, offer.id)
+        : null;
+      if(paid && paid.changes){
+        const receipt = `Payment received for order ${order.order_ref}. Ifeoluwa will start on your project and keep you updated here.`;
+        const info = await db.prepare("INSERT INTO dm_messages (conversation_id,sender,kind,body,meta) VALUES (?,?,?,?,?)")
+          .run(offer.conversation_id, 'system', 'system', receipt, JSON.stringify({ offer_id: offer.id }));
+        await dmTouchConversation(offer.conversation_id, 'system', receipt, 'user');
+        const msg = dmMessageOut(await db.prepare('SELECT * FROM dm_messages WHERE id=?').get(info.lastInsertRowid));
+        dmBroadcastUser(offer.conversation_id, 'message', { conversation_id: offer.conversation_id, message: msg });
+        const summary = await dmConversationSummary(offer.conversation_id);
+        dmBroadcastOwner('message', { conversation_id: offer.conversation_id, message: msg, conversation: summary });
+        const fresh = await db.prepare('SELECT * FROM dm_offers WHERE id=?').get(offer.id);
+        dmBroadcastOffer(offer.conversation_id, publicDmOffer(fresh));
+      }
+    }catch(e){ console.error('dm offer payment update failed:', e.message); }
+  }
   // owner alert: money in (fire-and-forget)
   notifyOwner({
     subject: `💰 Payment received: ${order.item_name} - ${formatCents(order.amount_cents, order.currency)}`,
@@ -1049,6 +1070,18 @@ async function getCheckoutItem(kind, ref){
     return { kind: 'offer', ref: o.slug, name: o.title, price_text: o.price_text, amount_cents: o.price_cents,
       currency: o.currency, description: o.description, preview_url: o.image_url,
       delivery_label: o.delivery_label, wa_text: '' };
+  }
+  if(k === 'dm'){
+    const row = await db.prepare('SELECT * FROM dm_offers WHERE checkout_ref=?').get(String(ref || ''));
+    if(!row) return { error: 'This custom offer could not be found. Ask Ifeoluwa to send it again.' };
+    if(row.status === 'paid') return { error: 'This offer has already been paid.' };
+    if(row.status !== 'accepted') return { error: 'Please accept this offer in your Messages chat before paying.' };
+    const money = dmOfferTotalCents(row);
+    const user = await db.prepare('SELECT name,email,whatsapp FROM dm_users WHERE id=?').get(row.user_id);
+    return { kind: 'dm', ref: row.checkout_ref, name: 'Custom order #' + row.id, price_text: formatCents(money.total, 'USD'),
+      amount_cents: money.total, currency: 'USD', description: row.description || '',
+      delivery_label: (Number(row.delivery_days) || 0) + ' day delivery', offer_id: row.id,
+      prefill: user ? { name: user.name || '', email: user.email || '', whatsapp: user.whatsapp || '' } : null };
   }
   return { error: 'Unknown item kind.' };
 }
@@ -1168,7 +1201,7 @@ app.get('/api/checkout/item', async (req, res) => {
 });
 // --- Public: order status (for success page polling + download link) ---
 app.get('/api/checkout/order/:ref', async (req, res) => {
-  const o = await db.prepare('SELECT order_ref,kind,item_ref,item_name,amount_cents,currency,status,payment_url,download_token,created_at,paid_at FROM orders WHERE order_ref=?').get(String(req.params.ref || ''));
+  const o = await db.prepare('SELECT order_ref,kind,item_ref,item_name,amount_cents,currency,status,payment_url,download_token,customer_email,created_at,paid_at FROM orders WHERE order_ref=?').get(String(req.params.ref || ''));
   if(!o) return res.status(404).json({ error: 'order not found' });
   const out = { order_ref: o.order_ref, kind: o.kind, item_ref: o.item_ref, item_name: o.item_name,
     amount_text: formatCents(o.amount_cents, o.currency), currency: o.currency, status: o.status,
@@ -3496,6 +3529,119 @@ function dmMessageOut(row){
     body: row.body || '', meta, read_at: row.read_at || null, created_at: row.created_at };
 }
 function dmPreview(text){ return String(text || '').replace(/\s+/g, ' ').trim().slice(0, 140); }
+const DM_REVISIONS = ['0', '1', '2', '3', '5', 'unlimited'];
+function dmJson(value, fallback){
+  try{ const out = JSON.parse(value || ''); return out == null ? fallback : out; }catch{ return fallback; }
+}
+function dmMoneyToCents(value){
+  const n = Number(String(value == null ? '' : value).replace(/[^0-9.]/g, ''));
+  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : null;
+}
+function dmOfferExtras(row){
+  const raw = dmJson(row && row.extras, []);
+  if(!Array.isArray(raw)) return [];
+  return raw.slice(0, 3).map(e => ({
+    label: String((e && e.label) || '').trim().slice(0, 80),
+    price_cents: Math.max(0, Math.min(100000000, parseInt(e && e.price_cents, 10) || 0))
+  })).filter(e => e.label);
+}
+function dmOfferSelection(row, extras){
+  const raw = dmJson(row && row.selected_extras, []);
+  const picked = new Set((Array.isArray(raw) ? raw : []).map(Number)
+    .filter(i => Number.isInteger(i) && i >= 0 && i < extras.length));
+  return Array.from(picked);
+}
+function dmOfferTotalCents(row){
+  const extras = dmOfferExtras(row);
+  const selected = dmOfferSelection(row, extras);
+  const total = (Number(row && row.amount_cents) || 0) + selected.reduce((sum, i) => sum + extras[i].price_cents, 0);
+  return { total, extras, selected };
+}
+function dmOfferExpired(row){
+  if(!row || !row.expires_at) return false;
+  const t = new Date(row.expires_at).getTime();
+  return Number.isFinite(t) && t <= Date.now();
+}
+function publicDmOffer(row){
+  if(!row) return null;
+  const money = dmOfferTotalCents(row);
+  return {
+    id: row.id, conversation_id: row.conversation_id, checkout_ref: row.checkout_ref,
+    description: row.description || '', amount_cents: Number(row.amount_cents) || 0,
+    currency: 'USD', price_text: formatCents(Number(row.amount_cents) || 0, 'USD'),
+    total_cents: money.total, total_text: formatCents(money.total, 'USD'),
+    delivery_days: Number(row.delivery_days) || 0, revisions: row.revisions || '0',
+    extras: money.extras, selected_extras: money.selected,
+    requirements_requested: !!Number(row.requirements_requested), requirements_text: row.requirements_text || '',
+    expires_at: row.expires_at || null, expired: dmOfferExpired(row) && !['paid','declined'].includes(row.status),
+    status: row.status || 'pending', order_ref: row.order_ref || '',
+    created_at: row.created_at, responded_at: row.responded_at || null, paid_at: row.paid_at || null
+  };
+}
+async function dmAttachOffers(rows){
+  if(!Array.isArray(rows) || !rows.length) return [];
+  const ids = Array.from(new Set(rows.map(row => {
+    try{ return Number(dmJson(row.meta, {}).offer_id) || 0; }catch{ return 0; }
+  }).filter(Boolean)));
+  let map = new Map();
+  if(ids.length){
+    const marks = ids.map(() => '?').join(',');
+    const offers = await db.prepare(`SELECT * FROM dm_offers WHERE id IN (${marks})`).all(...ids);
+    map = new Map(offers.map(o => [Number(o.id), publicDmOffer(o)]));
+  }
+  return rows.map(row => {
+    const msg = dmMessageOut(row);
+    const oid = Number(dmJson(row.meta, {}).offer_id) || 0;
+    if(oid && map.has(oid)) msg.offer = map.get(oid);
+    return msg;
+  });
+}
+function dmBroadcastOffer(conversationId, offer){
+  const payload = { conversation_id: Number(conversationId), offer };
+  dmBroadcastUser(conversationId, 'offer', payload);
+  dmBroadcastOwner('offer', payload);
+}
+function dmOfferPayload(body){
+  const description = String(body && body.description || '').trim();
+  if(description.length < 5) return { error: 'Write a short description of the work (at least 5 characters).' };
+  if(description.length > 1200) return { error: 'Description must be 1200 characters or fewer.' };
+  let cents = null;
+  if(body && body.amount_cents != null && String(body.amount_cents).trim() !== ''){
+    cents = parseInt(body.amount_cents, 10);
+  } else {
+    cents = dmMoneyToCents(body && body.amount);
+  }
+  if(!Number.isFinite(cents) || cents < 0) return { error: 'Enter a valid price in USD (0 is allowed for a free offer).' };
+  if(cents > 10000000) return { error: 'Price is too high (max $100,000).' };
+  const delivery = parseInt(body && body.delivery_days, 10);
+  if(!Number.isInteger(delivery) || delivery < 1 || delivery > 30) return { error: 'Delivery time must be between 1 and 30 days.' };
+  const revisions = String(body && body.revisions || '1').toLowerCase();
+  if(!DM_REVISIONS.includes(revisions)) return { error: 'Choose a valid revision option.' };
+  const inputExtras = Array.isArray(body && body.extras) ? body.extras : [];
+  if(inputExtras.length > 3) return { error: 'You can add up to 3 extras.' };
+  const extras = [];
+  for(const raw of inputExtras){
+    const label = String(raw && raw.label || '').trim().slice(0, 80);
+    if(!label) continue;
+    const price = raw && raw.price_cents != null && String(raw.price_cents).trim() !== ''
+      ? parseInt(raw.price_cents, 10) : dmMoneyToCents(raw && raw.price);
+    if(!Number.isFinite(price) || price < 0) return { error: 'Extra prices must be valid USD amounts.' };
+    if(price > 10000000) return { error: 'An extra price is too high.' };
+    extras.push({ label, price_cents: price });
+  }
+  const expiresDays = Math.max(0, Math.min(30, parseInt(body && body.expires_in_days, 10) || 0));
+  return {
+    description, amount_cents: cents, delivery_days: delivery, revisions, extras,
+    requirements_requested: parseBool(body && body.requirements_requested),
+    expires_at: expiresDays ? new Date(Date.now() + expiresDays * 86400000).toISOString() : null
+  };
+}
+function dmCallUrl(room, mode){
+  const safe = encodeURIComponent('nexatech-' + String(room || '').replace(/[^a-z0-9]/gi, ''));
+  return 'https://meet.jit.si/' + safe + '#config.prejoinPageEnabled=false&config.disableDeepLinking=true'
+    + '&config.startWithAudioMuted=false&config.startWithVideoMuted=' + (mode === 'voice' ? 'true' : 'false')
+    + '&interfaceConfig.SHOW_JITSI_WATERMARK=false&interfaceConfig.SHOW_BRAND_WATERMARK=false';
+}
 async function dmTouchConversation(convId, sender, body, bumpUnreadFor){
   const unreadSql = bumpUnreadFor === 'owner' ? ', owner_unread=COALESCE(owner_unread,0)+1'
     : bumpUnreadFor === 'user' ? ', user_unread=COALESCE(user_unread,0)+1' : '';
@@ -3610,7 +3756,7 @@ app.post('/api/dm/logout', dmSameOrigin, (req, res) => {
 app.get('/api/dm/me', requireDmUser, async (req, res) => {
   try{
     const conv = await dmGetConversationForUser(req.dmUser.id);
-    res.json({ ok:true, user:req.dmUser, conversation:{ id:conv.id, status:conv.status, user_unread:conv.user_unread || 0 } });
+    res.json({ ok:true, user:req.dmUser, conversation:{ id:conv.id, status:conv.status, room_token:conv.room_token || '', user_unread:conv.user_unread || 0 } });
   }catch(e){ res.status(500).json({ error: 'Could not load your conversation.' }); }
 });
 
@@ -3626,7 +3772,7 @@ app.get('/api/dm/messages', requireDmUser, async (req, res) => {
     }else{
       rows = await db.prepare('SELECT * FROM (SELECT * FROM dm_messages WHERE conversation_id=? ORDER BY id DESC LIMIT ?) t ORDER BY id ASC').all(conv.id, limit);
     }
-    res.json({ ok:true, conversation:{ id:conv.id, status:conv.status, user_unread:conv.user_unread || 0 }, messages: rows.map(dmMessageOut) });
+    res.json({ ok:true, conversation:{ id:conv.id, status:conv.status, room_token:conv.room_token || '', user_unread:conv.user_unread || 0 }, messages: await dmAttachOffers(rows) });
   }catch(e){
     console.error('dm messages failed:', e.message);
     res.status(500).json({ error: 'Could not load messages.' });
@@ -3731,7 +3877,7 @@ app.get('/api/dm/owner/me', requireDmOwner, (req, res) => res.json({ ok:true, ow
 
 app.get('/api/dm/owner/conversations', requireDmOwner, async (req, res) => {
   try{
-    const rows = await db.prepare(`SELECT c.id,c.status,c.last_message_at,c.last_message_preview,c.last_sender,c.owner_unread,c.user_unread,c.created_at,
+    const rows = await db.prepare(`SELECT c.id,c.status,c.room_token,c.last_message_at,c.last_message_preview,c.last_sender,c.owner_unread,c.user_unread,c.created_at,
         u.id AS user_id,u.name,u.email,u.whatsapp
       FROM dm_conversations c JOIN dm_users u ON u.id=c.user_id
       ORDER BY COALESCE(c.last_message_at,c.created_at) DESC LIMIT 200`).all();
@@ -3760,7 +3906,7 @@ app.get('/api/dm/owner/conversations/:id/messages', requireDmOwner, async (req, 
     const rows = await db.prepare('SELECT * FROM (SELECT * FROM dm_messages WHERE conversation_id=? ORDER BY id DESC LIMIT 300) t ORDER BY id ASC').all(conv.id);
     await db.prepare('UPDATE dm_conversations SET owner_unread=0 WHERE id=?').run(conv.id);
     await db.prepare("UPDATE dm_messages SET read_at=datetime('now') WHERE conversation_id=? AND sender='user' AND read_at IS NULL").run(conv.id);
-    res.json({ ok:true, conversation:{ ...conv, user }, messages:rows.map(dmMessageOut) });
+    res.json({ ok:true, conversation:{ ...conv, user }, messages: await dmAttachOffers(rows) });
   }catch(e){
     console.error('dm owner thread failed:', e.message);
     res.status(500).json({ error: 'Could not load this conversation.' });
@@ -3785,6 +3931,168 @@ app.post('/api/dm/owner/conversations/:id/messages', requireDmOwner, dmSameOrigi
   }catch(e){
     console.error('dm owner send failed:', e.message);
     res.status(500).json({ error: 'Could not send the reply.' });
+  }
+});
+
+// --- Custom offers: owner creates, client accepts/declines, checkout pays ---
+app.post('/api/dm/owner/conversations/:id/offers', requireDmOwner, dmSameOrigin, async (req, res) => {
+  try{
+    const conv = await db.prepare('SELECT * FROM dm_conversations WHERE id=?').get(req.params.id);
+    if(!conv) return res.status(404).json({ error: 'Conversation not found.' });
+    if(conv.status !== 'open') return res.status(403).json({ error: 'This conversation is closed.' });
+    const parsed = dmOfferPayload(req.body || {});
+    if(parsed.error) return res.status(400).json({ error: parsed.error });
+    let checkoutRef = '';
+    for(let i=0; i<6; i++){
+      checkoutRef = 'DM-' + crypto.randomBytes(8).toString('hex').toUpperCase();
+      const clash = await db.prepare('SELECT id FROM dm_offers WHERE checkout_ref=?').get(checkoutRef);
+      if(!clash) break;
+      checkoutRef = '';
+    }
+    if(!checkoutRef) return res.status(500).json({ error: 'Could not create an offer reference. Please try again.' });
+    const info = await db.prepare(`INSERT INTO dm_offers
+      (conversation_id,user_id,checkout_ref,description,amount_cents,currency,delivery_days,revisions,extras,selected_extras,requirements_requested,expires_at,status)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+      .run(conv.id, conv.user_id, checkoutRef, parsed.description, parsed.amount_cents, 'USD', parsed.delivery_days,
+        parsed.revisions, JSON.stringify(parsed.extras), '[]', parsed.requirements_requested, parsed.expires_at, 'pending');
+    const offerRow = await db.prepare('SELECT * FROM dm_offers WHERE id=?').get(info.lastInsertRowid);
+    const offer = publicDmOffer(offerRow);
+    const preview = 'Custom offer - ' + offer.total_text;
+    const msgInfo = await db.prepare('INSERT INTO dm_messages (conversation_id,sender,kind,body,meta) VALUES (?,?,?,?,?)')
+      .run(conv.id, 'owner', 'offer', preview, JSON.stringify({ offer_id: offer.id }));
+    await dmTouchConversation(conv.id, 'owner', preview, 'user');
+    const msg = dmMessageOut(await db.prepare('SELECT * FROM dm_messages WHERE id=?').get(msgInfo.lastInsertRowid));
+    msg.offer = offer;
+    dmBroadcastUser(conv.id, 'message', { conversation_id: conv.id, message: msg });
+    const summary = await dmConversationSummary(conv.id);
+    dmBroadcastOwner('message', { conversation_id: conv.id, message: msg, conversation: summary });
+    res.json({ ok:true, offer, message: msg });
+  }catch(e){
+    console.error('dm offer create failed:', e.message);
+    res.status(500).json({ error: 'Could not send this offer. Please try again.' });
+  }
+});
+
+app.post('/api/dm/offers/:id/accept', requireDmUser, dmSameOrigin, async (req, res) => {
+  try{
+    const conv = await dmGetConversationForUser(req.dmUser.id);
+    let offer = await db.prepare('SELECT * FROM dm_offers WHERE id=? AND conversation_id=? AND user_id=?')
+      .get(req.params.id, conv.id, req.dmUser.id);
+    if(!offer) return res.status(404).json({ error: 'Offer not found.' });
+    if(offer.status !== 'pending') return res.status(409).json({ error: 'This offer is no longer awaiting your response.' });
+    if(dmOfferExpired(offer)){
+      await db.prepare("UPDATE dm_offers SET status='expired', responded_at=datetime('now') WHERE id=? AND status='pending'").run(offer.id);
+      const fresh = await db.prepare('SELECT * FROM dm_offers WHERE id=?').get(offer.id);
+      dmBroadcastOffer(conv.id, publicDmOffer(fresh));
+      return res.status(410).json({ error: 'This offer has expired. Ask Ifeoluwa to send a new one.' });
+    }
+    const extras = dmOfferExtras(offer);
+    const selected = Array.from(new Set((Array.isArray(req.body && req.body.selected_extras) ? req.body.selected_extras : [])
+      .map(Number).filter(i => Number.isInteger(i) && i >= 0 && i < extras.length)));
+    const requirements = String(req.body && req.body.requirements_text || '').trim().slice(0, 4000);
+    if(Number(offer.requirements_requested) && requirements.length < 2){
+      return res.status(400).json({ error: 'Please add your project requirements before accepting.' });
+    }
+    await db.prepare("UPDATE dm_offers SET status='accepted', selected_extras=?, requirements_text=?, responded_at=datetime('now') WHERE id=? AND status='pending'")
+      .run(JSON.stringify(selected), requirements, offer.id);
+    offer = await db.prepare('SELECT * FROM dm_offers WHERE id=?').get(offer.id);
+    const out = publicDmOffer(offer);
+    dmBroadcastOffer(conv.id, out);
+    res.json({ ok:true, offer:out, checkout_url:'/checkout?kind=dm&item=' + encodeURIComponent(offer.checkout_ref) });
+  }catch(e){
+    console.error('dm offer accept failed:', e.message);
+    res.status(500).json({ error: 'Could not accept this offer. Please try again.' });
+  }
+});
+
+app.post('/api/dm/offers/:id/decline', requireDmUser, dmSameOrigin, async (req, res) => {
+  try{
+    const conv = await dmGetConversationForUser(req.dmUser.id);
+    const offer = await db.prepare('SELECT * FROM dm_offers WHERE id=? AND conversation_id=? AND user_id=?')
+      .get(req.params.id, conv.id, req.dmUser.id);
+    if(!offer) return res.status(404).json({ error: 'Offer not found.' });
+    if(offer.status !== 'pending') return res.status(409).json({ error: 'This offer is no longer awaiting your response.' });
+    await db.prepare("UPDATE dm_offers SET status='declined', responded_at=datetime('now') WHERE id=? AND status='pending'").run(offer.id);
+    const fresh = await db.prepare('SELECT * FROM dm_offers WHERE id=?').get(offer.id);
+    const out = publicDmOffer(fresh);
+    dmBroadcastOffer(conv.id, out);
+    res.json({ ok:true, offer:out });
+  }catch(e){
+    console.error('dm offer decline failed:', e.message);
+    res.status(500).json({ error: 'Could not decline this offer. Please try again.' });
+  }
+});
+
+// --- Offer templates (owner only) ---
+app.get('/api/dm/owner/offer-templates', requireDmOwner, async (req, res) => {
+  try{
+    const rows = await db.prepare('SELECT * FROM dm_offer_templates ORDER BY id DESC LIMIT 50').all();
+    res.json({ ok:true, templates: rows.map(row => ({
+      id: row.id, name: row.name, description: row.description || '', amount_cents: Number(row.amount_cents) || 0,
+      delivery_days: Number(row.delivery_days) || 0, revisions: row.revisions || '1',
+      extras: dmOfferExtras(row), created_at: row.created_at
+    })) });
+  }catch(e){ res.status(500).json({ error: 'Could not load templates.' }); }
+});
+app.post('/api/dm/owner/offer-templates', requireDmOwner, dmSameOrigin, async (req, res) => {
+  try{
+    const name = String(req.body && req.body.name || '').trim().slice(0, 80);
+    if(!name) return res.status(400).json({ error: 'Give this template a name.' });
+    const parsed = dmOfferPayload(req.body || {});
+    if(parsed.error) return res.status(400).json({ error: parsed.error });
+    const info = await db.prepare('INSERT INTO dm_offer_templates (name,description,amount_cents,currency,delivery_days,revisions,extras) VALUES (?,?,?,?,?,?,?)')
+      .run(name, parsed.description, parsed.amount_cents, 'USD', parsed.delivery_days, parsed.revisions, JSON.stringify(parsed.extras));
+    res.json({ ok:true, id: info.lastInsertRowid });
+  }catch(e){
+    console.error('dm template save failed:', e.message);
+    res.status(500).json({ error: 'Could not save this template.' });
+  }
+});
+app.delete('/api/dm/owner/offer-templates/:id', requireDmOwner, dmSameOrigin, async (req, res) => {
+  try{
+    await db.prepare('DELETE FROM dm_offer_templates WHERE id=?').run(req.params.id);
+    res.json({ ok:true });
+  }catch(e){ res.status(500).json({ error: 'Could not delete this template.' }); }
+});
+
+// --- In-chat calls: creates a join card in both clients and returns the room ---
+async function dmStartCall(conv, sender, displayName, mode, res){
+  const safeMode = mode === 'voice' ? 'voice' : 'video';
+  let room = conv.room_token || '';
+  if(!room){
+    room = crypto.randomBytes(18).toString('hex');
+    await db.prepare('UPDATE dm_conversations SET room_token=? WHERE id=?').run(room, conv.id);
+  }
+  const body = `${displayName} started a ${safeMode === 'voice' ? 'voice' : 'video'} call`;
+  const meta = JSON.stringify({ mode: safeMode, room, started_by: sender, started_at: new Date().toISOString() });
+  const info = await db.prepare('INSERT INTO dm_messages (conversation_id,sender,kind,body,meta) VALUES (?,?,?,?,?)')
+    .run(conv.id, sender, 'call', body, meta);
+  await dmTouchConversation(conv.id, sender, body, sender === 'user' ? 'owner' : 'user');
+  const msg = dmMessageOut(await db.prepare('SELECT * FROM dm_messages WHERE id=?').get(info.lastInsertRowid));
+  dmBroadcastUser(conv.id, 'message', { conversation_id: conv.id, message: msg });
+  const summary = await dmConversationSummary(conv.id);
+  dmBroadcastOwner('message', { conversation_id: conv.id, message: msg, conversation: summary });
+  res.json({ ok:true, mode: safeMode, room, url: dmCallUrl(room, safeMode), message: msg });
+}
+app.post('/api/dm/call', requireDmUser, dmSameOrigin, async (req, res) => {
+  try{
+    const conv = await dmGetConversationForUser(req.dmUser.id);
+    if(conv.status !== 'open') return res.status(403).json({ error: 'This conversation is closed.' });
+    await dmStartCall(conv, 'user', req.dmUser.name || 'Client', String(req.body && req.body.mode || 'video'), res);
+  }catch(e){
+    console.error('dm call failed:', e.message);
+    res.status(500).json({ error: 'Could not start the call.' });
+  }
+});
+app.post('/api/dm/owner/conversations/:id/call', requireDmOwner, dmSameOrigin, async (req, res) => {
+  try{
+    const conv = await db.prepare('SELECT * FROM dm_conversations WHERE id=?').get(req.params.id);
+    if(!conv) return res.status(404).json({ error: 'Conversation not found.' });
+    if(conv.status !== 'open') return res.status(403).json({ error: 'This conversation is closed.' });
+    await dmStartCall(conv, 'owner', 'Ifeoluwa', String(req.body && req.body.mode || 'video'), res);
+  }catch(e){
+    console.error('dm owner call failed:', e.message);
+    res.status(500).json({ error: 'Could not start the call.' });
   }
 });
 
