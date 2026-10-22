@@ -3848,6 +3848,47 @@ app.post('/api/dm/logout', dmSameOrigin, (req, res) => {
   res.json({ ok:true });
 });
 
+// Email-only sign-in for the client portal: no password and no separate sign-up step.
+app.post('/api/dm/email', dmAuthLimiter, dmSameOrigin, async (req, res) => {
+  try{
+    const email = String(req.body?.email || '').trim().toLowerCase().slice(0, 254);
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Please enter a valid email address.' });
+    let row = await db.prepare('SELECT * FROM dm_users WHERE email=?').get(email);
+    let created = false;
+    if(!row){
+      const display = email.split('@')[0].replace(/[._-]+/g, ' ').trim().replace(/\b\w/g, (c) => c.toUpperCase()).slice(0, 120) || 'Client';
+      const placeholder = bcrypt.hashSync(crypto.randomBytes(24).toString('hex'), 10);
+      try{
+        const info = await db.prepare('INSERT INTO dm_users (name,email,password_hash,whatsapp) VALUES (?,?,?,?)').run(display, email, placeholder, '');
+        row = await db.prepare('SELECT * FROM dm_users WHERE id=?').get(info.lastInsertRowid);
+        created = true;
+      }catch(e){
+        if(/unique|duplicate/i.test(e.message || '')) row = await db.prepare('SELECT * FROM dm_users WHERE email=?').get(email);
+        else throw e;
+      }
+    }
+    if(!row) throw new Error('user row missing');
+    await db.prepare("UPDATE dm_users SET last_login=datetime('now') WHERE id=?").run(row.id);
+    const conv = await dmGetConversationForUser(row.id);
+    if(created){
+      const welcome = 'Welcome to Nexatech! Send a message here and Ifeoluwa will reply from the Nexatech Inbox app.';
+      await db.prepare("INSERT INTO dm_messages (conversation_id,sender,kind,body) VALUES (?,?,?,?)").run(conv.id, 'system', 'system', welcome);
+      await dmTouchConversation(conv.id, 'system', welcome, null);
+      notifyOwner({
+        subject: 'New client: ' + email,
+        html: `<div style="font-family:Inter,sans-serif;line-height:1.6"><h3>New client signed in</h3><p><b>${escapeHtml(email)}</b></p><p><a href="/inbox">Open Nexatech Inbox</a></p></div>`,
+        text: `New client signed in: ${email}. Open /inbox to reply.`
+      });
+    }
+    const token = jwt.sign({ kind:'dm_user', id:row.id, email:row.email }, DM_SECRET, { expiresIn:'30d' });
+    dmSetUserCookie(req, res, token);
+    res.json({ ok:true, user:{ id:row.id, name:row.name, email:row.email, whatsapp:row.whatsapp }, conversation:{ id:conv.id, status:conv.status } });
+  }catch(e){
+    console.error('dm email sign-in failed:', e.message);
+    res.status(500).json({ error: 'Could not sign you in. Please try again.' });
+  }
+});
+
 app.get('/api/dm/me', requireDmUser, async (req, res) => {
   try{
     const conv = await dmGetConversationForUser(req.dmUser.id);

@@ -18,13 +18,10 @@ const state = {
 const els = {
   auth: $('#dm-auth'),
   chat: $('#dm-chat'),
-  signupForm: $('#dm-signup-form'),
-  loginForm: $('#dm-login-form'),
-  signupError: $('#dm-signup-error'),
-  loginError: $('#dm-login-error'),
-  tabSignup: $('#dm-tab-signup'),
-  tabLogin: $('#dm-tab-login'),
-  switchWrap: $('#dm-auth-switch'),
+  emailForm: $('#dm-email-form'),
+  emailInput: $('#dm-email'),
+  emailError: $('#dm-email-error'),
+  emailSubmit: $('#dm-email-submit'),
   thread: $('#dm-thread'),
   empty: $('#dm-empty'),
   form: $('#dm-form'),
@@ -69,29 +66,15 @@ function setHidden(el, hidden) {
   if (el) el.classList.toggle('dm-hidden', hidden);
 }
 
-function setTab(which) {
-  const login = which === 'login';
-  els.tabSignup.classList.toggle('active', !login);
-  els.tabLogin.classList.toggle('active', login);
-  els.tabSignup.setAttribute('aria-selected', String(!login));
-  els.tabLogin.setAttribute('aria-selected', String(login));
-  setHidden(els.signupForm, login);
-  setHidden(els.loginForm, !login);
-  els.signupError.textContent = '';
-  els.loginError.textContent = '';
-  if (els.switchWrap) {
-    if (login) {
-      els.switchWrap.innerHTML = 'New to Nexatech? <a href="/messages" id="dm-switch-signup">Create an account</a>';
-      const link = $('#dm-switch-signup');
-      if (link) link.addEventListener('click', (e) => { e.preventDefault(); setTab('signup'); });
-    } else {
-      els.switchWrap.innerHTML = 'Already have an account? <a href="/messages?login=1" id="dm-switch-login">Log in</a>';
-      const link = $('#dm-switch-login');
-      if (link) link.addEventListener('click', (e) => { e.preventDefault(); setTab('login'); });
-    }
-  }
-  const focus = login ? $('#dm-li-email') : $('#dm-su-name');
-  if (focus) setTimeout(() => focus.focus(), 60);
+function showAuth(message) {
+  state.me = null;
+  setHidden(els.auth, false);
+  setHidden(els.chat, true);
+  disconnectStream();
+  clearInterval(state.pollTimer);
+  if (message && els.emailError) els.emailError.textContent = message;
+  const saved = localStorage.getItem('dm_user_email') || '';
+  if (els.emailInput && !els.emailInput.value) els.emailInput.value = saved;
 }
 
 async function loadBrand() {
@@ -117,18 +100,6 @@ async function loadBrand() {
   } catch {}
 }
 
-function showAuth(message) {
-  state.me = null;
-  setHidden(els.auth, false);
-  setHidden(els.chat, true);
-  disconnectStream();
-  clearInterval(state.pollTimer);
-  if (message) {
-    setTab('login');
-    els.loginError.textContent = message;
-  }
-}
-
 function showChat(user) {
   state.me = user;
   setHidden(els.auth, true);
@@ -143,35 +114,29 @@ async function startChat() {
   markRead();
 }
 
-async function submitAuth(kind, form, errorEl) {
-  const btn = form.querySelector('button[type="submit"]');
-  const original = btn.textContent;
-  errorEl.textContent = '';
-  btn.disabled = true;
-  btn.textContent = kind === 'signup' ? 'Creating account...' : 'Logging in...';
-  const payload = Object.fromEntries(new FormData(form).entries());
+async function submitEmail() {
+  const email = String(els.emailInput?.value || '').trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    els.emailError.textContent = 'Please enter a valid email address.';
+    els.emailInput?.focus();
+    return;
+  }
+  els.emailError.textContent = '';
+  els.emailSubmit.disabled = true;
+  els.emailSubmit.textContent = 'Opening chat...';
   try {
-    const data = await api(kind === 'signup' ? '/api/dm/signup' : '/api/dm/login', {
-      method: 'POST',
-      body: JSON.stringify(payload)
-    });
-    form.reset();
+    const data = await api('/api/dm/email', { method: 'POST', body: JSON.stringify({ email }) });
+    localStorage.setItem('dm_user_email', email);
     state.messages.clear();
     state.lastId = 0;
     state.lastDay = '';
     showChat(data.user);
     await startChat();
   } catch (e) {
-    errorEl.textContent = e.message;
-    if (e.status === 409 && kind === 'signup') {
-      const email = $('#dm-li-email');
-      if (email) email.value = payload.email || '';
-      setTab('login');
-      els.loginError.textContent = e.message;
-    }
+    els.emailError.textContent = e.message;
   } finally {
-    btn.disabled = false;
-    btn.textContent = original;
+    els.emailSubmit.disabled = false;
+    els.emailSubmit.textContent = 'Continue to chat';
   }
 }
 
@@ -675,27 +640,9 @@ function autoGrow() {
 }
 
 function bind() {
-  els.tabSignup?.addEventListener('click', () => setTab('signup'));
-  els.tabLogin?.addEventListener('click', () => setTab('login'));
-
-  $$('.dm-eye').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const input = document.getElementById(btn.dataset.eye);
-      if (!input) return;
-      const show = input.type === 'password';
-      input.type = show ? 'text' : 'password';
-      btn.textContent = show ? 'Hide' : 'Show';
-      btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
-    });
-  });
-
-  els.signupForm?.addEventListener('submit', (e) => {
+  els.emailForm?.addEventListener('submit', (e) => {
     e.preventDefault();
-    submitAuth('signup', els.signupForm, els.signupError);
-  });
-  els.loginForm?.addEventListener('submit', (e) => {
-    e.preventDefault();
-    submitAuth('login', els.loginForm, els.loginError);
+    submitEmail();
   });
 
   $('#dm-call-btn')?.addEventListener('click', () => startCall('voice'));
@@ -727,14 +674,13 @@ function bind() {
   });
 
   window.addEventListener('pagehide', () => { closeCallOverlay(); disconnectStream(); });
-
-  const login = new URLSearchParams(location.search).get('login');
-  setTab(login ? 'login' : 'signup');
 }
 
 async function boot() {
   bind();
   loadBrand();
+  const savedEmail = localStorage.getItem('dm_user_email') || '';
+  if (els.emailInput && savedEmail) els.emailInput.value = savedEmail;
   try {
     const data = await api('/api/dm/me');
     showChat(data.user);

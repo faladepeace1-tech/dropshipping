@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Messages - Nexatech</title>
-<meta name="description" content="Message Nexatech privately. Create a free account, chat directly with Ifeoluwa, receive custom offers and pay securely.">
+<meta name="description" content="Message Nexatech privately. Enter your email, chat directly with Ifeoluwa, receive custom offers and pay securely.">
 <meta property="og:title" content="Messages - Nexatech">
-<meta property="og:description" content="Private messaging with Nexatech. Create an account, chat directly and receive custom offers in one place.">
+<meta property="og:description" content="Private messaging with Nexatech. Chat directly and receive custom offers in one place.">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary">
 <meta name="theme-color" content="#05070f">
@@ -19,35 +19,39 @@
 <link rel="icon" id="dm-favicon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800;900&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/style.css">
 <link rel="stylesheet" href="/css/dm.css">
 </head>
 <body class="dm-page">
 
-<!-- ============ NAME ENTRY ============ -->
-<div class="dm-auth" id="dm-name-entry">
+<!-- ============ EMAIL SIGN IN ============ -->
+<div class="dm-auth" id="dm-auth">
   <div class="dm-auth-card">
     <div class="dm-brand">
       <img class="dm-logo" data-brand-logo alt="Nexatech logo" hidden>
       <span class="dm-logo-fallback" data-brand-fallback>N</span>
-      <span class="dm-brand-text"><b data-brand-name>NEXATECH</b><small>Messages</small></span>
+      <span class="dm-brand-text"><b data-brand-name>NEXATECH</b><small>Private messages</small></span>
     </div>
 
-    <h1 class="dm-auth-title">Start chatting</h1>
-    <p class="dm-auth-sub">Enter your name to message Ifeoluwa privately. No account needed.</p>
+    <h1 class="dm-auth-title">Chat with Ifeoluwa</h1>
+    <p class="dm-auth-sub">Enter your email to start chatting. No password, no account setup - you will be taken straight to the chat.</p>
 
-    <form class="dm-form" id="dm-name-form" novalidate>
+    <form class="dm-form" id="dm-email-form" novalidate>
       <div class="dm-field">
-        <label for="dm-enter-name">Your name</label>
-        <input id="dm-enter-name" name="name" autocomplete="name" placeholder="e.g. John Doe" required>
+        <label for="dm-email">Your email</label>
+        <input id="dm-email" name="email" type="email" autocomplete="email" inputmode="email" placeholder="you@example.com" required>
       </div>
-      <div class="dm-error" id="dm-name-error" role="alert"></div>
-      <button type="submit" class="dm-btn dm-btn-primary" id="dm-name-submit">Start chat</button>
+      <div class="dm-error" id="dm-email-error" role="alert"></div>
+      <button type="submit" class="dm-btn dm-btn-primary" id="dm-email-submit">Continue to chat</button>
     </form>
 
     <div class="dm-auth-foot">
-      <br>No account needed - your name is saved locally
+      Your email is saved on this device. You will not be asked to sign in again.
+    </div>
+    <div class="dm-secure-note">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+      Private &amp; secure - only you and Ifeoluwa can read this chat
     </div>
   </div>
 </div>
@@ -75,167 +79,24 @@
   <main class="dm-thread" id="dm-thread" aria-live="polite">
     <div class="dm-empty" id="dm-empty">
       <span class="dm-empty-badge" aria-hidden="true">✦</span>
-      <b>Welcome!</b>
-      <span>Enter your name above to start your private chat. Ifeoluwa will see your messages and can reply here.</span>
+      <b>This is the start of your private chat</b>
+      <span>Send a message below. Ifeoluwa gets notified instantly and replies here - you can also receive custom offers and pay securely in this chat.</span>
     </div>
   </main>
 
   <div class="dm-composer">
     <form id="dm-form">
-      <textarea id="dm-input" rows="1" maxlength="2000" placeholder="Type a message..." aria-label="Message" autocomplete="off"></button>
+      <textarea id="dm-input" rows="1" maxlength="2000" placeholder="Type a message..." aria-label="Message" autocomplete="off"></textarea>
+      <button type="submit" class="dm-send" id="dm-send" aria-label="Send message" title="Send">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/></svg>
+      </button>
     </form>
     <div class="dm-composer-hint">Enter to send · Shift + Enter for a new line</div>
   </div>
-
-  <div class="dm-toast" id="dm-toast" role="status"></div>
 </div>
 
-<script type="module">
-/* ===== Name entry & persistence ===== */
-const storedName = localStorage.getItem('dm_user_name');
+<div class="dm-toast" id="dm-toast" role="status"></div>
 
-if (storedName) {
-  // Show chat directly if name already stored
-  $('#dm-name-entry')?.addClass('dm-hidden');
-  $('#dm-chat')?.removeClass('dm-hidden');
-  $('#dm-chat-name')?.textContent = `${storedName} - Nexatech`;
-} else {
-  // Show name entry form
-  $('#dm-name-entry')?.removeClass('dm-hidden');
-}
-
-/* ===== Name form submission ===== */
-$('#dm-name-form')?.addEventListener('submit', (e) => {
-  e.preventDefault();
-  const nameInput = $('#dm-enter-name');
-  const name = nameInput.value.trim();
-  const errorEl = $('#dm-name-error');
-
-  if (!name) {
-    errorEl.textContent = 'Please enter your name';
-    return;
-  }
-
-  // Save name to localStorage (persists across sessions/browsers)
-  localStorage.setItem('dm_user_name', name);
-  
-  // Show chat, hide name entry
-  $('#dm-name-entry')?.addClass('dm-hidden');
-  $('#dm-chat')?.removeClass('dm-hidden');
-  $('#dm-chat-name')?.textContent = `${name} - Nexatech`;
-  
-  toast(`Welcome, ${name}! You can now send messages`);
-});
-
-/* ===== Chat functionality ===== */
-const state = {
-  messages: new Map(),
-  lastId: 0,
-  lastDate: null
-};
-
-function toast(msg) {
-  const toast = $('#dm-toast');
-  if (!toast) {
-    const t = document.createElement('div');
-    t.id = 'dm-toast';
-    t.setAttribute('role', 'status');
-    t.style.cssText = 'position:fixed;bottom:2rem;left:50%;transform:translateX(-50%);background:var(--dm-color-bg-alt);color:var(--dm-color-text);padding:0.75rem 1.25rem;border-radius:var(--dm-radius);font-size:0.875rem;opacity:0;transition:opacity 0.3s;z-index:9999;';
-    document.body.appendChild(t);
-    toast = t;
-    $('#dm-toast') = t;
-  }
-  toast.textContent = msg;
-  toast.classList.add('show');
-  setTimeout(() => toast.classList.remove('show'), 3000);
-}
-
-function scrollBottom() {
-  const thread = $('#dm-thread');
-  if (!thread) return;
-  thread.scrollTop = thread.scrollHeight;
-}
-
-/* Call buttons */
-$('#dm-call-btn')?.addEventListener('click', () => startCall('voice'));
-$('#dm-video-btn')?.addEventListener('click', () => startCall('video'));
-
-function startCall(mode) {
-  toast(`Starting ${mode} call...`);
-}
-
-/* Message handling */
-function addMessage(msg, forceScroll) {
-  if (!msg || !msg.id || state.messages.has(msg.id)) return;
-  state.messages.set(msg.id, msg);
-  if (msg.id > state.lastId) state.lastId = msg.id;
-  
-  if ($('#dm-empty')) $('#dm-empty').addClass('dm-hidden');
-  
-  const date = new Date(msg.created_at);
-  const isToday = new Date().toDateString() === new Date(msg.created_at).toDateString();
-  const dayStr = isToday ? 'Today' : formatDate(msg.created_at);
-  
-  const row = document.createElement('div');
-  row.className = 'dm-row';
-  
-  const bubble = document.createElement('div');
-  bubble.className = 'dm-bubble';
-  bubble.textContent = msg.body || '';
-  
-  const meta = document.createElement('div');
-  meta.className = 'dm-meta';
-  const time = document.createElement('span');
-  time.textContent = formatTime(msg.created_at);
-  meta.appendChild(time);
-  
-  row.appendChild(bubble);
-  row.appendChild(meta);
-  
-  // Add day separator if needed
-  if (state.lastDate !== dayStr && state.lastDate) {
-    const sep = document.createElement('div');
-    sep.className = 'dm-day';
-    sep.textContent = state.lastDate;
-    $('#dm-thread').appendChild(sep);
-  }
-  state.lastDate = dayStr;
-  
-  $('#dm-thread').appendChild(row);
-  scrollBottom();
-}
-
-function formatDate(dateStr) {
-  const d = new Date(dateStr);
-  const options = { weekday: 'short', month: 'short', day: 'numeric' };
-  return d.toLocaleDateString(undefined, options);
-}
-
-function formatTime(dateStr) {
-  const d = new Date(dateStr);
-  return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-}
-
-/* ============ Composer ===== */
-$('#dm-form')?.addEventListener('submit', (e) => {
-  e.preventDefault();
-  const input = $('#dm-input');
-  const value = input.value.trim();
-  if (!value) return;
-  
-  // Send message - in real app this would be an API call
-  const msg = {
-    id: Date.now() + Math.random(),
-    body: value,
-    sender: 'owner',
-    created_at: new Date().toISOString(),
-    read_at: null
-  };
-  
-  addMessage(msg);
-  input.value = '';
-  toast('Message sent');
-});
-</script>
+<script type="module" src="/js/messages.js"></script>
 </body>
 </html>
