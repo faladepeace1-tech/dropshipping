@@ -165,7 +165,7 @@ async function createOrder(){
   btn.disabled = true; btn.textContent = 'Creating your order…';
   try{
 const res = await postJson('/api/checkout/create', {
-      kind: ITEM.kind, ref: ITEM.ref, currency: BUYER_CUR,
+      kind: ITEM.kind, ref: ITEM.ref, currency: BUY_CUR,
       name: $('#co-name').value.trim(),
       email: $('#co-email').value.trim()
     }, 'order');

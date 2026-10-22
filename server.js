@@ -3678,6 +3678,10 @@ function publicDmOffer(row){
     created_at: row.created_at, responded_at: row.responded_at || null, paid_at: row.paid_at || null
   };
 }
+async function dmOffersForConversation(conversationId){
+  const rows = await db.prepare('SELECT * FROM dm_offers WHERE conversation_id=? ORDER BY id ASC').all(conversationId);
+  return rows.map(publicDmOffer);
+}
 async function dmAttachOffers(rows){
   if(!Array.isArray(rows) || !rows.length) return [];
   const ids = Array.from(new Set(rows.map(row => {
@@ -3767,7 +3771,7 @@ function dmCallMessageText(call, status){
     const mm = Math.floor(secs / 60), ss = secs % 60;
     return (label[0].toUpperCase() + label.slice(1)) + ' call - ' + (mm ? mm + 'm ' + ss + 's' : ss + 's');
   }
-  return 'Cancelled ' + label + ' call';
+  return 'Missed ' + label + ' call';
 }
 async function dmRecordCallMessage(call, status){
   if(dmCallRecorded.has(call.id)) return;
@@ -3783,7 +3787,7 @@ async function dmRecordCallMessage(call, status){
     dmBroadcastUser(call.conversationId, 'message', { conversation_id: call.conversationId, message: msg });
     const summary = await dmConversationSummary(call.conversationId);
     dmBroadcastOwner('message', { conversation_id: call.conversationId, message: msg, conversation: summary });
-    if(status === 'missed'){
+    if(status === 'missed' || (status === 'ended' && !call.answeredAt)){
       if(call.from === 'user'){
         dmPushOwner({ title:'Missed call', body:'You missed a call from ' + (call.fromName || 'a client') + '.', url:'/inbox', tag:'dm-missed-' + call.id });
       } else if(summary && summary.user_id){
@@ -4132,7 +4136,7 @@ app.get('/api/dm/messages', requireDmUser, async (req, res) => {
     }else{
       rows = await db.prepare('SELECT * FROM (SELECT * FROM dm_messages WHERE conversation_id=? ORDER BY id DESC LIMIT ?) t ORDER BY id ASC').all(conv.id, limit);
     }
-    res.json({ ok:true, conversation:{ id:conv.id, status:conv.status, room_token:conv.room_token || '', user_unread:conv.user_unread || 0 }, messages: await dmAttachOffers(rows) });
+    res.json({ ok:true, conversation:{ id:conv.id, status:conv.status, room_token:conv.room_token || '', user_unread:conv.user_unread || 0 }, messages: await dmAttachOffers(rows), offers: await dmOffersForConversation(conv.id) });
   }catch(e){
     console.error('dm messages failed:', e.message);
     res.status(500).json({ error: 'Could not load messages.' });
@@ -4271,7 +4275,7 @@ app.get('/api/dm/owner/conversations/:id/messages', requireDmOwner, async (req, 
     const rows = await db.prepare('SELECT * FROM (SELECT * FROM dm_messages WHERE conversation_id=? ORDER BY id DESC LIMIT 300) t ORDER BY id ASC').all(conv.id);
     await db.prepare('UPDATE dm_conversations SET owner_unread=0 WHERE id=?').run(conv.id);
     await db.prepare("UPDATE dm_messages SET read_at=datetime('now') WHERE conversation_id=? AND sender='user' AND read_at IS NULL").run(conv.id);
-    res.json({ ok:true, conversation:{ ...conv, user }, messages: await dmAttachOffers(rows) });
+    res.json({ ok:true, conversation:{ ...conv, user }, messages: await dmAttachOffers(rows), offers: await dmOffersForConversation(conv.id) });
   }catch(e){
     console.error('dm owner thread failed:', e.message);
     res.status(500).json({ error: 'Could not load this conversation.' });

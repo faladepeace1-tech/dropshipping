@@ -481,3 +481,6 @@ body.dm-pay-open{ overflow:hidden; }
 
 .dm-call-overlay.dm-call-rear .dm-call-local-video{ transform:none; }
 
+.dm-call-note{ font-weight:600; }
+.dm-call-note-missed{ color:#fca5a5; }
+

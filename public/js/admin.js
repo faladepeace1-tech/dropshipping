@@ -2780,7 +2780,7 @@ $('#btn-save-payments')?.addEventListener('click', async ()=>{
     const r = await fetch('/api/content', { method: 'PUT', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(payload) });
     const j = await r.json().catch(() => ({}));
     if(!r.ok) throw new Error(j.error || 'Save failed');
-    if(msg){ msg.textContent = 'Saved ✓ - checkout now charges inline via Flutterwave (USD).'; msg.style.color = '#10B981'; }
+    if(msg){ msg.textContent = 'Saved ✓ - checkout now charges inline (USD).'; msg.style.color = '#10B981'; }
     for(const id of ['int-flw-secret', 'int-flw-enc', 'int-flw-hash']){ const el = document.getElementById(id); if(el) el.value = ''; }
     await loadContent(); fillPaymentsForm();
   }catch(e){ if(msg){ msg.textContent = 'Error: ' + e.message; msg.style.color = '#F87171'; } }

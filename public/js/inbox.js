@@ -445,7 +445,9 @@ function offerElement(msg) {
 
 function callElement(msg) {
   const line = document.createElement('div');
-  line.className = 'dm-system';
+  line.className = 'dm-system dm-call-note';
+  const status = msg.meta && msg.meta.status;
+  if (status === 'missed') line.classList.add('dm-call-note-missed');
   line.textContent = msg.body || 'Call';
   return line;
 }
@@ -544,11 +546,18 @@ function renderAll(rows) {
 }
 
 function applyOfferUpdate(offer) {
-  if (!offer || !offer.id) return;
+  applyOfferUpdates([offer]);
+}
+
+function applyOfferUpdates(offers) {
+  if (!Array.isArray(offers) || !offers.length) return;
+  const byId = new Map(offers.filter((o) => o && o.id).map((o) => [Number(o.id), o]));
+  if (!byId.size) return;
   let changed = false;
   state.messages.forEach((msg) => {
-    if (msg.offer && Number(msg.offer.id) === Number(offer.id)) {
-      msg.offer = offer;
+    const oid = msg.offer && Number(msg.offer.id);
+    if (oid && byId.has(oid)) {
+      msg.offer = byId.get(oid);
       changed = true;
     }
   });
@@ -728,6 +737,7 @@ async function refreshActive(silent) {
     state.active = data.conversation;
     setHeader(data.conversation);
     (data.messages || []).forEach((msg) => addMessage(msg));
+    applyOfferUpdates(data.offers);
     upsertConversation({ ...(conversationById(state.activeId) || {}), id: state.activeId, owner_unread: 0, user: data.conversation.user });
     renderList();
     setOnline(true);
@@ -832,6 +842,12 @@ function connectStream() {
     ['call_ring', 'call_answered', 'call_declined', 'call_missed', 'call_ended', 'call_signal'].forEach((name) => {
       es.addEventListener(name, (event) => {
         try { calls.onEvent(name, JSON.parse(event.data)); } catch {}
+        if (name === 'call_missed' || name === 'call_ended' || name === 'call_declined') {
+          setTimeout(() => {
+            refreshConversations(true);
+            if (state.activeId) refreshActive(true);
+          }, 700);
+        }
       });
     });
     es.onerror = () => setOnline(false);

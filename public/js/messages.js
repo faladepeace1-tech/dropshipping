@@ -75,7 +75,7 @@ function openPayment(url) {
   const title = document.createElement('b');
   title.textContent = 'Secure payment';
   const sub = document.createElement('small');
-  sub.textContent = 'Card, bank transfer, USSD and wallets via Flutterwave';
+  sub.textContent = 'Card, bank transfer, USSD and wallets';
   copy.append(title, sub);
   const close = document.createElement('button');
   close.type = 'button';
@@ -101,7 +101,7 @@ window.addEventListener('message', (event) => {
   if (data.type !== 'nexatech:paid') return;
   closePayment();
   toast('Payment received - thank you!');
-  if (state.me) poll();
+  if (state.me) poll().then(() => markRead());
 });
 
 async function api(path, opts = {}) {
@@ -448,7 +448,9 @@ function offerElement(msg) {
 
 function callElement(msg) {
   const line = document.createElement('div');
-  line.className = 'dm-system';
+  line.className = 'dm-system dm-call-note';
+  const status = msg.meta && msg.meta.status;
+  if (status === 'missed') line.classList.add('dm-call-note-missed');
   line.textContent = msg.body || 'Call';
   return line;
 }
@@ -531,11 +533,18 @@ function renderAll(rows) {
 }
 
 function applyOfferUpdate(offer) {
-  if (!offer || !offer.id) return;
+  applyOfferUpdates([offer]);
+}
+
+function applyOfferUpdates(offers) {
+  if (!Array.isArray(offers) || !offers.length) return;
+  const byId = new Map(offers.filter((o) => o && o.id).map((o) => [Number(o.id), o]));
+  if (!byId.size) return;
   let changed = false;
   state.messages.forEach((msg) => {
-    if (msg.offer && Number(msg.offer.id) === Number(offer.id)) {
-      msg.offer = offer;
+    const oid = msg.offer && Number(msg.offer.id);
+    if (oid && byId.has(oid)) {
+      msg.offer = byId.get(oid);
       changed = true;
     }
   });
@@ -546,12 +555,14 @@ async function loadMessages() {
   const data = await api('/api/dm/messages');
   state.conversation = data.conversation || null;
   renderAll(Array.isArray(data.messages) ? data.messages : []);
+  applyOfferUpdates(data.offers);
 }
 
 async function poll() {
   if (!state.me) return;
   try {
     const data = await api('/api/dm/messages?after=' + state.lastId);
+    applyOfferUpdates(data.offers);
     (data.messages || []).forEach((msg) => addMessage(msg));
     setOnline(true);
   } catch (e) {
@@ -602,6 +613,9 @@ function connectStream() {
     ['call_ring', 'call_answered', 'call_declined', 'call_missed', 'call_ended', 'call_signal'].forEach((name) => {
       es.addEventListener(name, (event) => {
         try { calls.onEvent(name, JSON.parse(event.data)); } catch {}
+        if (name === 'call_missed' || name === 'call_ended' || name === 'call_declined') {
+          setTimeout(() => { if (state.me) poll(); }, 700);
+        }
       });
     });
     es.onerror = () => setOnline(false);
