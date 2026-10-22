@@ -166,7 +166,7 @@ app.use('/api/', generalLimiter);
 // browsers and CDNs can never serve stale code after you publish backend edits.
 const ASSET_VER = (()=>{ try{
   const h = crypto.createHash('md5');
-  for(const f of ['public/js/app.js','public/js/admin.js','public/js/checkout.js','public/js/offers.js','public/js/pricing.js','public/js/messages.js','public/js/inbox.js','public/css/style.css','public/css/admin.css','public/css/dm.css','public/index.html','public/admin.html','public/checkout.html','public/offers.html','public/pricing.html','public/messages.html','public/inbox.html']){
+  for(const f of ['public/js/app.js','public/js/admin.js','public/js/checkout.js','public/js/offers.js','public/js/pricing.js','public/js/messages.js','public/js/inbox.js','public/js/call.js','public/css/style.css','public/css/admin.css','public/css/dm.css','public/index.html','public/admin.html','public/checkout.html','public/offers.html','public/pricing.html','public/messages.html','public/inbox.html']){
     try{ const st = fs.statSync(path.join(__dirname, f)); h.update(f + ':' + st.mtimeMs + ':' + st.size); }catch{}
   }
   return h.digest('hex').slice(0,8);
@@ -180,6 +180,7 @@ function versionedHtml(file){
              .split('/js/pricing.js').join('/js/pricing.js?v='+ASSET_VER)
              .split('/js/messages.js').join('/js/messages.js?v='+ASSET_VER)
              .split('/js/inbox.js').join('/js/inbox.js?v='+ASSET_VER)
+             .split('/js/call.js').join('/js/call.js?v='+ASSET_VER)
              .split('/css/style.css').join('/css/style.css?v='+ASSET_VER)
              .split('/css/admin.css').join('/css/admin.css?v='+ASSET_VER)
              .split('/css/dm.css').join('/css/dm.css?v='+ASSET_VER);
@@ -1014,7 +1015,7 @@ async function markOrderPaid(orderRef, providerRef){
         ? await db.prepare("UPDATE dm_offers SET status='paid', order_ref=?, paid_at=datetime('now') WHERE id=? AND status='accepted'").run(order.order_ref, offer.id)
         : null;
       if(paid && paid.changes){
-        const receipt = `Payment received for order ${order.order_ref}. Ifeoluwa will start on your project and keep you updated here.`;
+        const receipt = `Payment received for order ${order.order_ref}. Nexatech will start on your project and keep you updated here.`;
         const info = await db.prepare("INSERT INTO dm_messages (conversation_id,sender,kind,body,meta) VALUES (?,?,?,?,?)")
           .run(offer.conversation_id, 'system', 'system', receipt, JSON.stringify({ offer_id: offer.id }));
         await dmTouchConversation(offer.conversation_id, 'system', receipt, 'user');
@@ -1025,7 +1026,7 @@ async function markOrderPaid(orderRef, providerRef){
         const fresh = await db.prepare('SELECT * FROM dm_offers WHERE id=?').get(offer.id);
         dmBroadcastOffer(offer.conversation_id, publicDmOffer(fresh));
         dmPushOwner({ title:'Custom offer paid', body:'Order ' + order.order_ref + ' - ' + formatCents(order.amount_cents, order.currency) + ' received.', url:'/inbox', tag:'dm-owner-' + offer.conversation_id });
-        dmPushUser(offer.user_id, { title:'Payment received', body:'Your custom order is confirmed. Ifeoluwa will keep you updated in Messages.', url:'/messages', tag:'dm-' + offer.conversation_id });
+        dmPushUser(offer.user_id, { title:'Payment received', body:'Your custom order is confirmed. Nexatech will keep you updated in Messages.', url:'/messages', tag:'dm-' + offer.conversation_id });
       }
     }catch(e){ console.error('dm offer payment update failed:', e.message); }
   }
@@ -1078,7 +1079,7 @@ async function getCheckoutItem(kind, ref){
   }
   if(k === 'dm'){
     const row = await db.prepare('SELECT * FROM dm_offers WHERE checkout_ref=?').get(String(ref || ''));
-    if(!row) return { error: 'This custom offer could not be found. Ask Ifeoluwa to send it again.' };
+    if(!row) return { error: 'This custom offer could not be found. Ask Nexatech to send it again.' };
     if(row.status === 'paid') return { error: 'This offer has already been paid.' };
     if(row.status !== 'accepted') return { error: 'Please accept this offer in your Messages chat before paying.' };
     const money = dmOfferTotalCents(row);
@@ -2956,10 +2957,13 @@ function notifyOwner({ subject, html, text }){
 // - Opt-out (unsubscribe) link in every email
 // - WhatsApp CTA in every email, HTML-designed, first message sent instantly
 async function ensureFollowupTables(){
+  const idType = usePg ? 'BIGSERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT';
+  const tsType = usePg ? 'TIMESTAMP' : 'TEXT';
+  const nowDefault = usePg ? 'NOW()' : "datetime('now')";
   try{
     await db.exec(`
       CREATE TABLE IF NOT EXISTS followup_logs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id ${idType},
         email TEXT NOT NULL,
         lead_id INTEGER,
         session_id TEXT DEFAULT '',
@@ -2971,14 +2975,14 @@ async function ensureFollowupTables(){
         status TEXT DEFAULT 'pending',
         error TEXT DEFAULT '',
         message_id TEXT DEFAULT '',
-        sent_at TEXT DEFAULT (datetime('now'))
+        sent_at ${tsType} DEFAULT (${nowDefault})
       );
       CREATE INDEX IF NOT EXISTS idx_followup_email ON followup_logs(email);
       CREATE TABLE IF NOT EXISTS email_unsubscribes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id ${idType},
         email TEXT UNIQUE NOT NULL,
         reason TEXT DEFAULT '',
-        created_at TEXT DEFAULT (datetime('now'))
+        created_at ${tsType} DEFAULT (${nowDefault})
       );
     `);
   }catch(e){ console.error('ensureFollowupTables', e.message); }
@@ -3731,12 +3735,164 @@ function dmOfferPayload(body){
     expires_at: expiresDays ? new Date(Date.now() + expiresDays * 86400000).toISOString() : null
   };
 }
-function dmCallUrl(room, mode){
-  const safe = encodeURIComponent('nexatech-' + String(room || '').replace(/[^a-z0-9]/gi, ''));
-  return 'https://meet.jit.si/' + safe + '#config.prejoinPageEnabled=false&config.disableDeepLinking=true'
-    + '&config.startWithAudioMuted=false&config.startWithVideoMuted=' + (mode === 'voice' ? 'true' : 'false')
-    + '&interfaceConfig.SHOW_JITSI_WATERMARK=false&interfaceConfig.SHOW_BRAND_WATERMARK=false';
+// --- Native in-page calls: ring -> answer -> live WebRTC audio/video ---
+const dmCalls = new Map(); // callId -> call state
+const DM_CALL_RING_MS = 120000;
+function dmCallOut(call){
+  return {
+    id: call.id,
+    conversation_id: call.conversationId,
+    mode: call.mode,
+    from: call.from,
+    from_name: call.fromName || (call.from === 'owner' ? 'Nexatech' : 'Client'),
+    status: call.status,
+    created_at: new Date(call.createdAt).toISOString(),
+    answered_at: call.answeredAt ? new Date(call.answeredAt).toISOString() : null,
+    ended_at: call.endedAt ? new Date(call.endedAt).toISOString() : null
+  };
 }
+function dmCallBroadcast(call, event, extra){
+  const payload = { call: dmCallOut(call), ...(extra || {}) };
+  dmBroadcastUser(call.conversationId, event, payload);
+  dmBroadcastOwner(event, payload);
+}
+function dmCallFinish(call, status, event){
+  if(call.ringTimer){ clearTimeout(call.ringTimer); call.ringTimer = null; }
+  if(call.cleanupTimer) clearTimeout(call.cleanupTimer);
+  call.status = status;
+  call.endedAt = Date.now();
+  dmCallBroadcast(call, event);
+  call.cleanupTimer = setTimeout(()=>{ dmCalls.delete(call.id); }, 10 * 60 * 1000);
+}
+function dmCreateCall(conv, from, mode, fromName){
+  for(const existing of dmCalls.values()){
+    if(Number(existing.conversationId) === Number(conv.id) && ['ringing','accepted'].includes(existing.status)){
+      dmCallFinish(existing, 'ended', 'call_ended');
+    }
+  }
+  const call = {
+    id: crypto.randomBytes(12).toString('hex'),
+    conversationId: Number(conv.id),
+    mode: mode === 'voice' ? 'voice' : 'video',
+    from,
+    fromName,
+    status: 'ringing',
+    createdAt: Date.now(),
+    answeredAt: null,
+    endedAt: null,
+    signals: [],
+    seq: 0,
+    ringTimer: null,
+    cleanupTimer: null
+  };
+  call.ringTimer = setTimeout(()=>{
+    if(call.status === 'ringing') dmCallFinish(call, 'missed', 'call_missed');
+  }, DM_CALL_RING_MS);
+  dmCalls.set(call.id, call);
+  return call;
+}
+function dmCallAnswer(call){
+  if(call.status !== 'ringing') return { error: 'This call is no longer ringing.', status: 409 };
+  if(call.ringTimer){ clearTimeout(call.ringTimer); call.ringTimer = null; }
+  call.status = 'accepted';
+  call.answeredAt = Date.now();
+  dmCallBroadcast(call, 'call_answered');
+  return { ok: true };
+}
+function dmCallDecline(call){
+  if(call.status !== 'ringing') return { error: 'This call is no longer ringing.', status: 409 };
+  dmCallFinish(call, 'declined', 'call_declined');
+  return { ok: true };
+}
+function dmCallHangup(call){
+  if(['ended','declined','missed'].includes(call.status)) return { ok: true };
+  dmCallFinish(call, 'ended', 'call_ended');
+  return { ok: true };
+}
+function dmCallSignal(call, from, type, data){
+  if(!['offer','answer','ice'].includes(type)) return { error: 'Invalid call signal.', status: 400 };
+  if(call.status !== 'accepted') return { error: 'This call is not connected yet.', status: 409 };
+  const packet = { seq: ++call.seq, from, type, data, at: Date.now() };
+  call.signals.push(packet);
+  if(call.signals.length > 200) call.signals.splice(0, call.signals.length - 200);
+  dmCallBroadcast(call, 'call_signal', packet);
+  return { ok: true, seq: packet.seq };
+}
+async function dmResolveCall(req, id, role){
+  const call = dmCalls.get(String(id));
+  if(!call) return { error: 'This call has ended.', status: 404 };
+  if(role === 'user'){
+    const conv = await dmGetConversationForUser(req.dmUser.id);
+    if(!conv || Number(conv.id) !== Number(call.conversationId)) return { error: 'Call not found.', status: 404 };
+  }
+  return { call };
+}
+app.get('/api/dm/ice', (req, res) => {
+  const iceServers = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }];
+  const turnUrl = String(process.env.TURN_URL || '').trim();
+  if(turnUrl){
+    const entry = { urls: turnUrl.split(',').map((s) => s.trim()).filter(Boolean) };
+    if(process.env.TURN_USERNAME) entry.username = String(process.env.TURN_USERNAME);
+    if(process.env.TURN_CREDENTIAL) entry.credential = String(process.env.TURN_CREDENTIAL);
+    iceServers.push(entry);
+  }
+  res.json({ iceServers });
+});
+function dmCallRoutes(role){
+  const auth = role === 'owner' ? requireDmOwner : requireDmUser;
+  const base = role === 'owner' ? '/api/dm/owner/calls' : '/api/dm/calls';
+  app.post(base + '/:id/answer', auth, dmSameOrigin, async (req, res) => {
+    try{
+      const ctx = await dmResolveCall(req, req.params.id, role);
+      if(ctx.error) return res.status(ctx.status).json({ error: ctx.error });
+      if(ctx.call.from === role) return res.status(409).json({ error: 'You started this call - wait for the other person to answer.' });
+      const result = dmCallAnswer(ctx.call);
+      if(result.error) return res.status(result.status).json({ error: result.error });
+      res.json({ ok: true, call: dmCallOut(ctx.call) });
+    }catch(e){ console.error('dm call answer failed:', e.message); res.status(500).json({ error: 'Could not answer the call.' }); }
+  });
+  app.post(base + '/:id/decline', auth, dmSameOrigin, async (req, res) => {
+    try{
+      const ctx = await dmResolveCall(req, req.params.id, role);
+      if(ctx.error) return res.status(ctx.status).json({ error: ctx.error });
+      if(ctx.call.from === role) return res.status(409).json({ error: 'You started this call - cancel it instead.' });
+      const result = dmCallDecline(ctx.call);
+      if(result.error) return res.status(result.status).json({ error: result.error });
+      res.json({ ok: true });
+    }catch(e){ console.error('dm call decline failed:', e.message); res.status(500).json({ error: 'Could not decline the call.' }); }
+  });
+  app.post(base + '/:id/hangup', auth, dmSameOrigin, async (req, res) => {
+    try{
+      const ctx = await dmResolveCall(req, req.params.id, role);
+      if(ctx.error) return res.status(ctx.status).json({ error: ctx.error });
+      dmCallHangup(ctx.call);
+      res.json({ ok: true });
+    }catch(e){ console.error('dm call hangup failed:', e.message); res.status(500).json({ error: 'Could not end the call.' }); }
+  });
+  app.post(base + '/:id/signal', auth, dmSameOrigin, async (req, res) => {
+    try{
+      const ctx = await dmResolveCall(req, req.params.id, role);
+      if(ctx.error) return res.status(ctx.status).json({ error: ctx.error });
+      const result = dmCallSignal(ctx.call, role, String(req.body?.type || ''), req.body?.data);
+      if(result.error) return res.status(result.status).json({ error: result.error });
+      res.json({ ok: true, seq: result.seq });
+    }catch(e){ console.error('dm call signal failed:', e.message); res.status(500).json({ error: 'Call connection error.' }); }
+  });
+  app.get(base + '/:id/events', auth, async (req, res) => {
+    try{
+      const ctx = await dmResolveCall(req, req.params.id, role);
+      if(ctx.error) return res.status(ctx.status).json({ error: ctx.error });
+      const after = Math.max(0, parseInt(req.query.after, 10) || 0);
+      res.json({
+        ok: true,
+        call: dmCallOut(ctx.call),
+        signals: ctx.call.signals.filter((s) => s.seq > after)
+      });
+    }catch(e){ res.status(500).json({ error: 'Could not load call status.' }); }
+  });
+}
+dmCallRoutes('user');
+dmCallRoutes('owner');
 async function dmTouchConversation(convId, sender, body, bumpUnreadFor){
   const unreadSql = bumpUnreadFor === 'owner' ? ', owner_unread=COALESCE(owner_unread,0)+1'
     : bumpUnreadFor === 'user' ? ', user_unread=COALESCE(user_unread,0)+1' : '';
@@ -3806,7 +3962,7 @@ app.post('/api/dm/signup', dmAuthLimiter, dmSameOrigin, async (req, res) => {
     }
     const user = await db.prepare('SELECT id,name,email,whatsapp,created_at FROM dm_users WHERE id=?').get(info.lastInsertRowid);
     const conv = await dmGetConversationForUser(user.id);
-    const welcome = `Welcome to Nexatech, ${name.split(/\s+/)[0]}. Send a message here and Ifeoluwa will reply from the Nexatech Inbox app.`;
+    const welcome = `Welcome to Nexatech, ${name.split(/\s+/)[0]}. Send a message here and Nexatech will reply from the Nexatech Inbox app.`;
     await db.prepare("INSERT INTO dm_messages (conversation_id,sender,kind,body) VALUES (?,?,?,?)").run(conv.id, 'system', 'system', welcome);
     await dmTouchConversation(conv.id, 'system', welcome, null);
     const token = jwt.sign({ kind:'dm_user', id:user.id, email:user.email }, DM_SECRET, { expiresIn:'30d' });
@@ -3871,7 +4027,7 @@ app.post('/api/dm/email', dmAuthLimiter, dmSameOrigin, async (req, res) => {
     await db.prepare("UPDATE dm_users SET last_login=datetime('now') WHERE id=?").run(row.id);
     const conv = await dmGetConversationForUser(row.id);
     if(created){
-      const welcome = 'Welcome to Nexatech! Send a message here and Ifeoluwa will reply from the Nexatech Inbox app.';
+      const welcome = 'Welcome to Nexatech! Send a message here and Nexatech will reply from the Nexatech Inbox app.';
       await db.prepare("INSERT INTO dm_messages (conversation_id,sender,kind,body) VALUES (?,?,?,?)").run(conv.id, 'system', 'system', welcome);
       await dmTouchConversation(conv.id, 'system', welcome, null);
       notifyOwner({
@@ -4077,7 +4233,7 @@ app.post('/api/dm/owner/conversations/:id/messages', requireDmOwner, dmSameOrigi
     dmBroadcastUser(conv.id, 'message', { conversation_id:conv.id, message:msg });
     const summary = await dmConversationSummary(conv.id);
     dmBroadcastOwner('message', { conversation_id:conv.id, message:msg, conversation:summary });
-    dmPushUser(conv.user_id, { title:'New message from Ifeoluwa', body, url:'/messages', tag:'dm-' + conv.id });
+    dmPushUser(conv.user_id, { title:'New message from Nexatech', body, url:'/messages', tag:'dm-' + conv.id });
     res.json({ ok:true, message:msg });
   }catch(e){
     console.error('dm owner send failed:', e.message);
@@ -4136,7 +4292,7 @@ app.post('/api/dm/offers/:id/accept', requireDmUser, dmSameOrigin, async (req, r
       await db.prepare("UPDATE dm_offers SET status='expired', responded_at=datetime('now') WHERE id=? AND status='pending'").run(offer.id);
       const fresh = await db.prepare('SELECT * FROM dm_offers WHERE id=?').get(offer.id);
       dmBroadcastOffer(conv.id, publicDmOffer(fresh));
-      return res.status(410).json({ error: 'This offer has expired. Ask Ifeoluwa to send a new one.' });
+      return res.status(410).json({ error: 'This offer has expired. Ask Nexatech to send a new one.' });
     }
     const extras = dmOfferExtras(offer);
     const selected = Array.from(new Set((Array.isArray(req.body && req.body.selected_extras) ? req.body.selected_extras : [])
@@ -4209,37 +4365,23 @@ app.delete('/api/dm/owner/offer-templates/:id', requireDmOwner, dmSameOrigin, as
   }catch(e){ res.status(500).json({ error: 'Could not delete this template.' }); }
 });
 
-// --- In-chat calls: creates a join card in both clients and returns the room ---
-async function dmStartCall(conv, sender, displayName, mode, res){
-  const safeMode = mode === 'voice' ? 'voice' : 'video';
-  let room = conv.room_token || '';
-  if(!room){
-    room = crypto.randomBytes(18).toString('hex');
-    await db.prepare('UPDATE dm_conversations SET room_token=? WHERE id=?').run(room, conv.id);
-  }
-  const body = `${displayName} started a ${safeMode === 'voice' ? 'voice' : 'video'} call`;
-  const meta = JSON.stringify({ mode: safeMode, room, started_by: sender, started_at: new Date().toISOString() });
-  const info = await db.prepare('INSERT INTO dm_messages (conversation_id,sender,kind,body,meta) VALUES (?,?,?,?,?)')
-    .run(conv.id, sender, 'call', body, meta);
-  await dmTouchConversation(conv.id, sender, body, sender === 'user' ? 'owner' : 'user');
-  const msg = dmMessageOut(await db.prepare('SELECT * FROM dm_messages WHERE id=?').get(info.lastInsertRowid));
-  dmBroadcastUser(conv.id, 'message', { conversation_id: conv.id, message: msg });
-  const summary = await dmConversationSummary(conv.id);
-  dmBroadcastOwner('message', { conversation_id: conv.id, message: msg, conversation: summary });
-  const callPush = {
-    title: sender === 'user' ? 'Incoming call from a client' : 'Incoming call from Ifeoluwa',
-    body: safeMode === 'voice' ? 'Tap to join the private voice room.' : 'Tap to join the private video room.',
-    url: sender === 'user' ? '/inbox' : '/messages',
-    tag: 'dm-call-' + conv.id
-  };
-  if(sender === 'user') dmPushOwner(callPush); else dmPushUser(conv.user_id, callPush);
-  res.json({ ok:true, mode: safeMode, room, url: dmCallUrl(room, safeMode), message: msg });
-}
+// --- In-page calls: client starts ringing; owner answers from the inbox ---
 app.post('/api/dm/call', requireDmUser, dmSameOrigin, async (req, res) => {
   try{
     const conv = await dmGetConversationForUser(req.dmUser.id);
     if(conv.status !== 'open') return res.status(403).json({ error: 'This conversation is closed.' });
-    await dmStartCall(conv, 'user', req.dmUser.name || 'Client', String(req.body && req.body.mode || 'video'), res);
+    const mode = String(req.body && req.body.mode || 'video');
+    const call = dmCreateCall(conv, 'user', mode, req.dmUser.name || 'Client');
+    dmCallBroadcast(call, 'call_ring');
+    try{
+      dmPushOwner({
+        title: 'Incoming call',
+        body: (req.dmUser.name || 'A client') + ' is calling you on Nexatech. Open the inbox to answer.',
+        url: '/inbox',
+        tag: 'dm-call-' + call.id
+      });
+    }catch{}
+    res.json({ ok: true, call: dmCallOut(call) });
   }catch(e){
     console.error('dm call failed:', e.message);
     res.status(500).json({ error: 'Could not start the call.' });
@@ -4250,39 +4392,22 @@ app.post('/api/dm/owner/conversations/:id/call', requireDmOwner, dmSameOrigin, a
     const conv = await db.prepare('SELECT * FROM dm_conversations WHERE id=?').get(req.params.id);
     if(!conv) return res.status(404).json({ error: 'Conversation not found.' });
     if(conv.status !== 'open') return res.status(403).json({ error: 'This conversation is closed.' });
-    await dmStartCall(conv, 'owner', 'Ifeoluwa', String(req.body && req.body.mode || 'video'), res);
+    const mode = String(req.body && req.body.mode || 'video');
+    const call = dmCreateCall(conv, 'owner', mode, 'Nexatech');
+    dmCallBroadcast(call, 'call_ring');
+    try{
+      dmPushUser(conv.user_id, {
+        title: 'Incoming call from Nexatech',
+        body: 'Tap to answer the ' + (call.mode === 'voice' ? 'voice' : 'video') + ' call.',
+        url: '/messages',
+        tag: 'dm-call-' + call.id
+      });
+    }catch{}
+    res.json({ ok: true, call: dmCallOut(call) });
   }catch(e){
     console.error('dm owner call failed:', e.message);
     res.status(500).json({ error: 'Could not start the call.' });
   }
-});
-
-app.post('/api/dm/owner/conversations/:id/accept', requireDmOwner, dmSameOrigin, async (req, res) => {
-  try{
-    const conv = await db.prepare('SELECT * FROM dm_conversations WHERE id=?').get(req.params.id);
-    if(!conv) return res.status(404).json({ error: 'Conversation not found.' });
-    const body = 'Accepted a ' + (req.body && req.body.mode ? 'voice' : 'video') + ' call';
-    await db.prepare('INSERT INTO dm_messages (conversation_id,sender,kind,body,meta) VALUES (?,?,?,?,?)')
-      .run(conv.id, 'owner', 'call', body, JSON.stringify({ kind: 'call_accepted', room: conv.room_token, started_by: 'owner' }));
-    const msg = await db.prepare('SELECT * FROM dm_messages WHERE conversation_id=? ORDER BY id DESC LIMIT 1').get(conv.id);
-    dmBroadcastUser(conv.id, 'message', { conversation_id: conv.id, message: msg });
-    dmBroadcastOwner('message', { conversation_id: conv.id, message: msg, conversation: await dmConversationSummary(conv.id) });
-    res.json({ ok:true });
-  }catch(e){ console.error('accept call failed:', e.message); res.status(500).json({ error: 'Could not accept call.' }); }
-});
-
-app.post('/api/dm/owner/conversations/:id/decline', requireDmOwner, dmSameOrigin, async (req, res) => {
-  try{
-    const conv = await db.prepare('SELECT * FROM dm_conversations WHERE id=?').get(req.params.id);
-    if(!conv) return res.status(404).json({ error: 'Conversation not found.' });
-    const body = 'Declined a ' + (req.body && req.body.mode ? 'voice' : 'video') + ' call';
-    await db.prepare('INSERT INTO dm_messages (conversation_id,sender,kind,body,meta) VALUES (?,?,?,?,?)')
-      .run(conv.id, 'owner', 'call', body, JSON.stringify({ kind: 'call_declined', room: conv.room_token, started_by: 'owner' }));
-    const msg = await db.prepare('SELECT * FROM dm_messages WHERE conversation_id=? ORDER BY id DESC LIMIT 1').get(conv.id);
-    dmBroadcastUser(conv.id, 'message', { conversation_id: conv.id, message: msg });
-    dmBroadcastOwner('message', { conversation_id: conv.id, message: msg, conversation: await dmConversationSummary(conv.id) });
-    res.json({ ok:true });
-  }catch(e){ console.error('decline call failed:', e.message); res.status(500).json({ error: 'Could not decline call.' }); }
 });
 
 app.get('/api/dm/owner/stream', requireDmOwner, async (req, res) => {

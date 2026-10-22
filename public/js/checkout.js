@@ -6,6 +6,8 @@
 const $ = s => document.querySelector(s);
 let ITEM = null, ORDER_REF = '', BUYER_EMAIL = '', OTP_MODE = 'otp', POLL_N = 0, POLL_TIMER = null, WA_NUM = '447411200927';
 const VIEWS = ['co-loading', 'co-form-view', 'co-card-view', 'co-otp-view', 'co-redirect-view', 'co-pending-view', 'co-success-view', 'co-error-view'];
+const EMBED = new URLSearchParams(location.search).get('embed') === '1';
+if (EMBED) document.body.classList.add('co-embed');
 
 function show(id){
   VIEWS.forEach(v => $('#' + v)?.classList.toggle('hidden', v !== id));
@@ -375,6 +377,9 @@ function showSuccess(o){
   }
   $('#co-messages-wrap')?.classList.toggle('hidden', o.kind !== 'dm');
   show('co-success-view');
+  if (EMBED) {
+    try { parent.postMessage({ type: 'nexatech:paid', order_ref: o.order_ref, kind: o.kind }, location.origin); } catch {}
+  }
 }
 // ---- Resume: returning buyer re-checks live, or retries card ----
 async function resumeByRef(ref){

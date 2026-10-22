@@ -399,3 +399,83 @@ body.dm-page [hidden]{ display:none !important; }
 @media (prefers-reduced-motion:reduce){
   *{ animation-duration:.001ms !important; transition-duration:.001ms !important; }
 }
+
+/* ---------- Native in-page calls (ring, accept, live audio/video) ---------- */
+body.dm-call-open{ overflow:hidden; }
+.dm-call-overlay.dm-call-native{
+  position:fixed; inset:0; z-index:400; display:flex; align-items:center; justify-content:center;
+  background:
+    radial-gradient(720px 460px at 20% 0%, rgba(0,209,255,.16), transparent 60%),
+    radial-gradient(640px 420px at 90% 10%, rgba(124,58,237,.18), transparent 62%),
+    #02050b;
+  padding:calc(14px + env(safe-area-inset-top)) 14px calc(14px + env(safe-area-inset-bottom));
+}
+.dm-call-stage{ width:min(520px,100%); height:min(780px,100%); display:flex; flex-direction:column; align-items:center; position:relative; }
+.dm-call-top{ text-align:center; display:grid; gap:3px; padding:6px 0 14px; z-index:2; }
+.dm-call-peer-name{ font-family:"Space Grotesk",Inter,system-ui,sans-serif; font-size:20px; letter-spacing:.01em; }
+.dm-call-status{ color:var(--dm-muted); font-size:12.5px; letter-spacing:.03em; }
+.dm-call-timer{ color:#9fe9ff; font-size:12px; font-variant-numeric:tabular-nums; letter-spacing:.08em; }
+.dm-call-remote{
+  position:relative; flex:1; width:100%; min-height:0; display:grid; place-items:center; overflow:hidden;
+  border-radius:28px; border:1px solid var(--dm-line);
+  background:linear-gradient(180deg,#0b1626,#060b14);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 24px 70px rgba(0,0,0,.45);
+}
+.dm-call-remote-video{ display:none; width:100%; height:100%; object-fit:cover; background:#000; }
+.dm-call-overlay.dm-call-video .dm-call-remote-video{ display:block; }
+.dm-call-overlay.dm-call-video .dm-call-avatar{ display:none; }
+.dm-call-avatar{
+  position:relative; width:132px; height:132px; border-radius:50%; display:grid; place-items:center;
+  background:linear-gradient(135deg,#1b3050,#0b1626); border:1px solid rgba(0,209,255,.25);
+  font-family:"Space Grotesk",Inter,system-ui,sans-serif; font-size:40px; font-weight:800; color:#dff6ff;
+}
+.dm-call-pulse{ position:absolute; inset:-14px; border-radius:50%; border:2px solid rgba(0,209,255,.35); animation:dmCallPulse 1.8s ease-out infinite; }
+@keyframes dmCallPulse{ 0%{ transform:scale(.85); opacity:.85 } 100%{ transform:scale(1.3); opacity:0 } }
+.dm-call-self{
+  position:absolute; right:14px; top:86px; width:112px; height:152px; border-radius:16px; overflow:hidden;
+  display:none; background:#0a1322; border:1px solid var(--dm-line); box-shadow:0 14px 34px rgba(0,0,0,.45); z-index:3;
+}
+.dm-call-overlay.dm-call-video .dm-call-self{ display:block; }
+.dm-call-local-video{ width:100%; height:100%; object-fit:cover; transform:scaleX(-1); background:#0a1322; }
+.dm-call-self.dm-call-camera-off .dm-call-local-video{ opacity:0; }
+.dm-call-controls{ display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap; padding:18px 0 6px; z-index:2; }
+.dm-call-btn{
+  border:1px solid var(--dm-line); background:rgba(255,255,255,.06); color:var(--dm-text);
+  border-radius:999px; padding:13px 22px; font-size:13px; font-weight:800; font-family:inherit;
+  cursor:pointer; transition:transform .15s, background .2s, box-shadow .2s; min-width:92px;
+}
+.dm-call-btn:active{ transform:translateY(1px); }
+.dm-call-btn:hover{ background:rgba(255,255,255,.12); }
+.dm-call-btn-accept{ background:linear-gradient(135deg,#10b981,#34d399); color:#032018; border:0; box-shadow:0 10px 28px rgba(16,185,129,.35); }
+.dm-call-btn-decline,.dm-call-btn-end{ background:linear-gradient(135deg,#ef4444,#f87171); color:#2a0505; border:0; box-shadow:0 10px 28px rgba(239,68,68,.3); }
+@media (max-width:600px){
+  .dm-call-stage{ height:100%; }
+  .dm-call-remote{ border-radius:22px; }
+  .dm-call-self{ width:92px; height:128px; right:10px; top:76px; }
+  .dm-call-avatar{ width:112px; height:112px; font-size:34px; }
+  .dm-call-btn{ padding:12px 18px; }
+}
+
+/* ---------- In-page payment overlay (Flutterwave checkout, no redirect) ---------- */
+body.dm-pay-open{ overflow:hidden; }
+.dm-pay-overlay{
+  position:fixed; inset:0; z-index:500; display:flex; flex-direction:column; background:#05070f;
+}
+.dm-pay-head{
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:calc(12px + env(safe-area-inset-top)) 18px 12px;
+  border-bottom:1px solid var(--dm-line); background:rgba(8,12,24,.97);
+}
+.dm-pay-head b{ display:block; font-size:15px; color:var(--dm-text); }
+.dm-pay-head small{ display:block; margin-top:2px; font-size:11.5px; color:var(--dm-muted); }
+.dm-pay-close{
+  flex:none; border:1px solid var(--dm-line); background:rgba(255,255,255,.06); color:var(--dm-text);
+  border-radius:999px; padding:8px 16px; font:800 12.5px/1 inherit; cursor:pointer;
+}
+.dm-pay-close:hover{ background:rgba(255,255,255,.12); }
+.dm-pay-frame{ flex:1; width:100%; min-height:0; border:0; background:#05070f; }
+@media (max-width:600px){
+  .dm-pay-head{ padding:10px 12px; }
+  .dm-pay-head small{ display:none; }
+}
+

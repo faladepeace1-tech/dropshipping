@@ -84,6 +84,12 @@ function convertSqlForPg(sql){
     if (col.includes('::')) return m;
     return `${col}::date`;
   });
+  // SQLite auto-increment primary keys -> Postgres identity columns
+  s = s.replace(/\bINTEGER\s+PRIMARY\s+KEY\s+AUTOINCREMENT\b/gi, 'BIGSERIAL PRIMARY KEY');
+  s = s.replace(/\bAUTOINCREMENT\b/gi, '');
+  // SQLite TEXT timestamp columns with datetime('now') defaults -> real timestamps
+  s = s.replace(/\bTEXT(\s+DEFAULT\s*\(\s*NOW\(\)\s*\))/gi, 'TIMESTAMP$1');
+  s = s.replace(/\bTEXT(\s+DEFAULT\s+NOW\(\))/gi, 'TIMESTAMP$1');
   // ON CONFLICT(key) -> ON CONFLICT (key)
   s = s.replace(/ON CONFLICT\s*\(\s*([a-zA-Z_0-9]+)\s*\)/gi, 'ON CONFLICT ($1)');
   s = s.replace(/ON CONFLICT\s*([a-zA-Z_0-9]+)\s+DO/gi, 'ON CONFLICT ($1) DO');

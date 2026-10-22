@@ -621,3 +621,8 @@ main, .footer{position:relative;z-index:1}
   .dm-promo-actions .btn{width:100%;justify-content:center}
   .dm-promo-points{gap:7px 14px}
 }
+
+/* ---------- Embedded checkout (in-page payment overlay) ---------- */
+body.co-embed .co-header,body.co-embed .skip-link{ display:none; }
+body.co-embed .co-wrap{ padding-top:18px; }
+body.co-embed .co-footer{ display:none; }

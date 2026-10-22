@@ -1,4 +1,5 @@
 import { setupDmPush } from './push.js';
+import { createCallController } from './call.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -80,6 +81,18 @@ async function api(path, opts = {}) {
 function setHidden(el, hidden) {
   if (el) el.classList.toggle('dm-hidden', hidden);
 }
+
+const calls = createCallController({
+  role: 'owner',
+  api,
+  toast,
+  basePath: '/api/dm/owner/calls/',
+  startPath: (mode) => {
+    const convId = state.activeId;
+    if (!convId) return null;
+    return { path: '/api/dm/owner/conversations/' + encodeURIComponent(convId) + '/call', body: { mode } };
+  }
+});
 
 async function loadBrand() {
   try {
@@ -168,110 +181,12 @@ function offerStatusText(status) {
   return status;
 }
 
-function jitsiUrl(room, mode) {
-  const safe = encodeURIComponent('nexatech-' + String(room || '').replace(/[^a-z0-9]/gi, ''));
-  return 'https://meet.jit.si/' + safe + '#config.prejoinPageEnabled=false&config.disableDeepLinking=true'
-    + '&config.startWithAudioMuted=false&config.startWithVideoMuted=' + (mode === 'voice' ? 'true' : 'false')
-    + '&interfaceConfig.SHOW_JITSI_WATERMARK=false&interfaceConfig.SHOW_BRAND_WATERMARK=false';
-}
-
-function closeCallOverlay() {
-  const overlay = $('#inbox-call-overlay');
-  if (!overlay) return;
-  const frame = overlay.querySelector('iframe');
-  if (frame) frame.src = 'about:blank';
-  overlay.remove();
-}
-
-function playCallRingtone() {
-  const ctx = new (window.AudioContext || window.webkitAudioContext)();
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.frequency.value = 440;
-  osc.connect(gain).connect(ctx.destination);
-  gain.gain.setValueAtTime(0.3, ctx.currentTime);
-  osc.start(ctx.currentTime);
-  osc.stop(ctx.currentTime + 3);
-}
-
-function openCallOverlay(mode, room, isIncoming, callerName) {
-  closeCallOverlay();
-  const overlay = document.createElement('div');
-  overlay.className = 'dm-call-overlay';
-  overlay.id = 'inbox-call-overlay';
-
-  // Ringtone for incoming calls only
-  if (isIncoming) playCallRingtone();
-
-  const bar = document.createElement('div');
-  bar.className = 'dm-call-bar';
-  const text = document.createElement('div');
-  const title = document.createElement('b');
-  title.textContent = mode === 'voice' ? 'Voice call' : 'Video call';
-  const sub = document.createElement('small');
-  sub.textContent = 'Nexatech private call';
-  text.append(title, sub);
-
-  const actions = document.createElement('div');
-  actions.className = 'dm-call-actions';
-
-  if (isIncoming) {
-    const accept = document.createElement('button');
-    accept.type = 'button';
-    accept.className = 'dm-btn dm-btn-primary';
-    accept.textContent = 'Accept';
-    accept.addEventListener('click', () => {
-      closeCallOverlay();
-      const convId = state.activeId;
-      if (convId) api('/api/dm/owner/conversations/' + encodeURIComponent(convId) + '/accept', { method: 'POST' }).then(() => addMessage(`You accepted the ${mode} call`, true));
-    });
-    const decline = document.createElement('button');
-    decline.type = 'button';
-    decline.className = 'dm-btn dm-btn-ghost';
-    decline.textContent = 'Decline';
-    decline.addEventListener('click', () => {
-      closeCallOverlay();
-      const convId = state.activeId;
-      if (convId) api('/api/dm/owner/conversations/' + encodeURIComponent(convId) + '/decline', { method: 'POST' }).then(() => addMessage(`Call declined`, true));
-    });
-    actions.append(accept, decline);
-  } else {
-    const end = document.createElement('button');
-    end.type = 'button';
-    end.className = 'dm-btn dm-btn-ghost';
-    end.textContent = 'End call';
-    end.addEventListener('click', closeCallOverlay);
-    actions.append(end);
+function startCall(mode) {
+  if (!state.activeId) {
+    toast('Select a conversation first.');
+    return;
   }
-
-  const frame = document.createElement('iframe');
-  frame.src = jitsiUrl(room, mode);
-  frame.allow = 'camera; microphone; display-capture; autoplay; clipboard-write; fullscreen';
-  frame.setAttribute('allowfullscreen', '');
-  frame.title = title.textContent;
-
-  bar.append(text, actions);
-  overlay.append(bar, frame);
-  document.body.appendChild(overlay);
-}
-
-
-
-async function startCall(mode) {
-  const convId = state.activeId;
-  if (!convId) return;
-  try {
-    const data = await api('/api/dm/owner/conversations/' + encodeURIComponent(convId) + '/call', {
-      method: 'POST',
-      body: JSON.stringify({ mode })
-    });
-    if (data.message && Number(state.activeId) === Number(convId)) addMessage(data.message, true);
-    
-    openCallOverlay(data.mode || mode, data.room, false, 'Ifeoluwa');
-  } catch (e) {
-    if (e.status === 401) return showLock('Your inbox session expired - unlock again.');
-    toast(e.message);
-  }
+  calls.start(mode);
 }
 
 function offerFormValues() {
@@ -516,34 +431,10 @@ function offerElement(msg) {
 }
 
 function callElement(msg) {
-  const meta = msg.meta || {};
-  const mode = meta.mode === 'voice' ? 'voice' : 'video';
-  const mine = msg.sender === state.side;
-  const row = document.createElement('div');
-  row.className = 'dm-row ' + (mine ? 'mine' : 'theirs');
-  const card = document.createElement('div');
-  card.className = 'dm-call-card';
-  const icon = document.createElement('span');
-  icon.className = 'dm-call-icon';
-  icon.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="m16 11 6-4v10l-6-4"/></svg>';
-  const text = document.createElement('div');
-  const title = document.createElement('b');
-  title.textContent = mode === 'voice' ? 'Voice call started' : 'Video call started';
-  const sub = document.createElement('small');
-  sub.textContent = mine ? 'You started this call' : 'Client started this call';
-  text.append(title, sub);
-  const join = document.createElement('button');
-  join.type = 'button';
-  join.className = 'dm-btn dm-btn-primary';
-  join.textContent = 'Join';
-  join.disabled = !meta.room;
-  join.addEventListener('click', () => openCallOverlay(mode, meta.room));
-  card.append(icon, text, join);
-  const metaEl = document.createElement('div');
-  metaEl.className = 'dm-meta';
-  metaEl.textContent = timeLabel(toDate(msg.created_at));
-  row.append(card, metaEl);
-  return row;
+  const line = document.createElement('div');
+  line.className = 'dm-system';
+  line.textContent = msg.body || 'Call';
+  return line;
 }
 
 function listTime(value) {
@@ -586,15 +477,7 @@ function messageElement(msg) {
     return system;
   }
   if (msg.kind === 'offer' && msg.offer) return offerElement(msg);
-  if (msg.kind === 'call') {
-    const meta = JSON.parse(msg.meta || '{}');
-    if (state.activeId && String(meta.conversation_id) === String(state.activeId)) {
-      const caller = meta.started_by === 'user' ? 'Client' : 'Ifeoluwa';
-      openCallOverlay(meta.mode || 'video', meta.room, true, caller);
-      return;
-    }
-    return callElement(msg);
-}
+  if (msg.kind === 'call') return callElement(msg);
   const mine = msg.sender === state.side;
   const row = document.createElement('div');
   row.className = 'dm-row ' + (mine ? 'mine' : 'theirs');
@@ -786,7 +669,7 @@ function setHeader(conv) {
   const open = (conv.status || 'open') === 'open';
   if (els.input) {
     els.input.disabled = !open;
-    els.input.placeholder = open ? 'Reply as Ifeoluwa...' : 'This conversation is closed';
+    els.input.placeholder = open ? 'Reply as Nexatech...' : 'This conversation is closed';
   }
   if (els.send) els.send.disabled = !open;
 }
@@ -932,6 +815,11 @@ function connectStream() {
         setOnline(true);
       } catch {}
     });
+    ['call_ring', 'call_answered', 'call_declined', 'call_missed', 'call_ended', 'call_signal'].forEach((name) => {
+      es.addEventListener(name, (event) => {
+        try { calls.onEvent(name, JSON.parse(event.data)); } catch {}
+      });
+    });
     es.onerror = () => setOnline(false);
   } catch {}
 }
@@ -1030,10 +918,10 @@ function bind() {
   });
 
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { closeOfferModal(); closeCallOverlay(); }
+    if (e.key === 'Escape') closeOfferModal();
   });
 
-  window.addEventListener('pagehide', () => { closeCallOverlay(); disconnectStream(); });
+  window.addEventListener('pagehide', () => { calls.destroy(); disconnectStream(); });
 }
 
 async function boot() {

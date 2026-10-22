@@ -1,4 +1,5 @@
 import { setupDmPush, clearDmPush } from './push.js';
+import { createCallController } from './call.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -41,6 +42,57 @@ function toast(text) {
   toast._t = setTimeout(() => els.toast.classList.remove('show'), 3200);
 }
 
+let payOverlay = null;
+
+function closePayment() {
+  if (payOverlay) {
+    try { payOverlay.remove(); } catch {}
+    payOverlay = null;
+  }
+  document.body.classList.remove('dm-pay-open');
+}
+
+function openPayment(url) {
+  if (!url) return;
+  closePayment();
+  const overlay = document.createElement('div');
+  overlay.className = 'dm-pay-overlay';
+  overlay.id = 'dm-pay-overlay';
+  const head = document.createElement('div');
+  head.className = 'dm-pay-head';
+  const copy = document.createElement('div');
+  const title = document.createElement('b');
+  title.textContent = 'Secure payment';
+  const sub = document.createElement('small');
+  sub.textContent = 'Card, bank transfer, USSD and wallets via Flutterwave';
+  copy.append(title, sub);
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'dm-pay-close';
+  close.textContent = 'Close';
+  close.addEventListener('click', closePayment);
+  head.append(copy, close);
+  const frame = document.createElement('iframe');
+  frame.className = 'dm-pay-frame';
+  frame.title = 'Secure payment';
+  frame.allow = 'payment *; fullscreen *';
+  frame.setAttribute('allowfullscreen', '');
+  frame.src = url + (url.includes('?') ? '&' : '?') + 'embed=1';
+  overlay.append(head, frame);
+  document.body.appendChild(overlay);
+  document.body.classList.add('dm-pay-open');
+  payOverlay = overlay;
+}
+
+window.addEventListener('message', (event) => {
+  if (event.origin !== location.origin) return;
+  const data = event.data || {};
+  if (data.type !== 'nexatech:paid') return;
+  closePayment();
+  toast('Payment received - thank you!');
+  if (state.me) poll();
+});
+
 async function api(path, opts = {}) {
   let res;
   try {
@@ -65,6 +117,14 @@ async function api(path, opts = {}) {
 function setHidden(el, hidden) {
   if (el) el.classList.toggle('dm-hidden', hidden);
 }
+
+const calls = createCallController({
+  role: 'user',
+  api,
+  toast,
+  basePath: '/api/dm/calls/',
+  startPath: (mode) => ({ path: '/api/dm/call', body: { mode } })
+});
 
 function showAuth(message) {
   state.me = null;
@@ -182,61 +242,12 @@ function offerStatusText(status) {
   return 'Awaiting your response';
 }
 
-function jitsiUrl(room, mode) {
-  const safe = encodeURIComponent('nexatech-' + String(room || '').replace(/[^a-z0-9]/gi, ''));
-  return 'https://meet.jit.si/' + safe + '#config.prejoinPageEnabled=false&config.disableDeepLinking=true'
-    + '&config.startWithAudioMuted=false&config.startWithVideoMuted=' + (mode === 'voice' ? 'true' : 'false')
-    + '&interfaceConfig.SHOW_JITSI_WATERMARK=false&interfaceConfig.SHOW_BRAND_WATERMARK=false';
-}
-
-function closeCallOverlay() {
-  const overlay = $('#dm-call-overlay');
-  if (!overlay) return;
-  const frame = overlay.querySelector('iframe');
-  if (frame) frame.src = 'about:blank';
-  overlay.remove();
-}
-
-function openCallOverlay(mode, room) {
-  closeCallOverlay();
-  const overlay = document.createElement('div');
-  overlay.className = 'dm-call-overlay';
-  overlay.id = 'dm-call-overlay';
-
-  const bar = document.createElement('div');
-  bar.className = 'dm-call-bar';
-  const text = document.createElement('div');
-  const title = document.createElement('b');
-  title.textContent = mode === 'voice' ? 'Voice call' : 'Video call';
-  const sub = document.createElement('small');
-  sub.textContent = 'Nexatech private call';
-  text.append(title, sub);
-  const end = document.createElement('button');
-  end.type = 'button';
-  end.className = 'dm-btn dm-btn-ghost';
-  end.textContent = 'End call';
-  end.addEventListener('click', closeCallOverlay);
-  bar.append(text, end);
-
-  const frame = document.createElement('iframe');
-  frame.src = jitsiUrl(room, mode);
-  frame.allow = 'camera; microphone; display-capture; autoplay; clipboard-write; fullscreen';
-  frame.setAttribute('allowfullscreen', '');
-  frame.title = title.textContent;
-
-  overlay.append(bar, frame);
-  document.body.appendChild(overlay);
-}
-
-async function startCall(mode) {
-  if (!state.me) return;
-  try {
-    const data = await api('/api/dm/call', { method: 'POST', body: JSON.stringify({ mode }) });
-    if (data.message) addMessage(data.message, true);
-    openCallOverlay(data.mode || mode, data.room);
-  } catch (e) {
-    toast(e.message);
+function startCall(mode) {
+  if (!state.me) {
+    toast('Enter your email to start chatting first.');
+    return;
   }
+  calls.start(mode);
 }
 
 function offerElement(msg) {
@@ -331,7 +342,7 @@ function offerElement(msg) {
   if (offer.requirements_requested && status === 'pending') {
     requirements = document.createElement('textarea');
     requirements.className = 'dm-offer-requirements';
-    requirements.placeholder = 'Tell Ifeoluwa what you need before you pay...';
+    requirements.placeholder = 'Tell Nexatech what you need before you pay...';
     requirements.maxLength = 4000;
     requirements.rows = 3;
     const reqLabel = document.createElement('label');
@@ -375,7 +386,7 @@ function offerElement(msg) {
             requirements_text: requirements ? requirements.value.trim() : ''
           })
         });
-        if (data.checkout_url) location.href = data.checkout_url;
+        if (data.checkout_url) openPayment(data.checkout_url);
       } catch (e) {
         toast(e.message);
         accept.disabled = false;
@@ -399,10 +410,11 @@ function offerElement(msg) {
   } else if (status === 'accepted') {
     const actions = document.createElement('div');
     actions.className = 'dm-offer-actions';
-    const pay = document.createElement('a');
+    const pay = document.createElement('button');
+    pay.type = 'button';
     pay.className = 'dm-btn dm-btn-primary';
-    pay.href = '/checkout?kind=dm&item=' + encodeURIComponent(offer.checkout_ref);
     pay.textContent = 'Complete payment';
+    pay.addEventListener('click', () => openPayment('/checkout?kind=dm&item=' + encodeURIComponent(offer.checkout_ref)));
     actions.appendChild(pay);
     card.appendChild(actions);
   }
@@ -415,35 +427,10 @@ function offerElement(msg) {
 }
 
 function callElement(msg) {
-  const meta = msg.meta || {};
-  const mode = meta.mode === 'voice' ? 'voice' : 'video';
-  const row = document.createElement('div');
-  row.className = 'dm-row ' + (msg.sender === 'user' ? 'mine' : 'theirs');
-  const card = document.createElement('div');
-  card.className = 'dm-call-card';
-  const icon = document.createElement('span');
-  icon.className = 'dm-call-icon';
-  icon.innerHTML = mode === 'voice'
-    ? '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.8a2 2 0 0 1-.5 2.1L8 10a16 16 0 0 0 6 6l1.4-1.3a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg>'
-    : '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="m16 11 6-4v10l-6-4"/></svg>';
-  const text = document.createElement('div');
-  const title = document.createElement('b');
-  title.textContent = mode === 'voice' ? 'Voice call started' : 'Video call started';
-  const sub = document.createElement('small');
-  sub.textContent = 'Tap join to enter the private room';
-  text.append(title, sub);
-  const join = document.createElement('button');
-  join.type = 'button';
-  join.className = 'dm-btn dm-btn-primary';
-  join.textContent = 'Join';
-  join.disabled = !meta.room;
-  join.addEventListener('click', () => openCallOverlay(mode, meta.room));
-  card.append(icon, text, join);
-  const metaEl = document.createElement('div');
-  metaEl.className = 'dm-meta';
-  metaEl.textContent = timeLabel(toDate(msg.created_at));
-  row.append(card, metaEl);
-  return row;
+  const line = document.createElement('div');
+  line.className = 'dm-system';
+  line.textContent = msg.body || 'Call';
+  return line;
 }
 
 function nearBottom() {
@@ -591,6 +578,11 @@ function connectStream() {
         setOnline(true);
       } catch {}
     });
+    ['call_ring', 'call_answered', 'call_declined', 'call_missed', 'call_ended', 'call_signal'].forEach((name) => {
+      es.addEventListener(name, (event) => {
+        try { calls.onEvent(name, JSON.parse(event.data)); } catch {}
+      });
+    });
     es.onerror = () => setOnline(false);
   } catch {}
 }
@@ -673,7 +665,14 @@ function bind() {
     }
   });
 
-  window.addEventListener('pagehide', () => { closeCallOverlay(); disconnectStream(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && payOverlay) {
+      e.preventDefault();
+      closePayment();
+    }
+  });
+
+  window.addEventListener('pagehide', () => { calls.destroy(); closePayment(); disconnectStream(); });
 }
 
 async function boot() {
