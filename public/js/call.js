@@ -501,6 +501,11 @@ export function createCallController({ role, api, toast, startPath, basePath }) 
       return;
     }
     await loadIce();
+    if (call) {
+      stream.getTracks().forEach((track) => track.stop());
+      toast('You already have a call in progress.');
+      return;
+    }
     let data;
     try {
       data = await api(spec.path, { method: 'POST', body: JSON.stringify(spec.body || { mode: want }) });
@@ -510,6 +515,11 @@ export function createCallController({ role, api, toast, startPath, basePath }) 
       return;
     }
     const info = data.call || {};
+    if (call) {
+      try { await api(basePath + info.id + '/hangup', { method: 'POST', body: '{}' }); } catch {}
+      stream.getTracks().forEach((track) => track.stop());
+      return;
+    }
     call = {
       id: info.id,
       mode: info.mode || want,
