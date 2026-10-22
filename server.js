@@ -3498,7 +3498,8 @@ function dmSameOrigin(req, res, next){
 }
 function dmTokenFrom(req, name){
   const auth = String(req.get('authorization') || '');
-  return req.cookies?.[name] || (auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '');
+  const query = String(req.query?.token || '');
+  return req.cookies?.[name] || query || (auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '');
 }
 async function requireDmUser(req, res, next){
   try{
@@ -3737,7 +3738,7 @@ function dmOfferPayload(body){
 }
 // --- Native in-page calls: ring -> answer -> live WebRTC audio/video ---
 const dmCalls = new Map(); // callId -> call state
-const DM_CALL_RING_MS = 120000;
+const DM_CALL_RING_MS = Math.max(5000, parseInt(process.env.DM_CALL_RING_MS, 10) || 120000);
 function dmCallOut(call){
   return {
     id: call.id,
@@ -3756,13 +3757,52 @@ function dmCallBroadcast(call, event, extra){
   dmBroadcastUser(call.conversationId, event, payload);
   dmBroadcastOwner(event, payload);
 }
+const dmCallRecorded = new Set();
+function dmCallMessageText(call, status){
+  const label = call.mode === 'voice' ? 'voice' : 'video';
+  if(status === 'missed') return 'Missed ' + label + ' call';
+  if(status === 'declined') return 'Declined ' + label + ' call';
+  if(status === 'ended' && call.answeredAt){
+    const secs = Math.max(0, Math.round((call.endedAt - call.answeredAt) / 1000));
+    const mm = Math.floor(secs / 60), ss = secs % 60;
+    return (label[0].toUpperCase() + label.slice(1)) + ' call - ' + (mm ? mm + 'm ' + ss + 's' : ss + 's');
+  }
+  return 'Cancelled ' + label + ' call';
+}
+async function dmRecordCallMessage(call, status){
+  if(dmCallRecorded.has(call.id)) return;
+  dmCallRecorded.add(call.id);
+  try{
+    const body = dmCallMessageText(call, status);
+    const durationSeconds = call.answeredAt ? Math.max(0, Math.round((call.endedAt - call.answeredAt) / 1000)) : 0;
+    const meta = JSON.stringify({ call_id: call.id, mode: call.mode, status, duration_seconds: durationSeconds });
+    const info = await db.prepare('INSERT INTO dm_messages (conversation_id,sender,kind,body,meta) VALUES (?,?,?,?,?)')
+      .run(call.conversationId, 'system', 'call', body, meta);
+    await dmTouchConversation(call.conversationId, 'system', body, call.from === 'user' ? 'owner' : 'user');
+    const msg = dmMessageOut(await db.prepare('SELECT * FROM dm_messages WHERE id=?').get(info.lastInsertRowid));
+    dmBroadcastUser(call.conversationId, 'message', { conversation_id: call.conversationId, message: msg });
+    const summary = await dmConversationSummary(call.conversationId);
+    dmBroadcastOwner('message', { conversation_id: call.conversationId, message: msg, conversation: summary });
+    if(status === 'missed'){
+      if(call.from === 'user'){
+        dmPushOwner({ title:'Missed call', body:'You missed a call from ' + (call.fromName || 'a client') + '.', url:'/inbox', tag:'dm-missed-' + call.id });
+      } else if(summary && summary.user_id){
+        dmPushUser(summary.user_id, { title:'Missed call', body:'You missed a call from Nexatech.', url:'/messages', tag:'dm-missed-' + call.id });
+      }
+    }
+  }catch(e){ console.error('dm call message failed:', e.message); }
+}
 function dmCallFinish(call, status, event){
   if(call.ringTimer){ clearTimeout(call.ringTimer); call.ringTimer = null; }
   if(call.cleanupTimer) clearTimeout(call.cleanupTimer);
   call.status = status;
   call.endedAt = Date.now();
   dmCallBroadcast(call, event);
-  call.cleanupTimer = setTimeout(()=>{ dmCalls.delete(call.id); }, 10 * 60 * 1000);
+  setImmediate(()=>{ dmRecordCallMessage({
+    id: call.id, conversationId: call.conversationId, mode: call.mode, from: call.from,
+    fromName: call.fromName, answeredAt: call.answeredAt, endedAt: call.endedAt
+  }, status).catch(()=>{}); });
+  call.cleanupTimer = setTimeout(()=>{ dmCalls.delete(call.id); dmCallRecorded.delete(call.id); }, 10 * 60 * 1000);
 }
 function dmCreateCall(conv, from, mode, fromName){
   for(const existing of dmCalls.values()){
@@ -3828,12 +3868,19 @@ async function dmResolveCall(req, id, role){
   return { call };
 }
 app.get('/api/dm/ice', (req, res) => {
-  const iceServers = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }];
+  const iceServers = [
+    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+    {
+      urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443', 'turn:openrelay.metered.ca:443?transport=tcp'],
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
+    }
+  ];
   const turnUrl = String(process.env.TURN_URL || '').trim();
   if(turnUrl){
     const entry = { urls: turnUrl.split(',').map((s) => s.trim()).filter(Boolean) };
     if(process.env.TURN_USERNAME) entry.username = String(process.env.TURN_USERNAME);
-    if(process.env.TURN_CREDENTIAL) entry.credential = String(process.env.TURN_CREDENTIAL);
+    if(process.env.TURN_CREDENTIAL) entry.credential = process.env.TURN_CREDENTIAL;
     iceServers.push(entry);
   }
   res.json({ iceServers });
@@ -3841,6 +3888,18 @@ app.get('/api/dm/ice', (req, res) => {
 function dmCallRoutes(role){
   const auth = role === 'owner' ? requireDmOwner : requireDmUser;
   const base = role === 'owner' ? '/api/dm/owner/calls' : '/api/dm/calls';
+  app.get(base + '/active', auth, async (req, res) => {
+    try{
+      let call = null;
+      if(role === 'user'){
+        const conv = await dmGetConversationForUser(req.dmUser.id);
+        call = [...dmCalls.values()].find((c) => Number(c.conversationId) === Number(conv.id) && c.status === 'ringing' && c.from !== 'user') || null;
+      } else {
+        call = [...dmCalls.values()].find((c) => c.status === 'ringing' && c.from !== 'owner') || null;
+      }
+      res.json({ ok: true, call: call ? dmCallOut(call) : null });
+    }catch(e){ res.status(500).json({ error: 'Could not check calls.' }); }
+  });
   app.post(base + '/:id/answer', auth, dmSameOrigin, async (req, res) => {
     try{
       const ctx = await dmResolveCall(req, req.params.id, role);
@@ -3972,7 +4031,7 @@ app.post('/api/dm/signup', dmAuthLimiter, dmSameOrigin, async (req, res) => {
       html: `<div style="font-family:Inter,sans-serif;line-height:1.6"><h3>New client signed up</h3><p><b>${escapeHtml(name)}</b><br>${escapeHtml(email)}<br>WhatsApp: ${escapeHtml(whatsapp)}</p><p><a href="/inbox">Open Nexatech Inbox</a></p></div>`,
       text: `New client account: ${name} (${email}, ${whatsapp}). Open /inbox.`
     });
-    res.json({ ok:true, user, conversation:{ id:conv.id, status:conv.status } });
+    res.json({ ok:true, token, user, conversation:{ id:conv.id, status:conv.status } });
   }catch(e){
     console.error('dm signup failed:', e.message);
     res.status(500).json({ error: 'Could not create your account. Please try again.' });
@@ -3992,7 +4051,7 @@ app.post('/api/dm/login', dmAuthLimiter, dmSameOrigin, async (req, res) => {
     const conv = await dmGetConversationForUser(row.id);
     const token = jwt.sign({ kind:'dm_user', id:row.id, email:row.email }, DM_SECRET, { expiresIn:'30d' });
     dmSetUserCookie(req, res, token);
-    res.json({ ok:true, user:{ id:row.id, name:row.name, email:row.email, whatsapp:row.whatsapp }, conversation:{ id:conv.id, status:conv.status } });
+    res.json({ ok:true, token, user:{ id:row.id, name:row.name, email:row.email, whatsapp:row.whatsapp }, conversation:{ id:conv.id, status:conv.status } });
   }catch(e){
     console.error('dm login failed:', e.message);
     res.status(500).json({ error: 'Could not sign you in. Please try again.' });
@@ -4038,7 +4097,7 @@ app.post('/api/dm/email', dmAuthLimiter, dmSameOrigin, async (req, res) => {
     }
     const token = jwt.sign({ kind:'dm_user', id:row.id, email:row.email }, DM_SECRET, { expiresIn:'30d' });
     dmSetUserCookie(req, res, token);
-    res.json({ ok:true, user:{ id:row.id, name:row.name, email:row.email, whatsapp:row.whatsapp }, conversation:{ id:conv.id, status:conv.status } });
+    res.json({ ok:true, token, user:{ id:row.id, name:row.name, email:row.email, whatsapp:row.whatsapp }, conversation:{ id:conv.id, status:conv.status } });
   }catch(e){
     console.error('dm email sign-in failed:', e.message);
     res.status(500).json({ error: 'Could not sign you in. Please try again.' });
@@ -4163,7 +4222,7 @@ app.post('/api/dm/owner/login', dmAuthLimiter, dmSameOrigin, async (req, res) =>
     if(!ok) return res.status(401).json({ error: 'Wrong passcode.' });
     const token = jwt.sign({ kind:'dm_owner', role:'owner' }, DM_OWNER_SECRET, { expiresIn:'30d' });
     dmSetOwnerCookie(req, res, token);
-    res.json({ ok:true });
+    res.json({ ok:true, token });
   }catch(e){
     console.error('dm owner login failed:', e.message);
     res.status(500).json({ error: 'Could not unlock the inbox.' });

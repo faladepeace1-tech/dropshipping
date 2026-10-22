@@ -3,6 +3,17 @@ import { createCallController } from './call.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+const TOKEN_KEY = 'dm_owner_session_token';
+
+function savedToken() {
+  try { return localStorage.getItem(TOKEN_KEY) || ''; } catch { return ''; }
+}
+function saveToken(token) {
+  try { if (token) localStorage.setItem(TOKEN_KEY, token); } catch {}
+}
+function clearToken() {
+  try { localStorage.removeItem(TOKEN_KEY); } catch {}
+}
 
 const state = {
   conversations: [],
@@ -59,10 +70,11 @@ function toast(text) {
 
 async function api(path, opts = {}) {
   let res;
+  const token = savedToken();
   try {
     res = await fetch(path, {
       credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}), ...(opts.headers || {}) },
       ...opts
     });
   } catch {
@@ -116,6 +128,7 @@ function showLock(message) {
   setHidden(els.auth, false);
   setHidden(els.app, true);
   els.shell?.classList.remove('thread-open');
+  calls.stopWatching();
   disconnectStream();
   clearInterval(state.pollTimer);
   if (message) els.authError.textContent = message;
@@ -782,7 +795,8 @@ function connectStream() {
   disconnectStream();
   if (typeof EventSource === 'undefined') return;
   try {
-    const es = new EventSource('/api/dm/owner/stream');
+    const token = savedToken();
+    const es = new EventSource('/api/dm/owner/stream' + (token ? '?token=' + encodeURIComponent(token) : ''));
     state.stream = es;
     es.addEventListener('ready', () => {
       setOnline(true);
@@ -860,13 +874,15 @@ function bind() {
     els.unlock.disabled = true;
     els.unlock.textContent = 'Unlocking...';
     try {
-      await api('/api/dm/owner/login', { method: 'POST', body: JSON.stringify({ passcode }) });
+      const data = await api('/api/dm/owner/login', { method: 'POST', body: JSON.stringify({ passcode }) });
+      if (data.token) saveToken(data.token);
       els.passForm.reset();
       showInbox();
       const ok = await refreshConversations();
       if (!ok) return;
       connectStream();
       startPolling();
+      calls.startWatching();
     } catch (err) {
       els.authError.textContent = err.message;
       if (err.status === 409 && els.setupNote) els.setupNote.hidden = false;
@@ -879,6 +895,8 @@ function bind() {
   els.lock?.addEventListener('click', async () => {
     els.lock.disabled = true;
     try { await api('/api/dm/owner/logout', { method: 'POST', body: '{}' }); } catch {}
+    clearToken();
+    calls.stopWatching();
     location.replace('/inbox');
   });
 
@@ -921,7 +939,7 @@ function bind() {
     if (e.key === 'Escape') closeOfferModal();
   });
 
-  window.addEventListener('pagehide', () => { calls.destroy(); disconnectStream(); });
+  window.addEventListener('pagehide', (e) => { if (e.persisted) return; calls.destroy(); disconnectStream(); });
 }
 
 async function boot() {
@@ -934,6 +952,7 @@ async function boot() {
     await refreshConversations();
     connectStream();
     startPolling();
+    calls.startWatching();
   } catch {
     showLock();
     checkConfigured();

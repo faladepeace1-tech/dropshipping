@@ -479,3 +479,5 @@ body.dm-pay-open{ overflow:hidden; }
   .dm-pay-head small{ display:none; }
 }
 
+.dm-call-overlay.dm-call-rear .dm-call-local-video{ transform:none; }
+

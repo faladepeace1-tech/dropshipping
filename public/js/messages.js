@@ -3,6 +3,17 @@ import { createCallController } from './call.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+const TOKEN_KEY = 'dm_session_token';
+
+function savedToken() {
+  try { return localStorage.getItem(TOKEN_KEY) || ''; } catch { return ''; }
+}
+function saveToken(token) {
+  try { if (token) localStorage.setItem(TOKEN_KEY, token); } catch {}
+}
+function clearToken() {
+  try { localStorage.removeItem(TOKEN_KEY); } catch {}
+}
 
 const state = {
   me: null,
@@ -95,10 +106,11 @@ window.addEventListener('message', (event) => {
 
 async function api(path, opts = {}) {
   let res;
+  const token = savedToken();
   try {
     res = await fetch(path, {
       credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}), ...(opts.headers || {}) },
       ...opts
     });
   } catch {
@@ -130,6 +142,7 @@ function showAuth(message) {
   state.me = null;
   setHidden(els.auth, false);
   setHidden(els.chat, true);
+  calls.stopWatching();
   disconnectStream();
   clearInterval(state.pollTimer);
   if (message && els.emailError) els.emailError.textContent = message;
@@ -174,6 +187,17 @@ async function startChat() {
   markRead();
 }
 
+async function enterChat(data) {
+  if (data.token) saveToken(data.token);
+  state.messages.clear();
+  state.lastId = 0;
+  state.lastDay = '';
+  showChat(data.user);
+  await startChat();
+  calls.startWatching();
+  setupDmPush({ role:'user', button:$('#dm-push-btn'), toast });
+}
+
 async function submitEmail() {
   const email = String(els.emailInput?.value || '').trim().toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -187,11 +211,7 @@ async function submitEmail() {
   try {
     const data = await api('/api/dm/email', { method: 'POST', body: JSON.stringify({ email }) });
     localStorage.setItem('dm_user_email', email);
-    state.messages.clear();
-    state.lastId = 0;
-    state.lastDay = '';
-    showChat(data.user);
-    await startChat();
+    await enterChat(data);
   } catch (e) {
     els.emailError.textContent = e.message;
   } finally {
@@ -561,7 +581,8 @@ function connectStream() {
   disconnectStream();
   if (typeof EventSource === 'undefined') return;
   try {
-    const es = new EventSource('/api/dm/stream');
+    const token = savedToken();
+    const es = new EventSource('/api/dm/stream' + (token ? '?token=' + encodeURIComponent(token) : ''));
     state.stream = es;
     es.addEventListener('ready', () => setOnline(true));
     es.addEventListener('message', (event) => {
@@ -653,6 +674,10 @@ function bind() {
     els.logout.disabled = true;
     try { await api('/api/dm/logout', { method: 'POST', body: '{}' }); } catch {}
     await clearDmPush();
+    clearToken();
+    try { localStorage.removeItem('dm_user_email'); } catch {}
+    calls.stopWatching();
+    closePayment();
     disconnectStream();
     clearInterval(state.pollTimer);
     location.replace('/messages');
@@ -672,7 +697,7 @@ function bind() {
     }
   });
 
-  window.addEventListener('pagehide', () => { calls.destroy(); closePayment(); disconnectStream(); });
+  window.addEventListener('pagehide', (e) => { if (e.persisted) return; calls.destroy(); closePayment(); disconnectStream(); });
 }
 
 async function boot() {
@@ -682,10 +707,16 @@ async function boot() {
   if (els.emailInput && savedEmail) els.emailInput.value = savedEmail;
   try {
     const data = await api('/api/dm/me');
-    showChat(data.user);
-    await startChat();
-    setupDmPush({ role:'user', button:$('#dm-push-btn'), toast });
+    await enterChat(data);
+    return;
   } catch (e) {
+    if (e.status === 401 && savedEmail) {
+      try {
+        const data = await api('/api/dm/email', { method: 'POST', body: JSON.stringify({ email: savedEmail }) });
+        await enterChat(data);
+        return;
+      } catch {}
+    }
     showAuth();
     if (e.status && e.status !== 401) toast(e.message);
   }

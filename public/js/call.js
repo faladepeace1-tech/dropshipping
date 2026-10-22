@@ -9,8 +9,16 @@ export function createCallController({ role, api, toast, startPath, basePath }) 
   let els = null;
   let audioCtx = null;
   let ringTimer = null;
-  let iceServers = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }];
+  let iceServers = [
+    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+    {
+      urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443', 'turn:openrelay.metered.ca:443?transport=tcp'],
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
+    }
+  ];
   let iceLoaded = false;
+  let incomingWatch = null;
 
   function ensureAudioCtx() {
     try {
@@ -104,6 +112,7 @@ export function createCallController({ role, api, toast, startPath, basePath }) 
     els.controls.appendChild(controlButton(c.muted ? 'Unmute' : 'Mute', 'mute', toggleMute));
     if (c.mode === 'video') {
       els.controls.appendChild(controlButton(c.cameraOff ? 'Camera on' : 'Camera off', 'camera', toggleCamera));
+      els.controls.appendChild(controlButton('Flip', 'flip', flipCamera));
     }
     els.controls.appendChild(controlButton('End call', 'end', () => hangup()));
   }
@@ -206,11 +215,41 @@ export function createCallController({ role, api, toast, startPath, basePath }) 
     renderControls();
   }
 
+  async function flipCamera() {
+    const c = call;
+    if (!c || c.mode !== 'video' || !c.localStream || !navigator.mediaDevices?.getUserMedia) return;
+    const next = c.facing === 'environment' ? 'user' : 'environment';
+    try {
+      const fresh = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: next } });
+      const newTrack = fresh.getVideoTracks()[0];
+      if (!newTrack) return;
+      if (call !== c) { newTrack.stop(); return; }
+      const sender = c.pc && c.pc.getSenders().find((s) => s.track && s.track.kind === 'video');
+      if (sender) await sender.replaceTrack(newTrack);
+      const oldTrack = c.localStream.getVideoTracks()[0];
+      if (oldTrack) { c.localStream.removeTrack(oldTrack); oldTrack.stop(); }
+      newTrack.enabled = !c.cameraOff;
+      c.localStream.addTrack(newTrack);
+      c.facing = next;
+      if (els && els.localVideo) els.localVideo.srcObject = c.localStream;
+      if (overlay) overlay.classList.toggle('dm-call-rear', next === 'environment');
+      toast(next === 'environment' ? 'Back camera' : 'Front camera');
+    } catch {
+      toast('Could not switch camera.');
+    }
+  }
+
   async function getUserMedia(mode) {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       throw new Error('Calling is not supported in this browser.');
     }
-    const constraints = { audio: true, video: mode === 'video' ? { facingMode: 'user' } : false };
+    const audio = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+    const constraints = {
+      audio,
+      video: mode === 'video'
+        ? { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } }
+        : false
+    };
     return navigator.mediaDevices.getUserMedia(constraints);
   }
 
@@ -240,8 +279,20 @@ export function createCallController({ role, api, toast, startPath, basePath }) 
   }
 
   function playRemote() {
-    if (els && els.remoteAudio) els.remoteAudio.play().catch(() => {});
-    if (els && els.remoteVideo) els.remoteVideo.play().catch(() => {});
+    if (!els) return;
+    const audioPlay = els.remoteAudio ? els.remoteAudio.play() : null;
+    if (audioPlay && audioPlay.catch) audioPlay.catch(() => addSoundUnlock());
+    if (els.remoteVideo) els.remoteVideo.play().catch(() => {});
+  }
+
+  function addSoundUnlock() {
+    if (!els || !els.controls || els.controls.querySelector('[data-sound-unlock]')) return;
+    const btn = controlButton('Tap for sound', 'mute', () => {
+      els.remoteAudio.play().catch(() => {});
+      btn.remove();
+    });
+    btn.dataset.soundUnlock = '1';
+    els.controls.appendChild(btn);
   }
 
   async function flushIce(c) {
@@ -254,10 +305,20 @@ export function createCallController({ role, api, toast, startPath, basePath }) 
 
   function ensurePeer(c) {
     if (c.pc) return c.pc;
-    const pc = new RTCPeerConnection({ iceServers });
+    const pc = new RTCPeerConnection({ iceServers, iceCandidatePoolSize: 4, bundlePolicy: 'max-bundle' });
     c.pc = pc;
     const stream = c.localStream || new MediaStream();
     stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+    const videoSender = pc.getSenders().find((s) => s.track && s.track.kind === 'video');
+    if (videoSender) {
+      try {
+        const params = videoSender.getParameters();
+        params.encodings = params.encodings && params.encodings.length ? params.encodings : [{}];
+        params.encodings[0].maxBitrate = 1500000;
+        params.degradationPreference = 'balanced';
+        videoSender.setParameters(params).catch(() => {});
+      } catch {}
+    }
     pc.ontrack = (event) => {
       if (event.streams && event.streams.length) {
         c.remoteStream = event.streams[0];
@@ -267,7 +328,7 @@ export function createCallController({ role, api, toast, startPath, basePath }) 
       }
       if (els && els.remoteVideo) els.remoteVideo.srcObject = c.remoteStream;
       if (els && els.remoteAudio) els.remoteAudio.srcObject = c.remoteStream;
-      if (overlay && c.mode === 'video') overlay.classList.add('dm-call-video');
+      if (overlay && c.mode === 'video' && event.track && event.track.kind === 'video') overlay.classList.add('dm-call-video');
       playRemote();
       if (call === c) {
         setStatus('In call');
@@ -282,16 +343,46 @@ export function createCallController({ role, api, toast, startPath, basePath }) 
       if (!call || call !== c) return;
       const state = pc.connectionState;
       if (state === 'connected') {
+        clearTimeout(c.reconnectTimer);
+        c.iceRestarted = false;
         setStatus('In call');
         startDuration(c);
+        playRemote();
       } else if (state === 'failed') {
-        toast('Call connection failed. Please try again.');
-        hangup();
+        attemptReconnect(c, true);
       } else if (state === 'disconnected') {
-        setStatus('Reconnecting…');
+        setStatus('Reconnecting.');
+        attemptReconnect(c, false);
       }
     };
     return pc;
+  }
+
+  function attemptReconnect(c, hard) {
+    if (!call || call !== c) return;
+    clearTimeout(c.reconnectTimer);
+    c.reconnectTimer = setTimeout(async () => {
+      if (!call || call !== c || !c.pc) return;
+      if (c.pc.connectionState === 'connected') return;
+      if (!c.iceRestarted) {
+        c.iceRestarted = true;
+        setStatus('Reconnecting.');
+        try {
+          const offer = await c.pc.createOffer({ iceRestart: true });
+          await c.pc.setLocalDescription(offer);
+          await sendSignal(c, 'offer', { type: c.pc.localDescription.type, sdp: c.pc.localDescription.sdp });
+        } catch {}
+        c.reconnectTimer = setTimeout(() => {
+          if (!call || call !== c) return;
+          if (c.pc && c.pc.connectionState === 'connected') return;
+          toast('Call connection lost. Please try again.');
+          hangup();
+        }, 12000);
+      } else if (hard) {
+        toast('Call connection lost. Please try again.');
+        hangup();
+      }
+    }, hard ? 800 : 5000);
   }
 
   async function makeOffer(c) {
@@ -361,6 +452,7 @@ export function createCallController({ role, api, toast, startPath, basePath }) 
     call = null;
     stopRingtone();
     clearTimeout(c.ringTimer);
+    clearTimeout(c.reconnectTimer);
     clearInterval(c.durationTimer);
     clearInterval(c.pollTimer);
     try { if (c.pc) c.pc.close(); } catch {}
@@ -368,6 +460,26 @@ export function createCallController({ role, api, toast, startPath, basePath }) 
     (c.remoteStream ? c.remoteStream.getTracks() : []).forEach((track) => { try { track.stop(); } catch {} });
     closeOverlay();
     if (message) toast(message);
+  }
+
+  function startWatching() {
+    if (incomingWatch) return;
+    const tick = async () => {
+      if (call) return;
+      try {
+        const data = await api(basePath + 'active');
+        if (!call && data.call && data.call.from !== role && data.call.status === 'ringing') beginIncoming(data.call);
+      } catch {}
+    };
+    incomingWatch = setInterval(tick, 6000);
+    tick();
+  }
+
+  function stopWatching() {
+    if (incomingWatch) {
+      clearInterval(incomingWatch);
+      incomingWatch = null;
+    }
   }
 
   async function start(mode) {
@@ -414,15 +526,19 @@ export function createCallController({ role, api, toast, startPath, basePath }) 
       durationTimer: null,
       pollTimer: null,
       ringTimer: null,
+      reconnectTimer: null,
       startedAt: 0,
       muted: false,
-      cameraOff: false
+      cameraOff: false,
+      facing: 'user',
+      iceRestarted: false
     };
     buildOverlay(call);
     attachLocalVideo(call);
-    setStatus('Ringing…');
+    setStatus('Ringing.');
     startRingtone('ringback');
     startPolling();
+    startWatching();
     call.ringTimer = setTimeout(() => {
       if (call && call.status === 'ringing') hangup('No answer');
     }, RING_MS + 5000);
@@ -445,9 +561,12 @@ export function createCallController({ role, api, toast, startPath, basePath }) 
       durationTimer: null,
       pollTimer: null,
       ringTimer: null,
+      reconnectTimer: null,
       startedAt: 0,
       muted: false,
-      cameraOff: false
+      cameraOff: false,
+      facing: 'user',
+      iceRestarted: false
     };
     buildOverlay(call);
     setStatus('Incoming ' + (call.mode === 'voice' ? 'voice' : 'video') + ' call');
@@ -461,11 +580,13 @@ export function createCallController({ role, api, toast, startPath, basePath }) 
 
   async function accept() {
     const c = call;
-    if (!c || c.status !== 'ringing' || c.from === role) return;
+    if (!c || c.status !== 'ringing' || c.from === role || c.accepting) return;
+    c.accepting = true;
     let stream;
     try {
       stream = await getUserMedia(c.mode);
     } catch {
+      c.accepting = false;
       toast('Allow microphone' + (c.mode === 'video' ? ' and camera' : '') + ' access to answer the call.');
       decline();
       return;
@@ -482,11 +603,18 @@ export function createCallController({ role, api, toast, startPath, basePath }) 
     try {
       await loadIce();
       await api(basePath + c.id + '/answer', { method: 'POST', body: '{}' });
+      if (call !== c) return;
       c.status = 'accepted';
       clearTimeout(c.ringTimer);
       c.ringTimer = null;
       renderControls();
     } catch (e) {
+      if (call !== c) return;
+      const already = /no longer ringing|already/i.test(e.message || '');
+      if (already) {
+        c.accepting = false;
+        return;
+      }
       toast(e.message);
       endLocal(null);
     }
@@ -567,6 +695,7 @@ export function createCallController({ role, api, toast, startPath, basePath }) 
 
   function destroy() {
     const c = call;
+    stopWatching();
     if (!c) return;
     try {
       fetch(basePath + c.id + '/hangup', {
@@ -587,6 +716,8 @@ export function createCallController({ role, api, toast, startPath, basePath }) 
     decline,
     hangup,
     destroy,
+    startWatching,
+    stopWatching,
     isActive: () => !!call
   };
 }
