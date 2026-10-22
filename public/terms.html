@@ -31,7 +31,7 @@
     </nav>
     <div class="nav-cta">
       <a class="btn btn-ghost hide-mobile" id="nav-wa" href="https://wa.me/447411200927" target="_blank" rel="noopener">WhatsApp Us</a>
-      <a class="btn btn-primary" id="nav-book" href="#" target="_blank" rel="noopener">Book a Call</a>
+      <a class="btn btn-primary" id="nav-book" href="/messages">Start a Chat</a>
     </div>
   </div>
 </header>
@@ -83,7 +83,7 @@
       var navWa = document.getElementById('nav-wa');
       if(navWa) navWa.href = 'https://wa.me/' + wa + '?text=' + encodeURIComponent('Hi Nexatech terms question');
       var cal = document.getElementById('nav-book');
-      if(cal && c.calendly_url) cal.href = c.calendly_url;
+      if(cal) cal.href = '/messages';
       if(c.footer_copyright) setText('f-copy', c.footer_copyright);
       setFavicon(c.favicon_url);
       setLogo(c.logo_text, c.logo_url);

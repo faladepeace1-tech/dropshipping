@@ -24,6 +24,26 @@ const JWT_SECRET = process.env.JWT_SECRET || 'nexatech-jwt-secret-change-in-prod
 // owner/admin, even if a token leaks between the two audiences.
 const DM_SECRET = crypto.createHash('sha256').update(String(JWT_SECRET) + ':dm-client-2026').digest('hex');
 const DM_OWNER_SECRET = crypto.createHash('sha256').update(String(JWT_SECRET) + ':dm-owner-2026').digest('hex');
+// Messaging sessions are signed with a secret stored in the database, so they
+// survive restarts/redeploys even if JWT_SECRET rotates.
+let dmSessionSecretCache = null;
+async function dmSessionSecret(){
+  if(dmSessionSecretCache) return dmSessionSecretCache;
+  let row = await db.prepare("SELECT value FROM content WHERE key='dm_session_secret'").get();
+  if(!row || !row.value){
+    const fresh = crypto.randomBytes(48).toString('hex');
+    await db.prepare("INSERT INTO content (key,value,type) VALUES ('dm_session_secret',?,'text') ON CONFLICT(key) DO NOTHING").run(fresh);
+    row = await db.prepare("SELECT value FROM content WHERE key='dm_session_secret'").get();
+  }
+  dmSessionSecretCache = String(row && row.value || '');
+  return dmSessionSecretCache;
+}
+async function dmUserSecret(){
+  return crypto.createHash('sha256').update(String(await dmSessionSecret()) + ':dm-client-2026').digest('hex');
+}
+async function dmOwnerSecret(){
+  return crypto.createHash('sha256').update(String(await dmSessionSecret()) + ':dm-owner-2026').digest('hex');
+}
 let DM_PUSH = null;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
@@ -70,7 +90,7 @@ async function buildSiteKnowledge(){
     // Sensitive never included
     const parts = [];
     parts.push(`IDENTITY: Brand=NEXATECH / Nexatech Dropshipping Store, Owner=Akinyemmi Ifeoluwa, Tagline=${m.tagline||''}`);
-    parts.push(`CONTACT: WhatsApp=${m.whatsapp_number||'447411200927'} (https://wa.me/${(m.whatsapp_number||'447411200927').replace(/\D/g,'')}), Email=${m.footer_email||'saheednexatech@gmail.com'}, Phone=${m.footer_phone||'+44 7411 200927'}, Calendly=${m.calendly_url||''}, Address=${m.footer_address||''}`);
+    parts.push(`CONTACT: WhatsApp=${m.whatsapp_number||'447411200927'} (https://wa.me/${(m.whatsapp_number||'447411200927').replace(/\D/g,'')}), Email=${m.footer_email||'saheednexatech@gmail.com'}, Phone=${m.footer_phone||'+44 7411 200927'}, Private chat=https://dropshippingstore.dpdns.org/messages, Address=${m.footer_address||''}`);
     parts.push(`HERO: ${m.hero_title||''} | ${m.hero_subtitle||''} | Badge=${m.hero_badge||''} | CTA1=${m.hero_cta_primary||''} CTA2=${m.hero_cta_secondary||''}`);
     parts.push(`HOW IT WORKS: ${m.how_it_works_title||''} - ${m.how_it_works_subtitle||''} | 1) ${m.how_it_works_step1_title||''}: ${m.how_it_works_step1_desc||''} | 2) ${m.how_it_works_step2_title||''}: ${m.how_it_works_step2_desc||''} | 3) ${m.how_it_works_step3_title||''}: ${m.how_it_works_step3_desc||''} | 4) ${m.how_it_works_step4_title||''}: ${m.how_it_works_step4_desc||''}`);
     parts.push(`PRICING (live - quote these exact names and prices everywhere): ${m.pricing_starter_name||'Starter'} ${m.pricing_starter_price||'$149'} (${m.pricing_starter_features||''}) | ${m.pricing_pro_name||'Pro'} ${m.pricing_pro_price||'$299'} (${m.pricing_pro_features||''}) | ${m.pricing_elite_name||'Elite'} ${m.pricing_elite_price||'$599'} (${m.pricing_elite_features||''}) | Mentorship ${m.mentorship_price||'Pay After Results'}: ${m.mentorship_title||''} - ${m.mentorship_subtitle||''} Bullets=${m.mentorship_bullets||''}`);
@@ -376,7 +396,7 @@ app.get('/api/content', async (req, res) => {
   const rows = await db.prepare('SELECT key,value,type FROM content').all();
   const obj = {};
   // Never expose credentials/tokens publicly (admin reads them via authed endpoints)
-  const SENSITIVE = new Set(['gemini_api_key', 'gemini_api_key_2', 'gemini_api_key_3', 'ai_api_key', 'GEMINI_API_KEY', 'GOOGLE_API_KEY', 'cryptomus_merchant_uuid', 'cryptomus_api_key', 'CRYPTOMUS_MERCHANT', 'CRYPTOMUS_API_KEY', 'flw_secret_key', 'flw_public_key', 'flw_enc_key', 'flw_secret_hash', 'FLW_SECRET_KEY', 'FLW_PUBLIC_KEY', 'FLW_ENC_KEY', 'FLW_SECRET_HASH', 'callmebot_api_key', 'CALLMEBOT_API_KEY', 'paystack_secret_key', 'paystack_enc_key', 'PAYSTACK_SECRET_KEY', 'PAYSTACK_ENC_KEY', 'dm_owner_passcode_hash', 'dm_vapid_private']);
+  const SENSITIVE = new Set(['gemini_api_key', 'gemini_api_key_2', 'gemini_api_key_3', 'ai_api_key', 'GEMINI_API_KEY', 'GOOGLE_API_KEY', 'cryptomus_merchant_uuid', 'cryptomus_api_key', 'CRYPTOMUS_MERCHANT', 'CRYPTOMUS_API_KEY', 'flw_secret_key', 'flw_public_key', 'flw_enc_key', 'flw_secret_hash', 'FLW_SECRET_KEY', 'FLW_PUBLIC_KEY', 'FLW_ENC_KEY', 'FLW_SECRET_HASH', 'callmebot_api_key', 'CALLMEBOT_API_KEY', 'paystack_secret_key', 'paystack_enc_key', 'PAYSTACK_SECRET_KEY', 'PAYSTACK_ENC_KEY', 'dm_owner_passcode_hash', 'dm_session_secret', 'dm_vapid_private']);
   rows.forEach(r => {
     if (SENSITIVE.has(r.key)) return; // hide secrets from public
     if (r.key.startsWith('google_') || r.key.startsWith('gmail_')) return; // OAuth tokens + connected Gmail
@@ -1081,6 +1101,7 @@ async function getCheckoutItem(kind, ref){
     const row = await db.prepare('SELECT * FROM dm_offers WHERE checkout_ref=?').get(String(ref || ''));
     if(!row) return { error: 'This custom offer could not be found. Ask Nexatech to send it again.' };
     if(row.status === 'paid') return { error: 'This offer has already been paid.' };
+    if(row.status === 'cancelled') return { error: 'This offer was cancelled by Nexatech. Ask us to send a new one if you still need it.' };
     if(row.status !== 'accepted') return { error: 'Please accept this offer in your Messages chat before paying.' };
     const money = dmOfferTotalCents(row);
     const user = await db.prepare('SELECT name,email,whatsapp FROM dm_users WHERE id=?').get(row.user_id);
@@ -3042,7 +3063,7 @@ async function generateFollowupAI({ lead={}, transcript='', kind='form_instant',
     ? `<p>Hi ${escapeHtml(name)},</p><p>Thanks for applying for your <b>${escapeHtml(store||'dropshipping store')}</b>${niche?` in the <b>${escapeHtml(niche)}</b> niche`:''}. We have received your request and our team will reach out on WhatsApp within 24 hours.</p><p>While you wait: every store we build includes winning-product research, supplier automation and 100% ownership in your account - launched in 7 to 14 days.</p>`
     : kind === 'chat_instant'
       ? `<p>Hi ${escapeHtml(name)},</p><p>Thanks for chatting with us${transcript ? ' about <b>'+escapeHtml(transcript.slice(0,120))+'…</b>' : ''}. Based on what you asked, the best next step is a quick WhatsApp chat with Ifeoluwa so we can map your niche, timeline and package.</p><p>Reply to this email or tap WhatsApp below - we usually reply within hours.</p>`
-      : `<p>Hi ${escapeHtml(name)},</p><p>Just checking in${store?` on <b>${escapeHtml(store)}</b>`:''}${niche?` (${escapeHtml(niche)})`:''} - your build slot is still open. Many founders start with a free strategy call to lock timeline and package.</p><p>Want us to hold your slot for this week? Tap WhatsApp below or reply “YES”.</p>`;
+      : `<p>Hi ${escapeHtml(name)},</p><p>Just checking in${store?` on <b>${escapeHtml(store)}</b>`:''}${niche?` (${escapeHtml(niche)})`:''} - your build slot is still open. Many founders start with a quick chat on the site to lock timeline and package.</p><p>Want us to hold your slot for this week? Tap WhatsApp below or reply “YES”.</p>`;
   const keys = await getGeminiKeys().catch(()=> []);
   const cfg = await getAIConfig().catch(()=> ({ provider:'gemini' }));
   if(cfg.provider === 'gemini' && !keys.length) return { subject: fallbackSubject, htmlInner: fallbackInner, textInner: fallbackInner.replace(/<[^>]+>/g,''), ai: false };
@@ -3477,10 +3498,10 @@ function dmCookieSecure(req){
   return !!(req.secure || String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() === 'https');
 }
 function dmSetUserCookie(req, res, token){
-  res.cookie('dm_token', token, { httpOnly:true, sameSite:'lax', secure: dmCookieSecure(req), maxAge: 30*24*60*60*1000, path:'/' });
+  res.cookie('dm_token', token, { httpOnly:true, sameSite:'lax', secure: dmCookieSecure(req), maxAge: 365*24*60*60*1000, path:'/' });
 }
 function dmSetOwnerCookie(req, res, token){
-  res.cookie('dm_owner_token', token, { httpOnly:true, sameSite:'lax', secure: dmCookieSecure(req), maxAge: 30*24*60*60*1000, path:'/' });
+  res.cookie('dm_owner_token', token, { httpOnly:true, sameSite:'lax', secure: dmCookieSecure(req), maxAge: 365*24*60*60*1000, path:'/' });
 }
 function dmSameOrigin(req, res, next){
   if(req.method === 'GET' || req.method === 'HEAD') return next();
@@ -3501,11 +3522,15 @@ function dmTokenFrom(req, name){
   const query = String(req.query?.token || '');
   return req.cookies?.[name] || query || (auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '');
 }
+async function verifyDmToken(token, secretFn, legacySecret){
+  try{ return jwt.verify(token, await secretFn()); }
+  catch{ return jwt.verify(token, legacySecret); }
+}
 async function requireDmUser(req, res, next){
   try{
     const token = dmTokenFrom(req, 'dm_token');
     if(!token) return res.status(401).json({ error: 'Please sign in to continue.' });
-    const payload = jwt.verify(token, DM_SECRET);
+    const payload = await verifyDmToken(token, dmUserSecret, DM_SECRET);
     if(!payload || payload.kind !== 'dm_user' || !payload.id) return res.status(401).json({ error: 'Session expired - please sign in again.' });
     const user = await db.prepare('SELECT id,name,email,whatsapp,created_at FROM dm_users WHERE id=?').get(payload.id);
     if(!user) return res.status(401).json({ error: 'Account not found.' });
@@ -3517,7 +3542,7 @@ async function requireDmOwner(req, res, next){
   try{
     const token = dmTokenFrom(req, 'dm_owner_token');
     if(!token) return res.status(401).json({ error: 'Inbox locked.' });
-    const payload = jwt.verify(token, DM_OWNER_SECRET);
+    const payload = await verifyDmToken(token, dmOwnerSecret, DM_OWNER_SECRET);
     if(!payload || payload.kind !== 'dm_owner') return res.status(401).json({ error: 'Inbox locked.' });
     req.dmOwner = payload;
     next();
@@ -4028,7 +4053,7 @@ app.post('/api/dm/signup', dmAuthLimiter, dmSameOrigin, async (req, res) => {
     const welcome = `Welcome to Nexatech, ${name.split(/\s+/)[0]}. Send a message here and Nexatech will reply from the Nexatech Inbox app.`;
     await db.prepare("INSERT INTO dm_messages (conversation_id,sender,kind,body) VALUES (?,?,?,?)").run(conv.id, 'system', 'system', welcome);
     await dmTouchConversation(conv.id, 'system', welcome, null);
-    const token = jwt.sign({ kind:'dm_user', id:user.id, email:user.email }, DM_SECRET, { expiresIn:'30d' });
+    const token = jwt.sign({ kind:'dm_user', id:user.id, email:user.email }, await dmUserSecret(), { expiresIn:'365d' });
     dmSetUserCookie(req, res, token);
     notifyOwner({
       subject: 'New client account: ' + name,
@@ -4053,7 +4078,7 @@ app.post('/api/dm/login', dmAuthLimiter, dmSameOrigin, async (req, res) => {
     if(!ok) return res.status(401).json({ error: 'Invalid email or password.' });
     await db.prepare("UPDATE dm_users SET last_login=datetime('now') WHERE id=?").run(row.id);
     const conv = await dmGetConversationForUser(row.id);
-    const token = jwt.sign({ kind:'dm_user', id:row.id, email:row.email }, DM_SECRET, { expiresIn:'30d' });
+    const token = jwt.sign({ kind:'dm_user', id:row.id, email:row.email }, await dmUserSecret(), { expiresIn:'365d' });
     dmSetUserCookie(req, res, token);
     res.json({ ok:true, token, user:{ id:row.id, name:row.name, email:row.email, whatsapp:row.whatsapp }, conversation:{ id:conv.id, status:conv.status } });
   }catch(e){
@@ -4099,7 +4124,7 @@ app.post('/api/dm/email', dmAuthLimiter, dmSameOrigin, async (req, res) => {
         text: `New client signed in: ${email}. Open /inbox to reply.`
       });
     }
-    const token = jwt.sign({ kind:'dm_user', id:row.id, email:row.email }, DM_SECRET, { expiresIn:'30d' });
+    const token = jwt.sign({ kind:'dm_user', id:row.id, email:row.email }, await dmUserSecret(), { expiresIn:'365d' });
     dmSetUserCookie(req, res, token);
     res.json({ ok:true, token, user:{ id:row.id, name:row.name, email:row.email, whatsapp:row.whatsapp }, conversation:{ id:conv.id, status:conv.status } });
   }catch(e){
@@ -4111,7 +4136,9 @@ app.post('/api/dm/email', dmAuthLimiter, dmSameOrigin, async (req, res) => {
 app.get('/api/dm/me', requireDmUser, async (req, res) => {
   try{
     const conv = await dmGetConversationForUser(req.dmUser.id);
-    res.json({ ok:true, user:req.dmUser, conversation:{ id:conv.id, status:conv.status, room_token:conv.room_token || '', user_unread:conv.user_unread || 0 } });
+    const token = jwt.sign({ kind:'dm_user', id:req.dmUser.id, email:req.dmUser.email }, await dmUserSecret(), { expiresIn:'365d' });
+    dmSetUserCookie(req, res, token);
+    res.json({ ok:true, token, user:req.dmUser, conversation:{ id:conv.id, status:conv.status, room_token:conv.room_token || '', user_unread:conv.user_unread || 0 } });
   }catch(e){ res.status(500).json({ error: 'Could not load your conversation.' }); }
 });
 
@@ -4168,8 +4195,9 @@ app.post('/api/dm/messages', requireDmUser, dmSameOrigin, dmMsgLimiter, async (r
 app.post('/api/dm/messages/read', requireDmUser, dmSameOrigin, async (req, res) => {
   try{
     const conv = await dmGetConversationForUser(req.dmUser.id);
-    await db.prepare("UPDATE dm_messages SET read_at=datetime('now') WHERE conversation_id=? AND sender='owner' AND read_at IS NULL").run(conv.id);
+    const read = await db.prepare("UPDATE dm_messages SET read_at=datetime('now') WHERE conversation_id=? AND sender='owner' AND read_at IS NULL").run(conv.id);
     await db.prepare('UPDATE dm_conversations SET user_unread=0 WHERE id=?').run(conv.id);
+    if(read && read.changes) dmBroadcastOwner('read', { conversation_id: conv.id, read_at: new Date().toISOString() });
     res.json({ ok:true });
   }catch(e){ res.status(500).json({ error: 'Could not update read state.' }); }
 });
@@ -4224,7 +4252,7 @@ app.post('/api/dm/owner/login', dmAuthLimiter, dmSameOrigin, async (req, res) =>
     let ok = false;
     try{ ok = bcrypt.compareSync(passcode, row.value); }catch{}
     if(!ok) return res.status(401).json({ error: 'Wrong passcode.' });
-    const token = jwt.sign({ kind:'dm_owner', role:'owner' }, DM_OWNER_SECRET, { expiresIn:'30d' });
+    const token = jwt.sign({ kind:'dm_owner', role:'owner' }, await dmOwnerSecret(), { expiresIn:'365d' });
     dmSetOwnerCookie(req, res, token);
     res.json({ ok:true, token });
   }catch(e){
@@ -4238,7 +4266,13 @@ app.post('/api/dm/owner/logout', dmSameOrigin, (req, res) => {
   res.json({ ok:true });
 });
 
-app.get('/api/dm/owner/me', requireDmOwner, (req, res) => res.json({ ok:true, owner:true }));
+app.get('/api/dm/owner/me', requireDmOwner, async (req, res) => {
+  try{
+    const token = jwt.sign({ kind:'dm_owner', role:'owner' }, await dmOwnerSecret(), { expiresIn:'365d' });
+    dmSetOwnerCookie(req, res, token);
+    res.json({ ok:true, owner:true, token });
+  }catch(e){ res.status(500).json({ error: 'Could not refresh your inbox session.' }); }
+});
 
 app.post('/api/dm/owner/push/subscribe', requireDmOwner, dmSameOrigin, async (req, res) => {
   await dmSavePushSubscription(req, res, 'owner', null);
@@ -4257,12 +4291,34 @@ app.get('/api/dm/owner/conversations', requireDmOwner, async (req, res) => {
   }
 });
 
+app.delete('/api/dm/owner/conversations/:id', requireDmOwner, dmSameOrigin, async (req, res) => {
+  try{
+    const conv = await db.prepare('SELECT * FROM dm_conversations WHERE id=?').get(req.params.id);
+    if(!conv) return res.status(404).json({ error: 'Conversation not found.' });
+    await db.prepare('DELETE FROM dm_messages WHERE conversation_id=?').run(conv.id);
+    await db.prepare('DELETE FROM dm_offers WHERE conversation_id=?').run(conv.id);
+    await db.prepare('DELETE FROM dm_conversations WHERE id=?').run(conv.id);
+    const other = await db.prepare('SELECT id FROM dm_conversations WHERE user_id=? LIMIT 1').get(conv.user_id);
+    if(!other){
+      await db.prepare("DELETE FROM dm_push_subscriptions WHERE role='user' AND user_id=?").run(conv.user_id);
+      await db.prepare('DELETE FROM dm_users WHERE id=?').run(conv.user_id);
+    }
+    dmBroadcastUser(conv.id, 'deleted', { conversation_id: conv.id });
+    dmBroadcastOwner('conversation_deleted', { conversation_id: conv.id, user_id: conv.user_id });
+    res.json({ ok:true, conversation_id: conv.id });
+  }catch(e){
+    console.error('dm conversation delete failed:', e.message);
+    res.status(500).json({ error: 'Could not delete this client.' });
+  }
+});
+
 app.post('/api/dm/owner/conversations/:id/read', requireDmOwner, dmSameOrigin, async (req, res) => {
   try{
     const conv = await db.prepare('SELECT id FROM dm_conversations WHERE id=?').get(req.params.id);
     if(!conv) return res.status(404).json({ error: 'Conversation not found.' });
     await db.prepare('UPDATE dm_conversations SET owner_unread=0 WHERE id=?').run(conv.id);
-    await db.prepare("UPDATE dm_messages SET read_at=datetime('now') WHERE conversation_id=? AND sender='user' AND read_at IS NULL").run(conv.id);
+    const read = await db.prepare("UPDATE dm_messages SET read_at=datetime('now') WHERE conversation_id=? AND sender='user' AND read_at IS NULL").run(conv.id);
+    if(read && read.changes) dmBroadcastUser(conv.id, 'read', { conversation_id: conv.id, read_at: new Date().toISOString() });
     res.json({ ok:true });
   }catch(e){ res.status(500).json({ error: 'Could not update read state.' }); }
 });
@@ -4274,7 +4330,8 @@ app.get('/api/dm/owner/conversations/:id/messages', requireDmOwner, async (req, 
     const user = await db.prepare('SELECT id,name,email,whatsapp FROM dm_users WHERE id=?').get(conv.user_id);
     const rows = await db.prepare('SELECT * FROM (SELECT * FROM dm_messages WHERE conversation_id=? ORDER BY id DESC LIMIT 300) t ORDER BY id ASC').all(conv.id);
     await db.prepare('UPDATE dm_conversations SET owner_unread=0 WHERE id=?').run(conv.id);
-    await db.prepare("UPDATE dm_messages SET read_at=datetime('now') WHERE conversation_id=? AND sender='user' AND read_at IS NULL").run(conv.id);
+    const read = await db.prepare("UPDATE dm_messages SET read_at=datetime('now') WHERE conversation_id=? AND sender='user' AND read_at IS NULL").run(conv.id);
+    if(read && read.changes) dmBroadcastUser(conv.id, 'read', { conversation_id: conv.id, read_at: new Date().toISOString() });
     res.json({ ok:true, conversation:{ ...conv, user }, messages: await dmAttachOffers(rows), offers: await dmOffersForConversation(conv.id) });
   }catch(e){
     console.error('dm owner thread failed:', e.message);
@@ -4341,6 +4398,32 @@ app.post('/api/dm/owner/conversations/:id/offers', requireDmOwner, dmSameOrigin,
   }catch(e){
     console.error('dm offer create failed:', e.message);
     res.status(500).json({ error: 'Could not send this offer. Please try again.' });
+  }
+});
+
+app.post('/api/dm/offers/:id/cancel', requireDmOwner, dmSameOrigin, async (req, res) => {
+  try{
+    const offer = await db.prepare('SELECT * FROM dm_offers WHERE id=?').get(req.params.id);
+    if(!offer) return res.status(404).json({ error: 'Offer not found.' });
+    if(!['pending','accepted'].includes(offer.status)) return res.status(409).json({ error: 'Only pending or accepted unpaid offers can be cancelled.' });
+    const done = await db.prepare("UPDATE dm_offers SET status='cancelled', responded_at=datetime('now') WHERE id=? AND status IN ('pending','accepted')").run(offer.id);
+    if(!done || !done.changes) return res.status(409).json({ error: 'This offer can no longer be cancelled.' });
+    await db.prepare("UPDATE orders SET status='cancelled' WHERE kind='dm' AND item_ref=? AND status='pending'").run(offer.checkout_ref);
+    const note = 'Custom offer cancelled by Nexatech.';
+    const info = await db.prepare('INSERT INTO dm_messages (conversation_id,sender,kind,body,meta) VALUES (?,?,?,?,?)')
+      .run(offer.conversation_id, 'system', 'system', note, JSON.stringify({ offer_id: offer.id }));
+    await dmTouchConversation(offer.conversation_id, 'system', note, 'user');
+    const msg = dmMessageOut(await db.prepare('SELECT * FROM dm_messages WHERE id=?').get(info.lastInsertRowid));
+    dmBroadcastUser(offer.conversation_id, 'message', { conversation_id: offer.conversation_id, message: msg });
+    const summary = await dmConversationSummary(offer.conversation_id);
+    dmBroadcastOwner('message', { conversation_id: offer.conversation_id, message: msg, conversation: summary });
+    const fresh = await db.prepare('SELECT * FROM dm_offers WHERE id=?').get(offer.id);
+    dmBroadcastOffer(offer.conversation_id, publicDmOffer(fresh));
+    dmPushUser(offer.user_id, { title:'Custom offer cancelled', body:'Nexatech cancelled a custom offer in your chat.', url:'/messages', tag:'dm-' + offer.conversation_id });
+    res.json({ ok:true, offer: publicDmOffer(fresh) });
+  }catch(e){
+    console.error('dm offer cancel failed:', e.message);
+    res.status(500).json({ error: 'Could not cancel this offer.' });
   }
 });
 

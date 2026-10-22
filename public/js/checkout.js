@@ -198,19 +198,20 @@ const res = await postJson('/api/checkout/create', {
 // Guarded against double-taps (common on mobile): concurrent taps collapse
 // into a single payment-link request for the same order.
 let PAY_LOADING = false;
-// Exact-fit: desktop sizes the frame to the viewport; mobile uses a tall
-// no-scrollbar frame (whole Flutterwave page visible, main page scrolls).
-// Cross-origin iframes can't be measured, so mobile gets a compact tall
-// frame instead of an inner scroll. Honours postMessage resize requests.
-const MOBILE_TALL = 1500;
+// Exact-fit: desktop sizes the frame to the viewport; mobile fits a screen
+// slice with scrolling inside the frame, so there is never a tall white gap.
+// Cross-origin iframes can't be measured, but Flutterwave resize messages are
+// honoured when they arrive.
+const MOBILE_MAX = 640;
 function fitPayFrame(){
   const wrap = $('#co-frame-wrap'), frame = $('#co-frame');
   if(!wrap || !frame) return;
   if($('#co-pane-wallets')?.classList.contains('hidden')) return;
   if(window.innerWidth <= 860){
-    wrap.style.height = 'auto';
-    frame.style.height = MOBILE_TALL + 'px';
-    frame.setAttribute('scrolling', 'no');
+    const vh = Math.max(window.innerHeight || 0, document.documentElement?.clientHeight || 0, 520);
+    wrap.style.height = Math.round(Math.min(MOBILE_MAX, Math.max(380, vh * 0.68))) + 'px';
+    frame.style.height = '100%';
+    frame.setAttribute('scrolling', 'auto');
     return;
   }
   frame.setAttribute('scrolling', 'auto');
@@ -232,9 +233,9 @@ window.addEventListener('message', (e) => {
     if(h >= 400 && h <= 2200){
       const wrap = $('#co-frame-wrap'), frame = $('#co-frame');
       if(window.innerWidth <= 860){
-        // Mobile: grow/shrink the tall frame to the reported size - still no scrollbar.
-        if(frame) frame.style.height = Math.min(2200, Math.max(900, h)) + 'px';
-        if(wrap) wrap.style.height = 'auto';
+        // Mobile: cap the height to the screen; content scrolls inside.
+        if(wrap) wrap.style.height = Math.min(MOBILE_MAX, Math.max(360, h)) + 'px';
+        if(frame) frame.style.height = '100%';
       } else if(wrap){
         wrap.style.height = Math.min(1200, Math.max(560, h)) + 'px';
       }

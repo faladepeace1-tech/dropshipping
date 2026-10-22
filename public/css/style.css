@@ -180,6 +180,7 @@ main, .footer{position:relative;z-index:1}
 .marquee{display:flex;gap:0;animation:marquee 30s linear infinite;will-change:transform}
 .marquee:hover{animation-play-state:paused}
 @keyframes marquee{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+@media(max-width:860px){.marquee{animation-duration:55s}}
 .stat{flex:0 0 auto;display:flex;align-items:center;gap:14px;padding:18px 28px;border-right:1px solid var(--border);min-width:260px}
 .stat strong{font-family:var(--display);font-size:24px;letter-spacing:-.02em}
 .stat span{font-size:12px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.08em}
@@ -461,16 +462,14 @@ main, .footer{position:relative;z-index:1}
 .co-frame-fit::-webkit-scrollbar{display:none;width:0;height:0}
 @media(max-width:860px){
   .co-pay-grid{grid-template-columns:1fr}
-  /* Mobile: NO inner scrollbar - tall frame shows the whole Flutterwave
-     page at a compact size, the main page scrolls instead. */
-  .co-frame-wrap{height:auto;min-height:0;max-height:none;overflow:visible}
-  .co-frame-fit{height:1500px;overflow:hidden}
+  /* Mobile: fit the frame to the screen and scroll inside it. */
+  .co-frame-wrap{height:68vh;height:min(68dvh,640px);min-height:380px;max-height:none;overflow:hidden}
+  .co-frame-fit{height:100%;overflow:auto}
 }
 @media(max-width:480px){
   .co-frame-head{padding:20px 18px 0}
   #co-frame-msg{padding:0 18px}
   .co-frame-fallback{padding:0 18px 14px}
-  .co-frame-fit{height:1500px}
 }
 .co-total{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);padding-top:12px;font-size:15px}
 .co-total strong{font-family:var(--display);font-size:26px;letter-spacing:-.02em}

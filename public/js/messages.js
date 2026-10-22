@@ -1,5 +1,5 @@
 import { setupDmPush, clearDmPush } from './push.js';
-import { createCallController } from './call.js';
+import { createCallController } from './call.js?v=3';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -142,7 +142,7 @@ function showAuth(message) {
   state.me = null;
   setHidden(els.auth, false);
   setHidden(els.chat, true);
-  calls.stopWatching();
+  calls.stopWatching?.();
   disconnectStream();
   clearInterval(state.pollTimer);
   if (message && els.emailError) els.emailError.textContent = message;
@@ -194,7 +194,7 @@ async function enterChat(data) {
   state.lastDay = '';
   showChat(data.user);
   await startChat();
-  calls.startWatching();
+  calls.startWatching?.();
   setupDmPush({ role:'user', button:$('#dm-push-btn'), toast });
 }
 
@@ -258,6 +258,7 @@ function offerStatusText(status) {
   if (status === 'accepted') return 'Accepted - pay to start';
   if (status === 'paid') return 'Paid';
   if (status === 'declined') return 'Declined';
+  if (status === 'cancelled') return 'Cancelled';
   if (status === 'expired') return 'Expired';
   return 'Awaiting your response';
 }
@@ -479,6 +480,7 @@ function messageElement(msg) {
   if (msg.kind === 'call') return callElement(msg);
   const row = document.createElement('div');
   row.className = 'dm-row ' + (msg.sender === 'user' ? 'mine' : 'theirs');
+  row.dataset.msgId = String(msg.id);
   const bubble = document.createElement('div');
   bubble.className = 'dm-bubble';
   bubble.textContent = msg.body || '';
@@ -491,12 +493,32 @@ function messageElement(msg) {
   meta.appendChild(time);
   if (msg.sender === 'user') {
     const ticks = document.createElement('span');
+    ticks.className = 'dm-ticks' + (msg.read_at ? ' seen' : '');
     ticks.textContent = msg.read_at ? '✓✓' : '✓';
-    ticks.title = msg.read_at ? 'Read' : 'Delivered';
+    ticks.title = msg.read_at ? 'Read' : 'Sent';
     meta.appendChild(ticks);
   }
   row.appendChild(meta);
   return row;
+}
+
+function markOwnMessagesSeen() {
+  let changed = false;
+  state.messages.forEach((msg) => {
+    if (msg.sender === 'user' && !msg.read_at) {
+      msg.read_at = new Date().toISOString();
+      changed = true;
+    }
+  });
+  if (!changed) return;
+  els.thread?.querySelectorAll('.dm-row.mine[data-msg-id]').forEach((row) => {
+    const ticks = row.querySelector('.dm-ticks');
+    if (ticks) {
+      ticks.textContent = '✓✓';
+      ticks.title = 'Read';
+      ticks.classList.add('seen');
+    }
+  });
 }
 
 function addMessage(msg, forceScroll) {
@@ -610,6 +632,17 @@ function connectStream() {
         setOnline(true);
       } catch {}
     });
+    es.addEventListener('read', () => {
+      markOwnMessagesSeen();
+      setOnline(true);
+    });
+    es.addEventListener('deleted', () => {
+      clearToken();
+      try { localStorage.removeItem('dm_user_email'); } catch {}
+      try { if (calls.isActive()) calls.hangup(); } catch {}
+      closePayment();
+      showAuth('This conversation was closed by Nexatech. Start a new chat whenever you need help.');
+    });
     ['call_ring', 'call_answered', 'call_declined', 'call_missed', 'call_ended', 'call_signal'].forEach((name) => {
       es.addEventListener(name, (event) => {
         try { calls.onEvent(name, JSON.parse(event.data)); } catch {}
@@ -690,7 +723,7 @@ function bind() {
     await clearDmPush();
     clearToken();
     try { localStorage.removeItem('dm_user_email'); } catch {}
-    calls.stopWatching();
+    calls.stopWatching?.();
     closePayment();
     disconnectStream();
     clearInterval(state.pollTimer);

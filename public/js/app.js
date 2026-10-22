@@ -463,9 +463,9 @@ function applyMicroCopy(){
   setText('drawer-link-themes', T('nav_link_themes','Themes'));
   setText('drawer-link-faq', T('nav_link_faq','FAQ'));
   setText('nav-whatsapp', T('nav_whatsapp_label','WhatsApp Us'));
-  setText('nav-book', T('nav_book_label','Book a Call'));
+  setText('nav-book', T('nav_book_label','Start a Chat'));
   setText('drawer-wa', T('nav_whatsapp_label','WhatsApp Us'));
-  setText('drawer-book', T('nav_book_label','Book a Call'));
+  setText('drawer-book', T('nav_book_label','Start a Chat'));
   setText('footer-link-portfolio', T('nav_link_portfolio','Portfolio'));
   setText('footer-link-proof', T('nav_link_proof','Proof'));
   setText('footer-link-pricing', T('nav_link_pricing','Pricing'));
@@ -533,7 +533,7 @@ function applyMicroCopy(){
   setText('view-full-team', T('team_view_all','View full team')+' →');
   setText('mentorship-wa', T('mentorship_cta','Chat about Mentorship')+' →');
   setText('cta-wa', T('cta_whatsapp_label','Chat on WhatsApp'));
-  setText('cta-book', T('cta_book_label','Book a Free Call')+' →');
+  setText('cta-book', T('cta_book_label','Start a Chat')+' →');
   setText('footer-tagline', T('footer_tagline','We engineer high-converting storefronts backed by real, current sales proof.'));
   setText('footer-quick-links', T('footer_quick_links','Quick Links'));
   setText('footer-contact-h', T('footer_contact','Contact'));
@@ -573,7 +573,7 @@ function applyMicroCopy(){
   ph('preferredContactTime','form_ph_contact_time','e.g. Evenings WAT');
   setText('btn-prev', '← '+T('form_back','Back'));
   setText('btn-next', T('form_continue','Continue')+' →');
-  setText('btn-submit', T('form_submit','Submit Application & Book Strategy Call'));
+  setText('btn-submit', T('form_submit','Submit Application & Start Chat'));
   setText('chat-title', T('chat_title','Nexatech Assistant'));
   setText('chat-new', T('chat_new','+ New Chat'));
   setText('chat-recent', T('chat_recent','Recent')+' ▾');
@@ -591,19 +591,18 @@ async function loadContent(){
   const badgeText = SCARCITY.text || CONTENT.hero_badge || 'Only 5 build slots left this month';
   $('#hero-badge-text').textContent=badgeText;
   const waNum=CONTENT.whatsapp_number||'2348123456789';
-  let calRaw=(CONTENT.calendly_url||'').trim();
-  if(calRaw && !/^https?:\/\//i.test(calRaw) && !calRaw.startsWith('/')) calRaw='https://'+calRaw;
-  const calendly=calRaw || whatsappLink(waNum, `Hi Nexatech! I'd like to book a free strategy call.`);
+  const chatLink='/messages';
   const heroWA = CONTENT.hero_cta_secondary || 'Chat on WhatsApp';
-  const heroBook = CONTENT.hero_cta_primary || 'Book a Free Strategy Call';
+  const heroBook = CONTENT.hero_cta_primary || 'Talk to Us Directly';
   $('#hero-wa').textContent=heroWA; $('#hero-wa').href=whatsappLink(waNum, `Hi Nexatech! I'm interested in a dropshipping store can we talk?`);
-  $('#hero-book').textContent=heroBook+' →'; $('#hero-book').href=calendly;
+  $('#hero-book').textContent=heroBook+' →';
   $('#nav-whatsapp').href=whatsappLink(waNum, `Hi Nexatech! Quick question about your store packages.`);
-  $('#nav-book').href=calendly;
   $('#drawer-wa').href=whatsappLink(waNum, `Hi Nexatech! Quick question about your store packages.`);
-  $('#drawer-book').href=calendly;
   $('#cta-wa').href=whatsappLink(waNum, `Hi Nexatech! I'm ready to own a store that sells what's the next step?`);
-  $('#cta-book').href=calendly;
+  for(const sel of ['#nav-book','#drawer-book','#hero-book','#cta-book']){
+    const el=document.querySelector(sel);
+    if(el){ el.href=chatLink; el.removeAttribute('target'); el.removeAttribute('rel'); }
+  }
   for(const id of ['nav-whatsapp','nav-book','hero-wa','hero-book','cta-wa','cta-book','mentorship-wa']){
     const el=document.getElementById(id);
     if(el) el.addEventListener('click',()=>track('cta_click',id,{href:el.href}));
@@ -639,8 +638,7 @@ function renderMarquee(){
   ];
   function makeStat(it){
     const d=document.createElement('div'); d.className='stat';
-    const fmt = it.fmt ? it.fmt(it.value) : String(it.value);
-    d.innerHTML=`<strong data-count="${it.value}" data-fmt="${it.fmt?'1':'0'}" data-kind="${it.kind}">${it.fmt?it.fmt(0):0}</strong><span>${sanitize(it.label)}<br><small style="text-transform:none;letter-spacing:0;color:var(--text-muted)">${sanitize(fmt)}</small></span>`;
+    d.innerHTML=`<strong data-count="${it.value}" data-fmt="${it.fmt?'1':'0'}" data-kind="${it.kind}">${it.fmt?it.fmt(0):0}</strong><span>${sanitize(it.label)}</span>`;
     return d;
   }
   const row=document.createElement('div'); row.style.display='flex';
@@ -1278,7 +1276,7 @@ function initLeadForm(){
     }catch(err){
       msg.style.color='#EF4444'; msg.textContent=err.message || 'Something went wrong. Please try again or chat on WhatsApp.';
     }finally{
-      btn.disabled=false; btn.textContent=T('form_submit','Submit Application & Book Strategy Call');
+      btn.disabled=false; btn.textContent=T('form_submit','Submit Application & Start Chat');
     }
   });
   showStep(1);

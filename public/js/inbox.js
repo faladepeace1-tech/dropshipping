@@ -1,5 +1,5 @@
 import { setupDmPush } from './push.js';
-import { createCallController } from './call.js';
+import { createCallController } from './call.js?v=3';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -55,6 +55,7 @@ const els = {
   form: $('#inbox-form'),
   input: $('#inbox-input'),
   send: $('#inbox-send'),
+  deleteBtn: $('#inbox-delete'),
   connection: $('#inbox-connection'),
   connectionText: $('#inbox-connection-text'),
   toast: $('#inbox-toast')
@@ -128,7 +129,7 @@ function showLock(message) {
   setHidden(els.auth, false);
   setHidden(els.app, true);
   els.shell?.classList.remove('thread-open');
-  calls.stopWatching();
+  calls.stopWatching?.();
   disconnectStream();
   clearInterval(state.pollTimer);
   if (message) els.authError.textContent = message;
@@ -190,6 +191,7 @@ function offerStatusText(status) {
   if (status === 'accepted') return 'Accepted - awaiting payment';
   if (status === 'paid') return 'Paid';
   if (status === 'declined') return 'Declined';
+  if (status === 'cancelled') return 'Cancelled';
   if (status === 'expired') return 'Expired';
   return status;
 }
@@ -416,7 +418,7 @@ function offerElement(msg) {
 
   card.append(head, body);
 
-  if (offer.status === 'accepted') {
+  if (status === 'accepted') {
     const actions = document.createElement('div');
     actions.className = 'dm-offer-actions';
     const copy = document.createElement('button');
@@ -434,6 +436,31 @@ function offerElement(msg) {
     });
     actions.appendChild(copy);
     card.appendChild(actions);
+  }
+
+  if (status === 'pending' || status === 'accepted') {
+    const actions = card.querySelector('.dm-offer-actions') || document.createElement('div');
+    if (!actions.parentNode) {
+      actions.className = 'dm-offer-actions';
+      card.appendChild(actions);
+    }
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'dm-btn dm-btn-ghost dm-btn-danger';
+    cancel.textContent = 'Cancel offer';
+    cancel.addEventListener('click', async () => {
+      if (!confirm('Cancel this custom offer? The client will be notified.')) return;
+      cancel.disabled = true;
+      try {
+        const data = await api('/api/dm/offers/' + encodeURIComponent(offer.id) + '/cancel', { method: 'POST', body: '{}' });
+        if (data.offer) applyOfferUpdate(data.offer);
+        toast('Offer cancelled.');
+      } catch (e) {
+        toast(e.message);
+        cancel.disabled = false;
+      }
+    });
+    actions.appendChild(cancel);
   }
 
   const meta = document.createElement('div');
@@ -496,6 +523,7 @@ function messageElement(msg) {
   const mine = msg.sender === state.side;
   const row = document.createElement('div');
   row.className = 'dm-row ' + (mine ? 'mine' : 'theirs');
+  row.dataset.msgId = String(msg.id);
   const bubble = document.createElement('div');
   bubble.className = 'dm-bubble';
   bubble.textContent = msg.body || '';
@@ -508,12 +536,32 @@ function messageElement(msg) {
   meta.appendChild(time);
   if (mine) {
     const ticks = document.createElement('span');
+    ticks.className = 'dm-ticks' + (msg.read_at ? ' seen' : '');
     ticks.textContent = msg.read_at ? '✓✓' : '✓';
-    ticks.title = msg.read_at ? 'Read' : 'Delivered';
+    ticks.title = msg.read_at ? 'Read' : 'Sent';
     meta.appendChild(ticks);
   }
   row.appendChild(meta);
   return row;
+}
+
+function markOwnMessagesSeen() {
+  let changed = false;
+  state.messages.forEach((msg) => {
+    if (msg.sender === state.side && !msg.read_at) {
+      msg.read_at = new Date().toISOString();
+      changed = true;
+    }
+  });
+  if (!changed) return;
+  els.thread?.querySelectorAll('.dm-row.mine[data-msg-id]').forEach((row) => {
+    const ticks = row.querySelector('.dm-ticks');
+    if (ticks) {
+      ticks.textContent = '✓✓';
+      ticks.title = 'Read';
+      ticks.classList.add('seen');
+    }
+  });
 }
 
 function addMessage(msg, forceScroll) {
@@ -704,6 +752,41 @@ function showThreadPanels() {
   els.shell?.classList.add('thread-open');
 }
 
+function resetThreadView() {
+  state.activeId = null;
+  state.active = null;
+  state.messages.clear();
+  state.lastId = 0;
+  state.lastDay = '';
+  if (els.thread) els.thread.innerHTML = '';
+  setHidden(els.threadHead, true);
+  setHidden(els.thread, true);
+  setHidden(els.composer, true);
+  setHidden(els.mainEmpty, false);
+  els.shell?.classList.remove('thread-open');
+}
+
+async function deleteClient() {
+  const id = state.activeId;
+  if (!id) return;
+  const conv = conversationById(id) || {};
+  const name = conv.name || (conv.user && conv.user.name) || conv.email || 'this client';
+  if (!confirm('Delete ' + name + ' and all messages/offers in this chat? This cannot be undone.')) return;
+  if (els.deleteBtn) els.deleteBtn.disabled = true;
+  try {
+    await api('/api/dm/owner/conversations/' + encodeURIComponent(id), { method: 'DELETE' });
+    try { if (calls.isActive()) calls.hangup(); } catch {}
+    state.conversations = state.conversations.filter((c) => Number(c.id) !== Number(id));
+    resetThreadView();
+    renderList();
+    toast('Client and conversation deleted.');
+  } catch (e) {
+    toast(e.message);
+  } finally {
+    if (els.deleteBtn) els.deleteBtn.disabled = false;
+  }
+}
+
 async function openConversation(id) {
   state.activeId = Number(id);
   const conv = conversationById(id);
@@ -839,6 +922,24 @@ function connectStream() {
         setOnline(true);
       } catch {}
     });
+    es.addEventListener('read', (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (!data || Number(data.conversation_id) === Number(state.activeId)) markOwnMessagesSeen();
+      } catch {}
+      setOnline(true);
+    });
+    es.addEventListener('conversation_deleted', (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        const id = Number(data && data.conversation_id);
+        if (!id) return;
+        state.conversations = state.conversations.filter((c) => Number(c.id) !== id);
+        if (Number(state.activeId) === id) resetThreadView();
+        renderList();
+        toast('A client conversation was deleted.');
+      } catch {}
+    });
     ['call_ring', 'call_answered', 'call_declined', 'call_missed', 'call_ended', 'call_signal'].forEach((name) => {
       es.addEventListener(name, (event) => {
         try { calls.onEvent(name, JSON.parse(event.data)); } catch {}
@@ -898,7 +999,7 @@ function bind() {
       if (!ok) return;
       connectStream();
       startPolling();
-      calls.startWatching();
+      calls.startWatching?.();
     } catch (err) {
       els.authError.textContent = err.message;
       if (err.status === 409 && els.setupNote) els.setupNote.hidden = false;
@@ -912,7 +1013,7 @@ function bind() {
     els.lock.disabled = true;
     try { await api('/api/dm/owner/logout', { method: 'POST', body: '{}' }); } catch {}
     clearToken();
-    calls.stopWatching();
+    calls.stopWatching?.();
     location.replace('/inbox');
   });
 
@@ -934,6 +1035,7 @@ function bind() {
   $('#inbox-offer-form')?.addEventListener('submit', (e) => { e.preventDefault(); sendOffer(); });
   $('#inbox-call-btn')?.addEventListener('click', () => startCall('voice'));
   $('#inbox-video-btn')?.addEventListener('click', () => startCall('video'));
+  els.deleteBtn?.addEventListener('click', deleteClient);
 
   els.form?.addEventListener('submit', (e) => { e.preventDefault(); sendReply(); });
   els.input?.addEventListener('input', autoGrow);
@@ -962,13 +1064,14 @@ async function boot() {
   bind();
   loadBrand();
   try {
-    await api('/api/dm/owner/me');
+    const me = await api('/api/dm/owner/me');
+    if (me && me.token) saveToken(me.token);
     showInbox();
     setupDmPush({ role:'owner', button:$('#inbox-push-btn'), toast });
     await refreshConversations();
     connectStream();
     startPolling();
-    calls.startWatching();
+    calls.startWatching?.();
   } catch {
     showLock();
     checkConfigured();

@@ -823,11 +823,11 @@ export async function initDb() {
       ['tagline', "We don't just build stores we engineer high-converting storefronts backed by real, current sales proof.", 'text'],
       ['whatsapp_number', '447411200927', 'text'],
       ['whatsapp_link', 'https://wa.me/447411200927', 'text'],
-      ['calendly_url', 'https://calendly.com/nexatech/strategy-call', 'text'],
+      ['calendly_url', '', 'text'],
       ['hero_badge', 'Only {remaining} build slots left this month', 'text'],
       ['hero_title', 'Your Profitable Dropshipping Store Built, Launched & Ready to Sell', 'text'],
       ['hero_subtitle', 'We handle product research, supplier setup, store design & payment integration. You own everything. We launch in 7 to 14 days with proven winning products.', 'text'],
-      ['hero_cta_primary', 'Book a Free Strategy Call', 'text'],
+      ['hero_cta_primary', 'Talk to Us Directly', 'text'],
       ['hero_cta_secondary', 'Chat on WhatsApp', 'text'],
       ['social_proof_title', 'Trusted by ambitious founders', 'text'],
       ['portfolio_title', 'Store Portfolio', 'text'],
@@ -874,7 +874,7 @@ export async function initDb() {
         { q: "Do you run ads for me?", a: "We set up your pixel, first campaigns, and hand you the scaling playbook. Ongoing media buying is optional via mentorship." }
       ]), 'json'],
       ['lead_form_title', 'Apply for Your Custom Store Launch', 'text'],
-      ['lead_form_subtitle', 'Tell us about your goals so we can prepare the right plan before your call.', 'text'],
+      ['lead_form_subtitle', 'Tell us about your goals so we can prepare the right plan before we chat.', 'text'],
       ['cta_band_title', 'Ready to Own a Store That Sells?', 'text'],
       ['cta_band_subtitle', 'Slots are limited by real capacity apply today and lock your build window.', 'text'],
       ['footer_email', 'saheednexatech@gmail.com', 'text'],
@@ -977,7 +977,7 @@ export async function initDb() {
       ['nav_link_pricing', 'Pricing', 'text'],
       ['nav_link_faq', 'FAQ', 'text'],
       ['nav_whatsapp_label', 'WhatsApp Us', 'text'],
-      ['nav_book_label', 'Book a Call', 'text'],
+      ['nav_book_label', 'Start a Chat', 'text'],
       ['trust_1_bold', '7 to 14 Day', 'text'],
       ['trust_1_text', 'Delivery', 'text'],
       ['trust_2_bold', '100%', 'text'],
@@ -1058,7 +1058,7 @@ export async function initDb() {
       ['cert_caption_fallback', 'Certificate', 'text'],
       ['faq_eyebrow', 'FAQ', 'text'],
       ['cta_whatsapp_label', 'Chat on WhatsApp', 'text'],
-      ['cta_book_label', 'Book a Free Call', 'text'],
+      ['cta_book_label', 'Start a Chat', 'text'],
       ['footer_tagline', 'We engineer high-converting storefronts backed by real, current sales proof.', 'text'],
       ['footer_quick_links', 'Quick Links', 'text'],
       ['footer_contact', 'Contact', 'text'],
@@ -1077,7 +1077,7 @@ export async function initDb() {
       ['form_step_3', 'Step 3 of 3 Contact & Delivery', 'text'],
       ['form_back', 'Back', 'text'],
       ['form_continue', 'Continue', 'text'],
-      ['form_submit', 'Submit Application & Book Strategy Call', 'text'],
+      ['form_submit', 'Submit Application & Start Chat', 'text'],
       ['form_incomplete', 'Please fill the highlighted fields to continue →', 'text'],
       ['form_submitting', 'Submitting...', 'text'],
       ['form_required', 'Required', 'text'],
@@ -1129,7 +1129,7 @@ export async function initDb() {
       ['chat_wa_continue', 'Continue on WhatsApp', 'text'],
       ['privacy_title', 'Privacy Policy', 'text'],
       ['privacy_last_updated', 'September 3, 2026', 'text'],
-      ['privacy_content', `<h2>Introduction</h2><p>At Nexatech Dropshipping Store, we respect your privacy and are committed to protecting your personal data. This policy explains how we collect, use, and safeguard your information.</p><h2>Information We Collect</h2><p>We collect information you provide via our application form (name, email, WhatsApp, niche preferences) and anonymous analytics (page views, click events) to improve our service.</p><h2>How We Use Your Information</h2><ul><li>To contact you about your store application via WhatsApp/Email</li><li>To personalize your strategy call</li><li>To improve our website and services</li><li>To comply with legal obligations</li></ul><h2>Data Sharing</h2><p>We never sell your data. We may share it with trusted automation tools (e.g., webhooks you configure) solely to fulfill your request.</p><h2>Your Rights</h2><p>You may request access, correction, or deletion of your personal data by emailing saheednexatech@gmail.com.</p><h2>Contact</h2><p>Questions? Email <strong>saheednexatech@gmail.com</strong> or WhatsApp <strong>+44 7411 200927</strong>.</p>`, 'html'],
+      ['privacy_content', `<h2>Introduction</h2><p>At Nexatech Dropshipping Store, we respect your privacy and are committed to protecting your personal data. This policy explains how we collect, use, and safeguard your information.</p><h2>Information We Collect</h2><p>We collect information you provide via our application form (name, email, WhatsApp, niche preferences) and anonymous analytics (page views, click events) to improve our service.</p><h2>How We Use Your Information</h2><ul><li>To contact you about your store application via WhatsApp/Email</li><li>To personalize your experience</li><li>To improve our website and services</li><li>To comply with legal obligations</li></ul><h2>Data Sharing</h2><p>We never sell your data. We may share it with trusted automation tools (e.g., webhooks you configure) solely to fulfill your request.</p><h2>Your Rights</h2><p>You may request access, correction, or deletion of your personal data by emailing saheednexatech@gmail.com.</p><h2>Contact</h2><p>Questions? Email <strong>saheednexatech@gmail.com</strong> or WhatsApp <strong>+44 7411 200927</strong>.</p>`, 'html'],
       ['terms_title', 'Terms and Conditions', 'text'],
       ['terms_last_updated', 'September 3, 2026', 'text'],
       ['terms_content', `<h2>1. Services</h2><p>Nexatech builds, launches, and hands over done-for-you dropshipping stores. Timelines (7 to 14 days) are estimates and depend on client responsiveness.</p><h2>2. Ownership</h2><p>You own 100% of the store, domain, and assets upon handover. We build in your account.</p><h2>3. Payments & Refunds</h2><p>Due to done-for-you labor, deposits are non-refundable. We revise until handover criteria are met. Support windows: Starter 14 days, Pro 30 days, Elite 60 days.</p><h2>4. Results Disclaimer</h2><p>We provide real, current sales proof but do not guarantee specific revenue. Success depends on traffic, product-market fit, and execution.</p><h2>5. Client Responsibilities</h2><p>You are responsible for running traffic (ads), complying with platform policies, and providing timely feedback.</p><h2>6. Limitation of Liability</h2><p>Our liability is limited to the amount paid for services.</p><h2>7. Governing Law</h2><p>These terms are governed by applicable international commercial law.</p><p>Contact: saheednexatech@gmail.com | +44 7411 200927</p>`, 'html']
@@ -1419,6 +1419,24 @@ export async function initDb() {
     await ensure('followup_max_days','7','number');
     await ensure('followup_chat_idle_minutes','10','number');
     await ensure('followup_from_name','Nexatech','text');
+    // CTA migration: booking buttons now open the private chat instead of Calendly.
+    // Conditional updates only touch untouched defaults, so custom wording is kept.
+    try{
+      const ctas = [
+        ['nav_book_label', 'Book a Call', 'Start a Chat'],
+        ['cta_book_label', 'Book a Free Call', 'Start a Chat'],
+        ['form_submit', 'Submit Application & Book Strategy Call', 'Submit Application & Start Chat'],
+        ['lead_form_subtitle', 'Tell us about your goals so we can prepare the right plan before your call.', 'Tell us about your goals so we can prepare the right plan before we chat.']
+      ];
+      for(const [key, from, to] of ctas){
+        const r = await db.prepare('UPDATE content SET value=? WHERE key=? AND value=?').run(to, key, from);
+        if(r && r.changes) console.log('Migrated CTA copy: ' + key);
+      }
+      const hb = await db.prepare("UPDATE content SET value=? WHERE key='hero_cta_primary' AND value LIKE 'Book a Free Strategy Call%'").run('Talk to Us Directly');
+      if(hb && hb.changes) console.log('Migrated CTA copy: hero_cta_primary');
+      await db.prepare("UPDATE content SET value='' WHERE key='calendly_url' AND value LIKE '%calendly.%'").run();
+      await db.prepare("UPDATE content SET value=REPLACE(value,'To personalize your strategy call','To personalize your experience') WHERE key='privacy_content' AND value LIKE '%To personalize your strategy call%'").run();
+    }catch(e){ console.error('CTA migration failed:', e.message); }
     // upgrade retired models to gemini-3.6-flash (2.5-flash no longer served to new projects)
     try{ const gm = (await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_model'))?.value; if(gm && (gm.includes('1.5') || gm.trim() === 'gemini-2.5-flash')) await db.prepare("UPDATE content SET value='gemini-3.6-flash' WHERE key='gemini_model'").run(); }catch{}
     // upgrade retired Groq model id (llama-3.3-70b-versatile shut down 08/16/26) to official replacement

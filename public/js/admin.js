@@ -165,13 +165,12 @@ const CONTENT_SCHEMA = {
   navbar: [
     {key:'logo_text', label:'Logo Text (shown if no logo image)'},
     {key:'whatsapp_number', label:'WhatsApp Number'},
-    {key:'calendly_url', label:'Calendly / Booking URL'},
     {key:'nav_link_portfolio', label:'Nav Link: Portfolio'},
     {key:'nav_link_proof', label:'Nav Link: Proof'},
     {key:'nav_link_pricing', label:'Nav Link: Pricing'},
     {key:'nav_link_faq', label:'Nav Link: FAQ'},
     {key:'nav_whatsapp_label', label:'Nav WhatsApp Button Label'},
-    {key:'nav_book_label', label:'Nav Book Button Label'},
+    {key:'nav_book_label', label:'Nav Chat Button Label'},
   ],
   hero: [
     {key:'hero_title', label:'Hero Title'},
@@ -547,7 +546,6 @@ async function loadContent(){
   const waEl=$('#int-wa'); if(waEl) waEl.value=CONTENT.whatsapp_number||'';
   const emailEl=$('#int-email'); if(emailEl) emailEl.value=CONTENT.footer_email||'';
   const phoneEl=$('#int-phone'); if(phoneEl) phoneEl.value=CONTENT.footer_phone||'';
-  const calEl=$('#int-calendly'); if(calEl) calEl.value=CONTENT.calendly_url||'';
   // Legacy webhook fields (optional - only if present in DOM)
   const whEl=$('#int-webhook'); if(whEl) whEl.value=CONTENT.webhook_url||'';
   const whEn=$('#int-webhook-enabled'); if(whEn) whEn.checked=String(CONTENT.webhook_enabled)==='true';
@@ -614,14 +612,10 @@ $('#btn-save-integrations').addEventListener('click', async()=>{
     const waVal=$('#int-wa')?.value?.trim() || '';
     const emailVal=$('#int-email')?.value?.trim() || '';
     const phoneVal=$('#int-phone')?.value?.trim() || '';
-    let calVal=$('#int-calendly')?.value?.trim() || '';
-    // Normalize Calendly URL: prepend https:// if missing protocol (so frontend button always responds)
-    if(calVal && !/^https?:\/\//i.test(calVal) && !calVal.startsWith('/')) calVal='https://'+calVal;
     const payload={
       whatsapp_number: waVal,
       footer_email: emailVal || CONTENT.footer_email || '',
       footer_phone: phoneVal || CONTENT.footer_phone || '',
-      calendly_url: calVal,
     };
     // Optional legacy webhook fields - only include if inputs exist in DOM
     if($('#int-webhook')) payload.webhook_url=$('#int-webhook').value?.trim()||'';
@@ -635,10 +629,10 @@ $('#btn-save-integrations').addEventListener('click', async()=>{
     const r=await fetch('/api/content',{method:'PUT',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify(payload)});
     const j=await r.json().catch(()=>({}));
     if(!r.ok) throw new Error(j.error||'Save failed');
-    if(msg){ msg.textContent='Saved ✓ - WhatsApp, Email, Phone & Calendly updated. Frontend Book buttons now use: '+(calVal||'(WhatsApp fallback)'); msg.style.color='#10B981'; }
+    if(msg){ msg.textContent='Saved ✓ - WhatsApp, Email & Phone updated. Chat buttons now open the private chat.'; msg.style.color='#10B981'; }
     await loadContent();
   }catch(e){ if(msg){ msg.textContent='Error: '+e.message; msg.style.color='#F87171'; } }
-  finally{ if(btn){ btn.disabled=false; btn.textContent='Save Contact & Booking'; } }
+  finally{ if(btn){ btn.disabled=false; btn.textContent='Save Contact'; } }
 });
 // Webhook test - form only (chat now via Gemini, per owner request)
 async function testWebhook(type){
