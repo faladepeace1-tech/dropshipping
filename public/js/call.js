@@ -589,6 +589,7 @@ export function createCallController({ role, api, toast, startPath, basePath }) 
       iceRestarted: false
     };
     buildOverlay(call);
+    attachLocalVideo(call);
     setStatus('Incoming ' + (call.mode === 'voice' ? 'voice' : 'video') + ' call');
     startRingtone('ring');
     vibrate();

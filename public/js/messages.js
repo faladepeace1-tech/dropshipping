@@ -702,7 +702,9 @@ function autoGrow() {
 function syncViewport() {
   const vv = window.visualViewport;
   const height = Math.round((vv ? vv.height : window.innerHeight) || window.innerHeight || document.documentElement.clientHeight || 0);
+  const top = Math.round((vv ? vv.offsetTop : 0) || 0);
   if (height > 0) document.documentElement.style.setProperty('--dm-vh', height + 'px');
+  document.documentElement.style.setProperty('--dm-vv-top', top + 'px');
 }
 function scheduleViewportSync() {
   requestAnimationFrame(syncViewport);
