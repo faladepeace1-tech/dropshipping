@@ -217,18 +217,23 @@ export function createCallController({ role, api, toast, startPath, basePath }) 
 
   async function flipCamera() {
     const c = call;
-    if (!c || c.mode !== 'video' || !c.localStream || !navigator.mediaDevices?.getUserMedia) return;
+    if (!c || c.mode !== 'video' || !c.localStream) return;
     const next = c.facing === 'environment' ? 'user' : 'environment';
     try {
       const fresh = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: next } });
       const newTrack = fresh.getVideoTracks()[0];
       if (!newTrack) return;
-      if (call !== c) { newTrack.stop(); return; }
       const sender = c.pc && c.pc.getSenders().find((s) => s.track && s.track.kind === 'video');
-      if (sender) await sender.replaceTrack(newTrack);
+      if (sender) {
+        await sender.replaceTrack(newTrack);
+      } else {
+        if (c.pc) c.pc.addTrack(newTrack, c.localStream);
+      }
       const oldTrack = c.localStream.getVideoTracks()[0];
-      if (oldTrack) { c.localStream.removeTrack(oldTrack); oldTrack.stop(); }
-      newTrack.enabled = !c.cameraOff;
+      if (oldTrack) {
+        c.localStream.removeTrack(oldTrack);
+        oldTrack.stop();
+      }
       c.localStream.addTrack(newTrack);
       c.facing = next;
       if (els && els.localVideo) els.localVideo.srcObject = c.localStream;
