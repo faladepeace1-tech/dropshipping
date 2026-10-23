@@ -971,6 +971,15 @@ function startPolling() {
   }, 20000);
 }
 
+function syncViewport() {
+  const vv = window.visualViewport;
+  const height = Math.round((vv ? vv.height : window.innerHeight) || window.innerHeight || document.documentElement.clientHeight || 0);
+  if (height > 0) document.documentElement.style.setProperty('--dm-vh', height + 'px');
+}
+function scheduleViewportSync() {
+  requestAnimationFrame(syncViewport);
+}
+
 function bind() {
   $$('.dm-eye').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -1038,7 +1047,11 @@ function bind() {
   els.deleteBtn?.addEventListener('click', deleteClient);
 
   els.form?.addEventListener('submit', (e) => { e.preventDefault(); sendReply(); });
-  els.input?.addEventListener('input', autoGrow);
+  els.input?.addEventListener('focus', () => {
+    syncViewport();
+    setTimeout(() => els.input?.scrollIntoView({ block: 'nearest', inline: 'nearest' }), 120);
+    setTimeout(syncViewport, 320);
+  });
   els.input?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
@@ -1079,3 +1092,10 @@ async function boot() {
 }
 
 boot();
+syncViewport();
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', scheduleViewportSync);
+  window.visualViewport.addEventListener('scroll', scheduleViewportSync);
+}
+window.addEventListener('resize', scheduleViewportSync);
+window.addEventListener('orientationchange', scheduleViewportSync);

@@ -699,6 +699,15 @@ function autoGrow() {
   els.input.style.height = Math.min(els.input.scrollHeight, 132) + 'px';
 }
 
+function syncViewport() {
+  const vv = window.visualViewport;
+  const height = Math.round((vv ? vv.height : window.innerHeight) || window.innerHeight || document.documentElement.clientHeight || 0);
+  if (height > 0) document.documentElement.style.setProperty('--dm-vh', height + 'px');
+}
+function scheduleViewportSync() {
+  requestAnimationFrame(syncViewport);
+}
+
 function bind() {
   els.emailForm?.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -709,7 +718,11 @@ function bind() {
   $('#dm-video-btn')?.addEventListener('click', () => startCall('video'));
 
   els.form?.addEventListener('submit', (e) => { e.preventDefault(); sendMessage(); });
-  els.input?.addEventListener('input', autoGrow);
+  els.input?.addEventListener('focus', () => {
+    syncViewport();
+    setTimeout(() => els.input?.scrollIntoView({ block: 'nearest', inline: 'nearest' }), 120);
+    setTimeout(syncViewport, 320);
+  });
   els.input?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
@@ -770,3 +783,10 @@ async function boot() {
 }
 
 boot();
+syncViewport();
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', scheduleViewportSync);
+  window.visualViewport.addEventListener('scroll', scheduleViewportSync);
+}
+window.addEventListener('resize', scheduleViewportSync);
+window.addEventListener('orientationchange', scheduleViewportSync);

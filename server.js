@@ -168,6 +168,11 @@ app.set('trust proxy', 1); // Required for Render + Cloudflare (X-Forwarded-For)
 app.use(compression());
 // Security & middleware
 app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+// Allow this site's own pages to request camera/microphone for in-page calls.
+app.use((req, res, next) => {
+  res.setHeader('Permissions-Policy', 'camera=(self), microphone=(self), display-capture=(self), autoplay=(self)');
+  next();
+});
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));

@@ -253,6 +253,16 @@ export function createCallController({ role, api, toast, startPath, basePath }) 
     return navigator.mediaDevices.getUserMedia(constraints);
   }
 
+  async function mediaPermissionMessage(mode) {
+    try {
+      const mic = await navigator.permissions?.query?.({ name: 'microphone' });
+      const cam = mode === 'video' ? await navigator.permissions?.query?.({ name: 'camera' }) : null;
+      if (mic?.state === 'denied' || cam?.state === 'denied') {
+        return 'Camera/microphone access is blocked. Open your browser site settings, allow camera and microphone for this site, then try again.';
+      }
+    } catch {}
+    return 'Allow microphone' + (mode === 'video' ? ' and camera' : '') + ' access to use calls.';
+  }
   async function loadIce() {
     if (iceLoaded) return;
     iceLoaded = true;
@@ -497,7 +507,7 @@ export function createCallController({ role, api, toast, startPath, basePath }) 
     try {
       stream = await getUserMedia(want);
     } catch {
-      toast('Allow microphone' + (want === 'video' ? ' and camera' : '') + ' access to make a call.');
+      toast(await mediaPermissionMessage(want));
       return;
     }
     await loadIce();
@@ -597,7 +607,7 @@ export function createCallController({ role, api, toast, startPath, basePath }) 
       stream = await getUserMedia(c.mode);
     } catch {
       c.accepting = false;
-      toast('Allow microphone' + (c.mode === 'video' ? ' and camera' : '') + ' access to answer the call.');
+      toast(await mediaPermissionMessage(c.mode));
       decline();
       return;
     }
