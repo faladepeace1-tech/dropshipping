@@ -455,13 +455,19 @@ function applyMicroCopy(){
   setText('nav-link-portfolio', T('nav_link_portfolio','Portfolio'));
   setText('nav-link-proof', T('nav_link_proof','Proof'));
   setText('nav-link-pricing', T('nav_link_pricing','Pricing'));
+  setText('nav-link-offers', T('nav_link_offers','Offers'));
+  setText('nav-link-messages', T('nav_link_messages','Messages'));
   setText('nav-link-themes', T('nav_link_themes','Themes'));
   setText('nav-link-faq', T('nav_link_faq','FAQ'));
+  setText('nav-link-blog', T('nav_link_blog','Blog'));
   setText('drawer-link-portfolio', T('nav_link_portfolio','Portfolio'));
   setText('drawer-link-proof', T('nav_link_proof','Proof'));
   setText('drawer-link-pricing', T('nav_link_pricing','Pricing'));
+  setText('drawer-link-offers', T('nav_link_offers','Offers'));
+  setText('drawer-link-messages', T('nav_link_messages','Messages'));
   setText('drawer-link-themes', T('nav_link_themes','Themes'));
   setText('drawer-link-faq', T('nav_link_faq','FAQ'));
+  setText('drawer-link-blog', T('nav_link_blog','Blog'));
   setText('nav-whatsapp', T('nav_whatsapp_label','WhatsApp Us'));
   setText('nav-book', T('nav_book_label','Start a Chat'));
   setText('drawer-wa', T('nav_whatsapp_label','WhatsApp Us'));
@@ -476,12 +482,12 @@ function applyMicroCopy(){
   trust('trust-2', T('trust_2_bold','100%'), T('trust_2_text','Ownership'));
   trust('trust-3', T('trust_3_bold','Real Sales'), T('trust_3_text','Proof'));
   setText('hero-visual-domain', T('hero_visual_domain','nexatech.store'));
-  setText('chip-1-t', T('chip_1_title','New Sale $450'));
-  setText('chip-1-s', T('chip_1_sub','Elegance Mode - just now'));
-  setText('chip-2-t', T('chip_2_title','Order #1029 Shipped'));
-  setText('chip-2-s', T('chip_2_sub','GlowLab - 2m ago'));
-  setText('chip-3-t', T('chip_3_title','3.2% Conversion Rate'));
-  setText('chip-3-s', T('chip_3_sub','TechNest - today'));
+  setText('chip-1-t', T('chip_1_title','Payments Connected'));
+  setText('chip-1-s', T('chip_1_sub','Local and international'));
+  setText('chip-2-t', T('chip_2_title','Suppliers Connected'));
+  setText('chip-2-s', T('chip_2_sub','Vetted and tested'));
+  setText('chip-3-t', T('chip_3_title','Full Ownership'));
+  setText('chip-3-s', T('chip_3_sub','You own 100%'));
   setText('portfolio-eyebrow', T('portfolio_eyebrow','Portfolio'));
   setText('dropshipping-eyebrow', T('dropshipping_eyebrow','Founder Explains'));
   setText('dropshipping-title', T('dropshipping_title','Dropshipping Explanation by Akinyemi Ifeoluwa'));
@@ -590,7 +596,7 @@ async function loadContent(){
   applyTheme(CONTENT);
   const badgeText = SCARCITY.text || CONTENT.hero_badge || 'Only 5 build slots left this month';
   $('#hero-badge-text').textContent=badgeText;
-  const waNum=CONTENT.whatsapp_number||'2348123456789';
+  const waNum=CONTENT.whatsapp_number||'447411200927';
   const chatLink='/messages';
   const heroWA = CONTENT.hero_cta_secondary || 'Chat on WhatsApp';
   const heroBook = CONTENT.hero_cta_primary || 'Talk to Us Directly';
@@ -775,7 +781,7 @@ function updateModal(){
   $('#modal-title').textContent=item.caption||'Store';
   $('#modal-result').textContent=item.result_stat||'';
   $('#modal-desc').textContent=item.case_study_text||T('modal_fallback_desc','A fully-configured dropshipping store built for conversions - premium theme, winning products, and automated fulfillment.');
-  const waNum=CONTENT.whatsapp_number||'2348123456789';
+  const waNum=CONTENT.whatsapp_number||'447411200927';
   $('#modal-cta').textContent=T('modal_cta','Start a Store Like This')+' →';
   $('#modal-cta').href=whatsappLink(waNum, `Hi Nexatech! I love the ${item.category||''} store "${item.caption||''}" I want a store like this. How do we start?`);
   $('#modal-cta').onclick=()=>track('cta_click','modal-cta',{store:item.caption});
@@ -847,9 +853,11 @@ async function loadMedia(){
     if(rGrid){
       rGrid.innerHTML='';
       if(reviews.length===0){
-        if(empty) { empty.textContent=T('reviews_empty','No reviews uploaded yet - add them in Admin → Media Manager → Review Screenshots.'); empty.classList.remove('hidden'); }
+        if(empty) empty.classList.add('hidden');
+        const sec=$('#reviews'); if(sec){ sec.hidden=true; sec.style.display='none'; }
       } else {
         if(empty) empty.classList.add('hidden');
+        const sec=$('#reviews'); if(sec){ sec.hidden=false; sec.style.display=''; }
         reviews.forEach((item, idx)=>{
           const kind=mediaKind(item.url);
           const isVideo=kind==='video';
@@ -884,9 +892,11 @@ async function loadMedia(){
     if(cGrid){
       cGrid.innerHTML='';
       if(certs.length===0){
-        if(cEmpty) { cEmpty.textContent=T('certs_empty','No certificates uploaded yet - add them in Admin → Media Manager → Certificates & Awards.'); cEmpty.classList.remove('hidden'); }
+        if(cEmpty) cEmpty.classList.add('hidden');
+        const sec=$('#certificates'); if(sec){ sec.hidden=true; sec.style.display='none'; }
       } else {
         if(cEmpty) cEmpty.classList.add('hidden');
+        const sec=$('#certificates'); if(sec){ sec.hidden=false; sec.style.display=''; }
         certs.forEach((item)=>{
           const card=document.createElement('div'); card.className='certs-card in';
           card.innerHTML=`<img src="${item.url}" alt="${sanitize(item.alt_text||item.caption||T('cert_caption_fallback','Certificate'))}" loading="lazy" decoding="async"><div class="caption">${sanitize(item.caption||T('cert_caption_fallback','Certificate'))}</div>`;
@@ -1144,7 +1154,7 @@ function renderMentorship(){
   const bullets=parseJSON(CONTENT.mentorship_bullets, ["Weekly 1:1 strategy calls until first sale","Ad account setup & first campaign launch together","Product testing framework & kill/scale rules","Store CRO audits & A/B tests"]);
   const ul=$('#mentorship-bullets'); if(!ul) return; ul.innerHTML='';
   bullets.forEach(b=>{ const li=document.createElement('li'); li.textContent=b; ul.appendChild(li); });
-  const waNum=CONTENT.whatsapp_number||'2348123456789';
+  const waNum=CONTENT.whatsapp_number||'447411200927';
   const waMsg=CONTENT.pricing_mentorship_whatsapp||'Hi Nexatech! Tell me about the Mentorship (Results Before Payment).';
   const a=$('#mentorship-wa'); if(a){ a.href=whatsappLink(waNum, waMsg); a.addEventListener('click',()=>track('cta_click','mentorship-wa')); }
 }

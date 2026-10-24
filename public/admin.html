@@ -6,6 +6,7 @@
 <title>Nexatech Admin Command Center</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/admin.css">
+<meta name="robots" content="noindex,nofollow">
 </head>
 <body>
 <div id="login-view" class="login-wrap">
@@ -25,6 +26,7 @@
       <button data-tab="overview" class="active">Overview</button>
       <button data-tab="brand">Brand / Logo</button>
       <button data-tab="content">Content & Theme</button>
+      <button data-tab="pages">Page Editor</button>
       <button data-tab="media">Media Manager</button>
       <button data-tab="themes">Themes / Shop</button>
       <button data-tab="offers">Custom Offers</button>
@@ -146,6 +148,57 @@
         <div id="content-forms"></div>
         <button class="btn btn-primary" id="btn-save-content">Save Content</button>
         <div id="content-msg" style="font-size:13px;margin-top:8px"></div>
+      </section>
+
+      <!-- Page Editor -->
+      <section data-panel="pages" class="hidden">
+        <div class="card">
+          <h3>Page Editor <small style="font-weight:500;color:#64748B"> every public page, headline, image, link and meta tag</small></h3>
+          <p style="font-size:13px;color:#64748B;margin-top:0">
+            Edit any public page here. Changes are stored in the database, survive deploys and appear immediately.
+            Use <b>Content &amp; Theme</b> for the structured home/pricing fields, and this editor for anything not covered there
+            (FAQ, themes, blog posts, checkout, chat pages, legal pages, 404, sitemap, robots and more).
+          </p>
+          <div style="display:grid;grid-template-columns:minmax(220px,1.3fr) minmax(160px,1fr) auto;gap:10px;align-items:end">
+            <label>Page
+              <select id="page-select"></select>
+            </label>
+            <label>Live URL
+              <input id="page-url" readonly placeholder="/">
+            </label>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;padding-bottom:2px">
+              <a class="btn btn-ghost" id="page-preview" href="/" target="_blank" rel="noopener" style="padding:7px 10px;font-size:12px">Preview</a>
+              <button class="btn btn-ghost" id="btn-page-reload" type="button" style="padding:7px 10px;font-size:12px">Reload</button>
+              <button class="btn btn-ghost" id="btn-page-reset" type="button" style="padding:7px 10px;font-size:12px;color:#F87171">Reset original</button>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0 8px">
+            <span id="page-status" style="font-size:12px;color:#64748B">Not loaded</span>
+            <span style="font-size:12px;color:#94A3B8">|</span>
+            <span id="page-size" style="font-size:12px;color:#64748B"></span>
+            <span style="font-size:12px;color:#94A3B8">|</span>
+            <label style="display:flex;gap:6px;align-items:center;font-size:12px;margin:0">Image upload
+              <input type="file" id="page-image-file" accept="image/*" style="font-size:11px">
+            </label>
+            <span id="page-image-msg" style="font-size:12px;color:#64748B"></span>
+          </div>
+          <label>Page source (HTML or text)
+            <textarea id="page-editor" rows="30" spellcheck="false" style="font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;line-height:1.55;white-space:pre;min-height:420px"></textarea>
+          </label>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">
+            <button class="btn btn-primary" id="btn-page-save" type="button">Save Page</button>
+            <label style="display:flex;gap:6px;align-items:center;font-size:12px;margin:0">Restore previous version
+              <select id="page-revisions" style="min-width:190px"><option value="">No saved versions</option></select>
+            </label>
+            <button class="btn btn-ghost" id="btn-page-restore" type="button" style="padding:7px 10px;font-size:12px">Restore</button>
+          </div>
+          <div id="page-msg" style="font-size:13px;margin-top:8px"></div>
+          <div style="font-size:12px;color:#64748B;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:10px;margin-top:12px">
+            <b>Tips:</b> Upload an image to insert an <code>&lt;img&gt;</code> tag at the cursor. Use the existing
+            <b>Media Manager</b> for portfolio/proof/review media. Saving creates a restore point automatically.
+            The home page also uses the structured fields in <b>Content &amp; Theme</b>.
+          </div>
+        </div>
       </section>
 
       <!-- Media -->

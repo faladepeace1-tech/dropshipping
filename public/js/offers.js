@@ -39,22 +39,10 @@ function detectCurrency(){
   }catch{}
   return 'USD';
 }
-function fillFx(){
-  const el = $('#offers-fx');
-  if(!el) return;
-  el.innerHTML = '';
-  CURRENCIES.forEach(c => {
-    const o = document.createElement('option');
-    o.value = c; o.textContent = c;
-    if(c === CUR) o.selected = true;
-    el.appendChild(o);
-  });
-  el.onchange = () => {
-    CUR = el.value;
-    try{ localStorage.setItem('nx_currency', CUR); }catch{}
-    render();
-  };
-}
+document.addEventListener('nx:currency', e => {
+  const c = String(e.detail && e.detail.currency || '').toUpperCase();
+  if(c && CURRENCIES.includes(c)){ CUR = c; render(); }
+});
 function render(){
   const grid = $('#offers-grid'), empty = $('#offers-empty'), loading = $('#offers-loading');
   if(loading) loading.classList.add('hidden');
@@ -91,10 +79,8 @@ function render(){
     if(c.offers_title) $('#offers-title').textContent = c.offers_title;
     if(c.offers_subtitle) $('#offers-subtitle').textContent = c.offers_subtitle;
     if(c.offers_empty) $('#offers-empty').textContent = c.offers_empty;
-    if(c.logo_text) $('#offers-logo').textContent = c.logo_text;
     if(fR && fR.rates){ RATES = fR.rates; CURRENCIES = fR.currencies || ['USD']; }
     CUR = detectCurrency();
-    fillFx();
     OFFERS = Array.isArray(oR) ? oR : [];
     const waNum = String(c.whatsapp_number || '').replace(/\D/g, '');
     if(waNum){

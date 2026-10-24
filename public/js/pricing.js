@@ -1,13 +1,12 @@
 // ============================================================
-// Nexatech Pricing page - standalone: packages + mentorship + themes.
+// Nexatech Pricing page - standalone: packages + mentorship.
 // Same data and same secure checkout as the storefront:
 // /checkout?kind=plan&item=<tier>&currency=<cur>
-// /checkout?kind=theme&item=<slug>&currency=<cur>
 // ============================================================
 const $ = s => document.querySelector(s);
 const FX_ZERO = ['XAF', 'XOF', 'RWF', 'UGX'];
 let RATES = null, CURRENCIES = ['USD'], CUR = 'USD';
-let CONTENT = {}, THEMES = [];
+let CONTENT = {};
 
 function sanitize(t){ const d = document.createElement('div'); d.textContent = t == null ? '' : String(t); return d.innerHTML; }
 function T(key, fb){ const v = CONTENT[key]; if(v === undefined || v === null) return fb; const s = String(v); return s.trim() === '' && typeof fb === 'string' && fb !== '' ? fb : s; }
@@ -46,23 +45,10 @@ function detectCurrency(){
   }catch{}
   return 'USD';
 }
-function fillFx(){
-  const el = $('#pricing-fx');
-  if(!el) return;
-  el.innerHTML = '';
-  CURRENCIES.forEach(c => {
-    const o = document.createElement('option');
-    o.value = c; o.textContent = c;
-    if(c === CUR) o.selected = true;
-    el.appendChild(o);
-  });
-  el.onchange = () => {
-    CUR = el.value;
-    try{ localStorage.setItem('nx_currency', CUR); }catch{}
-    renderPricing();
-    renderThemes();
-  };
-}
+document.addEventListener('nx:currency', e => {
+  const c = String(e.detail && e.detail.currency || '').toUpperCase();
+  if(c && CURRENCIES.includes(c)){ CUR = c; renderPricing(); }
+});
 function applyTexts(){
   const set = (id, txt) => { const el = document.getElementById(id); if(el) el.textContent = txt; };
   set('pricing-logo', T('logo_text', 'NEXATECH'));
@@ -73,9 +59,6 @@ function applyTexts(){
   set('mentorship-title', T('mentorship_title', 'Mentorship - Results Before Payment'));
   set('mentorship-subtitle', T('mentorship_subtitle', 'Make sales before paying for mentorship. We prove it first.'));
   set('mentorship-price', T('mentorship_price', 'Pay After Results'));
-  set('themes-eyebrow', T('themes_eyebrow', 'Theme Store'));
-  set('themes-title', T('themes_title', 'Premium Store Themes'));
-  set('themes-subtitle', T('themes_subtitle', 'Ready-made, high-converting themes. Buy once, download instantly, own forever.'));
 }
 function renderPricing(){
   const grid = $('#pricing-grid'), loading = $('#pricing-loading');
@@ -99,52 +82,6 @@ function renderPricing(){
     grid.appendChild(el);
   });
 }
-function fxThemePrice(th){
-  if(!th || !(Number(th.price_cents) > 0)) return th.price_text || '';
-  const c = fxConvertFrom(Number(th.price_cents), th.currency || 'USD', CUR);
-  return fxFormat(c.amount_cents, c.currency);
-}
-function renderThemes(){
-  const grid = $('#themes-grid'), empty = $('#themes-empty');
-  if(!grid) return;
-  grid.innerHTML = '';
-  if(!THEMES.length){
-    if(empty){ empty.textContent = T('themes_empty', 'No themes available yet - check back soon.'); empty.classList.remove('hidden'); }
-    return;
-  }
-  if(empty) empty.classList.add('hidden');
-  const frag = document.createDocumentFragment();
-  THEMES.forEach(th => {
-    const card = document.createElement('div'); card.className = 'card in theme-card';
-    const badge = T('theme_badge', 'Instant Download');
-    card.innerHTML = `<div class="card-media">`
-      + (th.preview_url
-        ? `<img src="${sanitize(th.preview_url)}" alt="${sanitize(th.name)}" loading="lazy" decoding="async" onerror="this.style.opacity=.25">`
-        : `<div style="display:grid;place-items:center;height:100%;color:var(--text-muted);font-weight:700">No preview</div>`)
-      + `<div class="overlay"><span class="tag">${sanitize(badge)}</span>`
-      + `<div style="font-size:15px;font-weight:800;margin-top:6px">${sanitize(th.name)}</div>`
-      + `<div class="result" style="font-size:15px">${sanitize(fxThemePrice(th))}</div></div></div>`
-      + `<div class="theme-body"><p class="theme-desc">${sanitize((th.description || '').slice(0, 120))}</p>`
-      + `<div class="theme-actions">`
-      + `<button class="btn btn-ghost theme-preview-btn" type="button">${sanitize(T('theme_preview_label', 'Preview'))}</button>`
-      + `<a class="btn btn-primary" href="/checkout?kind=theme&item=${encodeURIComponent(th.slug)}&currency=${encodeURIComponent(CUR)}">${sanitize(T('theme_buy_label', 'Buy Now'))} →</a>`
-      + `</div></div>`;
-    card.querySelector('.theme-preview-btn').addEventListener('click', e => { e.stopPropagation(); openTheme(th); });
-    card.addEventListener('click', () => openTheme(th));
-    frag.appendChild(card);
-  });
-  grid.appendChild(frag);
-}
-function openTheme(th){
-  const img = $('#theme-modal-img');
-  img.style.display = th.preview_url ? '' : 'none';
-  if(th.preview_url) img.src = th.preview_url;
-  $('#theme-modal-title').textContent = th.name || '';
-  $('#theme-modal-desc').textContent = th.description || '';
-  $('#theme-modal-buy').href = '/checkout?kind=theme&item=' + encodeURIComponent(th.slug) + '&currency=' + encodeURIComponent(CUR);
-  $('#theme-modal').classList.add('open');
-}
-function closeTheme(){ $('#theme-modal')?.classList.remove('open'); }
 function renderMentorship(){
   const bullets = parseJSON(CONTENT.mentorship_bullets, ["Weekly 1:1 strategy calls until first sale", "Ad account setup & first campaign launch together", "Product testing framework & kill/scale rules", "Store CRO audits & A/B tests"]);
   const ul = $('#mentorship-bullets'); if(!ul) return; ul.innerHTML = '';
@@ -153,25 +90,26 @@ function renderMentorship(){
   const waMsg = CONTENT.pricing_mentorship_whatsapp || 'Hi Nexatech! Tell me about the Mentorship (Results Before Payment).';
   const a = $('#mentorship-wa'); if(a) a.href = waLink(waNum, waMsg);
 }
+document.addEventListener('click', e => {
+  const q = e.target.closest('.faq-q');
+  if(!q) return;
+  const item = q.closest('.faq-item');
+  if(!item) return;
+  const open = item.classList.toggle('open');
+  q.setAttribute('aria-expanded', open ? 'true' : 'false');
+});
 (async function init(){
   $('#pricing-year').textContent = new Date().getFullYear();
-  $('#theme-modal-close').addEventListener('click', closeTheme);
-  $('#theme-modal').addEventListener('click', e => { if(e.target === $('#theme-modal')) closeTheme(); });
-  document.addEventListener('keydown', e => { if(e.key === 'Escape') closeTheme(); });
   try{
-    const [cR, fR, tR] = await Promise.all([
+    const [cR, fR] = await Promise.all([
       fetch('/api/content').then(r => r.json()).catch(() => null),
       fetch('/api/fx/rates').then(r => r.json()).catch(() => null),
-      fetch('/api/themes').then(r => r.json()).catch(() => []),
     ]);
     if(cR && cR.content) CONTENT = cR.content;
     if(fR && fR.rates){ RATES = fR.rates; CURRENCIES = fR.currencies || ['USD']; }
     CUR = detectCurrency();
-    fillFx();
-    THEMES = Array.isArray(tR) ? tR : [];
     applyTexts();
     renderPricing();
-    renderThemes();
     renderMentorship();
     const waNum = CONTENT.whatsapp_number || '447411200927';
     const wa = $('#pricing-wa');

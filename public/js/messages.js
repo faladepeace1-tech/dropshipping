@@ -1,5 +1,5 @@
 import { setupDmPush, clearDmPush } from './push.js';
-import { createCallController } from './call.js?v=3';
+import { createCallController } from './call.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));

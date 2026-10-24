@@ -123,6 +123,7 @@ $$('.side-nav button').forEach(b=> b.addEventListener('click', ()=>{
   if(tab==='brand') loadBrand();
   if(tab==='team') loadTeam();
   if(tab==='media') loadMedia();
+  if(tab==='pages') loadPagesAdmin();
   if(tab==='sections') loadSections();
   if(tab==='campaigns'){ loadCampaigns(); loadTemplates(); loadGmailStatus(); loadOutbox(); }
   if(tab==='chats') loadChats();
@@ -165,10 +166,15 @@ const CONTENT_SCHEMA = {
   navbar: [
     {key:'logo_text', label:'Logo Text (shown if no logo image)'},
     {key:'whatsapp_number', label:'WhatsApp Number'},
+    {key:'nav_link_home', label:'Nav Link: Home'},
     {key:'nav_link_portfolio', label:'Nav Link: Portfolio'},
     {key:'nav_link_proof', label:'Nav Link: Proof'},
     {key:'nav_link_pricing', label:'Nav Link: Pricing'},
+    {key:'nav_link_themes', label:'Nav Link: Themes'},
     {key:'nav_link_faq', label:'Nav Link: FAQ'},
+    {key:'nav_link_blog', label:'Nav Link: Blog'},
+    {key:'nav_link_offers', label:'Nav Link: Custom Offers'},
+    {key:'nav_link_messages', label:'Nav Link: Messages'},
     {key:'nav_whatsapp_label', label:'Nav WhatsApp Button Label'},
     {key:'nav_book_label', label:'Nav Chat Button Label'},
   ],
@@ -338,6 +344,10 @@ const CONTENT_SCHEMA = {
     {key:'footer_built_note', label:'Bottom Honesty Note'},
     {key:'privacy_link_label', label:'Privacy Link Label'},
     {key:'terms_link_label', label:'Terms Link Label'},
+    {key:'footer_blog_label', label:'Footer Blog Link Label'},
+    {key:'footer_themes_label', label:'Footer Themes Link Label'},
+    {key:'footer_faq_label', label:'Footer FAQ Link Label'},
+    {key:'footer_rss_label', label:'Footer RSS Link Label'},
     {key:'social_instagram_url', label:'Instagram URL (empty = hidden)'},
     {key:'social_x_url', label:'X (Twitter) URL (empty = hidden)'},
     {key:'social_tiktok_url', label:'TikTok URL (empty = hidden)'},
@@ -555,6 +565,171 @@ async function loadContent(){
   const botEn=$('#int-webhook-bot-enabled'); if(botEn) botEn.checked=String(CONTENT.webhook_chatbot_enabled)==='true';
   renderContentForms();
 }
+// ---- Page Editor: every public page/file, saved as a deploy-safe DB override ----
+let PAGES_ADMIN = [], currentPageKey = '', pageDirty = false;
+function pageMsg(text, color){
+  const el = $('#page-msg'); if(!el) return;
+  el.textContent = text || '';
+  el.style.color = color || '#64748B';
+}
+async function loadPagesAdmin(forceKey){
+  const sel = $('#page-select');
+  if(!sel) return;
+  try{
+    const r = await fetch('/api/admin/pages', {headers: authHeaders()});
+    const j = await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    PAGES_ADMIN = Array.isArray(j) ? j : [];
+    const keep = forceKey || currentPageKey || sel.value;
+    sel.innerHTML = '';
+    if(!PAGES_ADMIN.length){ pageMsg('No editable pages configured.', '#F87171'); return; }
+    PAGES_ADMIN.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.key;
+      opt.textContent = p.label + (p.edited ? '  [edited]' : '');
+      sel.appendChild(opt);
+    });
+    sel.value = PAGES_ADMIN.some(p => p.key === keep) ? keep : PAGES_ADMIN[0].key;
+    await loadPageEditor(sel.value);
+  }catch(e){ pageMsg('Could not load pages: ' + e.message, '#F87171'); }
+}
+async function loadPageRevisions(key){
+  const sel = $('#page-revisions');
+  if(!sel) return;
+  sel.innerHTML = '<option value="">Loading...</option>';
+  try{
+    const r = await fetch('/api/admin/pages/' + encodeURIComponent(key) + '/revisions', {headers: authHeaders()});
+    const rows = await r.json().catch(()=>[]);
+    sel.innerHTML = '';
+    if(!Array.isArray(rows) || !rows.length){
+      sel.innerHTML = '<option value="">No saved versions</option>';
+      return;
+    }
+    const first = document.createElement('option');
+    first.value = ''; first.textContent = 'Choose a saved version';
+    sel.appendChild(first);
+    rows.forEach(row => {
+      const opt = document.createElement('option');
+      opt.value = row.id;
+      const when = row.created_at ? new Date(row.created_at).toLocaleString() : 'saved version';
+      opt.textContent = when + ' - ' + Math.round((Number(row.size)||0)/1024) + ' KB';
+      sel.appendChild(opt);
+    });
+  }catch{ sel.innerHTML = '<option value="">No saved versions</option>'; }
+}
+async function loadPageEditor(key){
+  if(!key) return;
+  const editor = $('#page-editor');
+  const meta = PAGES_ADMIN.find(p => p.key === key);
+  currentPageKey = key;
+  pageMsg('Loading...');
+  try{
+    const r = await fetch('/api/admin/pages/' + encodeURIComponent(key), {headers: authHeaders()});
+    const j = await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    editor.value = j.content || '';
+    pageDirty = false;
+    $('#page-url').value = (meta && meta.url) || j.url || '';
+    $('#page-preview').href = (meta && meta.url) || j.url || '/';
+    $('#page-status').textContent = j.edited ? 'Edited - live now' : 'Original - not edited';
+    $('#page-status').style.color = j.edited ? '#10B981' : '#64748B';
+    $('#page-size').textContent = (j.content || '').length.toLocaleString() + ' characters';
+    pageMsg(j.edited ? 'Saved override loaded.' : 'Original file loaded. Save to create an override.');
+    await loadPageRevisions(key);
+  }catch(e){ pageMsg('Could not load this page: ' + e.message, '#F87171'); }
+}
+async function savePageEditor(){
+  if(!currentPageKey) return;
+  const btn = $('#btn-page-save');
+  const content = $('#page-editor').value;
+  if(btn){ btn.disabled = true; btn.textContent = 'Saving...'; }
+  pageMsg('Saving...');
+  try{
+    const r = await fetch('/api/admin/pages/' + encodeURIComponent(currentPageKey), {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json', ...authHeaders()},
+      body: JSON.stringify({content})
+    });
+    const j = await r.json().catch(()=>({}));
+    if(r.status === 401) throw new Error('Session expired - log out and log back in, then save again.');
+    if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    pageDirty = false;
+    pageMsg('Saved - the page is live now.', '#10B981');
+    await loadPagesAdmin(currentPageKey);
+  }catch(e){ pageMsg('Save failed: ' + e.message, '#F87171'); }
+  finally{ if(btn){ btn.disabled = false; btn.textContent = 'Save Page'; } }
+}
+$('#page-select')?.addEventListener('change', async (e)=>{
+  const next = e.target.value;
+  if(pageDirty && !confirm('You have unsaved changes. Discard them?')){
+    e.target.value = currentPageKey;
+    return;
+  }
+  await loadPageEditor(next);
+});
+$('#btn-page-reload')?.addEventListener('click', async ()=>{
+  if(pageDirty && !confirm('Discard unsaved changes and reload?')) return;
+  await loadPageEditor(currentPageKey);
+});
+$('#btn-page-save')?.addEventListener('click', savePageEditor);
+$('#page-editor')?.addEventListener('input', ()=>{ pageDirty = true; pageMsg('Unsaved changes', '#F59E0B'); });
+$('#page-editor')?.addEventListener('keydown', (e)=>{
+  if((e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === 's'){ e.preventDefault(); savePageEditor(); }
+});
+$('#btn-page-reset')?.addEventListener('click', async ()=>{
+  if(!currentPageKey) return;
+  if(!confirm('Reset this page to the original file? Your current override is saved as a restore point.')) return;
+  pageMsg('Resetting...');
+  try{
+    const r = await fetch('/api/admin/pages/' + encodeURIComponent(currentPageKey) + '/reset', {method:'POST', headers: authHeaders()});
+    const j = await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    pageDirty = false;
+    pageMsg('Original restored.', '#10B981');
+    await loadPagesAdmin(currentPageKey);
+  }catch(e){ pageMsg('Reset failed: ' + e.message, '#F87171'); }
+});
+$('#btn-page-restore')?.addEventListener('click', async ()=>{
+  const id = $('#page-revisions')?.value;
+  if(!currentPageKey || !id) return;
+  if(!confirm('Restore this saved version? The current version is saved as a restore point first.')) return;
+  pageMsg('Restoring...');
+  try{
+    const r = await fetch('/api/admin/pages/' + encodeURIComponent(currentPageKey) + '/revisions/' + encodeURIComponent(id) + '/restore', {method:'POST', headers: authHeaders()});
+    const j = await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    pageDirty = false;
+    pageMsg('Version restored.', '#10B981');
+    await loadPagesAdmin(currentPageKey);
+  }catch(e){ pageMsg('Restore failed: ' + e.message, '#F87171'); }
+});
+$('#page-image-file')?.addEventListener('change', async (e)=>{
+  const file = e.target.files && e.target.files[0];
+  if(!file || !currentPageKey) return;
+  const out = $('#page-image-msg');
+  if(out){ out.textContent = 'Uploading...'; out.style.color = '#64748B'; }
+  try{
+    const fd = new FormData();
+    fd.append('file', file);
+    const r = await fetch('/api/admin/upload', {method:'POST', headers: authHeaders(), body: fd});
+    const j = await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    const editor = $('#page-editor');
+    const meta = PAGES_ADMIN.find(p => p.key === currentPageKey);
+    const insert = meta && meta.type === 'text' ? j.url : `<img src="${j.url}" alt="" loading="lazy">`;
+    const start = editor.selectionStart ?? editor.value.length;
+    const end = editor.selectionEnd ?? start;
+    editor.value = editor.value.slice(0, start) + insert + editor.value.slice(end);
+    editor.selectionStart = editor.selectionEnd = start + insert.length;
+    editor.dispatchEvent(new Event('input'));
+    if(out){ out.textContent = 'Inserted: ' + j.url; out.style.color = '#10B981'; }
+  }catch(err){ if(out){ out.textContent = 'Upload failed: ' + err.message; out.style.color = '#F87171'; } }
+  e.target.value = '';
+});
+window.addEventListener('beforeunload', (e)=>{
+  if(pageDirty){ e.preventDefault(); e.returnValue = ''; }
+});
+
 $('#btn-save-content').addEventListener('click', async()=>{
   const btn=$('#btn-save-content'); const msg=$('#content-msg');
   if(btn) { btn.disabled=true; btn.textContent='Saving...'; }

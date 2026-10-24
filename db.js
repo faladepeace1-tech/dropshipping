@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
@@ -361,6 +362,17 @@ export async function initDb() {
         dump TEXT NOT NULL,
         created_at TIMESTAMP DEFAULT NOW()
       );
+      CREATE TABLE IF NOT EXISTS page_overrides (
+        page TEXT PRIMARY KEY,
+        content TEXT NOT NULL,
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS page_revisions (
+        id SERIAL PRIMARY KEY,
+        page TEXT NOT NULL,
+        content TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
       CREATE TABLE IF NOT EXISTS themes (
         id SERIAL PRIMARY KEY,
         name TEXT NOT NULL,
@@ -676,6 +688,17 @@ export async function initDb() {
       dump TEXT NOT NULL,
       created_at TEXT DEFAULT (datetime('now'))
     );
+    CREATE TABLE IF NOT EXISTS page_overrides (
+      page TEXT PRIMARY KEY,
+      content TEXT NOT NULL,
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS page_revisions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      page TEXT NOT NULL,
+      content TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
     CREATE TABLE IF NOT EXISTS themes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -972,12 +995,20 @@ export async function initDb() {
       ['chatbot_temperature', '0.7', 'text'],
       ['chatbot_max_tokens', '600', 'number'],
       ['hero_image_url', 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=900', 'text'],
+      ['nav_link_home', 'Home', 'text'],
       ['nav_link_portfolio', 'Portfolio', 'text'],
       ['nav_link_proof', 'Proof', 'text'],
       ['nav_link_pricing', 'Pricing', 'text'],
       ['nav_link_faq', 'FAQ', 'text'],
+      ['nav_link_blog', 'Blog', 'text'],
+      ['nav_link_offers', 'Custom Offers', 'text'],
+      ['nav_link_messages', 'Messages', 'text'],
       ['nav_whatsapp_label', 'WhatsApp Us', 'text'],
       ['nav_book_label', 'Start a Chat', 'text'],
+      ['footer_blog_label', 'Blog', 'text'],
+      ['footer_themes_label', 'Themes', 'text'],
+      ['footer_faq_label', 'FAQ', 'text'],
+      ['footer_rss_label', 'RSS', 'text'],
       ['trust_1_bold', '7 to 14 Day', 'text'],
       ['trust_1_text', 'Delivery', 'text'],
       ['trust_2_bold', '100%', 'text'],
@@ -1245,38 +1276,19 @@ export async function initDb() {
   }
 
   const adminCount = await getCount('admin_users');
-  const canonicalPw = '123450000';
-  const legacy1 = 'N' + 'exatech' + '2026!';
-  const legacy2 = 'N' + 'excerpt' + '2026!';
   if (adminCount === 0) {
-    const hashCanonical = bcrypt.hashSync(canonicalPw, 10);
-    await db.prepare('INSERT INTO admin_users (username,password_hash) VALUES (?,?)').run('admin', hashCanonical);
-    try { await db.prepare('INSERT INTO admin_users (username,password_hash) VALUES (?,?)').run('admin_alt', hashCanonical); } catch {}
-    console.log('Seeded admin user: admin / 123450000');
-  } else {
-    const admin = await db.prepare('SELECT * FROM admin_users WHERE username=?').get('admin');
-    if (admin) {
-      let ok=false;
-      try { ok = bcrypt.compareSync(canonicalPw, admin.password_hash); } catch {}
-      if (!ok) {
-        const newHash = bcrypt.hashSync(canonicalPw, 10);
-        await db.prepare('UPDATE admin_users SET password_hash=? WHERE username=?').run(newHash, 'admin');
-        try { await db.prepare('UPDATE admin_users SET password_hash=? WHERE username=?').run(newHash, 'admin_alt'); } catch {}
-        console.log('Updated admin password hash to 123450000');
-      }
+    const isProd = process.env.NODE_ENV === 'production';
+    const initialPw = String(process.env.ADMIN_INITIAL_PASSWORD || '').trim();
+    if (!initialPw && isProd) {
+      throw new Error('ADMIN_INITIAL_PASSWORD is required to seed the first admin user in production.');
     }
-    // Ensure admin_alt also synced
-    try {
-      const alt = await db.prepare('SELECT * FROM admin_users WHERE username=?').get('admin_alt');
-      if (alt) {
-        let okAlt=false;
-        try { okAlt = bcrypt.compareSync(canonicalPw, alt.password_hash); } catch {}
-        if (!okAlt) {
-          const h2 = bcrypt.hashSync(canonicalPw, 10);
-          await db.prepare('UPDATE admin_users SET password_hash=? WHERE username=?').run(h2, 'admin_alt');
-        }
-      }
-    } catch {}
+    if (initialPw && initialPw.length < 12) {
+      throw new Error('ADMIN_INITIAL_PASSWORD must be at least 12 characters.');
+    }
+    const seedPw = initialPw || crypto.randomBytes(18).toString('base64url');
+    const hash = bcrypt.hashSync(seedPw, 12);
+    await db.prepare('INSERT INTO admin_users (username,password_hash) VALUES (?,?)').run('admin', hash);
+    if (!isProd) console.log('Seeded local admin user. Set ADMIN_INITIAL_PASSWORD to choose your own password.');
   }
 
   const mediaCount = await getCount('media');
@@ -1465,6 +1477,56 @@ export async function initDb() {
     if(phoneOld && (phoneOld.includes('234 812') || phoneOld.includes('928 382'))) {
       await db.prepare("UPDATE content SET value=? WHERE key='footer_phone'").run('+44 7411 200927');
     }
+    // SEO + messaging migration (2026): align stored copy with the keyword-focused static pages.
+    try{
+      const seoMarker = await db.prepare("SELECT value FROM content WHERE key='seo_2026_migrated'").get();
+      const seoForce = !seoMarker;
+      const seoUpdate = async (key, oldVal, newVal) => {
+        const row = await db.prepare('SELECT value FROM content WHERE key=?').get(key);
+        if(!row) return;
+        const cur = String(row.value == null ? '' : row.value);
+        if(seoForce || (oldVal === null ? cur.trim() === '' : cur === oldVal)){
+          await db.prepare('UPDATE content SET value=? WHERE key=?').run(newVal, key);
+        }
+      };
+      await seoUpdate('seo_title', 'Nexatech Dropshipping Store Done For You High Converting Stores', 'Done-For-You Dropshipping Store Setup | Nexatech');
+      await seoUpdate('seo_description', 'We build, launch and hand over fully-configured dropshipping stores with winning products and automated fulfillment. You own 100%.', 'We build, launch and hand over your dropshipping store in 7 to 14 days: products, suppliers, payments and design. You own 100%. Based in Lagos, serving worldwide.');
+      await seoUpdate('og_image', null, 'https://dropshippingstore.dpdns.org/og-image.png');
+      await seoUpdate('hero_title', 'Your Profitable Dropshipping Store Built, Launched & Ready to Sell', 'Done-For-You Dropshipping Store Built, Launched & Ready to Sell');
+      await seoUpdate('portfolio_eyebrow', 'Portfolio', 'Dropshipping Store Portfolio');
+      await seoUpdate('portfolio_title', 'Store Portfolio', 'Dropshipping Store Portfolio: Stores We Built');
+      await seoUpdate('portfolio_subtitle', "Real stores we've built explore by niche, see the numbers.", 'Real dropshipping stores we have built - explore by niche and see the numbers.');
+      await seoUpdate('dropshipping_eyebrow', 'Founder Explains', 'What Is Dropshipping?');
+      await seoUpdate('dropshipping_title', 'Dropshipping Explanation by Akinyemi Ifeoluwa', 'What Is Dropshipping? A Simple Explanation');
+      await seoUpdate('dropshipping_subtitle', 'What dropshipping really is - in simple English, no big grammar.', 'What dropshipping really is, in simple English - no big grammar.');
+      await seoUpdate('whatwedo_eyebrow', 'What We Do', 'What We Do For You');
+      await seoUpdate('whatwedo_title', 'What We Do at NexaTech', 'What We Do For You');
+      await seoUpdate('whatwedo_subtitle', 'We help people start and run an online store through dropshipping, without needing any tech skills.', 'We build and launch your dropshipping store, connect suppliers and payments, and hand over full ownership.');
+      await seoUpdate('proof_eyebrow', 'Proof', 'Client Reviews and Proof');
+      await seoUpdate('sales_proof_title', 'Revenue Wall Real Results', 'Client Reviews and Proof: Real Results');
+      await seoUpdate('sales_proof_subtitle', 'Dashboard screenshots & payout proofs from stores we launched.', 'Dashboard screenshots and payout proofs from stores we launched.');
+      await seoUpdate('experts_eyebrow', 'Team', 'Meet the Team');
+      await seoUpdate('experts_title', 'Meet the Experts', 'Meet the Team');
+      await seoUpdate('experts_subtitle', 'The team that engineers your storefront.', 'The people who research, build and launch your store.');
+      await seoUpdate('how_eyebrow', 'Process', 'How Our 4-Step Store Launch Works');
+      await seoUpdate('how_it_works_title', 'How It Works 4 Step Launch Engine', 'How Our 4-Step Store Launch Works');
+      await seoUpdate('testimonials_eyebrow', 'Testimonials', 'Client Testimonials');
+      await seoUpdate('testimonials_title', 'What Clients Say', 'Client Testimonials');
+      await seoUpdate('reviews_title', 'Proof You Can See Reviews & Video Testimonials', 'Client Reviews and Video Testimonials: Proof You Can See');
+      await seoUpdate('reviews_subtitle', 'Real WhatsApp, Trustpilot and video review screenshots Click any to view full screen.', 'Real WhatsApp, Trustpilot and video review screenshots - click any to view full screen.');
+      await seoUpdate('faq_eyebrow', 'FAQ', 'Dropshipping Store Setup FAQ');
+      await seoUpdate('pricing_title', 'Packages', 'Dropshipping Store Setup Pricing');
+      await seoUpdate('pricing_subtitle', 'Choose your launch tier. Every plan: you own the store 100%.', 'Compare the Starter, Pro and Elite packages. Every plan includes a done-for-you build and 100% ownership.');
+      await seoUpdate('chip_1_title', 'New Sale $450', 'Payments Connected');
+      await seoUpdate('chip_1_sub', 'Elegance Mode - just now', 'Local and international');
+      await seoUpdate('chip_2_title', 'Order #1029 Shipped', 'Suppliers Connected');
+      await seoUpdate('chip_2_sub', 'GlowLab - 2m ago', 'Vetted and tested');
+      await seoUpdate('chip_3_title', '3.2% Conversion Rate', 'Full Ownership');
+      await seoUpdate('chip_3_sub', 'TechNest - today', 'You own 100%');
+      if(seoForce){
+        await db.prepare("INSERT INTO content (key,value,type) VALUES ('seo_2026_migrated','1','text') ON CONFLICT(key) DO UPDATE SET value='1'").run();
+      }
+    }catch(e){ console.error('SEO migration failed:', e.message); }
     // Fix legacy "7 14" -> "7 to 14" in hero / faq / terms
     try { await db.prepare("UPDATE content SET value = REPLACE(value, '7 14 days', '7 to 14 days') WHERE value LIKE '%7 14 days%'").run(); } catch {}
     try { await db.prepare("UPDATE content SET value = REPLACE(value, '7 14 Day', '7 to 14 Day') WHERE value LIKE '%7 14 Day%'").run(); } catch {}

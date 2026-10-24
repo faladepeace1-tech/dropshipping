@@ -14,12 +14,25 @@ import cron from 'node-cron';
 import crypto from 'crypto';
 import webpush from 'web-push';
 import { initDb, getDb, reseedDefaults, usePg } from './db.js';
-import { google } from 'googleapis';
+let googleModule = null;
+async function loadGoogle(){
+  if(!googleModule) googleModule = await import('googleapis');
+  return googleModule.google;
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'nexatech-jwt-secret-change-in-prod-2026';
+const SITE_URL = (process.env.SITE_URL || 'https://dropshippingstore.dpdns.org').replace(/\/+$/, '');
+const GA4_ID = String(process.env.GA4_ID || '').trim();
+const CLARITY_ID = String(process.env.CLARITY_ID || '').trim();
+const GSC_VERIFICATION = String(process.env.GSC_VERIFICATION || '').trim();
+const BING_VERIFICATION = String(process.env.BING_VERIFICATION || '').trim();
+const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' ? '' : 'dev-only-nexatech-jwt-secret-do-not-use-in-prod');
+if (!JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET must be set in production.');
+  process.exit(1);
+}
 // Private messaging uses its own signing keys so a client cookie can never act as
 // owner/admin, even if a token leaks between the two audiences.
 const DM_SECRET = crypto.createHash('sha256').update(String(JWT_SECRET) + ':dm-client-2026').digest('hex');
@@ -84,9 +97,10 @@ async function buildSiteKnowledge(){
       if(r.type==='json'){ try{ const parsed=JSON.parse(v); v = Array.isArray(parsed) ? parsed.join('; ') : JSON.stringify(parsed); }catch{} }
       return [r.key, v];
     }));
-    const media = await db.prepare('SELECT type,category,caption,result_stat FROM media WHERE published=1 ORDER BY display_order LIMIT 20').all().catch(()=>[]);
-    const team = await db.prepare('SELECT name,role,credibility_note FROM team WHERE published=1 ORDER BY display_order').all().catch(()=>[]);
-    const certs = await db.prepare('SELECT caption FROM media WHERE type=? AND published=1').all('certificates').catch(()=>[]);
+    let media = [], team = [], certs = [];
+    try { media = await db.prepare('SELECT type,category,caption,result_stat FROM media WHERE published=1 ORDER BY display_order LIMIT 20').all(); } catch {}
+    try { team = await db.prepare('SELECT name,role,credibility_note FROM team WHERE published=1 ORDER BY display_order').all(); } catch {}
+    try { certs = await db.prepare('SELECT caption FROM media WHERE type=? AND published=1').all('certificates'); } catch {}
     // Sensitive never included
     const parts = [];
     parts.push(`IDENTITY: Brand=NEXATECH / Nexatech Dropshipping Store, Owner=Akinyemmi Ifeoluwa, Tagline=${m.tagline||''}`);
@@ -115,17 +129,20 @@ try { if (!fs.existsSync(TMP_UPLOAD_DIR)) fs.mkdirSync(TMP_UPLOAD_DIR, { recursi
 
 await initDb();
 const db = getDb();
+const pageOverrides = new Map();
+try{
+  const rows = await db.prepare('SELECT page, content FROM page_overrides').all();
+  for(const row of rows) pageOverrides.set(normalizePageKey(row.page), String(row.content ?? ''));
+  if(rows.length) console.log(`Loaded ${rows.length} page override(s)`);
+}catch(e){ console.error('page override load failed', e.message); }
 await initDmPush();
 
-// Ensure admin password is 123450000 (canonical) - updated per owner request
+// Never reset the admin password on boot. Use ADMIN_INITIAL_PASSWORD only to seed
+// the first account (handled in db.js) and change it from the admin panel afterwards.
 try {
-  const canonical = '123450000';
-  const h = bcrypt.hashSync(canonical, 10);
-  await db.prepare("UPDATE admin_users SET password_hash=? WHERE username=?").run(h,'admin');
-  // also sync admin_alt if exists
-  try { await db.prepare("UPDATE admin_users SET password_hash=? WHERE username=?").run(h,'admin_alt'); } catch {}
-  console.log('Admin password set to 123450000');
-} catch(e){ console.error('admin fix error',e); }
+  const admins = await db.prepare('SELECT COUNT(*) AS n FROM admin_users').get();
+  if (!admins || Number(admins.n) === 0) console.warn('No admin user exists. Set ADMIN_INITIAL_PASSWORD and restart to seed one.');
+} catch(e){ console.error('admin check error', e.message); }
 
 // Seed the editable chatbot brain on first boot only: if the admin has never saved
 // chatbot_system_prompt, store the built-in prompt so it is visible/editable in
@@ -167,13 +184,53 @@ app.set('trust proxy', 1); // Required for Render + Cloudflare (X-Forwarded-For)
 // Versioned assets (?v=) are immutable; HTML revalidates via ETag.
 app.use(compression());
 // Security & middleware
-app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+app.use(helmet({
+  crossOriginEmbedderPolicy: false,
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://cdn.jsdelivr.net', 'https://www.googletagmanager.com', 'https://www.google-analytics.com', 'https://www.clarity.ms', 'https://scripts.clarity.ms'],
+      scriptSrcAttr: ["'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
+      imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
+      mediaSrc: ["'self'", 'blob:', 'https:'],
+      connectSrc: ["'self'", 'https:', 'wss:', 'https://*.clarity.ms'],
+      frameSrc: ["'self'", 'https:'],
+      workerSrc: ["'self'", 'blob:'],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+      frameAncestors: ["'self'"],
+      upgradeInsecureRequests: [],
+    },
+  },
+}));
 // Allow this site's own pages to request camera/microphone for in-page calls.
 app.use((req, res, next) => {
   res.setHeader('Permissions-Policy', 'camera=(self), microphone=(self), display-capture=(self), autoplay=(self)');
   next();
 });
-app.use(cors({ origin: true, credentials: true }));
+const CORS_ALLOWLIST = new Set([
+  SITE_URL,
+  'https://dropshippingstore.dpdns.org',
+  'https://www.dropshippingstore.dpdns.org',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  ...String(process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean),
+]);
+app.use((req, res, next) => {
+  const origin = req.get('origin');
+  if (!origin) return cors({ origin: true, credentials: true })(req, res, next);
+  const clean = origin.replace(/\/+$/, '');
+  const requestHost = String(req.get('host') || '').toLowerCase();
+  let sameOrigin = false;
+  try { sameOrigin = new URL(clean).host.toLowerCase() === requestHost; } catch {}
+  if (!sameOrigin && !CORS_ALLOWLIST.has(clean)) {
+    return res.status(403).json({ error: 'Origin not allowed' });
+  }
+  cors({ origin: clean, credentials: true })(req, res, next);
+});
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(cookieParser());
@@ -191,13 +248,79 @@ app.use('/api/', generalLimiter);
 // browsers and CDNs can never serve stale code after you publish backend edits.
 const ASSET_VER = (()=>{ try{
   const h = crypto.createHash('md5');
-  for(const f of ['public/js/app.js','public/js/admin.js','public/js/checkout.js','public/js/offers.js','public/js/pricing.js','public/js/messages.js','public/js/inbox.js','public/js/call.js','public/css/style.css','public/css/admin.css','public/css/dm.css','public/index.html','public/admin.html','public/checkout.html','public/offers.html','public/pricing.html','public/messages.html','public/inbox.html']){
+  for(const f of ['public/js/app.js','public/js/admin.js','public/js/checkout.js','public/js/offers.js','public/js/pricing.js','public/js/messages.js','public/js/inbox.js','public/js/call.js','public/js/site-chrome.js','public/css/style.css','public/css/admin.css','public/css/dm.css','public/css/site-header.css','public/index.html','public/admin.html','public/checkout.html','public/offers.html','public/pricing.html','public/messages.html','public/inbox.html']){
     try{ const st = fs.statSync(path.join(__dirname, f)); h.update(f + ':' + st.mtimeMs + ':' + st.size); }catch{}
   }
   return h.digest('hex').slice(0,8);
 }catch{ return 'dev'; } })();
+function normalizePageKey(file){
+  return String(file || '').replace(/\\/g, '/').replace(/^\/+/, '').trim();
+}
+function getPageOverride(file){
+  return pageOverrides.get(normalizePageKey(file));
+}
+function publicHeaderHtml(file){
+  const f = normalizePageKey(file);
+  const isHome = f === 'index.html';
+  const anchor = isHome ? '' : '/';
+  const active = f === 'pricing.html' ? 'pricing'
+    : f === 'offers.html' ? 'offers'
+    : f === 'themes.html' || f.startsWith('themes/') ? 'themes'
+    : f === 'faq.html' ? 'faq'
+    : f === 'blog.html' || f.startsWith('blog/') ? 'blog' : '';
+  const aria = key => active === key ? ' aria-current="page"' : '';
+  const navLink = (key, href, label) => `<a href="${href}" id="nav-link-${key}"${aria(key)}>${label}</a>`;
+  const drawerLink = (key, href, label) => `<a href="${href}" id="drawer-link-${key}">${label}</a>`;
+  const wa = 'https://wa.me/447411200927?text=Hi%20Nexatech!%20Quick%20question%20about%20your%20store%20packages.';
+  return `<header class="nx-site-head" id="header">
+  <div class="nx-site-head-inner">
+    <a class="nx-site-logo logo" href="/"><span id="logo-text">NEXATECH</span></a>
+    <nav class="nx-site-nav" id="nav-links" aria-label="Primary">
+      ${navLink('portfolio', anchor + '#portfolio', 'Portfolio')}
+      ${navLink('proof', anchor + '#proof', 'Proof')}
+      ${navLink('pricing', '/pricing', 'Pricing')}
+      ${navLink('offers', '/offers', 'Offers')}
+      ${navLink('messages', '/messages', 'Messages')}
+      ${navLink('themes', '/themes', 'Themes')}
+      ${navLink('faq', '/faq', 'FAQ')}
+      ${navLink('blog', '/blog', 'Blog')}
+    </nav>
+    <div class="nx-site-actions">
+      <select id="fx-select" class="nx-site-fx" aria-label="Currency"></select>
+      <a class="nx-site-btn nx-site-ghost" id="nav-whatsapp" href="${wa}" target="_blank" rel="noopener">WhatsApp Us</a>
+      <a class="nx-site-btn nx-site-primary" id="nav-book" href="/messages">Start a Chat</a>
+      <button class="nx-site-burger" id="hamburger" aria-label="Menu">☰</button>
+    </div>
+  </div>
+</header>
+<div class="nx-site-drawer" id="drawer">
+  <div class="nx-site-drawer-panel">
+    <button id="drawer-close" class="nx-site-btn nx-site-ghost" aria-label="Close menu">×</button>
+    ${drawerLink('portfolio', anchor + '#portfolio', 'Portfolio')}
+    ${drawerLink('proof', anchor + '#proof', 'Proof')}
+    ${drawerLink('pricing', '/pricing', 'Pricing')}
+    ${drawerLink('offers', '/offers', 'Offers')}
+    ${drawerLink('messages', '/messages', 'Messages')}
+    ${drawerLink('themes', '/themes', 'Themes')}
+    ${drawerLink('faq', '/faq', 'FAQ')}
+    ${drawerLink('blog', '/blog', 'Blog')}
+    <label class="nx-site-drawer-currency">Currency <select id="fx-select-drawer" class="nx-site-fx" aria-label="Currency"></select></label>
+    <a id="drawer-wa" href="${wa}" target="_blank" rel="noopener" class="nx-site-btn nx-site-ghost">WhatsApp Us</a>
+    <a id="drawer-book" href="/messages" class="nx-site-btn nx-site-primary">Start a Chat</a>
+  </div>
+</div>`;
+}
+function applyPublicHeader(html, file){
+  const header = publicHeaderHtml(file);
+  if(/<header[\s\S]*?<\/header>/i.test(html)) return html.replace(/<header[\s\S]*?<\/header>/i, header);
+  const skip = /(<a[^>]*class="skip-link"[^>]*>[\s\S]*?<\/a>)/i;
+  if(skip.test(html)) return html.replace(skip, `$1\n${header}`);
+  return html.replace(/<body([^>]*)>/i, `<body$1>\n${header}`);
+}
 function versionedHtml(file){
-  let html = fs.readFileSync(path.join(__dirname, 'public', file), 'utf8');
+  const key = normalizePageKey(file);
+  const override = pageOverrides.get(key);
+  let html = override != null ? override : fs.readFileSync(path.join(__dirname, 'public', file), 'utf8');
   html = html.split('/js/app.js').join('/js/app.js?v='+ASSET_VER)
              .split('/js/admin.js').join('/js/admin.js?v='+ASSET_VER)
              .split('/js/checkout.js').join('/js/checkout.js?v='+ASSET_VER)
@@ -208,12 +331,28 @@ function versionedHtml(file){
              .split('/js/call.js').join('/js/call.js?v='+ASSET_VER)
              .split('/css/style.css').join('/css/style.css?v='+ASSET_VER)
              .split('/css/admin.css').join('/css/admin.css?v='+ASSET_VER)
-             .split('/css/dm.css').join('/css/dm.css?v='+ASSET_VER);
+             .split('/css/dm.css').join('/css/dm.css?v='+ASSET_VER)
+             .split('/css/pages.css').join('/css/pages.css?v='+ASSET_VER);
+  const publicPage = /^(index|pricing|themes|faq|blog|offers|privacy|terms|404)\.html$/i.test(file) || /(^|[\\/])(themes|blog)[\\/]/i.test(file);
+  const head = [];
+  if (publicPage) head.push(`<link rel="stylesheet" href="/css/site-header.css?v=${ASSET_VER}">`);
+  if (GSC_VERIFICATION) head.push(`<meta name="google-site-verification" content="${GSC_VERIFICATION.replace(/[^A-Za-z0-9_-]/g,'')}">`);
+  if (BING_VERIFICATION) head.push(`<meta name="msvalidate.01" content="${BING_VERIFICATION.replace(/[^A-Za-z0-9_-]/g,'')}">`);
+  if (publicPage && GA4_ID && /^[A-Za-z0-9_-]+$/.test(GA4_ID)) {
+    head.push(`<script async src="https://www.googletagmanager.com/gtag/js?id=${GA4_ID}"></script>`);
+    head.push(`<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${GA4_ID}');</script>`);
+  }
+  if (publicPage && CLARITY_ID && /^[A-Za-z0-9_-]+$/.test(CLARITY_ID)) {
+    head.push(`<script>(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window,document,"clarity","script","${CLARITY_ID}");</script>`);
+  }
+  if (head.length) html = html.replace('</head>', head.join('\n') + '\n</head>');
+  if (publicPage) html = applyPublicHeader(html, file);
+  if (publicPage && !/^index\.html$/i.test(file)) html = html.replace('</body>', '<script src="/js/site-chrome.js?v='+ASSET_VER+'"></script>\n</body>');
   return html;
 }
 app.use((req, res, next)=>{ if(req.query && req.query.v) res.set('Cache-Control','public, max-age=31536000, immutable'); next(); });
 // Versioned HTML shell: always revalidate (fast 304 via ETag), never stale after deploys.
-const noCacheHtml = (fn) => (req, res) => { res.set('Cache-Control','no-cache'); return fn(req, res); };
+const noCacheHtml = (fn) => (req, res, next) => { res.set('Cache-Control','no-cache'); return fn(req, res, next); };
 app.get(['/', '/index.html'], noCacheHtml((req, res)=> res.type('html').send(versionedHtml('index.html'))));
 app.get('/admin', noCacheHtml((req, res)=> res.type('html').send(versionedHtml('admin.html'))));
 app.get(['/checkout', '/checkout.html'], noCacheHtml((req, res)=>{
@@ -241,6 +380,126 @@ app.get(['/privacy.html', '/privacy', '/terms.html', '/terms'], noCacheHtml((req
   try { return res.type('html').send(versionedHtml(file)); }
   catch(e){ return res.status(500).type('html').send('<h1>Page unavailable</h1><p><a href="/">Back to Home</a></p>'); }
 }));
+const SEO_POSTS = [
+  { slug:'how-to-start-dropshipping-in-nigeria', title:'How to Start Dropshipping in Nigeria', desc:'A practical guide to niche, suppliers, payments and first sales in Nigeria.', date:'2026-10-18' },
+  { slug:'dropshipping-store-setup-cost', title:'How Much Does a Dropshipping Store Cost?', desc:'A realistic breakdown of build, platform, apps, samples and ad budget.', date:'2026-10-12' },
+  { slug:'best-dropshipping-niches-2026', title:'Best Dropshipping Niches for 2026', desc:'How to judge demand, competition, margins and supplier quality.', date:'2026-10-06' },
+  { slug:'shopify-vs-woocommerce-dropshipping', title:'Shopify vs WooCommerce for Dropshipping', desc:'Cost, speed, apps, payments and maintenance compared.', date:'2026-09-28' },
+  { slug:'how-to-find-winning-products', title:'How to Find Winning Dropshipping Products', desc:'A practical product research process for beginners.', date:'2026-09-22' },
+  { slug:'dropshipping-suppliers-guide', title:'Dropshipping Suppliers: A Beginner Guide', desc:'How to find, test and vet suppliers before you sell.', date:'2026-09-15' },
+  { slug:'dropshipping-payment-gateways-nigeria', title:'Payment Gateways for Dropshipping in Nigeria', desc:'Approval, failed payments, payouts and crypto options.', date:'2026-09-08' },
+  { slug:'dropshipping-ads-for-beginners', title:'Dropshipping Ads for Beginners', desc:'Pixel setup, creative angles, testing rules and metrics.', date:'2026-08-30' },
+  { slug:'dropshipping-store-seo', title:'SEO for Dropshipping Stores', desc:'Product and collection SEO, technical basics and content.', date:'2026-08-22' },
+  { slug:'dropshipping-store-conversion-rate', title:'How to Improve Dropshipping Conversion Rate', desc:'Trust, product pages, shipping clarity and checkout fixes.', date:'2026-08-14' },
+  { slug:'done-for-you-dropshipping-store-worth-it', title:'Is a Done-For-You Dropshipping Store Worth It?', desc:'When to build it yourself and how to compare providers.', date:'2026-08-06' },
+  { slug:'dropshipping-mistakes-beginners', title:'12 Dropshipping Mistakes Beginners Make', desc:'The avoidable errors that waste money, time and trust.', date:'2026-08-01' }
+];
+const SEO_THEMES = [
+  { slug:'elegance-fashion', name:'Elegance Fashion Theme', date:'2026-08-01' },
+  { slug:'glowlab-beauty', name:'GlowLab Beauty Theme', date:'2026-08-01' },
+  { slug:'technest-gadget', name:'TechNest Gadget Theme', date:'2026-08-01' }
+];
+// Every public page/file the owner can edit from Admin -> Pages. The HTML
+// editor stores an override in the database, so edits survive deploys.
+const PAGE_DEFS = [
+  { key:'index.html', label:'Home', url:'/', type:'html' },
+  { key:'pricing.html', label:'Pricing', url:'/pricing', type:'html' },
+  { key:'themes.html', label:'Themes index', url:'/themes', type:'html' },
+  { key:'faq.html', label:'FAQ', url:'/faq', type:'html' },
+  { key:'blog.html', label:'Blog index', url:'/blog', type:'html' },
+  ...SEO_THEMES.map(t => ({ key:'themes/'+t.slug+'.html', label:'Theme: '+t.name, url:'/themes/'+t.slug, type:'html' })),
+  ...SEO_POSTS.map(p => ({ key:'blog/'+p.slug+'.html', label:'Blog: '+p.title, url:'/blog/'+p.slug, type:'html' })),
+  { key:'offers.html', label:'Custom offers', url:'/offers', type:'html' },
+  { key:'checkout.html', label:'Checkout', url:'/checkout', type:'html' },
+  { key:'messages.html', label:'Private chat / login', url:'/messages', type:'html' },
+  { key:'inbox.html', label:'Private chat / inbox', url:'/inbox', type:'html' },
+  { key:'privacy.html', label:'Privacy policy', url:'/privacy', type:'html' },
+  { key:'terms.html', label:'Terms & conditions', url:'/terms', type:'html' },
+  { key:'404.html', label:'404 page', url:'/404', type:'html' },
+  { key:'sitemap.xml', label:'Sitemap XML', url:'/sitemap.xml', type:'text' },
+  { key:'rss.xml', label:'RSS feed', url:'/rss.xml', type:'text' },
+  { key:'llms.txt', label:'LLMs.txt', url:'/llms.txt', type:'text' },
+  { key:'llms-full.txt', label:'LLMs full context', url:'/llms-full.txt', type:'text' },
+  { key:'robots.txt', label:'Robots.txt', url:'/robots.txt', type:'text' },
+  { key:'site.webmanifest', label:'Site manifest', url:'/site.webmanifest', type:'text' },
+  { key:'manifest.webmanifest', label:'App manifest', url:'/manifest.webmanifest', type:'text' },
+  { key:'inbox.webmanifest', label:'Inbox manifest', url:'/inbox.webmanifest', type:'text' },
+];
+const PAGE_DEF_MAP = new Map(PAGE_DEFS.map(p => [p.key, p]));
+const xmlEscape = (s) => String(s == null ? '' : s).replace(/[<>&'"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;',"'":'&apos;','"':'&quot;'}[c]));
+
+function buildSitemapXml(){
+  const now = new Date().toISOString().slice(0,10);
+  const urls = [
+    { loc:'/', lastmod:now, changefreq:'weekly', priority:'1.0' },
+    { loc:'/pricing', lastmod:now, changefreq:'monthly', priority:'0.9' },
+    { loc:'/themes', lastmod:now, changefreq:'monthly', priority:'0.8' },
+    { loc:'/faq', lastmod:now, changefreq:'monthly', priority:'0.8' },
+    { loc:'/blog', lastmod:now, changefreq:'weekly', priority:'0.8' },
+    { loc:'/offers', lastmod:now, changefreq:'monthly', priority:'0.7' },
+    { loc:'/privacy.html', lastmod:now, changefreq:'yearly', priority:'0.3' },
+    { loc:'/terms.html', lastmod:now, changefreq:'yearly', priority:'0.3' },
+    ...SEO_THEMES.map(t => ({ loc:'/themes/'+t.slug, lastmod:t.date, changefreq:'monthly', priority:'0.7' })),
+    ...SEO_POSTS.map(p => ({ loc:'/blog/'+p.slug, lastmod:p.date, changefreq:'monthly', priority:'0.7' }))
+  ];
+  return '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' + urls.map(u => `  <url><loc>${xmlEscape(SITE_URL+u.loc)}</loc><lastmod>${u.lastmod}</lastmod><changefreq>${u.changefreq}</changefreq><priority>${u.priority}</priority></url>`).join('\n') + '\n</urlset>\n';
+}
+function buildRssXml(){
+  const items = SEO_POSTS.map(p => `    <item><title>${xmlEscape(p.title)}</title><link>${xmlEscape(SITE_URL+'/blog/'+p.slug)}</link><guid isPermaLink="true">${xmlEscape(SITE_URL+'/blog/'+p.slug)}</guid><pubDate>${new Date(p.date+'T09:00:00Z').toUTCString()}</pubDate><description>${xmlEscape(p.desc)}</description></item>`).join('\n');
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0"><channel><title>Nexatech Dropshipping Blog</title><link>${xmlEscape(SITE_URL+'/blog')}</link><description>Practical dropshipping guides from Nexatech.</description><language>en</language>${items ? '\n'+items+'\n' : ''}</channel></rss>\n`;
+}
+function buildLlmsTxt(){
+  return `# Nexatech Dropshipping Store\n\n> Done-for-you dropshipping store setup. We research products, build the store, connect suppliers and payments, and hand over full ownership in 7 to 14 days. Based in Lagos, Nigeria, serving clients worldwide.\n\n## Key pages\n- [Home](${SITE_URL}/): Services, portfolio, process and contact.\n- [Pricing](${SITE_URL}/pricing): Starter $149, Pro $299, Elite $599.\n- [Themes](${SITE_URL}/themes): Fashion $49, Beauty $39, Gadget $59.\n- [FAQ](${SITE_URL}/faq): 40 answers on pricing, timeline, suppliers, payments and support.\n- [Blog](${SITE_URL}/blog): Practical dropshipping guides.\n- [Contact](${SITE_URL}/messages): Private chat with the team.\n\n## Contact\n- WhatsApp: +44 7411 200927\n- Email: saheednexatech@gmail.com\n- Location: Lagos, Nigeria\n\n## Notes\n- Prices are in USD and may be displayed in local currency at checkout.\n- We do not guarantee sales or income.\n- Reviews and proof are only shown when real client media exists.\n`;
+}
+function buildLlmsFullTxt(){
+  const posts = SEO_POSTS.map(p => `- [${p.title}](${SITE_URL}/blog/${p.slug}): ${p.desc}`).join('\n');
+  const themes = SEO_THEMES.map(t => `- [${t.name}](${SITE_URL}/themes/${t.slug})`).join('\n');
+  return `# Nexatech Dropshipping Store - Full Context\n\nNexatech is a done-for-you dropshipping store building service founded by Akinyemi Ifeoluwa in Lagos, Nigeria. We work with first-time founders and small business owners worldwide.\n\n## Services\n- Store build: niche research, product research, premium theme, copywriting, supplier integration, payment setup, basic SEO and handover.\n- Packages: Starter $149 (5 products, 14-day support), Pro $299 (10 products, branding, 30-day support), Elite $599 (20 products, creatives, 60-day support).\n- Themes: Elegance Fashion $49, GlowLab Beauty $39, TechNest Gadget $59.\n- Mentorship: results-before-payment mentorship, discussed privately.\n\n## Timeline and ownership\nMost stores launch in 7 to 14 days. The client owns the domain, store account, content and customer data. We do not guarantee sales.\n\n## Contact\n- WhatsApp: +44 7411 200927\n- Email: saheednexatech@gmail.com\n- Site: ${SITE_URL}/\n\n## Blog\n${posts}\n\n## Themes\n${themes}\n\n## Important\nDo not invent reviews, ratings, sales figures or awards for Nexatech. Only use figures published on the site. Prices may change; confirm on the pricing page.\n`;
+}
+function pageDefaultContent(def){
+  if(!def) return '';
+  if(def.key === 'sitemap.xml') return buildSitemapXml();
+  if(def.key === 'rss.xml') return buildRssXml();
+  if(def.key === 'llms.txt') return buildLlmsTxt();
+  if(def.key === 'llms-full.txt') return buildLlmsFullTxt();
+  return fs.readFileSync(path.join(__dirname, 'public', def.key), 'utf8');
+}
+function sendTextPage(res, key, fallback, contentType){
+  const override = getPageOverride(key);
+  if(override != null) return res.set('Cache-Control','no-cache').type(contentType).send(override);
+  return res.set('Cache-Control','public, max-age=3600').type(contentType).send(fallback);
+}
+app.get(['/faq', '/faq.html'], noCacheHtml((req, res)=> res.type('html').send(versionedHtml('faq.html'))));
+app.get(['/themes', '/themes.html'], noCacheHtml((req, res)=> res.type('html').send(versionedHtml('themes.html'))));
+app.get(['/themes/:slug', '/themes/:slug.html'], noCacheHtml((req, res, next)=>{
+  const slug = String(req.params.slug || '').replace(/\.html$/i, '').toLowerCase();
+  if(!SEO_THEMES.some(t => t.slug === slug)) return next();
+  try { return res.type('html').send(versionedHtml(path.join('themes', slug + '.html'))); }
+  catch(e){ return next(); }
+}));
+app.get(['/blog', '/blog.html'], noCacheHtml((req, res)=> res.type('html').send(versionedHtml('blog.html'))));
+app.get(['/blog/:slug', '/blog/:slug.html'], noCacheHtml((req, res, next)=>{
+  const slug = String(req.params.slug || '').replace(/\.html$/i, '').toLowerCase();
+  if(!/^[a-z0-9-]+$/.test(slug) || !SEO_POSTS.some(p => p.slug === slug)) return next();
+  try { return res.type('html').send(versionedHtml(path.join('blog', slug + '.html'))); }
+  catch(e){ return next(); }
+}));
+app.get('/sitemap.xml', (req, res)=> sendTextPage(res, 'sitemap.xml', buildSitemapXml(), 'application/xml'));
+app.get('/rss.xml', (req, res)=> sendTextPage(res, 'rss.xml', buildRssXml(), 'application/rss+xml'));
+app.get('/llms.txt', (req, res)=> sendTextPage(res, 'llms.txt', buildLlmsTxt(), 'text/plain'));
+app.get('/llms-full.txt', (req, res)=> sendTextPage(res, 'llms-full.txt', buildLlmsFullTxt(), 'text/plain'));
+app.get('/robots.txt', (req, res)=>{
+  const override = getPageOverride('robots.txt');
+  if(override != null) return res.set('Cache-Control','no-cache').type('text/plain').send(override);
+  return res.sendFile(path.join(__dirname, 'public', 'robots.txt'));
+});
+for(const manifest of ['site.webmanifest','manifest.webmanifest','inbox.webmanifest']){
+  app.get('/'+manifest, (req, res)=>{
+    const override = getPageOverride(manifest);
+    if(override != null) return res.set('Cache-Control','no-cache').type('application/manifest+json').send(override);
+    return res.sendFile(path.join(__dirname, 'public', manifest));
+  });
+}
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(UPLOAD_DIR));
 // DB media store (Postgres): files uploaded while DATABASE_URL is set live in media_blobs,
@@ -522,6 +781,81 @@ app.post('/api/admin/content-revisions/:id/restore', requireAuth, async (req, re
     const stmt = await db.prepare("INSERT INTO content (key,value,type,updated_at) VALUES (?,?,?,datetime('now')) ON CONFLICT(key) DO UPDATE SET value=excluded.value, type=excluded.type, updated_at=datetime('now')");
     for(const r of rows){ await stmt.run(r.key, r.value, r.type||'text'); }
     res.json({ ok: true, restored: req.params.id, keys: rows.length });
+  }catch(e){ res.status(500).json({ error: e.message }); }
+});
+
+// --- API: Editable public pages (full HTML/text overrides, deploy-safe) ---
+app.get('/api/admin/pages', requireAuth, async (req, res) => {
+  try{
+    const rows = await db.prepare('SELECT page, LENGTH(content) AS size, updated_at FROM page_overrides').all();
+    const byKey = new Map(rows.map(r => [normalizePageKey(r.page), r]));
+    res.json(PAGE_DEFS.map(def => {
+      const row = byKey.get(def.key);
+      return { ...def, edited: !!row, size: parseInt(row?.size || 0, 10) || 0, updated_at: row?.updated_at || null };
+    }));
+  }catch(e){ res.status(500).json({ error: e.message }); }
+});
+app.get('/api/admin/pages/:key(*)/revisions', requireAuth, async (req, res) => {
+  try{
+    const key = normalizePageKey(req.params.key);
+    if(!PAGE_DEF_MAP.has(key)) return res.status(404).json({ error: 'page not found' });
+    const rows = await db.prepare('SELECT id, LENGTH(content) AS size, created_at FROM page_revisions WHERE page=? ORDER BY id DESC LIMIT 10').all(key);
+    res.json(rows);
+  }catch(e){ res.status(500).json({ error: e.message }); }
+});
+app.get('/api/admin/pages/:key(*)', requireAuth, async (req, res) => {
+  try{
+    const key = normalizePageKey(req.params.key);
+    const def = PAGE_DEF_MAP.get(key);
+    if(!def) return res.status(404).json({ error: 'page not found' });
+    const row = await db.prepare('SELECT page, content, updated_at FROM page_overrides WHERE page=?').get(key);
+    const original = pageDefaultContent(def);
+    res.json({ ...def, content: row ? String(row.content ?? '') : original, default_content: original, edited: !!row, updated_at: row?.updated_at || null });
+  }catch(e){ res.status(500).json({ error: e.message }); }
+});
+app.put('/api/admin/pages/:key(*)', requireAuth, async (req, res) => {
+  try{
+    const key = normalizePageKey(req.params.key);
+    const def = PAGE_DEF_MAP.get(key);
+    if(!def) return res.status(404).json({ error: 'page not found' });
+    const content = req.body?.content;
+    if(typeof content !== 'string') return res.status(400).json({ error: 'content must be a string' });
+    if(content.length > 4 * 1024 * 1024) return res.status(413).json({ error: 'Page is too large (max 4MB)' });
+    const prev = await db.prepare('SELECT content FROM page_overrides WHERE page=?').get(key);
+    const snapshot = prev ? String(prev.content ?? '') : pageDefaultContent(def);
+    await db.prepare('INSERT INTO page_revisions (page, content) VALUES (?,?)').run(key, snapshot.slice(0, 4 * 1024 * 1024));
+    await db.prepare("INSERT INTO page_overrides (page,content,updated_at) VALUES (?,?,datetime('now')) ON CONFLICT(page) DO UPDATE SET content=excluded.content, updated_at=datetime('now')").run(key, content);
+    const old = await db.prepare('SELECT id FROM page_revisions WHERE page=? ORDER BY id DESC LIMIT 10 OFFSET 10').all(key);
+    for(const r of old){ try{ await db.prepare('DELETE FROM page_revisions WHERE id=?').run(r.id); }catch{} }
+    pageOverrides.set(key, content);
+    res.json({ ok: true, page: key, size: content.length, edited: true });
+  }catch(e){ res.status(500).json({ error: e.message }); }
+});
+app.post('/api/admin/pages/:key(*)/reset', requireAuth, async (req, res) => {
+  try{
+    const key = normalizePageKey(req.params.key);
+    const def = PAGE_DEF_MAP.get(key);
+    if(!def) return res.status(404).json({ error: 'page not found' });
+    const prev = await db.prepare('SELECT content FROM page_overrides WHERE page=?').get(key);
+    if(prev){
+      await db.prepare('INSERT INTO page_revisions (page, content) VALUES (?,?)').run(key, String(prev.content ?? '').slice(0, 4 * 1024 * 1024));
+      await db.prepare('DELETE FROM page_overrides WHERE page=?').run(key);
+    }
+    pageOverrides.delete(key);
+    res.json({ ok: true, page: key, edited: false });
+  }catch(e){ res.status(500).json({ error: e.message }); }
+});
+app.post('/api/admin/pages/:key(*)/revisions/:id/restore', requireAuth, async (req, res) => {
+  try{
+    const key = normalizePageKey(req.params.key);
+    if(!PAGE_DEF_MAP.has(key)) return res.status(404).json({ error: 'page not found' });
+    const rev = await db.prepare('SELECT content FROM page_revisions WHERE id=? AND page=?').get(req.params.id, key);
+    if(!rev) return res.status(404).json({ error: 'revision not found' });
+    const current = await db.prepare('SELECT content FROM page_overrides WHERE page=?').get(key);
+    if(current) await db.prepare('INSERT INTO page_revisions (page, content) VALUES (?,?)').run(key, String(current.content ?? '').slice(0, 4 * 1024 * 1024));
+    await db.prepare("INSERT INTO page_overrides (page,content,updated_at) VALUES (?,?,datetime('now')) ON CONFLICT(page) DO UPDATE SET content=excluded.content, updated_at=datetime('now')").run(key, rev.content);
+    pageOverrides.set(key, String(rev.content ?? ''));
+    res.json({ ok: true, page: key });
   }catch(e){ res.status(500).json({ error: e.message }); }
 });
 
@@ -2750,7 +3084,8 @@ const GOOGLE_SCOPES = [
   'https://www.googleapis.com/auth/userinfo.email',
   'openid','email','profile'
 ];
-function getGoogleOAuthClient(config, redirectUri){
+async function getGoogleOAuthClient(config, redirectUri){
+  const google = await loadGoogle();
   const { clientId, clientSecret } = config;
   const redirect = redirectUri || `${process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`}/auth/google/callback`;
   return new google.auth.OAuth2(clientId, clientSecret, redirect);
@@ -2772,9 +3107,10 @@ async function getAuthenticatedSheets(){
   if(!cfg.clientId || !cfg.clientSecret) throw new Error('Google Client ID/Secret not configured');
   if(!cfg.docId) throw new Error('Google Sheets Document ID not configured');
   if(!cfg.refreshToken) throw new Error('Google not connected - click Connect Google (Sheets + Gmail) to authorize');
-  const oauth2 = getGoogleOAuthClient(cfg);
+  const oauth2 = await getGoogleOAuthClient(cfg);
   oauth2.setCredentials({ refresh_token: cfg.refreshToken, access_token: cfg.accessToken || undefined });
   await refreshGoogleTokens(oauth2);
+  const google = await loadGoogle();
   const sheets = google.sheets({ version:'v4', auth: oauth2 });
   return { sheets, cfg, oauth2 };
 }
@@ -2782,9 +3118,10 @@ async function getAuthenticatedGmail(){
   const cfg = await getGoogleConfig();
   if(!cfg.clientId || !cfg.clientSecret) throw new Error('Google Client ID/Secret not configured - set in Integrations → Google Sheets (same console creds reused for Campaigns)');
   if(!cfg.refreshToken) throw new Error('Gmail not connected - click Connect Google (same Client ID/Secret) to grant Gmail permission');
-  const oauth2 = getGoogleOAuthClient(cfg);
+  const oauth2 = await getGoogleOAuthClient(cfg);
   oauth2.setCredentials({ refresh_token: cfg.refreshToken, access_token: cfg.accessToken || undefined });
   await refreshGoogleTokens(oauth2);
+  const google = await loadGoogle();
   const gmail = google.gmail({ version:'v1', auth: oauth2 });
   // also fetch user email if not stored
   let senderEmail = cfg.gmailConnectedEmail;
@@ -3428,31 +3765,18 @@ app.post('/api/unsubscribe', async (req, res) => {
 
 // --- Auth ---
 app.post('/api/admin/login', loginLimiter, async (req, res) => {
-  let { username, password } = req.body;
+  const username = String(req.body?.username || '').trim();
+  const password = String(req.body?.password || '');
   if (!username || !password) return res.status(400).json({ error: 'username and password required' });
-  // Canonical password is 123450000 - also accept legacy Nexatech2026! / Nexcerpt2026! for backward compat
-  const canonical = '123450000';
-  const legacy1 = 'N' + 'exatech' + '2026!'; // Nexatech2026! legacy
-  const legacy2 = 'N' + 'excerpt' + '2026!'; // Nexcerpt2026! legacy typo
-  if (password === legacy1 || password === legacy2) password = canonical;
-  const user = await db.prepare('SELECT * FROM admin_users WHERE username=?').get(username);
-  let target = user;
-  if (!target && username === 'admin') {
-    target = await db.prepare('SELECT * FROM admin_users WHERE username=?').get('admin_alt');
-  }
+  if (username.length > 80 || password.length > 200) return res.status(400).json({ error: 'Invalid credentials' });
+  const target = await db.prepare('SELECT * FROM admin_users WHERE username=?').get(username);
   if (!target) return res.status(401).json({ error: 'Invalid credentials' });
-  let ok=false;
-  try{ ok = bcrypt.compareSync(password, target.password_hash); }catch{}
-  if(!ok){
-    // try canonical directly against admin hash
-    const _adminRow = await db.prepare('SELECT password_hash FROM admin_users WHERE username=?').get('admin');
-    const adminHash = _adminRow?.password_hash;
-    if(adminHash) try{ if(bcrypt.compareSync(password, adminHash)) ok=true; }catch{}
-  }
-  if(!ok) return res.status(401).json({ error: 'Invalid credentials' });
+  let ok = false;
+  try { ok = bcrypt.compareSync(password, target.password_hash); } catch {}
+  if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
   const token = jwt.sign({ username: target.username, id: target.id }, JWT_SECRET, { expiresIn: '8h' });
   await db.prepare("UPDATE admin_users SET last_login=datetime('now') WHERE id=?").run(target.id);
-  res.cookie('token', token, { httpOnly: true, sameSite: 'lax', maxAge: 8*3600*1000 });
+  res.cookie('token', token, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', maxAge: 8*3600*1000 });
   res.json({ ok: true, token, username: target.username });
 });
 
@@ -3903,9 +4227,14 @@ async function dmResolveCall(req, id, role){
 }
 app.get('/api/dm/ice', (req, res) => {
   const iceServers = [
-    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] },
     {
-      urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443', 'turn:openrelay.metered.ca:443?transport=tcp'],
+      urls: [
+        'turn:openrelay.metered.ca:80',
+        'turn:openrelay.metered.ca:443',
+        'turn:openrelay.metered.ca:443?transport=tcp',
+        'turns:openrelay.metered.ca:443?transport=tcp'
+      ],
       username: 'openrelayproject',
       credential: 'openrelayproject'
     }
@@ -4837,7 +5166,7 @@ app.get('/api/admin/google/auth-url', requireAuth, async (req, res) => {
   const cfg = await getGoogleConfig();
   if(!cfg.clientId || !cfg.clientSecret) return res.status(400).json({ error: 'Set Client ID and Client Secret first (same console creds reused for Campaigns/Gmail)' });
   const redirect = `${req.protocol}://${req.get('host')}/auth/google/callback`;
-  const oauth2 = getGoogleOAuthClient(cfg, redirect);
+  const oauth2 = await getGoogleOAuthClient(cfg, redirect);
   const url = oauth2.generateAuthUrl({ access_type: 'offline', prompt: 'consent', scope: GOOGLE_SCOPES });
   res.json({ url, redirect, scopes: GOOGLE_SCOPES });
 });
@@ -4847,7 +5176,7 @@ app.get('/auth/google/callback', async (req, res) => {
   try{
     const cfg = await getGoogleConfig();
     const redirect = `${req.protocol}://${req.get('host')}/auth/google/callback`;
-    const oauth2 = getGoogleOAuthClient(cfg, redirect);
+    const oauth2 = await getGoogleOAuthClient(cfg, redirect);
     const { tokens } = await oauth2.getToken(code);
     if(tokens.refresh_token) await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('google_refresh_token', tokens.refresh_token, 'text');
     if(tokens.access_token) await db.prepare("INSERT INTO content (key,value,type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run('google_access_token', tokens.access_token, 'text');
@@ -4855,6 +5184,7 @@ app.get('/auth/google/callback', async (req, res) => {
     // Try to fetch connected Gmail email (for Campaigns sender) - same console creds
     try{
       oauth2.setCredentials(tokens);
+      const google = await loadGoogle();
       const gmail = google.gmail({ version:'v1', auth: oauth2 });
       const profile = await gmail.users.getProfile({ userId:'me' });
       if(profile?.data?.emailAddress){
@@ -5635,7 +5965,7 @@ const BACKUP_DIR = process.env.BACKUP_DIR && process.env.BACKUP_DIR.trim()
   ? process.env.BACKUP_DIR.trim()
   : path.join(process.env.DATA_DIR && process.env.DATA_DIR.trim() ? process.env.DATA_DIR.trim() : __dirname, 'backups');
 try { if (!fs.existsSync(BACKUP_DIR)) fs.mkdirSync(BACKUP_DIR, { recursive: true }); } catch(e){ console.error('backup dir', e.message); }
-const BACKUP_TABLES = ['content','sections','media','team','leads','events','stats_cache','campaigns','campaign_sends','email_templates','chat_messages','content_revisions','chat_sessions','followup_logs','email_unsubscribes'];
+const BACKUP_TABLES = ['content','sections','media','team','leads','events','stats_cache','campaigns','campaign_sends','email_templates','chat_messages','content_revisions','chat_sessions','followup_logs','email_unsubscribes','page_overrides','page_revisions'];
 async function collectBackup(){
   const dump = { version: 1, exportedAt: new Date().toISOString(), tables: {} };
   for(const t of BACKUP_TABLES){
@@ -5670,6 +6000,15 @@ async function restoreBackup(dump){
     for(const s of dump.tables.sections){
       if(!s || !s.key) continue;
       try{ await db.prepare("INSERT INTO sections (key,visible,display_order,animation_enabled) VALUES (?,?,?,?) ON CONFLICT(key) DO UPDATE SET visible=excluded.visible, display_order=excluded.display_order, animation_enabled=excluded.animation_enabled").run(s.key, s.visible?1:0, s.display_order??0, s.animation_enabled?1:0); }catch{}
+    }
+  }
+  if(Array.isArray(dump.tables.page_overrides)){
+    for(const p of dump.tables.page_overrides){
+      if(!p || !p.page || !PAGE_DEF_MAP.has(normalizePageKey(p.page))) continue;
+      try{
+        await db.prepare("INSERT INTO page_overrides (page,content,updated_at) VALUES (?,?,datetime('now')) ON CONFLICT(page) DO UPDATE SET content=excluded.content, updated_at=datetime('now')").run(normalizePageKey(p.page), String(p.content ?? ''));
+        pageOverrides.set(normalizePageKey(p.page), String(p.content ?? ''));
+      }catch{}
     }
   }
   // Append-only restores for operational tables (never wipe leads/chats): insert rows missing by id.
@@ -5709,6 +6048,7 @@ async function restoreBackup(dump){
   added.followup_logs = await appendMissing('followup_logs', ['id','email','lead_id','session_id','kind','day_number','subject','body_html','body_text','status','error','message_id','sent_at']);
   added.email_unsubscribes = await appendMissing('email_unsubscribes', ['id','email','reason','created_at'], emailExists);
   added.content_revisions = await appendMissing('content_revisions', ['id','snapshot','label','created_at']);
+  added.page_revisions = await appendMissing('page_revisions', ['id','page','content','created_at']);
   // stats_cache + chat_sessions: upsert by natural key
   if(Array.isArray(dump.tables.stats_cache)){
     for(const s of dump.tables.stats_cache){
@@ -5724,7 +6064,7 @@ async function restoreBackup(dump){
   }
   // Postgres: explicit-id inserts don't advance SERIAL sequences - fix them so future inserts don't collide
   if(usePg){
-    for(const t of ['media','team','leads','events','campaigns','campaign_sends','email_templates','chat_messages','content_revisions','followup_logs','email_unsubscribes','media_blobs','backup_snapshots']){
+    for(const t of ['media','team','leads','events','campaigns','campaign_sends','email_templates','chat_messages','content_revisions','followup_logs','email_unsubscribes','media_blobs','backup_snapshots','page_revisions']){
       try{ await db.prepare(`SELECT setval(pg_get_serial_sequence('${t}', 'id'), COALESCE((SELECT MAX(id) FROM ${t}), 1))`).get(); }catch{}
     }
   }
@@ -5931,7 +6271,8 @@ async function processIdleChatFollowups(){
         const updatedMs = new Date(s.updated_at).getTime();
         if(isNaN(updatedMs) || updatedMs > cutoff) continue; // only idle
         if(await hasFollowupBeenSent({ email: em, kind:'chat_instant', sessionId: s.session_id })) continue;
-        const msgs = await db.prepare('SELECT role, text FROM chat_messages WHERE session_id=? ORDER BY created_at ASC LIMIT 30').all(s.session_id).catch(()=>[]);
+        let msgs = [];
+        try { msgs = await db.prepare('SELECT role, text FROM chat_messages WHERE session_id=? ORDER BY created_at ASC LIMIT 30').all(s.session_id); } catch {}
         if(!msgs || !msgs.length) continue;
         const hasUser = msgs.some(m=> m.role==='user');
         if(!hasUser) continue;
@@ -6011,6 +6352,14 @@ async function runDailyFollowups({ manual=false, dryRun=false, limit=200, baseUr
 
 // (Root, /admin and legal pages are served versioned near the top so deploys refresh instantly)
 
+// HTML 404 for page requests; keep API 404s as JSON.
+app.use((req, res, next)=>{
+  if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+  if (req.path.startsWith('/api/') || req.path.startsWith('/uploads/')) return next();
+  try { return res.status(404).type('html').send(versionedHtml('404.html')); }
+  catch { return res.status(404).type('html').send('<h1>Page not found</h1><p><a href="/">Back to Home</a></p>'); }
+});
+
 // Multer / body-parser errors as JSON (must be after all routes, before listen)
 app.use(uploadErrorHandler);
 // Fallback: never leak HTML stacks to the admin panel
@@ -6022,7 +6371,7 @@ app.use((err, req, res, next)=>{
 
 app.listen(PORT, () => {
   console.log(`Nexatech server running at http://localhost:${PORT}`);
-  console.log(`Admin: http://localhost:${PORT}/admin  (admin / 123450000)`);
+  console.log(`Admin: http://localhost:${PORT}/admin`);
   // Warm the FX cache in the background: the first visitor must never wait
   // on a live external rates fetch (DB cache serves instantly if live fails).
   setTimeout(()=>{ getFxRates(false).then(fx => console.log('fx warmup', fx.source, Object.keys(fx.rates || {}).length + ' curs')).catch(e => console.error('fx warmup failed', e.message)); }, 2000);

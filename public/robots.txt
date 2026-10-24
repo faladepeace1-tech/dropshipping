@@ -1,0 +1,111 @@
+# Nexatech Dropshipping Store
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api/
+Disallow: /messages
+Disallow: /inbox
+Disallow: /checkout
+Disallow: /uploads/backups/
+
+# AI crawlers are welcome on public content only.
+User-agent: GPTBot
+Allow: /
+Disallow: /admin
+Disallow: /api/
+Disallow: /messages
+Disallow: /inbox
+Disallow: /checkout
+Disallow: /uploads/backups/
+
+User-agent: OAI-SearchBot
+Allow: /
+Disallow: /admin
+Disallow: /api/
+Disallow: /messages
+Disallow: /inbox
+Disallow: /checkout
+Disallow: /uploads/backups/
+
+User-agent: ChatGPT-User
+Allow: /
+Disallow: /admin
+Disallow: /api/
+Disallow: /messages
+Disallow: /inbox
+Disallow: /checkout
+Disallow: /uploads/backups/
+
+User-agent: PerplexityBot
+Allow: /
+Disallow: /admin
+Disallow: /api/
+Disallow: /messages
+Disallow: /inbox
+Disallow: /checkout
+Disallow: /uploads/backups/
+
+User-agent: ClaudeBot
+Allow: /
+Disallow: /admin
+Disallow: /api/
+Disallow: /messages
+Disallow: /inbox
+Disallow: /checkout
+Disallow: /uploads/backups/
+
+User-agent: Claude-User
+Allow: /
+Disallow: /admin
+Disallow: /api/
+Disallow: /messages
+Disallow: /inbox
+Disallow: /checkout
+Disallow: /uploads/backups/
+
+User-agent: anthropic-ai
+Allow: /
+Disallow: /admin
+Disallow: /api/
+Disallow: /messages
+Disallow: /inbox
+Disallow: /checkout
+Disallow: /uploads/backups/
+
+User-agent: Google-Extended
+Allow: /
+Disallow: /admin
+Disallow: /api/
+Disallow: /messages
+Disallow: /inbox
+Disallow: /checkout
+Disallow: /uploads/backups/
+
+User-agent: Applebot-Extended
+Allow: /
+Disallow: /admin
+Disallow: /api/
+Disallow: /messages
+Disallow: /inbox
+Disallow: /checkout
+Disallow: /uploads/backups/
+
+User-agent: CCBot
+Allow: /
+Disallow: /admin
+Disallow: /api/
+Disallow: /messages
+Disallow: /inbox
+Disallow: /checkout
+Disallow: /uploads/backups/
+
+User-agent: Bingbot
+Allow: /
+Disallow: /admin
+Disallow: /api/
+Disallow: /messages
+Disallow: /inbox
+Disallow: /checkout
+Disallow: /uploads/backups/
+
+Sitemap: https://dropshippingstore.dpdns.org/sitemap.xml

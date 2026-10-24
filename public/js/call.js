@@ -10,9 +10,14 @@ export function createCallController({ role, api, toast, startPath, basePath }) 
   let audioCtx = null;
   let ringTimer = null;
   let iceServers = [
-    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] },
     {
-      urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443', 'turn:openrelay.metered.ca:443?transport=tcp'],
+      urls: [
+        'turn:openrelay.metered.ca:80',
+        'turn:openrelay.metered.ca:443',
+        'turn:openrelay.metered.ca:443?transport=tcp',
+        'turns:openrelay.metered.ca:443?transport=tcp'
+      ],
       username: 'openrelayproject',
       credential: 'openrelayproject'
     }
@@ -217,30 +222,70 @@ export function createCallController({ role, api, toast, startPath, basePath }) 
 
   async function flipCamera() {
     const c = call;
-    if (!c || c.mode !== 'video' || !c.localStream) return;
+    if (!c || c.mode !== 'video' || !c.localStream || c.flipping) return;
+    c.flipping = true;
     const next = c.facing === 'environment' ? 'user' : 'environment';
+    const oldFacing = c.facing || 'user';
+    const oldTrack = c.localStream.getVideoTracks()[0];
+    const wasEnabled = oldTrack ? oldTrack.enabled : !c.cameraOff;
+    let oldDeviceId = '';
+    try { oldDeviceId = oldTrack?.getSettings?.().deviceId || ''; } catch {}
+    let videoConstraints = { facingMode: { ideal: next }, width: { ideal: 1280 }, height: { ideal: 720 } };
     try {
-      const fresh = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: next } });
-      const newTrack = fresh.getVideoTracks()[0];
-      if (!newTrack) return;
-      const sender = c.pc && c.pc.getSenders().find((s) => s.track && s.track.kind === 'video');
-      if (sender) {
-        await sender.replaceTrack(newTrack);
-      } else {
-        if (c.pc) c.pc.addTrack(newTrack, c.localStream);
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const cameras = devices.filter((d) => d.kind === 'videoinput' && d.deviceId);
+      if (cameras.length > 1) {
+        const index = Math.max(0, cameras.findIndex((d) => d.deviceId === oldDeviceId));
+        const target = cameras[(index + 1) % cameras.length];
+        videoConstraints = { deviceId: { exact: target.deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } };
       }
-      const oldTrack = c.localStream.getVideoTracks()[0];
+    } catch {}
+    try {
+      // Mobile browsers usually allow only one active camera. Stop the old
+      // track before asking for the other one, then restore it if that fails.
       if (oldTrack) {
         c.localStream.removeTrack(oldTrack);
         oldTrack.stop();
       }
+      let fresh;
+      try {
+        fresh = await navigator.mediaDevices.getUserMedia({ audio: false, video: videoConstraints });
+      } catch (firstError) {
+        fresh = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: { facingMode: { ideal: oldFacing } }
+        }).catch(() => { throw firstError; });
+      }
+      const newTrack = fresh.getVideoTracks()[0];
+      if (!newTrack) throw new Error('No camera track available');
+      newTrack.enabled = wasEnabled && !c.cameraOff;
       c.localStream.addTrack(newTrack);
-      c.facing = next;
-      if (els && els.localVideo) els.localVideo.srcObject = c.localStream;
-      if (overlay) overlay.classList.toggle('dm-call-rear', next === 'environment');
-      toast(next === 'environment' ? 'Back camera' : 'Front camera');
+      const sender = c.pc && c.pc.getSenders().find((s) => s.track && s.track.kind === 'video');
+      if (sender) {
+        try {
+          await sender.replaceTrack(newTrack);
+        } catch {
+          try { c.pc.removeTrack(sender); } catch {}
+          try { c.pc.addTrack(newTrack, c.localStream); } catch {}
+        }
+      } else if (c.pc) {
+        try { c.pc.addTrack(newTrack, c.localStream); } catch {}
+      }
+      const settings = newTrack.getSettings ? newTrack.getSettings() : {};
+      c.facing = settings.facingMode === 'environment' ? 'environment' : (settings.facingMode === 'user' ? 'user' : next);
+      if (els && els.localVideo) {
+        els.localVideo.srcObject = c.localStream;
+        els.localVideo.play().catch(() => {});
+      }
+      if (overlay) overlay.classList.toggle('dm-call-rear', c.facing === 'environment');
+      toast(c.facing === 'environment' ? 'Back camera' : 'Front camera');
     } catch {
-      toast('Could not switch camera.');
+      c.cameraOff = true;
+      if (els && els.self) els.self.classList.add('dm-call-camera-off');
+      renderControls();
+      toast('Could not switch camera. Close other apps using the camera, then try again.');
+    } finally {
+      c.flipping = false;
     }
   }
 
