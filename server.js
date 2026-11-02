@@ -333,7 +333,7 @@ function versionedHtml(file){
              .split('/css/admin.css').join('/css/admin.css?v='+ASSET_VER)
              .split('/css/dm.css').join('/css/dm.css?v='+ASSET_VER)
              .split('/css/pages.css').join('/css/pages.css?v='+ASSET_VER);
-  const publicPage = /^(index|pricing|themes|faq|blog|offers|privacy|terms|404)\.html$/i.test(file) || /(^|[\\/])(themes|blog)[\\/]/i.test(file);
+  const publicPage = /^(index|pricing|themes|faq|blog|offers|privacy|terms|404|why-nexatech)\.html$/i.test(file) || /(^|[\\/])(themes|blog)[\\/]/i.test(file);
   const head = [];
   if (publicPage) head.push(`<link rel="stylesheet" href="/css/site-header.css?v=${ASSET_VER}">`);
   if (GSC_VERIFICATION) head.push(`<meta name="google-site-verification" content="${GSC_VERIFICATION.replace(/[^A-Za-z0-9_-]/g,'')}">`);
@@ -406,6 +406,7 @@ const PAGE_DEFS = [
   { key:'pricing.html', label:'Pricing', url:'/pricing', type:'html' },
   { key:'themes.html', label:'Themes index', url:'/themes', type:'html' },
   { key:'faq.html', label:'FAQ', url:'/faq', type:'html' },
+  { key:'why-nexatech.html', label:'Why Nexatech', url:'/why-nexatech', type:'html' },
   { key:'blog.html', label:'Blog index', url:'/blog', type:'html' },
   ...SEO_THEMES.map(t => ({ key:'themes/'+t.slug+'.html', label:'Theme: '+t.name, url:'/themes/'+t.slug, type:'html' })),
   ...SEO_POSTS.map(p => ({ key:'blog/'+p.slug+'.html', label:'Blog: '+p.title, url:'/blog/'+p.slug, type:'html' })),
@@ -435,6 +436,7 @@ function buildSitemapXml(){
     { loc:'/pricing', lastmod:now, changefreq:'monthly', priority:'0.9' },
     { loc:'/themes', lastmod:now, changefreq:'monthly', priority:'0.8' },
     { loc:'/faq', lastmod:now, changefreq:'monthly', priority:'0.8' },
+    { loc:'/why-nexatech', lastmod:now, changefreq:'monthly', priority:'0.7' },
     { loc:'/blog', lastmod:now, changefreq:'weekly', priority:'0.8' },
     { loc:'/offers', lastmod:now, changefreq:'monthly', priority:'0.7' },
     { loc:'/privacy.html', lastmod:now, changefreq:'yearly', priority:'0.3' },
@@ -449,7 +451,7 @@ function buildRssXml(){
   return `<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0"><channel><title>Nexatech Dropshipping Blog</title><link>${xmlEscape(SITE_URL+'/blog')}</link><description>Practical dropshipping guides from Nexatech.</description><language>en</language>${items ? '\n'+items+'\n' : ''}</channel></rss>\n`;
 }
 function buildLlmsTxt(){
-  return `# Nexatech Dropshipping Store\n\n> Done-for-you dropshipping store setup. We research products, build the store, connect suppliers and payments, and hand over full ownership in 7 to 14 days. Based in Lagos, Nigeria, serving clients worldwide.\n\n## Key pages\n- [Home](${SITE_URL}/): Services, portfolio, process and contact.\n- [Pricing](${SITE_URL}/pricing): Starter $149, Pro $299, Elite $599.\n- [Themes](${SITE_URL}/themes): Fashion $49, Beauty $39, Gadget $59.\n- [FAQ](${SITE_URL}/faq): 40 answers on pricing, timeline, suppliers, payments and support.\n- [Blog](${SITE_URL}/blog): Practical dropshipping guides.\n- [Contact](${SITE_URL}/messages): Private chat with the team.\n\n## Contact\n- WhatsApp: +44 7411 200927\n- Email: saheednexatech@gmail.com\n- Location: Lagos, Nigeria\n\n## Notes\n- Prices are in USD and may be displayed in local currency at checkout.\n- We do not guarantee sales or income.\n- Reviews and proof are only shown when real client media exists.\n`;
+  return `# Nexatech Dropshipping Store\n\n> Done-for-you dropshipping store setup. We research products, build the store, connect suppliers and payments, and hand over full ownership in 7 to 14 days. Based in Lagos, Nigeria, serving clients worldwide.\n\n## Key pages\n- [Home](${SITE_URL}/): Services, portfolio, process and contact.\n- [Pricing](${SITE_URL}/pricing): Starter $149, Pro $299, Elite $599.\n- [Themes](${SITE_URL}/themes): Fashion $49, Beauty $39, Gadget $59.\n- [FAQ](${SITE_URL}/faq): 40 answers on pricing, timeline, suppliers, payments and support.\n- [Why Nexatech](${SITE_URL}/why-nexatech): Who we are, what the build includes, who it is for, and what you own.\n- [Blog](${SITE_URL}/blog): Practical dropshipping guides.\n- [Contact](${SITE_URL}/messages): Private chat with the team.\n\n## Contact\n- WhatsApp: +44 7411 200927\n- Email: saheednexatech@gmail.com\n- Location: Lagos, Nigeria\n\n## Notes\n- Prices are in USD and may be displayed in local currency at checkout.\n- We do not guarantee sales or income.\n- Reviews and proof are only shown when real client media exists.\n`;
 }
 function buildLlmsFullTxt(){
   const posts = SEO_POSTS.map(p => `- [${p.title}](${SITE_URL}/blog/${p.slug}): ${p.desc}`).join('\n');
@@ -470,6 +472,7 @@ function sendTextPage(res, key, fallback, contentType){
   return res.set('Cache-Control','public, max-age=3600').type(contentType).send(fallback);
 }
 app.get(['/faq', '/faq.html'], noCacheHtml((req, res)=> res.type('html').send(versionedHtml('faq.html'))));
+app.get(['/why-nexatech', '/why-nexatech.html'], noCacheHtml((req, res)=> res.type('html').send(versionedHtml('why-nexatech.html'))));
 app.get(['/themes', '/themes.html'], noCacheHtml((req, res)=> res.type('html').send(versionedHtml('themes.html'))));
 app.get(['/themes/:slug', '/themes/:slug.html'], noCacheHtml((req, res, next)=>{
   const slug = String(req.params.slug || '').replace(/\.html$/i, '').toLowerCase();

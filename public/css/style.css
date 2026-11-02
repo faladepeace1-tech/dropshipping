@@ -625,3 +625,30 @@ main, .footer{position:relative;z-index:1}
 body.co-embed .co-header,body.co-embed .skip-link{ display:none; }
 body.co-embed .co-wrap{ padding-top:18px; }
 body.co-embed .co-footer{ display:none; }
+
+/* ---------- Home order / themes choice ---------- */
+.order-choice-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:26px}
+.order-choice-card{
+  display:flex;flex-direction:column;gap:10px;padding:26px;border:1px solid var(--border);border-radius:22px;
+  background:#fff;box-shadow:var(--shadow);position:relative;overflow:hidden;transition:transform .25s ease,box-shadow .25s ease,border-color .25s ease;
+}
+.order-choice-card::before{
+  content:"";position:absolute;inset:0 0 auto;height:4px;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+}
+.order-choice-card:hover{transform:translateY(-4px);box-shadow:0 24px 54px rgba(11,18,32,.13);border-color:rgba(0,209,255,.42)}
+.order-choice-kicker{font-size:10px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;color:var(--primary)}
+.order-choice-card h3{margin:0;font-family:var(--display);font-size:clamp(22px,2.4vw,29px);line-height:1.12;color:var(--text)}
+.order-choice-card p{margin:0;color:var(--text-muted);font-size:13.5px;line-height:1.65}
+.order-choice-price{font-family:var(--display);font-size:clamp(25px,2.8vw,34px);line-height:1;color:var(--primary);margin-top:2px}
+.order-choice-list{list-style:none;padding:0;margin:2px 0 20px;display:grid;gap:8px}
+.order-choice-list li{display:flex;gap:9px;align-items:flex-start;font-size:12.5px;color:var(--text-muted)}
+.order-choice-list li::before{
+  content:"✓";width:19px;height:19px;border-radius:50%;background:rgba(16,185,129,.14);color:var(--success);
+  display:grid;place-items:center;font-size:10px;font-weight:900;flex:0 0 auto;margin-top:1px;
+}
+.order-choice-card .btn{margin-top:auto;justify-content:center}
+@media(max-width:760px){
+  .order-choice-grid{grid-template-columns:1fr;gap:14px}
+  .order-choice-card{padding:22px;border-radius:18px}
+}

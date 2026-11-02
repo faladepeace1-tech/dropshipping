@@ -523,6 +523,17 @@ function applyMicroCopy(){
   setText('experts-eyebrow', T('experts_eyebrow','Team'));
   setText('how-eyebrow', T('how_eyebrow','Process'));
   setText('pricing-eyebrow', T('pricing_eyebrow','Pricing'));
+  setText('order-options-eyebrow', T('order_options_eyebrow','Order or Design'));
+  setText('order-options-title', T('order_options_title','Choose How You Want to Start'));
+  setText('order-options-subtitle', T('order_options_subtitle','Order a done-for-you store or buy a ready-made theme and launch on your own.'));
+  setText('order-store-title', T('order_store_title','Done-For-You Store'));
+  setText('order-store-text', T('order_store_text','We build the store, research products, connect suppliers and payments, then hand over full ownership.'));
+  setText('order-store-price', T('order_store_price','From $149'));
+  setText('order-store-cta', T('order_store_cta','View Pricing & Order'));
+  setText('order-theme-title', T('order_theme_title','Ready-Made Themes'));
+  setText('order-theme-text', T('order_theme_text','Buy a conversion-focused theme for fashion, beauty or gadgets and download it instantly.'));
+  setText('order-theme-price', T('order_theme_price','From $39'));
+  setText('order-theme-cta', T('order_theme_cta','Browse & Buy Themes'));
   setText('themes-eyebrow', T('themes_eyebrow','Theme Store'));
   setText('themes-title', T('themes_title','Premium Store Themes'));
   setText('themes-subtitle', T('themes_subtitle','Ready-made, high-converting themes. Buy once, download instantly, own forever.'));
@@ -612,6 +623,10 @@ async function loadContent(){
   for(const id of ['nav-whatsapp','nav-book','hero-wa','hero-book','cta-wa','cta-book','mentorship-wa']){
     const el=document.getElementById(id);
     if(el) el.addEventListener('click',()=>track('cta_click',id,{href:el.href}));
+  }
+  for(const [id,label] of [['order-store-cta','order-store'],['order-theme-cta','order-theme'],['why-read-more','why-read-more']]){
+    const el=document.getElementById(id);
+    if(el) el.addEventListener('click',()=>track('cta_click',label,{href:el.href}));
   }
   let sJ=[]; try{ const sRes=await sP; if(sRes&&sRes.ok) sJ=await sRes.json(); }catch{}
   SECTIONS=Array.isArray(sJ)?sJ:[];
