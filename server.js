@@ -354,11 +354,13 @@ function finalizeHtml(html, file){
   if (publicPage && !/^index\.html$/i.test(file)) html = html.replace('</body>', '<script src="/js/site-chrome.js?v='+ASSET_VER+'"></script>\n</body>');
   return html;
 }
-function versionedHtml(file){
+function rawPageHtml(file){
   const key = normalizePageKey(file);
   const override = pageOverrides.get(key);
-  const html = override != null ? override : fs.readFileSync(path.join(__dirname, 'public', file), 'utf8');
-  return finalizeHtml(html, file);
+  return override != null ? override : fs.readFileSync(path.join(__dirname, 'public', file), 'utf8');
+}
+function versionedHtml(file){
+  return finalizeHtml(rawPageHtml(file), file);
 }
 app.use((req, res, next)=>{ if(req.query && req.query.v) res.set('Cache-Control','public, max-age=31536000, immutable'); next(); });
 // Versioned HTML shell: always revalidate (fast 304 via ETag), never stale after deploys.
@@ -391,6 +393,14 @@ app.get(['/privacy.html', '/privacy', '/terms.html', '/terms'], noCacheHtml((req
   catch(e){ return res.status(500).type('html').send('<h1>Page unavailable</h1><p><a href="/">Back to Home</a></p>'); }
 }));
 const SEO_POSTS = [
+  { slug:'how-to-start-dropshipping-with-500-dollars', title:'How to Start Dropshipping With $500', desc:'A realistic budget, validation steps, supplier checks and a 30-day launch plan.', date:'2026-11-16' },
+  { slug:'ai-dropshipping-product-research', title:'How to Use AI for Dropshipping Product Research', desc:'An AI workflow that still depends on real demand, supplier and margin evidence.', date:'2026-11-14' },
+  { slug:'best-shopify-apps-for-dropshipping', title:'Best Shopify Apps for Dropshipping in 2026', desc:'A lean app stack by job to be done, with cost, speed and data checks.', date:'2026-11-12' },
+  { slug:'dropshipping-shipping-times-guide', title:'Dropshipping Shipping Times: What Customers Expect', desc:'Set honest delivery promises, explain delays and reduce shipping tickets.', date:'2026-11-08' },
+  { slug:'how-to-get-first-100-customers-dropshipping', title:'How to Get Your First 100 Dropshipping Customers', desc:'A 90-day plan using organic content, small paid tests, creators and retention.', date:'2026-11-04' },
+  { slug:'dropshipping-product-descriptions', title:'How to Write Dropshipping Product Descriptions That Sell', desc:'Turn features into clear outcomes, answer objections and avoid unsupported claims.', date:'2026-10-30' },
+  { slug:'is-dropshipping-still-profitable-2026', title:'Is Dropshipping Still Profitable in 2026?', desc:'The honest unit economics, models that work and warning signs to avoid.', date:'2026-10-26' },
+  { slug:'dropshipping-refunds-chargebacks-guide', title:'Dropshipping Refunds and Chargebacks: A Practical Guide', desc:'Write a fair policy, prevent disputes and respond to chargebacks with evidence.', date:'2026-10-22' },
   { slug:'dropshipping-store-setup-cost', title:'How Much Does a Dropshipping Store Cost?', desc:'A realistic breakdown of build, platform, apps, samples and ad budget.', date:'2026-10-12' },
   { slug:'best-dropshipping-niches-2026', title:'Best Dropshipping Niches for 2026', desc:'How to judge demand, competition, margins and supplier quality.', date:'2026-10-06' },
   { slug:'shopify-vs-woocommerce-dropshipping', title:'Shopify vs WooCommerce for Dropshipping', desc:'Cost, speed, apps, payments and maintenance compared.', date:'2026-09-28' },
@@ -437,7 +447,7 @@ const PAGE_DEFS = [
 const PAGE_DEF_MAP = new Map(PAGE_DEFS.map(p => [p.key, p]));
 const xmlEscape = (s) => String(s == null ? '' : s).replace(/[<>&'"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;',"'":'&apos;','"':'&quot;'}[c]));
 
-function buildSitemapXml(){
+function buildSitemapXml(themes = SEO_THEMES){
   const now = new Date().toISOString().slice(0,10);
   const urls = [
     { loc:'/', lastmod:now, changefreq:'weekly', priority:'1.0' },
@@ -451,7 +461,7 @@ function buildSitemapXml(){
     { loc:'/offers', lastmod:now, changefreq:'monthly', priority:'0.7' },
     { loc:'/privacy.html', lastmod:now, changefreq:'yearly', priority:'0.3' },
     { loc:'/terms.html', lastmod:now, changefreq:'yearly', priority:'0.3' },
-    ...SEO_THEMES.map(t => ({ loc:'/themes/'+t.slug, lastmod:t.date, changefreq:'monthly', priority:'0.7' })),
+    ...themes.map(t => ({ loc:'/themes/'+t.slug, lastmod:t.date || now, changefreq:'monthly', priority:'0.7' })),
     ...SEO_POSTS.map(p => ({ loc:'/blog/'+p.slug, lastmod:p.date, changefreq:'monthly', priority:'0.7' }))
   ];
   return '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' + urls.map(u => `  <url><loc>${xmlEscape(SITE_URL+u.loc)}</loc><lastmod>${u.lastmod}</lastmod><changefreq>${u.changefreq}</changefreq><priority>${u.priority}</priority></url>`).join('\n') + '\n</urlset>\n';
@@ -481,14 +491,388 @@ function sendTextPage(res, key, fallback, contentType){
   if(override != null) return res.set('Cache-Control','no-cache').type(contentType).send(override);
   return res.set('Cache-Control','public, max-age=3600').type(contentType).send(fallback);
 }
+
+function escapeRegExp(value){
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+function clipText(value, limit){
+  const s = String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
+  if(!s || s.length <= limit) return s;
+  return s.slice(0, Math.max(0, limit - 1)).replace(/\s+\S*$/, '') + '...';
+}
+function absoluteUrl(value){
+  const s = String(value || '').trim();
+  if(!s) return '';
+  if(/^https?:\/\//i.test(s)) return s;
+  if(s.startsWith('//')) return 'https:' + s;
+  return SITE_URL + '/' + s.replace(/^\/+/, '');
+}
+function safeThemeImage(value){
+  let s = String(value || '').trim();
+  if(!s) return '/og-image.png';
+  if(/^https?:\/\//i.test(s) || s.startsWith('//')) return s;
+  if(!s.startsWith('/')) s = '/' + s;
+  return s;
+}
+function themePresentation(theme){
+  const key = (String(theme.name || '') + ' ' + String(theme.slug || '')).toLowerCase();
+  if(/beaut|skin|cosmet|glow|hair|wellness/.test(key)){
+    return { tag:'Beauty', bestFor:'Skincare, beauty, wellness', sections:'Quiz funnel, bundles, before/after slider, subscriptions' };
+  }
+  if(/gadget|tech|electron|smart|audio|charg|device/.test(key)){
+    return { tag:'Gadgets', bestFor:'Electronics, gadgets, tools', sections:'Comparison table, upsells, video demos, trust badges' };
+  }
+  if(/fashion|cloth|apparel|wear|shoe|jewel|accessor|elegance|lookbook|style/.test(key)){
+    return { tag:'Fashion', bestFor:'Clothing, shoes, accessories', sections:'Lookbook, size guide, quick-add cart, UGC wall' };
+  }
+  return { tag:'Store', bestFor:'General dropshipping', sections:'Product, collection, cart and trust sections' };
+}
+function themeHref(theme){
+  return '/themes/' + encodeURIComponent(String(theme.slug || ''));
+}
+function themeDemoLink(theme, extraStyle){
+  if(!theme.demo_url) return '';
+  return `<a class="nx-btn-ghost" data-live-demo="1" href="${escapeHtml(theme.demo_url)}" target="_blank" rel="noopener"${extraStyle ? ' style="' + extraStyle + '"' : ''}>Live Demo</a>`;
+}
+function themeCardHtml(theme){
+  const p = themePresentation(theme);
+  const name = escapeHtml(theme.name || 'Store Theme');
+  const href = escapeHtml(themeHref(theme));
+  const desc = escapeHtml(clipText(theme.description || 'A conversion-focused store theme with editable sections, product layouts and trust blocks.', 190));
+  const price = escapeHtml(theme.price_text || '');
+  const image = escapeHtml(safeThemeImage(theme.preview_url));
+  const demo = themeDemoLink(theme, 'margin-left:8px');
+  return `<article class="nx-card" data-theme-card data-theme-id="${escapeHtml(String(theme.id || ''))}">
+        <img src="${image}" alt="${escapeHtml((theme.name || 'Store theme') + ' preview')}" width="1200" height="801" loading="lazy" decoding="async" style="width:100%;height:190px;object-fit:cover;border-radius:12px">
+        <span class="nx-tag" style="margin-top:14px">${escapeHtml(p.tag)}</span>
+        <h2 class="nx-h3">${name}</h2>
+        <p class="nx-muted">${desc}</p>
+        <p class="nx-price">${price}</p>
+        <a class="nx-btn" href="${href}">View theme</a>${demo ? ' ' + demo : ''}
+      </article>`;
+}
+function themeTableRowHtml(theme){
+  const p = themePresentation(theme);
+  return `<tr><td>${escapeHtml(theme.name || '')}</td><td>${escapeHtml(p.bestFor)}</td><td>${escapeHtml(p.sections)}</td><td>${escapeHtml(theme.price_text || '')}</td></tr>`;
+}
+function jsonLdScript(value, attrs){
+  return `<script type="application/ld+json"${attrs || ''}>${JSON.stringify(value, null, 2).replace(/</g, '\\u003c')}</script>`;
+}
+function themeListSchema(themes){
+  return jsonLdScript({
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'CollectionPage',
+        '@id': SITE_URL + '/themes#webpage',
+        url: SITE_URL + '/themes',
+        name: 'Dropshipping Store Themes',
+        description: 'Dropshipping store themes for fashion, beauty, gadgets and general ecommerce niches.',
+        isPartOf: { '@id': SITE_URL + '/#website' },
+        inLanguage: 'en'
+      },
+      {
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'Home', item: SITE_URL + '/' },
+          { '@type': 'ListItem', position: 2, name: 'Themes', item: SITE_URL + '/themes' }
+        ]
+      },
+      {
+        '@type': 'ItemList',
+        name: 'Nexatech dropshipping store themes',
+        itemListElement: themes.map((t, i) => ({
+          '@type': 'ListItem',
+          position: i + 1,
+          url: SITE_URL + themeHref(t),
+          name: t.name || 'Store Theme'
+        }))
+      }
+    ]
+  }, ' data-theme-schema');
+}
+function themeDetailSchema(theme){
+  const price = (Number(theme.price_cents) || 0) / 100;
+  const currency = String(theme.currency || 'USD').toUpperCase();
+  return jsonLdScript({
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'Product',
+        '@id': SITE_URL + themeHref(theme) + '#product',
+        name: theme.name || 'Store Theme',
+        description: theme.description || 'Dropshipping store theme from Nexatech.',
+        image: absoluteUrl(safeThemeImage(theme.preview_url)),
+        brand: { '@type': 'Brand', name: 'Nexatech' },
+        offers: {
+          '@type': 'Offer',
+          price: price.toFixed(2),
+          priceCurrency: currency,
+          availability: 'https://schema.org/InStock',
+          url: SITE_URL + '/checkout?kind=theme&item=' + encodeURIComponent(String(theme.slug || ''))
+        }
+      },
+      {
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'Home', item: SITE_URL + '/' },
+          { '@type': 'ListItem', position: 2, name: 'Themes', item: SITE_URL + '/themes' },
+          { '@type': 'ListItem', position: 3, name: theme.name || 'Store Theme', item: SITE_URL + themeHref(theme) }
+        ]
+      }
+    ]
+  }, ' data-theme-schema');
+}
+function replaceWith(html, re, value){
+  return html.replace(re, () => value);
+}
+function replaceBetweenMarkers(html, startMarker, endMarker, replacement){
+  const re = new RegExp('(' + escapeRegExp(startMarker) + ')[\\s\\S]*?(' + escapeRegExp(endMarker) + ')', 'i');
+  return html.replace(re, (match, start, end) => start + '\n' + replacement + '\n' + end);
+}
+function replaceMarkedContent(html, tagName, field, content){
+  const re = new RegExp('(<' + tagName + '\\b[^>]*\\bdata-theme-field="' + escapeRegExp(field) + '"[^>]*>)[\\s\\S]*?(</' + tagName + '>)', 'i');
+  return html.replace(re, (match, open, close) => open + content + close);
+}
+function replaceMarkedImage(html, field, content){
+  const re = new RegExp('<img\\b[^>]*\\bdata-theme-field="' + escapeRegExp(field) + '"[^>]*>', 'i');
+  return html.replace(re, () => content);
+}
+function replaceSchemaScript(html, replacement){
+  let replaced = false;
+  html = html.replace(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>[\s\S]*?<\/script>/gi, (match) => {
+    if(replaced) return match;
+    if(/data-theme-schema/i.test(match) || /"@type"\s*:\s*"(?:Product|ItemList|CollectionPage)"/i.test(match)){
+      replaced = true;
+      return replacement;
+    }
+    return match;
+  });
+  if(!replaced) html = replaceWith(html, /<\/head>/i, replacement + '\n</head>');
+  return html;
+}
+function mapMainHtml(html, mutate){
+  const start = html.search(/<main\b/i);
+  const end = html.search(/<\/main>/i);
+  if(start < 0 || end < 0 || end <= start) return html;
+  return html.slice(0, start) + mutate(html.slice(start, end)) + html.slice(end);
+}
+function updateThemeHead(html, theme, metaDescription, imageUrl){
+  const name = String(theme.name || 'Store Theme');
+  const title = escapeHtml(name + ' | Nexatech');
+  const desc = escapeHtml(metaDescription);
+  const canonical = escapeHtml(SITE_URL + themeHref(theme));
+  const image = escapeHtml(absoluteUrl(imageUrl));
+  html = replaceWith(html, /<title>[\s\S]*?<\/title>/i, `<title>${title}</title>`);
+  html = replaceWith(html, /<meta\s+name="description"\s+content="[^"]*"[^>]*>/i, `<meta name="description" content="${desc}">`);
+  html = replaceWith(html, /<link\s+rel="canonical"\s+href="[^"]*"[^>]*>/i, `<link rel="canonical" href="${canonical}">`);
+  html = replaceWith(html, /<meta\s+property="og:title"\s+content="[^"]*"[^>]*>/i, `<meta property="og:title" content="${title}">`);
+  html = replaceWith(html, /<meta\s+property="og:description"\s+content="[^"]*"[^>]*>/i, `<meta property="og:description" content="${desc}">`);
+  html = replaceWith(html, /<meta\s+property="og:url"\s+content="[^"]*"[^>]*>/i, `<meta property="og:url" content="${canonical}">`);
+  html = replaceWith(html, /<meta\s+property="og:image"\s+content="[^"]*"[^>]*>/i, `<meta property="og:image" content="${image}">`);
+  html = replaceWith(html, /<meta\s+name="twitter:title"\s+content="[^"]*"[^>]*>/i, `<meta name="twitter:title" content="${title}">`);
+  html = replaceWith(html, /<meta\s+name="twitter:description"\s+content="[^"]*"[^>]*>/i, `<meta name="twitter:description" content="${desc}">`);
+  html = replaceWith(html, /<meta\s+name="twitter:image"\s+content="[^"]*"[^>]*>/i, `<meta name="twitter:image" content="${image}">`);
+  if(!/<meta\s+name="twitter:title"/i.test(html)) html = replaceWith(html, /<\/head>/i, `<meta name="twitter:title" content="${title}">\n</head>`);
+  if(!/<meta\s+name="twitter:description"/i.test(html)) html = replaceWith(html, /<\/head>/i, `<meta name="twitter:description" content="${desc}">\n</head>`);
+  if(!/<meta\s+name="twitter:image"/i.test(html)) html = replaceWith(html, /<\/head>/i, `<meta name="twitter:image" content="${image}">\n</head>`);
+  return html;
+}
+function themeRelatedHtml(theme, themes){
+  const links = themes
+    .filter(t => String(t.slug) !== String(theme.slug))
+    .map(t => `<a href="${escapeHtml(themeHref(t))}">${escapeHtml(t.name || 'Theme')}</a>`);
+  return `<a href="/blog">Dropshipping guides</a> &middot; <a href="/faq">Store setup FAQ</a>${links.length ? ' &middot; ' + links.join(' &middot; ') : ''}`;
+}
+function applyThemeBuyButtons(html, theme){
+  const buyText = Number(theme.price_cents) > 0 ? 'Buy this theme' : 'Download this theme';
+  const buy = `<a class="nx-btn" data-theme-field="buy" href="/checkout?kind=theme&amp;item=${escapeHtml(encodeURIComponent(String(theme.slug || '')))}">${buyText}</a>`;
+  const demo = themeDemoLink(theme, '');
+  return mapMainHtml(html, (main) => {
+    main = main.replace(/<a\b[^>]*\bdata-live-demo\b[^>]*>[\s\S]*?<\/a>\s*/gi, '');
+    let done = false;
+    main = main.replace(/<a\b[^>]*\bdata-theme-field="buy"[^>]*>[\s\S]*?<\/a>/i, () => {
+      done = true;
+      return (demo ? demo + ' ' : '') + buy;
+    });
+    if(!done){
+      main = main.replace(/<a\b[^>]*href="\/checkout\?kind=theme[^"]*"[^>]*>[\s\S]*?<\/a>/i, (match) => {
+        done = true;
+        return (demo ? demo + ' ' : '') + buy;
+      });
+    }
+    return main;
+  });
+}
+function renderThemesIndexHtml(html, themes, emptyText){
+  const cards = themes.length
+    ? themes.map(themeCardHtml).join('\n')
+    : `<p class="nx-muted">${escapeHtml(emptyText)}</p>`;
+  const rows = themes.length
+    ? themes.map(themeTableRowHtml).join('\n')
+    : `<tr><td colspan="4">${escapeHtml(emptyText)}</td></tr>`;
+  if(html.includes('theme-grid:start')){
+    html = replaceBetweenMarkers(html, '<!-- theme-grid:start -->', '<!-- theme-grid:end -->', cards);
+  } else {
+    html = html.replace(/(<div class="nx-grid nx-grid-3"[^>]*>)[\s\S]*?<\/div>\s*(<h2 class="nx-h2">What is included)/i,
+      (match, open, next) => open + '\n' + cards + '\n    </div>\n\n    ' + next);
+  }
+  if(html.includes('theme-table:start')){
+    html = replaceBetweenMarkers(html, '<!-- theme-table:start -->', '<!-- theme-table:end -->', rows);
+  } else {
+    const anchor = html.indexOf('Compare the themes');
+    if(anchor >= 0){
+      const before = html.slice(0, anchor);
+      html = before + html.slice(anchor).replace(/<tbody>[\s\S]*?<\/tbody>/i, () => `<tbody>\n${rows}\n</tbody>`);
+    }
+  }
+  return replaceSchemaScript(html, themeListSchema(themes));
+}
+function renderGenericThemeHtml(theme, themes){
+  const p = themePresentation(theme);
+  const name = String(theme.name || 'Store Theme');
+  const desc = String(theme.description || '').trim() || 'A conversion-focused store theme with editable sections, mobile-first product pages and trust blocks built for dropshipping.';
+  const image = safeThemeImage(theme.preview_url);
+  const price = String(theme.price_text || '');
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>${escapeHtml(name)} | Nexatech</title>
+<meta name="description" content="${escapeHtml(clipText(desc, 160))}">
+<link rel="canonical" href="${escapeHtml(SITE_URL + themeHref(theme))}">
+<meta name="robots" content="index,follow,max-image-preview:large">
+<meta property="og:title" content="${escapeHtml(name)} | Nexatech">
+<meta property="og:description" content="${escapeHtml(clipText(desc, 160))}">
+<meta property="og:type" content="product">
+<meta property="og:url" content="${escapeHtml(SITE_URL + themeHref(theme))}">
+<meta property="og:image" content="${escapeHtml(absoluteUrl(image))}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${escapeHtml(name)} | Nexatech">
+<meta name="twitter:description" content="${escapeHtml(clipText(desc, 160))}">
+<meta name="twitter:image" content="${escapeHtml(absoluteUrl(image))}">
+<link rel="icon" type="image/png" href="/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/pages.css">
+${themeDetailSchema(theme)}
+</head>
+<body class="nx-page">
+<main class="nx-main">
+  <div class="container">
+    <nav class="nx-breadcrumbs" aria-label="Breadcrumb"><a href="/">Home</a> / <a href="/themes">Themes</a> / <span data-theme-field="breadcrumb-name">${escapeHtml(name)}</span></nav>
+    <div class="nx-grid nx-grid-2">
+      <div><img data-theme-field="preview" src="${escapeHtml(image)}" alt="${escapeHtml(name)} preview" width="1200" height="800" style="width:100%;height:auto;border-radius:16px"></div>
+      <div>
+        <span class="nx-tag" data-theme-field="tag">${escapeHtml(p.tag)}</span>
+        <h1 class="nx-h1" style="margin-top:12px" data-theme-field="name">${escapeHtml(name)}</h1>
+        <p class="nx-lead" data-theme-field="description">${escapeHtml(desc)}</p>
+        <p class="nx-price" data-theme-field="price">${escapeHtml(price)} <span class="nx-muted" style="font-size:15px;font-weight:500">one-time</span></p>
+        <p data-theme-field="buy-row"><a class="nx-btn" data-theme-field="buy" href="/checkout?kind=theme&amp;item=${escapeHtml(encodeURIComponent(String(theme.slug || '')))}">${Number(theme.price_cents) > 0 ? 'Buy this theme' : 'Download this theme'}</a> <a class="nx-btn-ghost" href="/messages">Ask a question</a></p>
+        <ul class="nx-list">
+          <li>Responsive product and collection layouts</li>
+          <li>Editable sections you can rearrange</li>
+          <li>Cart, trust and shipping blocks</li>
+          <li>Setup notes for your first edits</li>
+          <li>Instant download and lifetime ownership</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2 class="nx-h2">Who it is for</h2>
+    <p>${escapeHtml(desc)} It is a good fit if you want a niche-ready design foundation without building every section from scratch.</p>
+
+    <h2 class="nx-h2">What is included</h2>
+    <p>You receive the theme files, setup notes and the section structure used in our client builds. Replace the placeholder products with your own catalog, connect your suppliers and follow the setup checklist before launch.</p>
+
+    <h2 class="nx-h2">What this theme does not include</h2>
+    <p>A theme is not a full store build. It does not include product research, supplier accounts, payment gateway approval or advertising. If you want all of that done for you, compare the <a href="/pricing">done-for-you packages</a>.</p>
+
+    <h2 class="nx-h2">Related reading</h2>
+    <p data-theme-related>${themeRelatedHtml(theme, themes)}</p>
+  </div>
+</main>
+<footer class="nx-foot"><div class="container nx-foot-inner"><span>&copy; <span id="year"></span> Nexatech Dropshipping Store.</span><span><a href="/privacy.html">Privacy</a> &middot; <a href="/terms.html">Terms</a></span></div></footer>
+<script>document.getElementById('year').textContent=new Date().getFullYear();</script>
+</body>
+</html>`;
+}
+function renderThemeDetailHtml(html, theme, themes){
+  const p = themePresentation(theme);
+  const name = String(theme.name || 'Store Theme');
+  const desc = String(theme.description || '').trim() || 'A conversion-focused store theme with editable sections, mobile-first product pages and trust blocks built for dropshipping.';
+  const metaDesc = clipText(desc, 160);
+  const image = safeThemeImage(theme.preview_url);
+  const price = String(theme.price_text || '');
+  html = updateThemeHead(html, theme, metaDesc, image);
+  html = replaceWith(html, /data-theme-field="breadcrumb-name"[^>]*>[\s\S]*?<\/span>/i, `data-theme-field="breadcrumb-name">${escapeHtml(name)}</span>`);
+  html = html.replace(/<span\b([^>]*\bclass="nx-tag"[^>]*)>[\s\S]*?<\/span>/i, (match, attrs) => `<span${attrs}>${escapeHtml(p.tag)}</span>`);
+  html = replaceMarkedContent(html, 'span', 'tag', escapeHtml(p.tag));
+  html = replaceMarkedContent(html, 'h1', 'name', escapeHtml(name));
+  html = replaceMarkedContent(html, 'p', 'description', escapeHtml(desc));
+  html = replaceMarkedContent(html, 'p', 'price', `${escapeHtml(price)} <span class="nx-muted" style="font-size:15px;font-weight:500">one-time</span>`);
+  html = replaceMarkedImage(html, 'preview', `<img data-theme-field="preview" src="${escapeHtml(image)}" alt="${escapeHtml(name)} preview" width="1200" height="800" style="width:100%;height:auto;border-radius:16px">`);
+  if(html.includes('data-theme-related')){
+    html = mapMainHtml(html, (main) => main.replace(/<p\b([^>]*\bdata-theme-related\b[^>]*)>[\s\S]*?<\/p>/i, (match, attrs) => `<p${attrs}>${themeRelatedHtml(theme, themes)}</p>`));
+  }
+  if(!html.includes('data-theme-field="name"')){
+    html = mapMainHtml(html, (main) => main.replace(/<h1\b([^>]*)>[\s\S]*?<\/h1>/i, (match, attrs) => `<h1${attrs}>${escapeHtml(name)}</h1>`));
+  }
+  if(!html.includes('data-theme-field="description"')){
+    html = mapMainHtml(html, (main) => main.replace(/<p\b([^>]*\bclass="nx-lead"[^>]*)>[\s\S]*?<\/p>/i, (match, attrs) => `<p${attrs}>${escapeHtml(desc)}</p>`));
+  }
+  if(!html.includes('data-theme-field="price"')){
+    html = mapMainHtml(html, (main) => main.replace(/<p\b([^>]*\bclass="nx-price"[^>]*)>[\s\S]*?<\/p>/i, (match, attrs) => `<p${attrs}>${escapeHtml(price)}</p>`));
+  }
+  if(!html.includes('data-theme-field="preview"')){
+    html = mapMainHtml(html, (main) => replaceWith(main, /<img\b[^>]*>/i, `<img data-theme-field="preview" src="${escapeHtml(image)}" alt="${escapeHtml(name)} preview" width="1200" height="800" style="width:100%;height:auto;border-radius:16px">`));
+  }
+  if(!html.includes('data-theme-field="tag"')){
+    html = mapMainHtml(html, (main) => main.replace(/<span\b([^>]*\bclass="nx-tag"[^>]*)>[\s\S]*?<\/span>/i, (match, attrs) => `<span${attrs}>${escapeHtml(p.tag)}</span>`));
+  }
+  html = applyThemeBuyButtons(html, theme);
+  return replaceSchemaScript(html, themeDetailSchema(theme));
+}
+async function publishedThemeRows(){
+  return db.prepare('SELECT * FROM themes WHERE published=1 ORDER BY display_order ASC, id ASC').all();
+}
+async function themesEmptyText(){
+  try{
+    const row = await db.prepare("SELECT value FROM content WHERE key='themes_empty'").get();
+    if(row && String(row.value || '').trim()) return String(row.value);
+  }catch{}
+  return 'No themes available yet - check back soon.';
+}
 app.get(['/faq', '/faq.html'], noCacheHtml((req, res)=> res.type('html').send(versionedHtml('faq.html'))));
 app.get(['/why-nexatech', '/why-nexatech.html'], noCacheHtml((req, res)=> res.type('html').send(versionedHtml('why-nexatech.html'))));
-app.get(['/themes', '/themes.html'], noCacheHtml((req, res)=> res.type('html').send(versionedHtml('themes.html'))));
-app.get(['/themes/:slug', '/themes/:slug.html'], noCacheHtml((req, res, next)=>{
+app.get(['/themes', '/themes.html'], noCacheHtml(async (req, res)=>{
+  try{
+    const themes = (await publishedThemeRows()).map(publicTheme);
+    const html = renderThemesIndexHtml(rawPageHtml('themes.html'), themes, await themesEmptyText());
+    return res.type('html').send(finalizeHtml(html, 'themes.html'));
+  }catch(e){
+    console.error('themes index render failed:', e.message);
+    return res.status(500).type('html').send('<h1>Themes unavailable</h1><p><a href="/">Back to Home</a></p>');
+  }
+}));
+app.get(['/themes/:slug', '/themes/:slug.html'], noCacheHtml(async (req, res, next)=>{
   const slug = String(req.params.slug || '').replace(/\.html$/i, '').toLowerCase();
-  if(!SEO_THEMES.some(t => t.slug === slug)) return next();
-  try { return res.type('html').send(versionedHtml(path.join('themes', slug + '.html'))); }
-  catch(e){ return next(); }
+  if(!/^[a-z0-9-]+$/.test(slug)) return next();
+  try{
+    const themes = (await publishedThemeRows()).map(publicTheme);
+    const theme = themes.find(t => String(t.slug) === slug);
+    if(!theme) return res.status(404).type('html').send(versionedHtml('404.html'));
+    const key = path.join('themes', slug + '.html');
+    let html;
+    try{ html = rawPageHtml(key); }
+    catch{ html = renderGenericThemeHtml(theme, themes); }
+    return res.type('html').send(finalizeHtml(renderThemeDetailHtml(html, theme, themes), key));
+  }catch(e){
+    console.error('theme detail render failed:', e.message);
+    return res.status(500).type('html').send('<h1>Theme unavailable</h1><p><a href="/themes">Back to Themes</a></p>');
+  }
 }));
 app.get(['/blog', '/blog.html'], noCacheHtml((req, res)=> res.type('html').send(versionedHtml('blog.html'))));
 app.get(['/blog/dropshipping-payment-gateways-nigeria', '/blog/dropshipping-payment-gateways-nigeria.html'], (req, res)=> res.redirect(301, '/blog/how-to-start-dropshipping-in-nigeria'));
@@ -509,7 +893,15 @@ app.get(['/blog/:slug', '/blog/:slug.html'], noCacheHtml((req, res, next)=>{
   try { return res.type('html').send(versionedHtml(path.join('blog', slug + '.html'))); }
   catch(e){ return next(); }
 }));
-app.get('/sitemap.xml', (req, res)=> sendTextPage(res, 'sitemap.xml', buildSitemapXml(), 'application/xml'));
+app.get('/sitemap.xml', async (req, res)=>{
+  try{
+    const themes = (await publishedThemeRows()).map(t => ({ slug: t.slug, date: null }));
+    return sendTextPage(res, 'sitemap.xml', buildSitemapXml(themes), 'application/xml');
+  }catch(err){
+    console.error('Sitemap theme load failed:', err.message);
+    return sendTextPage(res, 'sitemap.xml', buildSitemapXml(), 'application/xml');
+  }
+});
 app.get('/rss.xml', (req, res)=> sendTextPage(res, 'rss.xml', buildRssXml(), 'application/rss+xml'));
 app.get('/llms.txt', (req, res)=> sendTextPage(res, 'llms.txt', buildLlmsTxt(), 'text/plain'));
 app.get('/llms-full.txt', (req, res)=> sendTextPage(res, 'llms-full.txt', buildLlmsFullTxt(), 'text/plain'));
