@@ -362,10 +362,35 @@ function rawPageHtml(file){
 function versionedHtml(file){
   return finalizeHtml(rawPageHtml(file), file);
 }
+function safeSocialUrl(value){
+  const raw = String(value || '').trim();
+  if(!raw) return '';
+  try{
+    const url = new URL(raw);
+    return /^https?:$/.test(url.protocol) ? url.href : '';
+  }catch{ return ''; }
+}
+function applySocialSchema(html, tiktokUrl){
+  const tiktok = safeSocialUrl(tiktokUrl);
+  const orgSameAs = ['https://wa.me/447411200927'];
+  if(tiktok) orgSameAs.push(tiktok);
+  const personSameAs = tiktok ? [tiktok] : [];
+  const json = (value) => JSON.stringify(value).replace(/</g, '\\u003c');
+  return html
+    .replace('"sameAs": ["https://wa.me/447411200927"]', `"sameAs": ${json(orgSameAs)}`)
+    .replace('"sameAs": []', `"sameAs": ${json(personSameAs)}`);
+}
 app.use((req, res, next)=>{ if(req.query && req.query.v) res.set('Cache-Control','public, max-age=31536000, immutable'); next(); });
 // Versioned HTML shell: always revalidate (fast 304 via ETag), never stale after deploys.
 const noCacheHtml = (fn) => (req, res, next) => { res.set('Cache-Control','no-cache'); return fn(req, res, next); };
-app.get(['/', '/index.html'], noCacheHtml((req, res)=> res.type('html').send(versionedHtml('index.html'))));
+app.get(['/', '/index.html'], noCacheHtml(async (req, res)=>{
+  let html = versionedHtml('index.html');
+  try{
+    const tiktok = await db.prepare("SELECT value FROM content WHERE key='social_tiktok_url'").get();
+    html = applySocialSchema(html, tiktok?.value);
+  }catch(e){ console.error('TikTok schema load failed:', e.message); }
+  return res.type('html').send(html);
+}));
 app.get('/admin', noCacheHtml((req, res)=> res.type('html').send(versionedHtml('admin.html'))));
 app.get(['/checkout', '/checkout.html'], noCacheHtml((req, res)=>{
   try { return res.type('html').send(versionedHtml('checkout.html')); }

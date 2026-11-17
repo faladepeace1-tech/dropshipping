@@ -836,6 +836,7 @@ export async function initDb() {
   try{ await db.prepare('ALTER TABLE dm_push_subscriptions ADD COLUMN user_id INTEGER').run(); }catch{}
   try{ await db.prepare("ALTER TABLE themes ADD COLUMN demo_url TEXT DEFAULT ''").run(); }catch{}
   try{ await db.prepare("UPDATE themes SET name=REPLACE(name, ?, ?) WHERE name LIKE ?").run('\uFFFD', 'é', '%\uFFFD%'); }catch{}
+  try{ await db.prepare("UPDATE team SET social_url='' WHERE social_url LIKE '%linkedin.com%'").run(); }catch{}
 
   // Helper to handle async get
   const getCount = async (table) => {
@@ -1116,7 +1117,6 @@ export async function initDb() {
       ['social_instagram_url', '', 'text'],
       ['social_x_url', '', 'text'],
       ['social_tiktok_url', '', 'text'],
-      ['social_linkedin_url', '', 'text'],
       ['social_facebook_url', '', 'text'],
       ['social_youtube_url', '', 'text'],
       ['form_step_1', 'Step 1 of 3 Vision', 'text'],
@@ -1338,10 +1338,10 @@ export async function initDb() {
 
   const teamCount = await getCount('team');
   const teamsDef = [
-      ['David Okafor','Founder & Store Architect','Built 120+ stores, ex-Jumia growth lead','https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400','https://linkedin.com',1,1],
-      ['Amara Eze','Product Research Lead','Sourced 500+ winning products, 2.8 avg ROAS','https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400','https://linkedin.com',2,1],
-      ['Chidi Nwosu','Fulfillment & Automation','DSers & AutoDS specialist, 99.2% fulfillment SLA','https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400','https://linkedin.com',3,1],
-      ['Zainab Musa','CRO & Performance','CRO strategist, +42% avg conversion lift','https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400','https://linkedin.com',4,1]
+      ['David Okafor','Founder & Store Architect','Built 120+ stores, ex-Jumia growth lead','https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400','',1,1],
+      ['Amara Eze','Product Research Lead','Sourced 500+ winning products, 2.8 avg ROAS','https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400','',2,1],
+      ['Chidi Nwosu','Fulfillment & Automation','DSers & AutoDS specialist, 99.2% fulfillment SLA','https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400','',3,1],
+      ['Zainab Musa','CRO & Performance','CRO strategist, +42% avg conversion lift','https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400','',4,1]
   ];
   if (teamCount === 0 || forceReset) {
     if (forceReset && teamCount !== 0) { try { await db.exec('DELETE FROM team'); } catch {} }

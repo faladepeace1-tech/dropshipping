@@ -574,7 +574,7 @@ function applyMicroCopy(){
   setText('privacy-link', T('privacy_link_label','Privacy Policy'));
   setText('terms-link', T('terms_link_label','Terms of Service'));
   setText('footer-built-note', T('footer_built_note','Built with honesty - all proof numbers are live from our database.'));
-  const socmap={'soc-instagram':'social_instagram_url','soc-x':'social_x_url','soc-tiktok':'social_tiktok_url','soc-linkedin':'social_linkedin_url','soc-facebook':'social_facebook_url','soc-youtube':'social_youtube_url'};
+  const socmap={'soc-instagram':'social_instagram_url','soc-x':'social_x_url','soc-tiktok':'social_tiktok_url','soc-facebook':'social_facebook_url','soc-youtube':'social_youtube_url'};
   for(const [id,key] of Object.entries(socmap)){
     const el=document.getElementById(id); if(!el) continue;
     const url=(CONTENT[key]||'').trim();
@@ -955,7 +955,7 @@ async function loadMedia(){
     const vis=teamExpanded?team:team.slice(0,4);
     vis.forEach((m)=>{
       const card=document.createElement('div'); card.className='team-card in';
-      card.innerHTML=`<img src="${m.photo_url||'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200'}" alt="${sanitize(m.name)}" loading="lazy" decoding="async"><div><h4>${sanitize(m.name)}</h4><small>${sanitize(m.role)}</small><p>${sanitize(m.credibility_note)}</p>${m.social_url?`<a href="${m.social_url}" target="_blank" style="font-size:12px;color:var(--accent-2)">LinkedIn →</a>`:''}</div>`;
+      card.innerHTML=`<img src="${m.photo_url||'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200'}" alt="${sanitize(m.name)}" loading="lazy" decoding="async"><div><h4>${sanitize(m.name)}</h4><small>${sanitize(m.role)}</small><p>${sanitize(m.credibility_note)}</p>${m.social_url?`<a href="${m.social_url}" target="_blank" rel="noopener" style="font-size:12px;color:var(--accent-2)">TikTok →</a>`:''}</div>`;
       tGrid2.appendChild(card);
     });
     const more=$('#view-full-team');
