@@ -14,6 +14,7 @@ import cron from 'node-cron';
 import crypto from 'crypto';
 import webpush from 'web-push';
 import { initDb, getDb, reseedDefaults, usePg } from './db.js';
+import { COUNTRY_GUIDES, COUNTRY_GUIDE_COUNT, getCountryGuide, renderCountryGuide, renderCountryHub } from './country-guides.js';
 let googleModule = null;
 async function loadGoogle(){
   if(!googleModule) googleModule = await import('googleapis');
@@ -248,7 +249,7 @@ app.use('/api/', generalLimiter);
 // browsers and CDNs can never serve stale code after you publish backend edits.
 const ASSET_VER = (()=>{ try{
   const h = crypto.createHash('md5');
-  for(const f of ['public/js/app.js','public/js/admin.js','public/js/checkout.js','public/js/offers.js','public/js/pricing.js','public/js/messages.js','public/js/inbox.js','public/js/call.js','public/js/site-chrome.js','public/css/style.css','public/css/admin.css','public/css/dm.css','public/css/site-header.css','public/index.html','public/admin.html','public/checkout.html','public/offers.html','public/pricing.html','public/messages.html','public/inbox.html']){
+  for(const f of ['public/js/app.js','public/js/admin.js','public/js/checkout.js','public/js/offers.js','public/js/pricing.js','public/js/messages.js','public/js/inbox.js','public/js/call.js','public/js/site-chrome.js','public/js/hero-store.js','public/js/hero-3d.js','public/js/hero-editorial.js','public/js/theme-links.js','public/css/tokens.css','public/css/style.css','public/css/inner.css','public/css/pages.css','public/css/admin.css','public/css/dm.css','public/css/site-header.css','public/index.html','public/admin.html','public/checkout.html','public/offers.html','public/pricing.html','public/messages.html','public/inbox.html','public/themes.html']){
     try{ const st = fs.statSync(path.join(__dirname, f)); h.update(f + ':' + st.mtimeMs + ':' + st.size); }catch{}
   }
   return h.digest('hex').slice(0,8);
@@ -267,6 +268,7 @@ function publicHeaderHtml(file){
     : f === 'offers.html' ? 'offers'
     : f === 'themes.html' || f.startsWith('themes/') ? 'themes'
     : f === 'faq.html' ? 'faq'
+    : f === 'why-nexatech.html' ? 'about'
     : f === 'blog.html' || f.startsWith('blog/') ? 'blog' : '';
   const aria = key => active === key ? ' aria-current="page"' : '';
   const navLink = (key, href, label) => `<a href="${href}" id="nav-link-${key}"${aria(key)}>${label}</a>`;
@@ -274,38 +276,35 @@ function publicHeaderHtml(file){
   const wa = 'https://wa.me/447411200927?text=Hi%20Nexatech!%20Quick%20question%20about%20your%20store%20packages.';
   return `<header class="nx-site-head" id="header">
   <div class="nx-site-head-inner">
-    <a class="nx-site-logo logo" href="/"><span id="logo-text">NEXATECH</span></a>
+    <a class="nx-site-logo logo" href="/"><img class="logo-img" src="/icons/icon-512.png" width="32" height="32" alt="" onerror="this.remove()"><span id="logo-text">NEXATECH</span></a>
     <nav class="nx-site-nav" id="nav-links" aria-label="Primary">
-      ${navLink('portfolio', anchor + '#portfolio', 'Portfolio')}
-      ${navLink('proof', anchor + '#proof', 'Proof')}
+      ${navLink('portfolio', anchor + '#portfolio', 'Work')}
       ${navLink('pricing', '/pricing', 'Pricing')}
-      ${navLink('offers', '/offers', 'Offers')}
-      ${navLink('messages', '/messages', 'Messages')}
       ${navLink('themes', '/themes', 'Themes')}
-      ${navLink('faq', '/faq', 'FAQ')}
-      ${navLink('blog', '/blog', 'Blog')}
+      ${navLink('blog', '/blog', 'Journal')}
+      ${navLink('about', '/why-nexatech', 'About')}
     </nav>
     <div class="nx-site-actions">
       <select id="fx-select" class="nx-site-fx" aria-label="Currency"></select>
-      <a class="nx-site-btn nx-site-ghost" id="nav-whatsapp" href="${wa}" target="_blank" rel="noopener">WhatsApp Us</a>
+      <a class="nx-site-btn nx-site-ghost" id="nav-whatsapp" href="${wa}" target="_blank" rel="noopener">WhatsApp</a>
       <a class="nx-site-btn nx-site-primary" id="nav-book" href="/messages">Start a Chat</a>
-      <button class="nx-site-burger" id="hamburger" aria-label="Menu">☰</button>
+      <button class="nx-site-burger" id="hamburger" aria-label="Menu" aria-expanded="false" aria-controls="drawer"><span></span><span></span></button>
     </div>
   </div>
 </header>
 <div class="nx-site-drawer" id="drawer">
   <div class="nx-site-drawer-panel">
-    <button id="drawer-close" class="nx-site-btn nx-site-ghost" aria-label="Close menu">×</button>
-    ${drawerLink('portfolio', anchor + '#portfolio', 'Portfolio')}
-    ${drawerLink('proof', anchor + '#proof', 'Proof')}
+    <div class="nx-site-drawer-top">
+      <span class="nx-site-drawer-label">Menu</span>
+      <button id="drawer-close" class="nx-site-btn nx-site-ghost" aria-label="Close menu">Close</button>
+    </div>
+    ${drawerLink('portfolio', anchor + '#portfolio', 'Work')}
     ${drawerLink('pricing', '/pricing', 'Pricing')}
-    ${drawerLink('offers', '/offers', 'Offers')}
-    ${drawerLink('messages', '/messages', 'Messages')}
     ${drawerLink('themes', '/themes', 'Themes')}
-    ${drawerLink('faq', '/faq', 'FAQ')}
-    ${drawerLink('blog', '/blog', 'Blog')}
+    ${drawerLink('blog', '/blog', 'Journal')}
+    ${drawerLink('about', '/why-nexatech', 'About')}
     <label class="nx-site-drawer-currency">Currency <select id="fx-select-drawer" class="nx-site-fx" aria-label="Currency"></select></label>
-    <a id="drawer-wa" href="${wa}" target="_blank" rel="noopener" class="nx-site-btn nx-site-ghost">WhatsApp Us</a>
+    <a id="drawer-wa" href="${wa}" target="_blank" rel="noopener" class="nx-site-btn nx-site-ghost">WhatsApp</a>
     <a id="drawer-book" href="/messages" class="nx-site-btn nx-site-primary">Start a Chat</a>
   </div>
 </div>`;
@@ -317,11 +316,10 @@ function applyPublicHeader(html, file){
   if(skip.test(html)) return html.replace(skip, `$1\n${header}`);
   return html.replace(/<body([^>]*)>/i, `<body$1>\n${header}`);
 }
-function versionedHtml(file){
-  const key = normalizePageKey(file);
-  const override = pageOverrides.get(key);
-  let html = override != null ? override : fs.readFileSync(path.join(__dirname, 'public', file), 'utf8');
+function finalizeHtml(html, file){
   html = html.split('/js/app.js').join('/js/app.js?v='+ASSET_VER)
+             .split('/js/hero-editorial.js').join('/js/hero-editorial.js?v='+ASSET_VER)
+             .split('/js/hero-3d.js').join('/js/hero-3d.js?v='+ASSET_VER)
              .split('/js/admin.js').join('/js/admin.js?v='+ASSET_VER)
              .split('/js/checkout.js').join('/js/checkout.js?v='+ASSET_VER)
              .split('/js/offers.js').join('/js/offers.js?v='+ASSET_VER)
@@ -329,12 +327,18 @@ function versionedHtml(file){
              .split('/js/messages.js').join('/js/messages.js?v='+ASSET_VER)
              .split('/js/inbox.js').join('/js/inbox.js?v='+ASSET_VER)
              .split('/js/call.js').join('/js/call.js?v='+ASSET_VER)
+             .split('/js/hero-store.js').join('/js/hero-store.js?v='+ASSET_VER)
+             .split('/js/theme-links.js').join('/js/theme-links.js?v='+ASSET_VER)
+             .split('/css/tokens.css').join('/css/tokens.css?v='+ASSET_VER)
              .split('/css/style.css').join('/css/style.css?v='+ASSET_VER)
+             .split('/css/inner.css').join('/css/inner.css?v='+ASSET_VER)
              .split('/css/admin.css').join('/css/admin.css?v='+ASSET_VER)
              .split('/css/dm.css').join('/css/dm.css?v='+ASSET_VER)
              .split('/css/pages.css').join('/css/pages.css?v='+ASSET_VER);
   const publicPage = /^(index|pricing|themes|faq|blog|offers|privacy|terms|404|why-nexatech)\.html$/i.test(file) || /(^|[\\/])(themes|blog)[\\/]/i.test(file);
+  const isHomePage = normalizePageKey(file) === 'index.html';
   const head = [];
+  if (isHomePage && !/\/css\/tokens\.css/.test(html)) head.push(`<link rel="stylesheet" href="/css/tokens.css?v=${ASSET_VER}">`);
   if (publicPage) head.push(`<link rel="stylesheet" href="/css/site-header.css?v=${ASSET_VER}">`);
   if (GSC_VERIFICATION) head.push(`<meta name="google-site-verification" content="${GSC_VERIFICATION.replace(/[^A-Za-z0-9_-]/g,'')}">`);
   if (BING_VERIFICATION) head.push(`<meta name="msvalidate.01" content="${BING_VERIFICATION.replace(/[^A-Za-z0-9_-]/g,'')}">`);
@@ -349,6 +353,12 @@ function versionedHtml(file){
   if (publicPage) html = applyPublicHeader(html, file);
   if (publicPage && !/^index\.html$/i.test(file)) html = html.replace('</body>', '<script src="/js/site-chrome.js?v='+ASSET_VER+'"></script>\n</body>');
   return html;
+}
+function versionedHtml(file){
+  const key = normalizePageKey(file);
+  const override = pageOverrides.get(key);
+  const html = override != null ? override : fs.readFileSync(path.join(__dirname, 'public', file), 'utf8');
+  return finalizeHtml(html, file);
 }
 app.use((req, res, next)=>{ if(req.query && req.query.v) res.set('Cache-Control','public, max-age=31536000, immutable'); next(); });
 // Versioned HTML shell: always revalidate (fast 304 via ETag), never stale after deploys.
@@ -381,13 +391,11 @@ app.get(['/privacy.html', '/privacy', '/terms.html', '/terms'], noCacheHtml((req
   catch(e){ return res.status(500).type('html').send('<h1>Page unavailable</h1><p><a href="/">Back to Home</a></p>'); }
 }));
 const SEO_POSTS = [
-  { slug:'how-to-start-dropshipping-in-nigeria', title:'How to Start Dropshipping in Nigeria', desc:'A practical guide to niche, suppliers, payments and first sales in Nigeria.', date:'2026-10-18' },
   { slug:'dropshipping-store-setup-cost', title:'How Much Does a Dropshipping Store Cost?', desc:'A realistic breakdown of build, platform, apps, samples and ad budget.', date:'2026-10-12' },
   { slug:'best-dropshipping-niches-2026', title:'Best Dropshipping Niches for 2026', desc:'How to judge demand, competition, margins and supplier quality.', date:'2026-10-06' },
   { slug:'shopify-vs-woocommerce-dropshipping', title:'Shopify vs WooCommerce for Dropshipping', desc:'Cost, speed, apps, payments and maintenance compared.', date:'2026-09-28' },
   { slug:'how-to-find-winning-products', title:'How to Find Winning Dropshipping Products', desc:'A practical product research process for beginners.', date:'2026-09-22' },
   { slug:'dropshipping-suppliers-guide', title:'Dropshipping Suppliers: A Beginner Guide', desc:'How to find, test and vet suppliers before you sell.', date:'2026-09-15' },
-  { slug:'dropshipping-payment-gateways-nigeria', title:'Payment Gateways for Dropshipping in Nigeria', desc:'Approval, failed payments, payouts and crypto options.', date:'2026-09-08' },
   { slug:'dropshipping-ads-for-beginners', title:'Dropshipping Ads for Beginners', desc:'Pixel setup, creative angles, testing rules and metrics.', date:'2026-08-30' },
   { slug:'dropshipping-store-seo', title:'SEO for Dropshipping Stores', desc:'Product and collection SEO, technical basics and content.', date:'2026-08-22' },
   { slug:'dropshipping-store-conversion-rate', title:'How to Improve Dropshipping Conversion Rate', desc:'Trust, product pages, shipping clarity and checkout fixes.', date:'2026-08-14' },
@@ -438,6 +446,8 @@ function buildSitemapXml(){
     { loc:'/faq', lastmod:now, changefreq:'monthly', priority:'0.8' },
     { loc:'/why-nexatech', lastmod:now, changefreq:'monthly', priority:'0.7' },
     { loc:'/blog', lastmod:now, changefreq:'weekly', priority:'0.8' },
+    { loc:'/blog/countries', lastmod:now, changefreq:'monthly', priority:'0.8' },
+    ...COUNTRY_GUIDES.map(c => ({ loc:'/blog/how-to-start-dropshipping-in-'+c.slug, lastmod:now, changefreq:'monthly', priority:'0.5' })),
     { loc:'/offers', lastmod:now, changefreq:'monthly', priority:'0.7' },
     { loc:'/privacy.html', lastmod:now, changefreq:'yearly', priority:'0.3' },
     { loc:'/terms.html', lastmod:now, changefreq:'yearly', priority:'0.3' },
@@ -451,12 +461,12 @@ function buildRssXml(){
   return `<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0"><channel><title>Nexatech Dropshipping Blog</title><link>${xmlEscape(SITE_URL+'/blog')}</link><description>Practical dropshipping guides from Nexatech.</description><language>en</language>${items ? '\n'+items+'\n' : ''}</channel></rss>\n`;
 }
 function buildLlmsTxt(){
-  return `# Nexatech Dropshipping Store\n\n> Done-for-you dropshipping store setup. We research products, build the store, connect suppliers and payments, and hand over full ownership in 7 to 14 days. Based in Lagos, Nigeria, serving clients worldwide.\n\n## Key pages\n- [Home](${SITE_URL}/): Services, portfolio, process and contact.\n- [Pricing](${SITE_URL}/pricing): Starter $149, Pro $299, Elite $599.\n- [Themes](${SITE_URL}/themes): Fashion $49, Beauty $39, Gadget $59.\n- [FAQ](${SITE_URL}/faq): 40 answers on pricing, timeline, suppliers, payments and support.\n- [Why Nexatech](${SITE_URL}/why-nexatech): Who we are, what the build includes, who it is for, and what you own.\n- [Blog](${SITE_URL}/blog): Practical dropshipping guides.\n- [Contact](${SITE_URL}/messages): Private chat with the team.\n\n## Contact\n- WhatsApp: +44 7411 200927\n- Email: saheednexatech@gmail.com\n- Location: Lagos, Nigeria\n\n## Notes\n- Prices are in USD and may be displayed in local currency at checkout.\n- We do not guarantee sales or income.\n- Reviews and proof are only shown when real client media exists.\n`;
+  return `# Nexatech Dropshipping Store\n\n> Done-for-you dropshipping store setup. We research products, build the store, connect suppliers and payments, and hand over full ownership in 7 to 14 days. Serving clients worldwide.\n\n## Key pages\n- [Home](${SITE_URL}/): Services, portfolio, process and contact.\n- [Pricing](${SITE_URL}/pricing): Starter $149, Pro $299, Elite $599.\n- [Themes](${SITE_URL}/themes): Fashion $49, Beauty $39, Gadget $59.\n- [FAQ](${SITE_URL}/faq): 40 answers on pricing, timeline, suppliers, payments and support.\n- [Why Nexatech](${SITE_URL}/why-nexatech): Who we are, what the build includes, who it is for, and what you own.\n- [Blog](${SITE_URL}/blog): Practical dropshipping guides.\n- [Country guides](${SITE_URL}/blog/countries): ${COUNTRY_GUIDE_COUNT} advanced dropshipping guides by country.\n- [Contact](${SITE_URL}/messages): Private chat with the team.\n\n## Contact\n- WhatsApp: +44 7411 200927\n- Email: saheednexatech@gmail.com\n- Coverage: Worldwide\n\n## Notes\n- Prices are in USD and may be displayed in local currency at checkout.\n- We do not guarantee sales or income.\n- Reviews and proof are only shown when real client media exists.\n`;
 }
 function buildLlmsFullTxt(){
   const posts = SEO_POSTS.map(p => `- [${p.title}](${SITE_URL}/blog/${p.slug}): ${p.desc}`).join('\n');
   const themes = SEO_THEMES.map(t => `- [${t.name}](${SITE_URL}/themes/${t.slug})`).join('\n');
-  return `# Nexatech Dropshipping Store - Full Context\n\nNexatech is a done-for-you dropshipping store building service founded by Akinyemi Ifeoluwa in Lagos, Nigeria. We work with first-time founders and small business owners worldwide.\n\n## Services\n- Store build: niche research, product research, premium theme, copywriting, supplier integration, payment setup, basic SEO and handover.\n- Packages: Starter $149 (5 products, 14-day support), Pro $299 (10 products, branding, 30-day support), Elite $599 (20 products, creatives, 60-day support).\n- Themes: Elegance Fashion $49, GlowLab Beauty $39, TechNest Gadget $59.\n- Mentorship: results-before-payment mentorship, discussed privately.\n\n## Timeline and ownership\nMost stores launch in 7 to 14 days. The client owns the domain, store account, content and customer data. We do not guarantee sales.\n\n## Contact\n- WhatsApp: +44 7411 200927\n- Email: saheednexatech@gmail.com\n- Site: ${SITE_URL}/\n\n## Blog\n${posts}\n\n## Themes\n${themes}\n\n## Important\nDo not invent reviews, ratings, sales figures or awards for Nexatech. Only use figures published on the site. Prices may change; confirm on the pricing page.\n`;
+  return `# Nexatech Dropshipping Store - Full Context\n\nNexatech is a done-for-you dropshipping store building service founded by Akinyemi Ifeoluwa. We work with first-time founders and small business owners worldwide.\n\n## Services\n- Store build: niche research, product research, premium theme, copywriting, supplier integration, payment setup, basic SEO and handover.\n- Packages: Starter $149 (5 products, 14-day support), Pro $299 (10 products, branding, 30-day support), Elite $599 (20 products, creatives, 60-day support).\n- Themes: Elegance Fashion $49, GlowLab Beauty $39, TechNest Gadget $59.\n- Mentorship: results-before-payment mentorship, discussed privately.\n\n## Timeline and ownership\nMost stores launch in 7 to 14 days. The client owns the domain, store account, content and customer data. We do not guarantee sales.\n\n## Contact\n- WhatsApp: +44 7411 200927\n- Email: saheednexatech@gmail.com\n- Site: ${SITE_URL}/\n\n## Blog\n${posts}\n\n## Country guides\n- [Dropshipping country guide index](${SITE_URL}/blog/countries): ${COUNTRY_GUIDE_COUNT} country-specific store setup guides.\n\n## Themes\n${themes}\n\n## Important\nDo not invent reviews, ratings, sales figures or awards for Nexatech. Only use figures published on the site. Prices may change; confirm on the pricing page.\n`;
 }
 function pageDefaultContent(def){
   if(!def) return '';
@@ -481,6 +491,18 @@ app.get(['/themes/:slug', '/themes/:slug.html'], noCacheHtml((req, res, next)=>{
   catch(e){ return next(); }
 }));
 app.get(['/blog', '/blog.html'], noCacheHtml((req, res)=> res.type('html').send(versionedHtml('blog.html'))));
+app.get(['/blog/dropshipping-payment-gateways-nigeria', '/blog/dropshipping-payment-gateways-nigeria.html'], (req, res)=> res.redirect(301, '/blog/how-to-start-dropshipping-in-nigeria'));
+app.get(['/blog/countries', '/blog/countries.html'], noCacheHtml((req, res, next)=>{
+  try { return res.type('html').send(finalizeHtml(renderCountryHub(SITE_URL), 'blog/countries.html')); }
+  catch(e){ return next(); }
+}));
+app.get(['/blog/how-to-start-dropshipping-in-:slug', '/blog/how-to-start-dropshipping-in-:slug.html'], noCacheHtml((req, res, next)=>{
+  const slug = String(req.params.slug || '').replace(/\.html$/i, '').toLowerCase();
+  const country = getCountryGuide(slug);
+  if(!country) return next();
+  try { return res.type('html').send(finalizeHtml(renderCountryGuide(country, SITE_URL), 'blog/how-to-start-dropshipping-in-'+country.slug+'.html')); }
+  catch(e){ return next(); }
+}));
 app.get(['/blog/:slug', '/blog/:slug.html'], noCacheHtml((req, res, next)=>{
   const slug = String(req.params.slug || '').replace(/\.html$/i, '').toLowerCase();
   if(!/^[a-z0-9-]+$/.test(slug) || !SEO_POSTS.some(p => p.slug === slug)) return next();
@@ -503,6 +525,10 @@ for(const manifest of ['site.webmanifest','manifest.webmanifest','inbox.webmanif
     return res.sendFile(path.join(__dirname, 'public', manifest));
   });
 }
+const vendorStatic = { immutable: true, maxAge: '1y' };
+app.use('/vendor/three', express.static(path.join(__dirname, 'node_modules', 'three'), vendorStatic));
+app.use('/vendor/gsap', express.static(path.join(__dirname, 'node_modules', 'gsap'), vendorStatic));
+app.use('/vendor/toastui', express.static(path.join(__dirname, 'node_modules', '@toast-ui', 'editor'), vendorStatic));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(UPLOAD_DIR));
 // DB media store (Postgres): files uploaded while DATABASE_URL is set live in media_blobs,
@@ -1126,9 +1152,19 @@ function publicTheme(row){
     price_cents: row.price_cents, currency: row.currency || 'USD',
     price_text: free ? 'Free' : formatCents(row.price_cents, row.currency),
     preview_url: row.preview_url || '',
+    demo_url: row.demo_url || '',
     has_zip: !!(row.zip_filename),
     published: row.published, display_order: row.display_order
   };
+}
+function cleanDemoUrl(value){
+  const raw = String(value == null ? '' : value).trim();
+  if(!raw) return '';
+  try{
+    const parsed = new URL(raw);
+    if(parsed.protocol === 'http:' || parsed.protocol === 'https:') return raw.slice(0, 500);
+  }catch{}
+  return null;
 }
 async function getPayConfig(){
   const get = async (k) => (await db.prepare('SELECT value FROM content WHERE key=?').get(k))?.value || '';
@@ -1882,10 +1918,12 @@ app.get('/api/admin/themes', requireAuth, async (req, res) => {
 // --- Admin: create theme (multipart: preview image + zipfile + fields) ---
 app.post('/api/admin/themes', requireAuth, themeForm.fields([{ name: 'preview', maxCount: 1 }, { name: 'zipfile', maxCount: 1 }]), async (req, res) => {
   try{
-    const { name, slug, description, price, currency, preview_url, published, display_order } = req.body || {};
+    const { name, slug, description, price, currency, preview_url, demo_url, published, display_order } = req.body || {};
     if(!name || !String(name).trim()) return res.status(400).json({ error: 'name required' });
     const dollars = parseFloat(String(price == null ? '' : price).replace(/[^0-9.]/g, ''));
     if(!Number.isFinite(dollars) || dollars < 0) return res.status(400).json({ error: 'price (USD) must be 0 or more (0 = free/test)' });
+    const demoUrl = cleanDemoUrl(demo_url);
+    if(demoUrl === null) return res.status(400).json({ error: 'Live Demo URL must start with http:// or https://' });
     let finalSlug = slugifyTheme(slug || name);
     const clash = await db.prepare('SELECT id FROM themes WHERE slug=?').get(finalSlug);
     if(clash) finalSlug = finalSlug + '-' + Date.now().toString(36);
@@ -1897,10 +1935,10 @@ app.post('/api/admin/themes', requireAuth, themeForm.fields([{ name: 'preview', 
       zipFilename = saved.filename; zipSize = saved.size;
     }
     const maxRow = await db.prepare('SELECT COALESCE(MAX(display_order),-1)+1 as n FROM themes').get();
-    const info = await db.prepare('INSERT INTO themes (name,slug,description,price_cents,currency,preview_url,zip_filename,zip_size,published,display_order) VALUES (?,?,?,?,?,?,?,?,?,?)')
+    const info = await db.prepare('INSERT INTO themes (name,slug,description,price_cents,currency,preview_url,demo_url,zip_filename,zip_size,published,display_order) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
       .run(String(name).trim().slice(0, 160), finalSlug, String(description || '').slice(0, 2000),
         Math.round(dollars * 100), String(currency || 'USD').toUpperCase().slice(0, 8) || 'USD',
-        previewUrl.slice(0, 500), zipFilename, zipSize, parseBool(published ?? 1), parseInt(display_order, 10) || (maxRow ? maxRow.n : 0));
+        previewUrl.slice(0, 500), demoUrl, zipFilename, zipSize, parseBool(published ?? 1), parseInt(display_order, 10) || (maxRow ? maxRow.n : 0));
     res.json(await db.prepare('SELECT * FROM themes WHERE id=?').get(info.lastInsertRowid));
   }catch(e){ res.status(500).json({ error: 'could not save theme: ' + e.message }); }
 });
@@ -1911,6 +1949,8 @@ app.patch('/api/admin/themes/:id', requireAuth, themeForm.fields([{ name: 'previ
     if(!ex) return res.status(404).json({ error: 'theme not found' });
     let previewUrl = req.body.preview_url !== undefined ? String(req.body.preview_url || '').trim() : ex.preview_url;
     if(req.files && req.files.preview && req.files.preview[0]) previewUrl = await persistUpload(req.files.preview[0]);
+    const demoUrl = req.body.demo_url !== undefined ? cleanDemoUrl(req.body.demo_url) : (ex.demo_url || '');
+    if(demoUrl === null) return res.status(400).json({ error: 'Live Demo URL must start with http:// or https://' });
     let zipFilename = ex.zip_filename, zipSize = ex.zip_size;
     if(req.files && req.files.zipfile && req.files.zipfile[0]){
       const saved = await persistThemeZip(req.files.zipfile[0]);
@@ -1936,11 +1976,12 @@ app.patch('/api/admin/themes/:id', requireAuth, themeForm.fields([{ name: 'previ
       price_cents: cents,
       currency: req.body.currency !== undefined ? (String(req.body.currency).toUpperCase().slice(0, 8) || 'USD') : ex.currency,
       preview_url: (previewUrl || '').slice(0, 500),
+      demo_url: demoUrl,
       published: req.body.published !== undefined ? parseBool(req.body.published) : ex.published,
       display_order: req.body.display_order !== undefined ? (parseInt(req.body.display_order, 10) || 0) : ex.display_order
     };
-    await db.prepare('UPDATE themes SET name=?,slug=?,description=?,price_cents=?,currency=?,preview_url=?,zip_filename=?,zip_size=?,published=?,display_order=? WHERE id=?')
-      .run(fields.name, fields.slug, fields.description, fields.price_cents, fields.currency, fields.preview_url, zipFilename, zipSize, fields.published, fields.display_order, ex.id);
+    await db.prepare('UPDATE themes SET name=?,slug=?,description=?,price_cents=?,currency=?,preview_url=?,demo_url=?,zip_filename=?,zip_size=?,published=?,display_order=? WHERE id=?')
+      .run(fields.name, fields.slug, fields.description, fields.price_cents, fields.currency, fields.preview_url, fields.demo_url, zipFilename, zipSize, fields.published, fields.display_order, ex.id);
     res.json(await db.prepare('SELECT * FROM themes WHERE id=?').get(ex.id));
   }catch(e){ res.status(500).json({ error: 'could not update theme: ' + e.message }); }
 });

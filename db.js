@@ -381,6 +381,7 @@ export async function initDb() {
         price_cents INTEGER NOT NULL DEFAULT 0,
         currency TEXT DEFAULT 'USD',
         preview_url TEXT DEFAULT '',
+        demo_url TEXT DEFAULT '',
         zip_filename TEXT DEFAULT '',
         zip_size INTEGER DEFAULT 0,
         published INTEGER DEFAULT 1,
@@ -707,6 +708,7 @@ export async function initDb() {
       price_cents INTEGER NOT NULL DEFAULT 0,
       currency TEXT DEFAULT 'USD',
       preview_url TEXT DEFAULT '',
+      demo_url TEXT DEFAULT '',
       zip_filename TEXT DEFAULT '',
       zip_size INTEGER DEFAULT 0,
       published INTEGER DEFAULT 1,
@@ -832,6 +834,7 @@ export async function initDb() {
   }
   try{ await db.prepare("ALTER TABLE dm_push_subscriptions ADD COLUMN role TEXT DEFAULT 'user'").run(); }catch{}
   try{ await db.prepare('ALTER TABLE dm_push_subscriptions ADD COLUMN user_id INTEGER').run(); }catch{}
+  try{ await db.prepare("ALTER TABLE themes ADD COLUMN demo_url TEXT DEFAULT ''").run(); }catch{}
 
   // Helper to handle async get
   const getCount = async (table) => {
@@ -847,11 +850,11 @@ export async function initDb() {
       ['whatsapp_number', '447411200927', 'text'],
       ['whatsapp_link', 'https://wa.me/447411200927', 'text'],
       ['calendly_url', '', 'text'],
-      ['hero_badge', 'Only {remaining} build slots left this month', 'text'],
-      ['hero_title', 'Your Profitable Dropshipping Store Built, Launched & Ready to Sell', 'text'],
-      ['hero_subtitle', 'We handle product research, supplier setup, store design & payment integration. You own everything. We launch in 7 to 14 days with proven winning products.', 'text'],
-      ['hero_cta_primary', 'Talk to Us Directly', 'text'],
-      ['hero_cta_secondary', 'Chat on WhatsApp', 'text'],
+      ['hero_badge', '', 'text'],
+      ['hero_title', '<span class="hero-line"><span>Products that sell,</span></span><span class="hero-line"><span><em>delivered without the inventory.</em></span></span>', 'text'],
+      ['hero_subtitle', 'We source, list and ship winning products so you can focus on growing the store.', 'text'],
+      ['hero_cta_primary', 'Start selling', 'text'],
+      ['hero_cta_secondary', 'See how it works', 'text'],
       ['social_proof_title', 'Trusted by ambitious founders', 'text'],
       ['portfolio_title', 'Store Portfolio', 'text'],
       ['portfolio_subtitle', 'Real stores we\'ve built explore by niche, see the numbers.', 'text'],
@@ -903,21 +906,21 @@ export async function initDb() {
       ['footer_email', 'saheednexatech@gmail.com', 'text'],
       ['footer_phone', '+44 7411 200927', 'text'],
       ['footer_address', 'Serving clients worldwide', 'text'],
-      ['footer_copyright', '© Nexatech Dropshipping Store. All rights reserved.', 'text'],
+      ['footer_copyright', 'Nexatech Dropshipping Store. All rights reserved.', 'text'],
       ['seo_title', 'Nexatech Dropshipping Store Done For You High Converting Stores', 'text'],
       ['seo_description', 'We build, launch and hand over fully-configured dropshipping stores with winning products and automated fulfillment. You own 100%.', 'text'],
       ['og_image', '', 'text'],
-      ['color_primary', '#0B1220', 'color'],
-      ['color_primary_light', '#132238', 'color'],
-      ['color_accent', '#00D1FF', 'color'],
-      ['color_accent_2', '#7C3AED', 'color'],
+      ['color_primary', '#0F183D', 'color'],
+      ['color_primary_light', '#16224F', 'color'],
+      ['color_accent', '#C8323E', 'color'],
+      ['color_accent_2', '#0F183D', 'color'],
       ['color_bg', '#FFFFFF', 'color'],
-      ['color_bg_alt', '#F8FAFC', 'color'],
-      ['color_text', '#0B1220', 'color'],
-      ['color_text_muted', '#64748B', 'color'],
-      ['color_border', '#E2E8F0', 'color'],
-      ['color_success', '#10B981', 'color'],
-      ['font_family', 'Inter, system-ui, -apple-system, sans-serif', 'text'],
+      ['color_bg_alt', '#F4F6FB', 'color'],
+      ['color_text', '#0F183D', 'color'],
+      ['color_text_muted', 'rgba(15,24,61,.64)', 'color'],
+      ['color_border', 'rgba(15,24,61,.14)', 'color'],
+      ['color_success', '#148A5B', 'color'],
+      ['font_family', "'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif", 'text'],
       ['logo_text', 'NEXATECH', 'text'],
       ['logo_url', '', 'text'],
       ['favicon_url', '', 'text'],
@@ -996,25 +999,26 @@ export async function initDb() {
       ['chatbot_max_tokens', '600', 'number'],
       ['hero_image_url', 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=900', 'text'],
       ['nav_link_home', 'Home', 'text'],
-      ['nav_link_portfolio', 'Portfolio', 'text'],
+      ['nav_link_portfolio', 'Work', 'text'],
       ['nav_link_proof', 'Proof', 'text'],
       ['nav_link_pricing', 'Pricing', 'text'],
       ['nav_link_faq', 'FAQ', 'text'],
-      ['nav_link_blog', 'Blog', 'text'],
-      ['nav_link_offers', 'Custom Offers', 'text'],
+      ['nav_link_blog', 'Journal', 'text'],
+      ['nav_link_about', 'About', 'text'],
+      ['nav_link_offers', 'Offers', 'text'],
       ['nav_link_messages', 'Messages', 'text'],
-      ['nav_whatsapp_label', 'WhatsApp Us', 'text'],
+      ['nav_whatsapp_label', 'WhatsApp', 'text'],
       ['nav_book_label', 'Start a Chat', 'text'],
-      ['footer_blog_label', 'Blog', 'text'],
+      ['footer_blog_label', 'Journal', 'text'],
       ['footer_themes_label', 'Themes', 'text'],
       ['footer_faq_label', 'FAQ', 'text'],
       ['footer_rss_label', 'RSS', 'text'],
-      ['trust_1_bold', '7 to 14 Day', 'text'],
-      ['trust_1_text', 'Delivery', 'text'],
-      ['trust_2_bold', '100%', 'text'],
-      ['trust_2_text', 'Ownership', 'text'],
-      ['trust_3_bold', 'Real Sales', 'text'],
-      ['trust_3_text', 'Proof', 'text'],
+      ['trust_1_bold', 'Fast shipping.', 'text'],
+      ['trust_1_text', '', 'text'],
+      ['trust_2_bold', 'Vetted suppliers.', 'text'],
+      ['trust_2_text', '', 'text'],
+      ['trust_3_bold', 'Real support.', 'text'],
+      ['trust_3_text', '', 'text'],
       ['hero_visual_domain', 'nexatech.store', 'text'],
       ['chip_1_title', 'New Sale $450', 'text'],
       ['chip_1_sub', 'Elegance Mode - just now', 'text'],
@@ -1313,8 +1317,8 @@ export async function initDb() {
       ['sales_proof','','https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800','Shopify Payout $14,500','Sales proof payout','','', '',1,1],
       ['sales_proof','','https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800','Meta ROAS 3.1 Fashion campaign','ROAS screenshot','','', '',2,1],
       ['sales_proof','','https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=800','Stripe Dashboard 312 orders','Orders dashboard','','', '',3,1],
-      ['testimonials','','https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400','"Nexatech built my store in 9 days and I made my first sale on day 12. No hype." Ada, Lagos','Ada testimonial','','', '',1,1],
-      ['testimonials','','https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400','"The product research alone was worth it. Three winners in week one." Tunde, Abuja','Tunde testimonial','','', '',2,1],
+      ['testimonials','','https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400','"Nexatech built my store in 9 days and I made my first sale on day 12. No hype." Ada','Ada testimonial','','', '',1,1],
+      ['testimonials','','https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400','"The product research alone was worth it. Three winners in week one." Tunde','Tunde testimonial','','', '',2,1],
   ];
   if (mediaCount === 0 || forceReset) {
     if (forceReset && mediaCount !== 0) { try { await db.exec('DELETE FROM media'); } catch {} }
@@ -1460,6 +1464,81 @@ export async function initDb() {
       await db.prepare("UPDATE content SET value='' WHERE key='calendly_url' AND value LIKE '%calendly.%'").run();
       await db.prepare("UPDATE content SET value=REPLACE(value,'To personalize your strategy call','To personalize your experience') WHERE key='privacy_content' AND value LIKE '%To personalize your strategy call%'").run();
     }catch(e){ console.error('CTA migration failed:', e.message); }
+    // Editorial redesign migration: update only untouched legacy defaults.
+    // Custom admin copy and uploaded brand assets are preserved.
+    try{
+      const skin = [
+        ['hero_badge', 'Only {remaining} build slots left this month', ''],
+        ['hero_subtitle', 'We handle product research, supplier setup, store design & payment integration. You own everything. We launch in 7 to 14 days with proven winning products.', 'We source, list and ship winning products so you can focus on growing the store.'],
+        ['hero_cta_primary', 'Talk to Us Directly', 'Start selling'],
+        ['hero_cta_secondary', 'Chat on WhatsApp', 'See how it works'],
+        ['trust_1_bold', '7 to 14 Day', 'Fast shipping.'],
+        ['trust_1_text', 'Delivery', ''],
+        ['trust_2_bold', '100%', 'Vetted suppliers.'],
+        ['trust_2_text', 'Ownership', ''],
+        ['trust_3_bold', 'Real Sales', 'Real support.'],
+        ['trust_3_text', 'Proof', ''],
+        ['nav_link_portfolio', 'Portfolio', 'Work'],
+        ['nav_link_blog', 'Blog', 'Journal'],
+        ['footer_blog_label', 'Blog', 'Journal'],
+        ['nav_link_offers', 'Custom Offers', 'Offers'],
+        ['nav_whatsapp_label', 'WhatsApp Us', 'WhatsApp'],
+        ['color_primary', '#0B1220', '#14130F'],
+        ['color_primary_light', '#132238', '#2C2922'],
+        ['color_accent', '#00D1FF', '#1F4FD8'],
+        ['color_accent_2', '#7C3AED', '#14130F'],
+        ['color_bg', '#FFFFFF', '#F4EFE6'],
+        ['color_bg_alt', '#F8FAFC', '#EDE6DA'],
+        ['color_text', '#0B1220', '#14130F'],
+        ['color_text_muted', '#64748B', 'rgba(20,19,15,.64)'],
+        ['color_border', '#E2E8F0', 'rgba(20,19,15,.16)'],
+        ['color_success', '#10B981', '#2E6A4E'],
+        ['font_family', 'Inter, system-ui, -apple-system, sans-serif', "'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif"]
+      ];
+      let changed = 0;
+      for(const [key, from, to] of skin){
+        const r = await db.prepare('UPDATE content SET value=? WHERE key=? AND value=?').run(to, key, from);
+        if(r && r.changes) changed += r.changes;
+      }
+      const heroTitle = '<span class="hero-line"><span>Products that sell,</span></span><span class="hero-line"><span><em>delivered without the inventory.</em></span></span>';
+      for(const from of ['Your Profitable Dropshipping Store Built, Launched & Ready to Sell', 'Done-For-You Dropshipping Store Built, Launched & Ready to Sell']){
+        const r = await db.prepare('UPDATE content SET value=? WHERE key=? AND value=?').run(heroTitle, 'hero_title', from);
+        if(r && r.changes) changed += r.changes;
+      }
+      if(changed) console.log('Migrated editorial defaults: ' + changed + ' content rows');
+    }catch(e){ console.error('Editorial migration failed:', e.message); }
+    // Final navy/logo-red palette migration: convert untouched legacy and editorial defaults.
+    // Custom Admin colors are preserved because each update matches an exact old default.
+    try{
+      const palette = [
+        ['color_primary', '#0B1220', '#0F183D'],
+        ['color_primary', '#14130F', '#0F183D'],
+        ['color_primary_light', '#132238', '#16224F'],
+        ['color_primary_light', '#2C2922', '#16224F'],
+        ['color_accent', '#00D1FF', '#C8323E'],
+        ['color_accent', '#1F4FD8', '#C8323E'],
+        ['color_accent', '#FF3D8B', '#C8323E'],
+        ['color_accent_2', '#7C3AED', '#0F183D'],
+        ['color_accent_2', '#14130F', '#0F183D'],
+        ['color_bg', '#F4EFE6', '#FFFFFF'],
+        ['color_bg_alt', '#EDE6DA', '#F4F6FB'],
+        ['color_bg_alt', '#F8FAFC', '#F4F6FB'],
+        ['color_text', '#0B1220', '#0F183D'],
+        ['color_text', '#14130F', '#0F183D'],
+        ['color_text_muted', '#64748B', 'rgba(15,24,61,.64)'],
+        ['color_text_muted', 'rgba(20,19,15,.64)', 'rgba(15,24,61,.64)'],
+        ['color_border', '#E2E8F0', 'rgba(15,24,61,.14)'],
+        ['color_border', 'rgba(20,19,15,.16)', 'rgba(15,24,61,.14)'],
+        ['color_success', '#10B981', '#148A5B'],
+        ['color_success', '#2E6A4E', '#148A5B']
+      ];
+      let changed = 0;
+      for(const [key, from, to] of palette){
+        const r = await db.prepare('UPDATE content SET value=? WHERE key=? AND value=?').run(to, key, from);
+        if(r && r.changes) changed += r.changes;
+      }
+      if(changed) console.log('Migrated navy/logo-red palette: ' + changed + ' content rows');
+    }catch(e){ console.error('Palette migration failed:', e.message); }
     // upgrade retired models to gemini-3.6-flash (2.5-flash no longer served to new projects)
     try{ const gm = (await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_model'))?.value; if(gm && (gm.includes('1.5') || gm.trim() === 'gemini-2.5-flash')) await db.prepare("UPDATE content SET value='gemini-3.6-flash' WHERE key='gemini_model'").run(); }catch{}
     // upgrade retired Groq model id (llama-3.3-70b-versatile shut down 08/16/26) to official replacement
@@ -1501,9 +1580,15 @@ export async function initDb() {
         }
       };
       await seoUpdate('seo_title', 'Nexatech Dropshipping Store Done For You High Converting Stores', 'Done-For-You Dropshipping Store Setup | Nexatech');
-      await seoUpdate('seo_description', 'We build, launch and hand over fully-configured dropshipping stores with winning products and automated fulfillment. You own 100%.', 'We build, launch and hand over your dropshipping store in 7 to 14 days: products, suppliers, payments and design. You own 100%. Based in Lagos, serving worldwide.');
+      await seoUpdate('seo_description', 'We build, launch and hand over fully-configured dropshipping stores with winning products and automated fulfillment. You own 100%.', 'We build, launch and hand over your dropshipping store in 7 to 14 days: products, suppliers, payments and design. You own 100%. Serving clients worldwide.');
+      await seoUpdate('seo_description', 'We build, launch and hand over your dropshipping store in 7 to 14 days: products, suppliers, payments and design. You own 100%. Based in Lagos, serving worldwide.', 'We build, launch and hand over your dropshipping store in 7 to 14 days: products, suppliers, payments and design. You own 100%. Serving clients worldwide.');
+      await seoUpdate('footer_copyright', 'c Nexatech Dropshipping Store. All rights reserved.', 'Nexatech Dropshipping Store. All rights reserved.');
+      await seoUpdate('footer_copyright', '© Nexatech Dropshipping Store. All rights reserved.', 'Nexatech Dropshipping Store. All rights reserved.');
+      try{
+        await db.prepare("UPDATE media SET caption = REPLACE(REPLACE(caption, ', Lagos', ''), ', Abuja', '') WHERE type='testimonials' AND (caption LIKE '%, Lagos%' OR caption LIKE '%, Abuja%')").run();
+      }catch{}
       await seoUpdate('og_image', null, 'https://dropshippingstore.dpdns.org/og-image.png');
-      await seoUpdate('hero_title', 'Your Profitable Dropshipping Store Built, Launched & Ready to Sell', 'Done-For-You Dropshipping Store Built, Launched & Ready to Sell');
+      await seoUpdate('hero_title', 'Your Profitable Dropshipping Store Built, Launched & Ready to Sell', '<span class="hero-line"><span>Products that sell,</span></span><span class="hero-line"><span><em>delivered without the inventory.</em></span></span>');
       await seoUpdate('portfolio_eyebrow', 'Portfolio', 'Dropshipping Store Portfolio');
       await seoUpdate('portfolio_title', 'Store Portfolio', 'Dropshipping Store Portfolio: Stores We Built');
       await seoUpdate('portfolio_subtitle', "Real stores we've built explore by niche, see the numbers.", 'Real dropshipping stores we have built - explore by niche and see the numbers.');

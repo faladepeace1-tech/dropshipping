@@ -21,11 +21,20 @@
   }
   function bindDrawer(){
     const drawer = $('#drawer');
+    const burger = $('#hamburger');
+    const header = $('#header');
+    if(header) window.addEventListener('scroll', () => header.classList.toggle('scrolled', window.scrollY > 16), { passive: true });
     if(!drawer) return;
-    $('#hamburger')?.addEventListener('click', () => drawer.classList.add('open'));
-    $('#drawer-close')?.addEventListener('click', () => drawer.classList.remove('open'));
-    drawer.addEventListener('click', e => { if(e.target === drawer) drawer.classList.remove('open'); });
-    document.addEventListener('keydown', e => { if(e.key === 'Escape') drawer.classList.remove('open'); });
+    const setDrawer = open => {
+      drawer.classList.toggle('open', open);
+      burger?.setAttribute('aria-expanded', open ? 'true' : 'false');
+      document.body.classList.toggle('drawer-open', open);
+    };
+    burger?.addEventListener('click', () => setDrawer(!drawer.classList.contains('open')));
+    $('#drawer-close')?.addEventListener('click', () => setDrawer(false));
+    drawer.addEventListener('click', e => { if(e.target === drawer) setDrawer(false); });
+    document.addEventListener('keydown', e => { if(e.key === 'Escape') setDrawer(false); });
+    drawer.querySelectorAll('a').forEach(a => a.addEventListener('click', () => setDrawer(false)));
   }
   function fillCurrency(rates, currencies){
     const els = [...document.querySelectorAll('#fx-select, #fx-select-drawer')];
@@ -77,14 +86,11 @@
     }
     const nav = $('.nx-site-nav') || $('.nx-nav');
     if(nav){
-      setLink(nav, ['/#portfolio', '#portfolio'], T(c, 'nav_link_portfolio', 'Portfolio'));
-      setLink(nav, ['/#proof', '#proof'], T(c, 'nav_link_proof', 'Proof'));
+      setLink(nav, ['/#portfolio', '#portfolio'], T(c, 'nav_link_portfolio', 'Work'));
       setLink(nav, '/pricing', T(c, 'nav_link_pricing', 'Pricing'));
-      setLink(nav, '/offers', T(c, 'nav_link_offers', 'Offers'));
-      setLink(nav, '/messages', T(c, 'nav_link_messages', 'Messages'));
       setLink(nav, '/themes', T(c, 'nav_link_themes', 'Themes'));
-      setLink(nav, '/faq', T(c, 'nav_link_faq', 'FAQ'));
-      setLink(nav, '/blog', T(c, 'nav_link_blog', 'Blog'));
+      setLink(nav, '/blog', T(c, 'nav_link_blog', 'Journal'));
+      setLink(nav, '/why-nexatech', T(c, 'nav_link_about', 'About'));
     }
     const waNum = T(c, 'whatsapp_number', '447411200927');
     const waMsg = 'Hi Nexatech! Quick question about your store packages.';
@@ -105,8 +111,18 @@
       setLink(foot, '/pricing', T(c, 'nav_link_pricing', 'Pricing'));
       setLink(foot, '/themes', T(c, 'nav_link_themes', 'Themes'));
       setLink(foot, '/faq', T(c, 'nav_link_faq', 'FAQ'));
-      setLink(foot, '/blog', T(c, 'nav_link_blog', 'Blog'));
+      setLink(foot, '/blog', T(c, 'nav_link_blog', 'Journal'));
       setLink(foot, '/rss.xml', T(c, 'footer_rss_label', 'RSS'));
+      if(!foot.querySelector('a[href="/blog/countries"]')){
+        const rss = foot.querySelector('a[href="/rss.xml"]');
+        if(rss && rss.parentNode){
+          const country = document.createElement('a');
+          country.href = '/blog/countries';
+          country.textContent = 'Country guides';
+          rss.parentNode.insertBefore(country, rss);
+          rss.parentNode.insertBefore(document.createTextNode(' · '), rss);
+        }
+      }
     }
     const favicon = String(c.favicon_url || '').trim();
     if(favicon){

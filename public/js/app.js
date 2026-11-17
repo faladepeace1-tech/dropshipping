@@ -380,38 +380,47 @@ function applyTheme(c){
   const map={color_primary:'--primary',color_primary_light:'--primary-light',color_accent:'--accent',color_accent_2:'--accent-2',color_bg:'--bg',color_bg_alt:'--bg-alt',color_text:'--text',color_text_muted:'--text-muted',color_border:'--border',color_success:'--success'};
   for(const [k,css] of Object.entries(map)) if(c[k]) r.style.setProperty(css,c[k]);
   if(c.font_family) r.style.setProperty('--font',c.font_family);
-  if(c.logo_text) $('#logo-text').textContent=c.logo_text;
-  // Logo image (uploaded in Admin) renders before the brand name; no default mark
+  if(c.logo_text){ const el=document.getElementById('logo-text'); if(el) el.textContent=c.logo_text; }
+  // Nexatech logo is the default; Admin-uploaded logos replace it.
   try{
     const logo = document.querySelector('.logo');
     const textEl = document.getElementById('logo-text');
     const lu = (c.logo_url||'').trim();
     if(logo && textEl){
       let img = logo.querySelector('.logo-img');
-      if(lu){
-        if(!img){ img=document.createElement('img'); img.className='logo-img'; img.alt='logo'; logo.insertBefore(img, textEl); }
-        if(img.getAttribute('src')!==lu) img.src=lu;
-      } else if(img){ img.remove(); }
+      if(!img){ img=document.createElement('img'); img.className='logo-img'; img.alt=''; img.width=32; img.height=32; logo.insertBefore(img, textEl); }
+      const src = lu || '/icons/icon-512.png';
+      if(img.getAttribute('src')!==src) img.src=src;
       const pos = (c.logo_position || c.brand_position || 'logo_first');
       if(pos === 'brand_first'){
         if(logo.firstElementChild !== textEl) logo.insertBefore(textEl, logo.firstElementChild);
-      } else if(img){
+      } else {
         if(logo.firstElementChild !== img) logo.insertBefore(img, textEl);
       }
     }
   }catch{}
   if(c.favicon_url && c.favicon_url.trim()){
+    const fav=document.getElementById('favicon');
     const furl=String(c.favicon_url).trim();
     let v=0; for(const ch of furl) v=(v*31+ch.charCodeAt(0))>>>0;
-    $('#favicon').href=furl+(furl.includes('?')?'&':'?')+'v='+v.toString(36);
+    if(fav) fav.href=furl+(furl.includes('?')?'&':'?')+'v='+v.toString(36);
   }
-  if(c.seo_title) {$('#seo-title').textContent=c.seo_title; document.title=c.seo_title;}
-  if(c.seo_description) $('#seo-desc').content=c.seo_description;
-  if(c.og_image) $('#og-image').content=c.og_image;
+  if(c.seo_title){ setText('seo-title', c.seo_title); document.title=c.seo_title; }
+  const seoDesc=document.getElementById('seo-desc'); if(c.seo_description && seoDesc) seoDesc.content=c.seo_description;
+  const ogImage=document.getElementById('og-image'); if(c.og_image && ogImage) ogImage.content=c.og_image;
   if(c.reduced_motion===true || c.reduced_motion==='true') document.body.classList.add('reduced');
   else document.body.classList.remove('reduced');
-  if(c.hero_title) $('#hero-title').innerHTML = c.hero_title.includes('<')? c.hero_title : c.hero_title.replace('Ready to Sell','<span>Ready to Sell</span>').replace('Built, Launched & Ready to Sell','Built, Launched & <span>Ready to Sell</span>');
-  if(c.hero_subtitle) $('#hero-subtitle').textContent=c.hero_subtitle;
+  const heroTitleEl=document.getElementById('hero-title');
+  if(c.hero_title && heroTitleEl){
+    const t=String(c.hero_title).trim();
+    const legacy=/^(Your Profitable Dropshipping Store|Done-For-You Dropshipping Store Built)/i.test(t);
+    if(!legacy) heroTitleEl.innerHTML = t.includes('<') ? t : sanitize(t);
+  }
+  const heroSubtitleEl=document.getElementById('hero-subtitle');
+  if(c.hero_subtitle && heroSubtitleEl){
+    const t=String(c.hero_subtitle).trim();
+    if(!/^We handle product research/i.test(t)) heroSubtitleEl.textContent=t;
+  }
   if(c.portfolio_title) $('#portfolio-title').textContent=c.portfolio_title;
   if(c.portfolio_subtitle) $('#portfolio-subtitle').textContent=c.portfolio_subtitle;
   if(c.sales_proof_title) $('#sales-proof-title').textContent=c.sales_proof_title;
@@ -452,35 +461,42 @@ function applyMicroCopy(){
   const heroImg=document.getElementById('hero-mock-img');
   const heroUrl=T('hero_image_url','').trim();
   if(heroImg && heroUrl) heroImg.src=heroUrl;
-  setText('nav-link-portfolio', T('nav_link_portfolio','Portfolio'));
+  setText('nav-link-portfolio', T('nav_link_portfolio','Work'));
   setText('nav-link-proof', T('nav_link_proof','Proof'));
   setText('nav-link-pricing', T('nav_link_pricing','Pricing'));
   setText('nav-link-offers', T('nav_link_offers','Offers'));
   setText('nav-link-messages', T('nav_link_messages','Messages'));
   setText('nav-link-themes', T('nav_link_themes','Themes'));
   setText('nav-link-faq', T('nav_link_faq','FAQ'));
-  setText('nav-link-blog', T('nav_link_blog','Blog'));
-  setText('drawer-link-portfolio', T('nav_link_portfolio','Portfolio'));
+  setText('nav-link-blog', T('nav_link_blog','Journal'));
+  setText('drawer-link-portfolio', T('nav_link_portfolio','Work'));
   setText('drawer-link-proof', T('nav_link_proof','Proof'));
   setText('drawer-link-pricing', T('nav_link_pricing','Pricing'));
   setText('drawer-link-offers', T('nav_link_offers','Offers'));
   setText('drawer-link-messages', T('nav_link_messages','Messages'));
   setText('drawer-link-themes', T('nav_link_themes','Themes'));
   setText('drawer-link-faq', T('nav_link_faq','FAQ'));
-  setText('drawer-link-blog', T('nav_link_blog','Blog'));
-  setText('nav-whatsapp', T('nav_whatsapp_label','WhatsApp Us'));
+  setText('drawer-link-blog', T('nav_link_blog','Journal'));
+  setText('nav-whatsapp', T('nav_whatsapp_label','WhatsApp'));
   setText('nav-book', T('nav_book_label','Start a Chat'));
-  setText('drawer-wa', T('nav_whatsapp_label','WhatsApp Us'));
+  setText('drawer-wa', T('nav_whatsapp_label','WhatsApp'));
   setText('drawer-book', T('nav_book_label','Start a Chat'));
-  setText('footer-link-portfolio', T('nav_link_portfolio','Portfolio'));
+  setText('footer-link-portfolio', T('nav_link_portfolio','Work'));
   setText('footer-link-proof', T('nav_link_proof','Proof'));
   setText('footer-link-pricing', T('nav_link_pricing','Pricing'));
   setText('footer-link-themes', T('nav_link_themes','Themes'));
   setText('footer-link-faq', T('nav_link_faq','FAQ'));
-  const trust=(id,b,t)=>{ const el=document.getElementById(id); if(el) el.innerHTML='✔ <b>'+sanitize(b)+'</b> '+sanitize(t); };
-  trust('trust-1', T('trust_1_bold','7 to 14 Day'), T('trust_1_text','Delivery'));
-  trust('trust-2', T('trust_2_bold','100%'), T('trust_2_text','Ownership'));
-  trust('trust-3', T('trust_3_bold','Real Sales'), T('trust_3_text','Proof'));
+  const trust=(id,b,t)=>{ const el=document.getElementById(id); if(el) el.innerHTML='<b>'+sanitize(b)+'</b> '+sanitize(t); };
+  const legacyTrust=/^(7 to 14 Day|100%|Real Sales)$/i.test(String(T('trust_1_bold','')).trim());
+  if(legacyTrust){
+    trust('trust-1','Fast shipping','');
+    trust('trust-2','Vetted suppliers','');
+    trust('trust-3','Real support','');
+  } else {
+    trust('trust-1', T('trust_1_bold','Fast shipping'), T('trust_1_text',''));
+    trust('trust-2', T('trust_2_bold','Vetted suppliers'), T('trust_2_text',''));
+    trust('trust-3', T('trust_3_bold','Real support'), T('trust_3_text',''));
+  }
   setText('hero-visual-domain', T('hero_visual_domain','nexatech.store'));
   setText('chip-1-t', T('chip_1_title','Payments Connected'));
   setText('chip-1-s', T('chip_1_sub','Local and international'));
@@ -605,22 +621,25 @@ async function loadContent(){
   const r=await cP; const j=await r.json();
   CONTENT=j.content; STATS=j.stats; SCARCITY=j.scarcity;
   applyTheme(CONTENT);
-  const badgeText = SCARCITY.text || CONTENT.hero_badge || 'Only 5 build slots left this month';
-  $('#hero-badge-text').textContent=badgeText;
+  const badgeEl=document.getElementById('hero-badge-text');
+  if(badgeEl) badgeEl.textContent=SCARCITY.text || CONTENT.hero_badge || '';
   const waNum=CONTENT.whatsapp_number||'447411200927';
   const chatLink='/messages';
-  const heroWA = CONTENT.hero_cta_secondary || 'Chat on WhatsApp';
-  const heroBook = CONTENT.hero_cta_primary || 'Talk to Us Directly';
-  $('#hero-wa').textContent=heroWA; $('#hero-wa').href=whatsappLink(waNum, `Hi Nexatech! I'm interested in a dropshipping store can we talk?`);
-  $('#hero-book').textContent=heroBook+' →';
-  $('#nav-whatsapp').href=whatsappLink(waNum, `Hi Nexatech! Quick question about your store packages.`);
-  $('#drawer-wa').href=whatsappLink(waNum, `Hi Nexatech! Quick question about your store packages.`);
-  $('#cta-wa').href=whatsappLink(waNum, `Hi Nexatech! I'm ready to own a store that sells what's the next step?`);
+  const legacyCta=/^(Talk to Us Directly|Chat on WhatsApp)$/i;
+  const heroSecondary = CONTENT.hero_cta_secondary && !legacyCta.test(CONTENT.hero_cta_secondary.trim()) ? CONTENT.hero_cta_secondary : 'See how it works';
+  const heroBook = CONTENT.hero_cta_primary && !legacyCta.test(CONTENT.hero_cta_primary.trim()) ? CONTENT.hero_cta_primary : 'Start selling';
+  const heroBookEl=document.getElementById('hero-book');
+  if(heroBookEl) heroBookEl.innerHTML=sanitize(heroBook)+' <span aria-hidden="true">→</span>';
+  const heroSecondaryEl=document.getElementById('hero-pricing');
+  if(heroSecondaryEl) heroSecondaryEl.innerHTML=sanitize(heroSecondary)+' <span aria-hidden="true">→</span>';
+  const navWa=document.getElementById('nav-whatsapp'); if(navWa) navWa.href=whatsappLink(waNum, `Hi Nexatech! Quick question about your store packages.`);
+  const drawerWa=document.getElementById('drawer-wa'); if(drawerWa) drawerWa.href=whatsappLink(waNum, `Hi Nexatech! Quick question about your store packages.`);
+  const ctaWa=document.getElementById('cta-wa'); if(ctaWa) ctaWa.href=whatsappLink(waNum, `Hi Nexatech! I'm ready to own a store that sells what's the next step?`);
   for(const sel of ['#nav-book','#drawer-book','#hero-book','#cta-book']){
     const el=document.querySelector(sel);
     if(el){ el.href=chatLink; el.removeAttribute('target'); el.removeAttribute('rel'); }
   }
-  for(const id of ['nav-whatsapp','nav-book','hero-wa','hero-book','cta-wa','cta-book','mentorship-wa']){
+  for(const id of ['nav-whatsapp','nav-book','hero-book','hero-pricing','cta-wa','cta-book','mentorship-wa']){
     const el=document.getElementById(id);
     if(el) el.addEventListener('click',()=>track('cta_click',id,{href:el.href}));
   }
@@ -800,6 +819,8 @@ function updateModal(){
   $('#modal-cta').textContent=T('modal_cta','Start a Store Like This')+' →';
   $('#modal-cta').href=whatsappLink(waNum, `Hi Nexatech! I love the ${item.category||''} store "${item.caption||''}" I want a store like this. How do we start?`);
   $('#modal-cta').onclick=()=>track('cta_click','modal-cta',{store:item.caption});
+  const modalDemo=$('#modal-demo');
+  if(modalDemo){ modalDemo.classList.add('hidden'); modalDemo.removeAttribute('href'); modalDemo.onclick=null; }
 }
 function closeModal(){
   $('#portfolio-modal').classList.remove('open');
@@ -1091,10 +1112,12 @@ function renderThemes(){
       + `<div class="theme-body"><p class="theme-desc">${sanitize((th.description||'').slice(0,120))}</p>`
       + `<div class="theme-actions">`
       + `<button class="btn btn-ghost theme-preview-btn" type="button">${sanitize(T('theme_preview_label','Preview'))}</button>`
+      + (th.demo_url ? `<a class="btn btn-ghost theme-demo-btn" href="${sanitize(th.demo_url)}" target="_blank" rel="noopener">${sanitize(T('theme_demo_label','Live Demo'))} ↗</a>` : '')
       + `<a class="btn btn-primary" href="/checkout?kind=theme&item=${encodeURIComponent(th.slug)}&currency=${encodeURIComponent(FX.currency)}">${sanitize(T('theme_buy_label','Buy Now'))} →</a>`
       + `</div></div>`;
     card.querySelector('.theme-preview-btn').addEventListener('click', (e)=>{ e.stopPropagation(); openThemeModal(th); });
-    card.querySelector('.theme-actions a').addEventListener('click', ()=>track('cta_click','theme-buy-'+th.slug,{price:th.price_text}));
+    card.querySelector('.theme-demo-btn')?.addEventListener('click', (e)=>{ e.stopPropagation(); track('cta_click','theme-demo-'+th.slug); });
+    card.querySelector('.theme-actions a[href*="checkout"]').addEventListener('click', ()=>track('cta_click','theme-buy-'+th.slug,{price:th.price_text}));
     card.addEventListener('click', ()=> openThemeModal(th));
     frag.appendChild(card);
   });
@@ -1141,7 +1164,15 @@ function openThemeModal(th){
     case_study_text:th.description||'', url:th.preview_url||'' };
   openModal(item, [item, ...MODAL_ITEMS.filter(m=>String(m.id).indexOf('theme-')!==0)]);
   const cta=$('#modal-cta');
-  if(cta){ cta.textContent=T('theme_buy_label','Buy Now')+' →'; cta.target=''; cta.href='/checkout?kind=theme&item='+encodeURIComponent(th.slug)+'&currency='+encodeURIComponent(FX.currency); cta.onclick=()=>track('cta_click','theme-modal-buy-'+th.slug); }
+  if(cta){ cta.textContent=T('theme_buy_label','Buy Now')+'  '; cta.target=''; cta.href='/checkout?kind=theme&item='+encodeURIComponent(th.slug)+'&currency='+encodeURIComponent(FX.currency); cta.onclick=()=>track('cta_click','theme-modal-buy-'+th.slug); }
+  const demo=$('#modal-demo');
+  if(demo){
+    if(th.demo_url){
+      demo.href=th.demo_url; demo.onclick=()=>track('cta_click','theme-modal-demo-'+th.slug); demo.classList.remove('hidden');
+    } else {
+      demo.classList.add('hidden'); demo.removeAttribute('href'); demo.onclick=null;
+    }
+  }
 }
 function renderWhatWeDo(){
   const list = $('#whatwedo-list'); if(!list) return;
@@ -1498,12 +1529,20 @@ function initTestiCarousel(){
 // Header scroll + drawer + progress
 function initHeader(){
   const h=$('#header');
-  window.addEventListener('scroll', ()=>{
-    h.classList.toggle('scrolled', window.scrollY>16);
-  }, {passive:true});
-  $('#hamburger')?.addEventListener('click', ()=> $('#drawer').classList.add('open'));
-  $('#drawer-close')?.addEventListener('click', ()=> $('#drawer').classList.remove('open'));
-  $('#drawer')?.addEventListener('click', e=>{ if(e.target.id==='drawer') e.currentTarget.classList.remove('open'); });
+  const drawer=$('#drawer');
+  const burger=$('#hamburger');
+  if(h) window.addEventListener('scroll', ()=>{ h.classList.toggle('scrolled', window.scrollY>16); }, {passive:true});
+  const setDrawer=open=>{
+    if(!drawer) return;
+    drawer.classList.toggle('open', open);
+    if(burger) burger.setAttribute('aria-expanded', open ? 'true' : 'false');
+    document.body.classList.toggle('drawer-open', open);
+  };
+  burger?.addEventListener('click', ()=> setDrawer(!drawer?.classList.contains('open')));
+  $('#drawer-close')?.addEventListener('click', ()=> setDrawer(false));
+  drawer?.addEventListener('click', e=>{ if(e.target===drawer) setDrawer(false); });
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape') setDrawer(false); });
+  drawer?.querySelectorAll('a').forEach(a=> a.addEventListener('click', ()=> setDrawer(false)));
 }
 
 // Reveal - everything visible instantly (CSS has no hidden state anymore).
@@ -1779,9 +1818,9 @@ function safeInit(fn){
   safeInit(initGsapReveals);
   // Heavy/deferred layers run after first paint so they never block content
   try{
-    if('requestIdleCallback' in window) requestIdleCallback(()=>{ initParticles(); initHeroWebGL(); }, {timeout:2000});
-    else setTimeout(()=>{ initParticles(); initHeroWebGL(); }, 800);
-  }catch{ setTimeout(()=>{ try{ initParticles(); initHeroWebGL(); }catch{} }, 800); }
+    if('requestIdleCallback' in window) requestIdleCallback(()=>{ initParticles(); }, {timeout:2000});
+    else setTimeout(()=>{ initParticles(); }, 800);
+  }catch{ setTimeout(()=>{ try{ initParticles(); }catch{} }, 800); }
   setTimeout(()=>{ try{ window.ScrollTrigger?.refresh(); }catch{} }, 900);
   track('pageview','landing');
   try{

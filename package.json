@@ -13,6 +13,7 @@
     "node": ">=22.5.0"
   },
   "dependencies": {
+    "@toast-ui/editor": "^3.2.2",
     "bcryptjs": "^2.4.3",
     "compression": "^1.8.2",
     "cookie-parser": "^1.4.6",
@@ -20,11 +21,14 @@
     "express": "^4.19.2",
     "express-rate-limit": "^7.5.0",
     "googleapis": "^144.0.0",
+    "gsap": "^3.12.5",
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.2",
     "node-cron": "^3.0.3",
     "pg": "^8.23.0",
+    "sanitize-html": "^2.13.1",
+    "three": "^0.170.0",
     "web-push": "^3.6.7"
   },
   "overrides": {

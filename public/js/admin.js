@@ -486,14 +486,14 @@ function renderContentForms(){
       preview.style.cssText='display:flex;gap:10px;align-items:center;margin:6px 0';
       if(displayVal){
         const img=document.createElement('img');
-        img.src=displayVal; img.style.cssText='max-height:48px;max-width:160px;border-radius:8px;border:1px solid var(--border);background:#0B1220;padding:4px';
+        img.src=displayVal; img.style.cssText='max-height:48px;max-width:160px;border-radius:8px;border:1px solid var(--border);background:var(--paper-2);padding:4px';
         img.onerror=()=> img.style.display='none';
         preview.appendChild(img);
         const link=document.createElement('a');
         link.href=displayVal; link.target='_blank'; link.textContent='View current'; link.style.fontSize='11px';
         preview.appendChild(link);
       } else {
-        const none=document.createElement('small'); none.textContent='No image set'; none.style.color='#94A3B8';
+        const none=document.createElement('small'); none.textContent='No image set'; none.style.color='#5A6685';
         preview.appendChild(none);
       }
       label.appendChild(preview);
@@ -503,8 +503,8 @@ function renderContentForms(){
       input.dataset.type='text';
       // file input
       const file=document.createElement('input'); file.type='file'; file.accept='image/*,.ico,.svg'; file.style.marginTop='6px';
-      const hint=document.createElement('small'); hint.textContent='Upload file to auto-fill URL above. Supports PNG, SVG, ICO, JPG.'; hint.style.color='#94A3B8';
-      const status=document.createElement('small'); status.style.color='#34D399'; status.style.display='none';
+      const hint=document.createElement('small'); hint.textContent='Upload file to auto-fill URL above. Supports PNG, SVG, ICO, JPG.'; hint.style.color='#5A6685';
+      const status=document.createElement('small'); status.style.color='#0F6B49'; status.style.display='none';
       file.addEventListener('change', async()=>{
         const f=file.files[0]; if(!f) return;
         status.style.display='block'; status.textContent='Uploading...';
@@ -517,9 +517,9 @@ function renderContentForms(){
           status.textContent='Uploaded: '+j.url;
           // update preview
           preview.innerHTML='';
-          const img=document.createElement('img'); img.src=j.url; img.style.cssText='max-height:48px;max-width:160px;border-radius:8px;border:1px solid var(--border);background:#0B1220;padding:4px';
+          const img=document.createElement('img'); img.src=j.url; img.style.cssText='max-height:48px;max-width:160px;border-radius:8px;border:1px solid var(--border);background:var(--paper-2);padding:4px';
           preview.appendChild(img);
-        }catch(e){ status.textContent='Error: '+e.message; status.style.color='#F87171'; }
+        }catch(e){ status.textContent='Error: '+e.message; status.style.color='#B4232F'; }
       });
       label.appendChild(input);
       label.appendChild(file);
@@ -530,7 +530,7 @@ function renderContentForms(){
     } else if(field.type==='color'){
       input=document.createElement('input'); input.type='color'; // color picker
       // if value not color hex, fallback
-      try{ input.value= displayVal.startsWith('#')? displayVal : '#0B1220'; }catch{ input.value='#0B1220'; }
+      try{ input.value= displayVal.startsWith('#')? displayVal : '#0F183D'; }catch{ input.value='#0F183D'; }
       // also show text input for hex
       const text=document.createElement('input'); text.value=displayVal; text.placeholder='#000000'; text.style.marginTop='6px';
       text.dataset.key=field.key;
@@ -595,7 +595,7 @@ async function loadPagesAdmin(forceKey){
     PAGES_ADMIN = Array.isArray(j) ? j : [];
     const keep = forceKey || currentPageKey || sel.value;
     sel.innerHTML = '';
-    if(!PAGES_ADMIN.length){ pageMsg('No editable pages configured.', '#F87171'); return; }
+    if(!PAGES_ADMIN.length){ pageMsg('No editable pages configured.', '#B4232F'); return; }
     PAGES_ADMIN.forEach(p => {
       const opt = document.createElement('option');
       opt.value = p.key;
@@ -604,7 +604,7 @@ async function loadPagesAdmin(forceKey){
     });
     sel.value = PAGES_ADMIN.some(p => p.key === keep) ? keep : PAGES_ADMIN[0].key;
     await loadPageEditor(sel.value);
-  }catch(e){ pageMsg('Could not load pages: ' + e.message, '#F87171'); }
+  }catch(e){ pageMsg('Could not load pages: ' + e.message, '#B4232F'); }
 }
 async function loadPageRevisions(key){
   const sel = $('#page-revisions');
@@ -645,11 +645,11 @@ async function loadPageEditor(key){
     $('#page-url').value = (meta && meta.url) || j.url || '';
     $('#page-preview').href = (meta && meta.url) || j.url || '/';
     $('#page-status').textContent = j.edited ? 'Edited - live now' : 'Original - not edited';
-    $('#page-status').style.color = j.edited ? '#10B981' : '#64748B';
+    $('#page-status').style.color = j.edited ? '#0F6B49' : '#64748B';
     $('#page-size').textContent = (j.content || '').length.toLocaleString() + ' characters';
     pageMsg(j.edited ? 'Saved override loaded.' : 'Original file loaded. Save to create an override.');
     await loadPageRevisions(key);
-  }catch(e){ pageMsg('Could not load this page: ' + e.message, '#F87171'); }
+  }catch(e){ pageMsg('Could not load this page: ' + e.message, '#B4232F'); }
 }
 async function savePageEditor(){
   if(!currentPageKey) return;
@@ -667,9 +667,9 @@ async function savePageEditor(){
     if(r.status === 401) throw new Error('Session expired - log out and log back in, then save again.');
     if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
     pageDirty = false;
-    pageMsg('Saved - the page is live now.', '#10B981');
+    pageMsg('Saved - the page is live now.', '#0F6B49');
     await loadPagesAdmin(currentPageKey);
-  }catch(e){ pageMsg('Save failed: ' + e.message, '#F87171'); }
+  }catch(e){ pageMsg('Save failed: ' + e.message, '#B4232F'); }
   finally{ if(btn){ btn.disabled = false; btn.textContent = 'Save Page'; } }
 }
 $('#page-select')?.addEventListener('change', async (e)=>{
@@ -685,7 +685,7 @@ $('#btn-page-reload')?.addEventListener('click', async ()=>{
   await loadPageEditor(currentPageKey);
 });
 $('#btn-page-save')?.addEventListener('click', savePageEditor);
-$('#page-editor')?.addEventListener('input', ()=>{ pageDirty = true; pageMsg('Unsaved changes', '#F59E0B'); });
+$('#page-editor')?.addEventListener('input', ()=>{ pageDirty = true; pageMsg('Unsaved changes', '#92400E'); });
 $('#page-editor')?.addEventListener('keydown', (e)=>{
   if((e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === 's'){ e.preventDefault(); savePageEditor(); }
 });
@@ -698,9 +698,9 @@ $('#btn-page-reset')?.addEventListener('click', async ()=>{
     const j = await r.json().catch(()=>({}));
     if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
     pageDirty = false;
-    pageMsg('Original restored.', '#10B981');
+    pageMsg('Original restored.', '#0F6B49');
     await loadPagesAdmin(currentPageKey);
-  }catch(e){ pageMsg('Reset failed: ' + e.message, '#F87171'); }
+  }catch(e){ pageMsg('Reset failed: ' + e.message, '#B4232F'); }
 });
 $('#btn-page-restore')?.addEventListener('click', async ()=>{
   const id = $('#page-revisions')?.value;
@@ -712,9 +712,9 @@ $('#btn-page-restore')?.addEventListener('click', async ()=>{
     const j = await r.json().catch(()=>({}));
     if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
     pageDirty = false;
-    pageMsg('Version restored.', '#10B981');
+    pageMsg('Version restored.', '#0F6B49');
     await loadPagesAdmin(currentPageKey);
-  }catch(e){ pageMsg('Restore failed: ' + e.message, '#F87171'); }
+  }catch(e){ pageMsg('Restore failed: ' + e.message, '#B4232F'); }
 });
 $('#page-image-file')?.addEventListener('change', async (e)=>{
   const file = e.target.files && e.target.files[0];
@@ -735,8 +735,8 @@ $('#page-image-file')?.addEventListener('change', async (e)=>{
     editor.value = editor.value.slice(0, start) + insert + editor.value.slice(end);
     editor.selectionStart = editor.selectionEnd = start + insert.length;
     editor.dispatchEvent(new Event('input'));
-    if(out){ out.textContent = 'Inserted: ' + j.url; out.style.color = '#10B981'; }
-  }catch(err){ if(out){ out.textContent = 'Upload failed: ' + err.message; out.style.color = '#F87171'; } }
+    if(out){ out.textContent = 'Inserted: ' + j.url; out.style.color = '#0F6B49'; }
+  }catch(err){ if(out){ out.textContent = 'Upload failed: ' + err.message; out.style.color = '#B4232F'; } }
   e.target.value = '';
 });
 window.addEventListener('beforeunload', (e)=>{
@@ -772,11 +772,11 @@ $('#btn-save-content').addEventListener('click', async()=>{
     if(!Object.keys(payload).length){ if(msg) msg.textContent='Nothing to save'; return; }
     const r=await fetch('/api/content',{method:'PUT',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify(payload)});
     const j=await r.json().catch(()=>({}));
-    if(r.status===401){ if(msg) msg.textContent='Session expired - please log out and log back in, then Save again.'; if(msg) msg.style.color='#F87171'; return; }
+    if(r.status===401){ if(msg) msg.textContent='Session expired - please log out and log back in, then Save again.'; if(msg) msg.style.color='#B4232F'; return; }
     if(msg) msg.textContent = r.ok ? 'Saved ✓ preview updates instantly.' : (j.error||('Save failed (HTTP '+r.status+')'));
-    if(msg) msg.style.color = r.ok ? '#10B981' : '#F87171';
+    if(msg) msg.style.color = r.ok ? '#0F6B49' : '#B4232F';
     if(r.ok) await loadContent();
-  }catch(e){ if(msg){ msg.textContent='Error: '+e.message; msg.style.color='#F87171'; } }
+  }catch(e){ if(msg){ msg.textContent='Error: '+e.message; msg.style.color='#B4232F'; } }
   finally{ if(btn){ btn.disabled=false; btn.textContent='Save Content'; } }
 });
 $('#btn-save-scarcity').addEventListener('click', async()=>{
@@ -817,9 +817,9 @@ $('#btn-save-integrations').addEventListener('click', async()=>{
     const r=await fetch('/api/content',{method:'PUT',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify(payload)});
     const j=await r.json().catch(()=>({}));
     if(!r.ok) throw new Error(j.error||'Save failed');
-    if(msg){ msg.textContent='Saved ✓ - WhatsApp, Email & Phone updated. Chat buttons now open the private chat.'; msg.style.color='#10B981'; }
+    if(msg){ msg.textContent='Saved ✓ - WhatsApp, Email & Phone updated. Chat buttons now open the private chat.'; msg.style.color='#0F6B49'; }
     await loadContent();
-  }catch(e){ if(msg){ msg.textContent='Error: '+e.message; msg.style.color='#F87171'; } }
+  }catch(e){ if(msg){ msg.textContent='Error: '+e.message; msg.style.color='#B4232F'; } }
   finally{ if(btn){ btn.disabled=false; btn.textContent='Save Contact'; } }
 });
 // Webhook test - form only (chat now via Gemini, per owner request)
@@ -848,13 +848,13 @@ async function loadGeminiStatus(){
       if(n>0) el.textContent = `${n} key${n>1?'s':''} set ✓ ${(j.keys||[]).map(k=>k.masked).join(' + ')} (saved permanently), model: ${j.model} - rotates on quota`;
       else if(j.envHas) el.textContent = `Key set (${j.masked||'env'} via env, model: ${j.model}) - also save in DB to persist`;
       else el.textContent = 'No key set - chatbot disabled, paste Gemini key above (AQ.Ab8... or AIza...)';
-      el.style.color = n>0 ? '#10B981' : (j.envHas ? '#64748B' : '#F87171');
+      el.style.color = n>0 ? '#0F6B49' : (j.envHas ? '#64748B' : '#B4232F');
     }
     const sumEl=$('#gemini-summary-status');
     if(sumEl){
-      if(n>0) { sumEl.textContent=`${n} key${n>1?'s':''} ✓ saved permanently`; sumEl.style.color='#10B981'; }
-      else if(j.envHas) { sumEl.textContent='env only - save to persist'; sumEl.style.color='#F59E0B'; }
-      else { sumEl.textContent='not set'; sumEl.style.color='#F87171'; }
+      if(n>0) { sumEl.textContent=`${n} key${n>1?'s':''} ✓ saved permanently`; sumEl.style.color='#0F6B49'; }
+      else if(j.envHas) { sumEl.textContent='env only - save to persist'; sumEl.style.color='#92400E'; }
+      else { sumEl.textContent='not set'; sumEl.style.color='#B4232F'; }
     }
     const modelEl=$('#int-gemini-model');
     if(modelEl){
@@ -917,7 +917,7 @@ $('#btn-save-gemini')?.addEventListener('click', async()=>{
     const r=await fetch('/api/admin/gemini-key',{method:'PUT',headers:{'Content-Type':'application/json', ...authHeaders()},body:JSON.stringify({key, key2, key3, model})});
     const j=await r.json();
     if(r.ok){
-      $('#gemini-msg').innerHTML = j.keyCount ? `<span style="color:#10B981">✓ Saved permanently - ${j.keyCount} key${j.keyCount>1?'s':''} will rotate on quota. Closed until you click Edit again</span>` : (j.message||'Saved');
+      $('#gemini-msg').innerHTML = j.keyCount ? `<span style="color:#0F6B49">✓ Saved permanently - ${j.keyCount} key${j.keyCount>1?'s':''} will rotate on quota. Closed until you click Edit again</span>` : (j.message||'Saved');
       $('#int-gemini-key').value='';
       const k2=$('#int-gemini-key2'); if(k2) k2.value='';
       const k3=$('#int-gemini-key3'); if(k3) k3.value='';
@@ -941,10 +941,10 @@ $('#btn-test-gemini')?.addEventListener('click', async()=>{
     const j=await r.json();
     if(out) out.textContent = JSON.stringify(j, null, 2);
     if(r.ok){
-      $('#gemini-msg').innerHTML = `<span style="color:#10B981">Gemini test succeeded via ${j.masked||'key'} (${j.perKey?.filter(p=>p.ok).length||1}/${j.keyCount||1} keys OK)</span>`;
+      $('#gemini-msg').innerHTML = `<span style="color:#0F6B49">Gemini test succeeded via ${j.masked||'key'} (${j.perKey?.filter(p=>p.ok).length||1}/${j.keyCount||1} keys OK)</span>`;
     } else {
       const qs = (j.perKey||[]).map(p=>`${p.masked}: ${p.quota?'QUOTA EXHAUSTED':p.error}`).join(' | ');
-      $('#gemini-msg').innerHTML = `<span style="color:#F87171">Gemini test failed - ${j.error||''}${qs?'<br><small>'+qs+'</small>':''}${j.hint?'<br><small>'+j.hint+'</small>':''}</span>`;
+      $('#gemini-msg').innerHTML = `<span style="color:#B4232F">Gemini test failed - ${j.error||''}${qs?'<br><small>'+qs+'</small>':''}${j.hint?'<br><small>'+j.hint+'</small>':''}</span>`;
     }
   }catch(e){ if(out) out.textContent='Error: '+e.message; }
   finally{ if(btn){ btn.disabled=false; btn.textContent='Test Gemini →'; } }
@@ -963,23 +963,23 @@ $('#btn-change-password')?.addEventListener('click', async()=>{
   const cf=$('#pwd-confirm')?.value||'';
   const msg=$('#pwd-msg');
   const sum=$('#password-summary-status');
-  if(!cur || !nw || !cf){ if(msg) msg.innerHTML='<span style="color:#F87171">All fields required</span>'; return; }
-  if(nw !== cf){ if(msg) msg.innerHTML='<span style="color:#F87171">New passwords do not match</span>'; return; }
-  if(nw.length < 6){ if(msg) msg.innerHTML='<span style="color:#F87171">New password must be at least 6 characters</span>'; return; }
+  if(!cur || !nw || !cf){ if(msg) msg.innerHTML='<span style="color:#B4232F">All fields required</span>'; return; }
+  if(nw !== cf){ if(msg) msg.innerHTML='<span style="color:#B4232F">New passwords do not match</span>'; return; }
+  if(nw.length < 6){ if(msg) msg.innerHTML='<span style="color:#B4232F">New password must be at least 6 characters</span>'; return; }
   const btn=$('#btn-change-password'); if(btn) btn.disabled=true;
   if(msg) msg.textContent='Changing...';
   try{
     const r=await fetch('/api/admin/change-password',{method:'POST',headers:{'Content-Type':'application/json',...authHeaders()},body:JSON.stringify({currentPassword:cur, newPassword:nw, confirmPassword:cf})});
     const j=await r.json();
     if(r.ok){
-      if(msg) msg.innerHTML='<span style="color:#10B981">✓ Password changed successfully - saved permanently. Use new password next login. Closing...</span>';
-      if(sum) { sum.textContent='changed ✓'; sum.style.color='#10B981'; }
+      if(msg) msg.innerHTML='<span style="color:#0F6B49">✓ Password changed successfully - saved permanently. Use new password next login. Closing...</span>';
+      if(sum) { sum.textContent='changed ✓'; sum.style.color='#0F6B49'; }
       $('#pwd-current').value=''; $('#pwd-new').value=''; $('#pwd-confirm').value='';
       // auto-close details - stays closed until Edit
       setTimeout(()=>{ const d=document.getElementById('details-password'); if(d) d.open=false; if(msg) msg.textContent=''; }, 1200);
     } else {
-      if(msg) msg.innerHTML=`<span style="color:#F87171">${j.error||'Failed'}</span>`;
-      if(sum) { sum.textContent='error'; sum.style.color='#F87171'; }
+      if(msg) msg.innerHTML=`<span style="color:#B4232F">${j.error||'Failed'}</span>`;
+      if(sum) { sum.textContent='error'; sum.style.color='#B4232F'; }
     }
   }catch(e){ if(msg) msg.textContent='Error: '+e.message; }
   finally{ if(btn) btn.disabled=false; }
@@ -997,13 +997,13 @@ async function loadGoogleStatus(){
       else if(j.hasClient && j.hasSheet) el.textContent=`Client+Sheet saved (permanent) - not yet connected → click Connect`;
       else if(j.hasClient) el.textContent=`Client saved permanently, set Doc ID + Sheet`;
       else el.textContent='Not configured - add Client ID/Secret + Doc ID (will be saved permanently)';
-      el.style.color = j.hasAuth ? '#10B981' : '#94A3B8';
+      el.style.color = j.hasAuth ? '#0F6B49' : '#5A6685';
     }
     const sumEl=$('#google-summary-status');
     if(sumEl){
-      if(j.hasAuth) { sumEl.textContent='connected ✓ saved permanently'; sumEl.style.color='#10B981'; }
-      else if(j.hasClient) { sumEl.textContent='saved permanently - not yet connected'; sumEl.style.color='#F59E0B'; }
-      else { sumEl.textContent='not set'; sumEl.style.color='#F87171'; }
+      if(j.hasAuth) { sumEl.textContent='connected ✓ saved permanently'; sumEl.style.color='#0F6B49'; }
+      else if(j.hasClient) { sumEl.textContent='saved permanently - not yet connected'; sumEl.style.color='#92400E'; }
+      else { sumEl.textContent='not set'; sumEl.style.color='#B4232F'; }
     }
     const docEl=$('#int-google-doc-id'); if(docEl && j.docId){ docEl.placeholder=j.docId; docEl.value = docEl.value || ''; }
     const sheetEl=$('#int-google-sheet-name'); if(sheetEl && j.sheetName) sheetEl.placeholder=j.sheetName;
@@ -1122,16 +1122,16 @@ async function detectGoogleSheet(){
     // Show headers
     if(preview){
       if(j.isEmpty){
-        preview.innerHTML=`<div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:8px;color:#991B1B;font-size:11px">Sheet <b>${j.currentSheet}</b> has <b>no header row</b> (empty). Click <b>Create / Overwrite Headers</b> to create the 22 columns.</div>`;
+        preview.innerHTML=`<div style="background:#FCE8E8;border:1px solid #E7B6B6;border-radius:8px;padding:8px;color:#991B1B;font-size:11px">Sheet <b>${j.currentSheet}</b> has <b>no header row</b> (empty). Click <b>Create / Overwrite Headers</b> to create the 22 columns.</div>`;
       } else {
-        let html = `<div style="font-size:11px;color:#94A3B8;margin-bottom:4px">Headers in <b>${j.currentSheet}</b> - row 1 (${j.headers.length} cols):</div><div style="display:flex;gap:4px;flex-wrap:wrap">`;
+        let html = `<div style="font-size:11px;color:#5A6685;margin-bottom:4px">Headers in <b>${j.currentSheet}</b> - row 1 (${j.headers.length} cols):</div><div style="display:flex;gap:4px;flex-wrap:wrap">`;
         j.headers.forEach((h,idx)=>{
           const isExpected = j.expectedHeaders.map(x=>x.toLowerCase().replace(/\s/g,'')).includes(h.toLowerCase().replace(/\s/g,''));
           const mapped = j.mapping && Object.values(j.mapping).includes(idx);
-          html += `<span style="background:${isExpected?'#10B981':'#334155'};color:#fff;padding:4px 8px;border-radius:999px;font-size:11px">${idx+1}. ${h||'<empty>'}</span>`;
+          html += `<span style="background:${isExpected?'#0F6B49':'#0F183D'};color:#fff;padding:4px 8px;border-radius:999px;font-size:11px">${idx+1}. ${h||'<empty>'}</span>`;
         });
         html += `</div>`;
-        if(j.extraColumns.length) html += `<div style="margin-top:6px;font-size:11px;color:#F59E0B">Extra (not in expected): ${j.extraColumns.join(', ')}</div>`;
+        if(j.extraColumns.length) html += `<div style="margin-top:6px;font-size:11px;color:#92400E">Extra (not in expected): ${j.extraColumns.join(', ')}</div>`;
         preview.innerHTML = html;
       }
     }
@@ -1141,26 +1141,26 @@ async function detectGoogleSheet(){
         let html = `<div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;padding:10px">`;
         html += `<div style="font-size:12px;font-weight:700;color:#92400E">Columns to Create (${j.missingColumns.length} missing):</div>`;
         html += `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px">`;
-        j.missingColumns.forEach(c=> html+=`<span style="background:#F59E0B;color:#fff;padding:4px 8px;border-radius:999px;font-size:11px">${c}</span>`);
+        j.missingColumns.forEach(c=> html+=`<span style="background:#92400E;color:#fff;padding:4px 8px;border-radius:999px;font-size:11px">${c}</span>`);
         html += `</div>`;
         html += `<div style="font-size:11px;color:#92400E;margin-top:6px">These will be created by <b>Create / Overwrite Headers</b> (22 cols) or <b>Append Missing</b> (keeps existing + adds missing).</div>`;
         html += `</div>`;
         missingWrap.innerHTML = html;
       } else if(j.isEmpty){
-        missingWrap.innerHTML = `<div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:10px;font-size:12px;color:#991B1B">Sheet empty - <b>22 columns</b> will be created: ${j.expectedHeaders.join(', ')}</div>`;
+        missingWrap.innerHTML = `<div style="background:#FCE8E8;border:1px solid #E7B6B6;border-radius:10px;padding:10px;font-size:12px;color:#991B1B">Sheet empty - <b>22 columns</b> will be created: ${j.expectedHeaders.join(', ')}</div>`;
       } else {
         missingWrap.innerHTML = `<div style="background:#ECFDF5;border:1px solid #A7F3D0;border-radius:10px;padding:10px;font-size:12px;color:#065F46">✓ All 22 expected columns present - sheet is correctly configured. Test Append will map to these headers.</div>`;
       }
     }
     if(info){
-      if(j.isEmpty) info.innerHTML=`<span style="color:#F87171">Sheet empty - no headers found.</span> <span style="color:#94A3B8">Row count: ${j.rowCount}. Use Create Headers below.</span>`;
-      else if(j.missingColumns.length) info.innerHTML=`<span style="color:#F59E0B">${j.missingColumns.length} columns missing</span> • ${j.headers.length} present • Row count: ${j.rowCount} - see columns to create below`;
-      else info.innerHTML=`<span style="color:#10B981">✓ All columns matched</span> • ${j.headers.length} headers • ${j.rowCount} rows • Mapping will align lead fields to these positions automatically`;
+      if(j.isEmpty) info.innerHTML=`<span style="color:#B4232F">Sheet empty - no headers found.</span> <span style="color:#5A6685">Row count: ${j.rowCount}. Use Create Headers below.</span>`;
+      else if(j.missingColumns.length) info.innerHTML=`<span style="color:#92400E">${j.missingColumns.length} columns missing</span> • ${j.headers.length} present • Row count: ${j.rowCount} - see columns to create below`;
+      else info.innerHTML=`<span style="color:#0F6B49">✓ All columns matched</span> • ${j.headers.length} headers • ${j.rowCount} rows • Mapping will align lead fields to these positions automatically`;
     }
     if(out){ out.style.display='block'; out.textContent = JSON.stringify(j, null, 2); }
     $('#google-msg').textContent = j.isEmpty ? 'Detected: sheet empty - create headers' : (j.missingColumns.length ? `Detected: ${j.missingColumns.length} columns to create` : 'Detected: sheet ready ✓');
   }catch(e){
-    if(info) info.innerHTML=`<span style="color:#F87171">Detect failed: ${e.message}</span>`;
+    if(info) info.innerHTML=`<span style="color:#B4232F">Detect failed: ${e.message}</span>`;
     if(out){ out.style.display='block'; out.textContent='Error: '+e.message; }
     $('#google-msg').textContent='Detect failed: '+e.message;
   } finally{ if(btn){ btn.disabled=false; btn.textContent='Auto-Detect Sheet & Columns →'; } }
@@ -1176,7 +1176,7 @@ async function detectGoogleSheetWithSheet(sheetName){
     lastDetectData = j;
     // update info
     $('#google-columns-info').innerHTML = j.isEmpty ? 'Empty sheet' : (j.missingColumns.length ? `${j.missingColumns.length} missing` : 'All columns present');
-    $('#google-headers-preview').innerHTML = j.headers.length ? j.headers.map((h,i)=> `<span style="background:#334155;color:#fff;padding:3px 6px;border-radius:999px;font-size:10px">${i+1}.${h}</span>`).join(' ') : 'Empty';
+    $('#google-headers-preview').innerHTML = j.headers.length ? j.headers.map((h,i)=> `<span style="background:#0F183D;color:#fff;padding:3px 6px;border-radius:999px;font-size:10px">${i+1}.${h}</span>`).join(' ') : 'Empty';
     // update missing
     const miss=$('#google-missing-wrap');
     if(miss) miss.innerHTML = j.missingColumns.length ? `Missing: ${j.missingColumns.join(', ')}` : 'All good';
@@ -1276,9 +1276,9 @@ async function saveBrand(){
     const r=await fetch('/api/content',{method:'PUT',headers:{'Content-Type':'application/json',...authHeaders()},body:JSON.stringify(payload)});
     const j=await r.json().catch(()=>({}));
     if(!r.ok) throw new Error(j.error||'Save failed');
-    if(msgEl){ msgEl.innerHTML='<span style="color:#10B981">Saved ✓ - (logo) NEXATECH, frontend header updates instantly. <a href="/" target="_blank" style="color:#00D1FF">Preview →</a></span>'; }
+    if(msgEl){ msgEl.innerHTML='<span style="color:#0F6B49">Saved ✓ - (logo) NEXATECH, frontend header updates instantly. <a href="/" target="_blank" style="color:#C8323E">Preview →</a></span>'; }
     await loadContent(); await loadBrand();
-  }catch(e){ if(msgEl){ msgEl.textContent='Error: '+e.message; msgEl.style.color='#F87171'; } }
+  }catch(e){ if(msgEl){ msgEl.textContent='Error: '+e.message; msgEl.style.color='#B4232F'; } }
   finally{ if(btn){ btn.disabled=false; btn.textContent='Save Brand'; } }
 }
 $('#btn-save-brand')?.addEventListener('click', saveBrand);
@@ -1328,7 +1328,7 @@ $('#brand-logo-file')?.addEventListener('change', async()=>{
     if(!r.ok) throw new Error(j.error||'Upload failed');
     $('#brand-logo-url').value=j.url;
     $('#brand-logo-url').dispatchEvent(new Event('input'));
-    if(msgEl) msgEl.innerHTML=`<span style="color:#10B981">Uploaded: ${j.url} - click Save Brand</span>`;
+    if(msgEl) msgEl.innerHTML=`<span style="color:#0F6B49">Uploaded: ${j.url} - click Save Brand</span>`;
     // auto preview
     const lp=$('#brand-logo-preview'); if(lp) lp.innerHTML=`<img src="${j.url}" style="width:100%;height:100%;object-fit:cover;border-radius:10px;display:block">`;
   }catch(e){ if(msgEl) msgEl.textContent='Error: '+e.message; }
@@ -1344,7 +1344,7 @@ $('#brand-favicon-file')?.addEventListener('change', async()=>{
     if(!r.ok) throw new Error(j.error||'Upload failed');
     $('#brand-favicon-url').value=j.url;
     $('#brand-favicon-url').dispatchEvent(new Event('input'));
-    if(msgEl) msgEl.innerHTML=`<span style="color:#10B981">Uploaded: ${j.url} - click Save Brand</span>`;
+    if(msgEl) msgEl.innerHTML=`<span style="color:#0F6B49">Uploaded: ${j.url} - click Save Brand</span>`;
   }catch(e){ if(msgEl) msgEl.textContent='Error: '+e.message; }
 });
 // Ensure brand loads when content loads
@@ -1364,16 +1364,16 @@ async function loadGmailStatus(){
       else if(j.needsReauth) el.textContent=`Re-connect needed - Gmail scope missing`;
       else if(j.hasClient && !j.hasGmailAuth) el.textContent=`Gmail not connected - click Connect`;
       else el.textContent=`Set Google Client ID/Secret first`;
-      el.style.color = j.verified ? '#10B981' : '#94A3B8';
+      el.style.color = j.verified ? '#0F6B49' : '#5A6685';
       el.style.borderColor = j.verified ? 'rgba(16,185,129,.3)' : '#E2E8F0';
     }
     const nameEl=$('#camp-from-name'); if(nameEl && j.senderName && !nameEl.value) nameEl.value=j.senderName;
     const emailEl=$('#camp-from-email'); if(emailEl && j.email && !emailEl.value) emailEl.placeholder=j.email;
     const msgEl=$('#gmail-msg');
     if(msgEl){
-      if(j.verified) msgEl.innerHTML=`<span style="color:#10B981">✓ Gmail ready via <b>same Client ID</b> (${j.clientMasked}) - send bulk & personal now</span>`;
+      if(j.verified) msgEl.innerHTML=`<span style="color:#0F6B49">✓ Gmail ready via <b>same Client ID</b> (${j.clientMasked}) - send bulk & personal now</span>`;
       else if(!j.hasClient) msgEl.textContent='Set Client ID/Secret in Integrations → Google Sheets (reused for Campaigns).';
-      else if(!j.hasGmailAuth) msgEl.innerHTML=`<span style="color:#F59E0B">Gmail not yet authorized - click <b>Connect Gmail (same Client ID)</b> to grant gmail.send scope (one-time). Shares same refresh token as Sheets.</span>`;
+      else if(!j.hasGmailAuth) msgEl.innerHTML=`<span style="color:#92400E">Gmail not yet authorized - click <b>Connect Gmail (same Client ID)</b> to grant gmail.send scope (one-time). Shares same refresh token as Sheets.</span>`;
       else msgEl.textContent=j.lastError ? 'Gmail check: '+j.lastError : '';
     }
   }catch(e){ const el=$('#gmail-status'); if(el) el.textContent='Gmail status error'; }
@@ -1414,13 +1414,13 @@ async function loadCampaigns(){
 function renderCampaigns(){
   const wrap=$('#campaigns-list'); if(!wrap) return;
   wrap.innerHTML='';
-  if(!CAMPAIGNS.length){ wrap.innerHTML='<div style="font-size:12px;color:#94A3B8;padding:8px;border:1px dashed #E2E8F0;border-radius:10px">No campaigns yet - click + New Campaign (HubSpot-style).</div>'; return; }
+  if(!CAMPAIGNS.length){ wrap.innerHTML='<div style="font-size:12px;color:#5A6685;padding:8px;border:1px dashed #E2E8F0;border-radius:10px">No campaigns yet - click + New Campaign (HubSpot-style).</div>'; return; }
   CAMPAIGNS.forEach(c=>{
     const div=document.createElement('div');
     const isSel = SELECTED_CAMP && SELECTED_CAMP.id===c.id;
-    div.style.cssText=`border:1px solid ${isSel?'#7C3AED':'#E2E8F0'};border-radius:10px;padding:10px;background:${isSel?'rgba(124,58,237,.06)':'#fff'};cursor:pointer`;
-    const statusColor = c.status==='sent'?'#10B981':c.status==='sending'?'#F59E0B':c.status==='failed'?'#F87171':'#64748B';
-    div.innerHTML=`<div style="display:flex;gap:8px;align-items:center;justify-content:space-between"><b style="font-size:13px">${c.name}</b><span style="font-size:10px;background:${statusColor};color:#fff;padding:2px 6px;border-radius:999px">${c.status}</span></div><div style="font-size:11px;color:#64748B;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.subject}</div><div style="font-size:11px;color:#94A3B8;margin-top:4px">${c.sent||0}/${c.total||c.total_recipients||0} sent ${c.failed?' • '+c.failed+' failed':''} • ${String(c.created_at||'').slice(0,10)}</div>`;
+    div.style.cssText=`border:1px solid ${isSel?'#C8323E':'#E2E8F0'};border-radius:10px;padding:10px;background:${isSel?'rgba(200,50,62,.06)':'#fff'};cursor:pointer`;
+    const statusColor = c.status==='sent'?'#0F6B49':c.status==='sending'?'#92400E':c.status==='failed'?'#B4232F':'#64748B';
+    div.innerHTML=`<div style="display:flex;gap:8px;align-items:center;justify-content:space-between"><b style="font-size:13px">${c.name}</b><span style="font-size:10px;background:${statusColor};color:#fff;padding:2px 6px;border-radius:999px">${c.status}</span></div><div style="font-size:11px;color:#64748B;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.subject}</div><div style="font-size:11px;color:#5A6685;margin-top:4px">${c.sent||0}/${c.total||c.total_recipients||0} sent ${c.failed?' • '+c.failed+' failed':''} • ${String(c.created_at||'').slice(0,10)}</div>`;
     div.addEventListener('click', ()=> selectCampaign(c.id));
     wrap.appendChild(div);
   });
@@ -1443,13 +1443,13 @@ async function selectCampaign(id){
 }
 function renderSends(list){
   const wrap=$('#camp-sends'); if(!wrap) return;
-  if(!list.length){ wrap.innerHTML='<div style="font-size:11px;color:#94A3B8">No sends yet - preview audience and send bulk.</div>'; return; }
+  if(!list.length){ wrap.innerHTML='<div style="font-size:11px;color:#5A6685">No sends yet - preview audience and send bulk.</div>'; return; }
   wrap.innerHTML='';
   list.forEach(s=>{
     const div=document.createElement('div');
-    const col = s.status==='sent'?'#10B981': s.status==='failed'?'#F87171':'#94A3B8';
+    const col = s.status==='sent'?'#0F6B49': s.status==='failed'?'#B4232F':'#5A6685';
     div.style.cssText='display:flex;gap:8px;align-items:center;justify-content:space-between;border:1px solid #E2E8F0;border-radius:8px;padding:8px;background:#fff';
-    div.innerHTML=`<div><b style="font-size:12px">${s.email}</b> <span style="font-size:11px;color:#64748B">${s.name||''}</span><div style="font-size:10px;color:#94A3B8">${String(s.sent_at||'').slice(0,16)} • ${s.status}</div></div><div style="display:flex;gap:6px;align-items:center"><span style="font-size:10px;background:${col};color:#fff;padding:2px 6px;border-radius:999px">${s.status}</span>${s.error?`<span style="font-size:10px;color:#F87171" title="${s.error}">${s.error.slice(0,30)}</span>`:''}</div>`;
+    div.innerHTML=`<div><b style="font-size:12px">${s.email}</b> <span style="font-size:11px;color:#64748B">${s.name||''}</span><div style="font-size:10px;color:#5A6685">${String(s.sent_at||'').slice(0,16)} • ${s.status}</div></div><div style="display:flex;gap:6px;align-items:center"><span style="font-size:10px;background:${col};color:#fff;padding:2px 6px;border-radius:999px">${s.status}</span>${s.error?`<span style="font-size:10px;color:#B4232F" title="${s.error}">${s.error.slice(0,30)}</span>`:''}</div>`;
     wrap.appendChild(div);
   });
 }
@@ -1519,7 +1519,7 @@ $('#btn-camp-preview-audience')?.addEventListener('click', async()=>{
   const r=await fetch('/api/admin/campaigns/'+SELECTED_CAMP.id+'/send',{method:'POST',headers:{'Content-Type':'application/json',...authHeaders()}, body: JSON.stringify({ stage, search, scammed, limit: parseInt(limit,10), dryRun:true })});
   const j=await r.json();
   const wrap=$('#camp-audience-preview');
-  if(!r.ok){ wrap.innerHTML=`<span style="color:#F87171">${j.error||'Preview failed'}</span>`; return; }
+  if(!r.ok){ wrap.innerHTML=`<span style="color:#B4232F">${j.error||'Preview failed'}</span>`; return; }
   wrap.innerHTML=`<b>${j.wouldSend} recipients</b> would receive this campaign (limit ${limit}). <div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">${(j.emails||[]).map(e=>`<span style="background:#F1F5F9;border:1px solid #E2E8F0;padding:2px 6px;border-radius:999px;font-size:11px">${e}</span>`).join('')}</div>`;
 });
 $('#btn-camp-send')?.addEventListener('click', async()=>{
@@ -1535,11 +1535,11 @@ $('#btn-camp-send')?.addEventListener('click', async()=>{
   try{
     const r=await fetch('/api/admin/campaigns/'+SELECTED_CAMP.id+'/send',{method:'POST',headers:{'Content-Type':'application/json',...authHeaders()}, body: JSON.stringify({ stage, search, scammed, limit: parseInt(limit,10), dryRun })});
     const j=await r.json();
-    if(!r.ok) $('#camp-send-result').innerHTML=`<span style="color:#F87171">${j.error||'Send failed - check Gmail connected (same Client ID) and Sheets+Gmail scopes'}</span>`;
+    if(!r.ok) $('#camp-send-result').innerHTML=`<span style="color:#B4232F">${j.error||'Send failed - check Gmail connected (same Client ID) and Sheets+Gmail scopes'}</span>`;
     else {
       if(j.dryRun) $('#camp-send-result').innerHTML=`Dry run: ${j.wouldSend} would be sent`;
       else {
-        $('#camp-send-result').innerHTML=`<span style="color:#10B981">Sent ${j.sent}/${j.total} ✓ ${j.failed?' • '+j.failed+' failed':''}</span>`;
+        $('#camp-send-result').innerHTML=`<span style="color:#0F6B49">Sent ${j.sent}/${j.total} ✓ ${j.failed?' • '+j.failed+' failed':''}</span>`;
         selectCampaign(SELECTED_CAMP.id); loadOutbox();
       }
     }
@@ -1553,11 +1553,11 @@ async function loadTemplates(){
   TEMPLATES=await r.json();
   const wrap=$('#templates-list'); if(!wrap) return;
   wrap.innerHTML='';
-  if(!TEMPLATES.length){ wrap.innerHTML='<div style="font-size:11px;color:#94A3B8">No templates - create one.</div>'; return; }
+  if(!TEMPLATES.length){ wrap.innerHTML='<div style="font-size:11px;color:#5A6685">No templates - create one.</div>'; return; }
   TEMPLATES.forEach(t=>{
     const div=document.createElement('div');
     div.style.cssText='border:1px solid #E2E8F0;border-radius:8px;padding:8px;display:flex;gap:8px;align-items:center;justify-content:space-between;background:#F8FAFC';
-    div.innerHTML=`<div><b style="font-size:12px">${t.name}</b> <small style="color:#94A3B8">${t.category}</small><div style="font-size:11px;color:#64748B;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px">${t.subject}</div></div><div style="display:flex;gap:4px"><button class="btn btn-ghost" data-tpl-use="${t.id}" style="padding:4px 8px;font-size:11px">Use</button><button class="btn btn-ghost" data-tpl-edit="${t.id}" style="padding:4px 8px;font-size:11px">Edit</button><button class="btn btn-ghost" data-tpl-del="${t.id}" style="padding:4px 8px;font-size:11px;color:#F87171">×</button></div>`;
+    div.innerHTML=`<div><b style="font-size:12px">${t.name}</b> <small style="color:#5A6685">${t.category}</small><div style="font-size:11px;color:#64748B;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px">${t.subject}</div></div><div style="display:flex;gap:4px"><button class="btn btn-ghost" data-tpl-use="${t.id}" style="padding:4px 8px;font-size:11px">Use</button><button class="btn btn-ghost" data-tpl-edit="${t.id}" style="padding:4px 8px;font-size:11px">Edit</button><button class="btn btn-ghost" data-tpl-del="${t.id}" style="padding:4px 8px;font-size:11px;color:#B4232F">×</button></div>`;
     wrap.appendChild(div);
   });
   wrap.querySelectorAll('[data-tpl-use]').forEach(b=> b.addEventListener('click', ()=>{
@@ -1610,13 +1610,13 @@ async function loadOutbox(){
   const j=await r.json();
   const wrap=$('#outbox-list'); if(!wrap) return;
   $('#outbox-count').textContent = j.sends.length+' recent';
-  if(!j.sends.length){ wrap.innerHTML='<div style="font-size:11px;color:#94A3B8">No sends yet.</div>'; return; }
+  if(!j.sends.length){ wrap.innerHTML='<div style="font-size:11px;color:#5A6685">No sends yet.</div>'; return; }
   wrap.innerHTML='';
   j.sends.forEach(s=>{
     const div=document.createElement('div');
     div.style.cssText='display:flex;gap:8px;align-items:center;justify-content:space-between;border:1px solid #E2E8F0;border-radius:8px;padding:8px;background:#fff';
-    const col=s.status==='sent'?'#10B981': s.status==='failed'?'#F87171':'#94A3B8';
-    div.innerHTML=`<input type="checkbox" class="outbox-check" value="${s.id}" style="accent-color:#0B1220"><div style="flex:1"><b style="font-size:11px">${s.email}</b> <span style="font-size:11px;color:#64748B">${s.campaign_name||'1:1'}</span><div style="font-size:10px;color:#94A3B8">${s.campaign_subject||''} • ${String(s.sent_at||'').slice(0,16)}</div></div><div style="display:flex;gap:6px;align-items:center"><span style="font-size:10px;background:${col};color:#fff;padding:2px 6px;border-radius:999px">${s.status}</span><button data-deloutbox="${s.id}" title="Delete from database" style="font-size:10px;border:none;background:transparent;color:#F87171;cursor:pointer">✕</button></div>`;
+    const col=s.status==='sent'?'#0F6B49': s.status==='failed'?'#B4232F':'#5A6685';
+    div.innerHTML=`<input type="checkbox" class="outbox-check" value="${s.id}" style="accent-color:var(--accent)"><div style="flex:1"><b style="font-size:11px">${s.email}</b> <span style="font-size:11px;color:#64748B">${s.campaign_name||'1:1'}</span><div style="font-size:10px;color:#5A6685">${s.campaign_subject||''} • ${String(s.sent_at||'').slice(0,16)}</div></div><div style="display:flex;gap:6px;align-items:center"><span style="font-size:10px;background:${col};color:#fff;padding:2px 6px;border-radius:999px">${s.status}</span><button data-deloutbox="${s.id}" title="Delete from database" style="font-size:10px;border:none;background:transparent;color:#B4232F;cursor:pointer">✕</button></div>`;
     wrap.appendChild(div);
   });
   wrap.querySelectorAll('.outbox-check').forEach(c => c.addEventListener('change', updateOutboxBulk));
@@ -1682,14 +1682,14 @@ $('#btn-publish').addEventListener('click', ()=>{ alert('Changes are live instan
 $('#btn-revert').addEventListener('click', async()=>{
   const dlg=document.getElementById('revisions-dialog');
   const list=$('#revisions-list');
-  if(list) list.innerHTML='<div style="font-size:12px;color:#94A3B8">Loading previous saves...</div>';
+  if(list) list.innerHTML='<div style="font-size:12px;color:#5A6685">Loading previous saves...</div>';
   if(dlg && dlg.showModal) dlg.showModal(); else return alert('No backup dialog');
   try{
     const r=await fetch('/api/admin/content-revisions',{headers:authHeaders()});
     const j=await r.json().catch(()=>({}));
     if(!r.ok) throw new Error(j.error||'Failed to load backups');
     const revs=j.revisions||[];
-    if(!revs.length){ if(list) list.innerHTML='<div style="font-size:12px;color:#94A3B8;border:1px dashed #E2E8F0;border-radius:10px;padding:16px;text-align:center">No previous saves yet.<br>Every Save now auto-backs-up the old version here.</div>'; return; }
+    if(!revs.length){ if(list) list.innerHTML='<div style="font-size:12px;color:#5A6685;border:1px dashed #E2E8F0;border-radius:10px;padding:16px;text-align:center">No previous saves yet.<br>Every Save now auto-backs-up the old version here.</div>'; return; }
     if(list){
       list.innerHTML='';
       revs.forEach((rev,idx)=>{
@@ -1717,7 +1717,7 @@ $('#btn-revert').addEventListener('click', async()=>{
         list.appendChild(row);
       });
     }
-  }catch(e){ if(list) list.innerHTML='<div style="font-size:12px;color:#F87171">Error: '+e.message+'</div>'; }
+  }catch(e){ if(list) list.innerHTML='<div style="font-size:12px;color:#B4232F">Error: '+e.message+'</div>'; }
 });
 
 // Media
@@ -1773,8 +1773,8 @@ function renderHeroBanner(g){
   if(currentMediaTab!=='hero') return;
   const url=(CONTENT.hero_image_url||'').trim();
   const bar=document.createElement('div');
-  bar.style.cssText='grid-column:1/-1;display:flex;gap:12px;align-items:center;background:rgba(124,58,237,.08);border:1px solid rgba(124,58,237,.3);border-radius:12px;padding:10px 12px;margin-bottom:4px';
-  bar.innerHTML=`<img src="${url}" style="width:120px;height:75px;object-fit:cover;border-radius:8px;background:#0B1220" onerror="this.style.display='none'"><div style="font-size:12px"><b>Live hero image</b><div style="color:#94A3B8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:420px">${url||'(none set)'}</div><small style="color:#94A3B8">Upload a new image below (goes live instantly) or click Set as Hero on any image.</small></div>`;
+  bar.style.cssText='grid-column:1/-1;display:flex;gap:12px;align-items:center;background:rgba(200,50,62,.08);border:1px solid rgba(200,50,62,.3);border-radius:12px;padding:10px 12px;margin-bottom:4px';
+  bar.innerHTML=`<img src="${url}" style="width:120px;height:75px;object-fit:cover;border-radius:8px;background:var(--paper-2)" onerror="this.style.display='none'"><div style="font-size:12px"><b>Live hero image</b><div style="color:#5A6685;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:420px">${url||'(none set)'}</div><small style="color:#5A6685">Upload a new image below (goes live instantly) or click Set as Hero on any image.</small></div>`;
   g.appendChild(bar);
 }
 function renderMediaGallery(){
@@ -1785,7 +1785,7 @@ function renderMediaGallery(){
     const div=document.createElement('div');
     div.draggable=true;
     div.dataset.id=item.id;
-    div.style.cssText='background:#0B1220;border:1px solid rgba(255,255,255,.08);border-radius:12px;overflow:hidden;display:flex;flex-direction:column';
+    div.style.cssText='background:var(--paper-2);border:1px solid var(--border);border-radius:12px;overflow:hidden;display:flex;flex-direction:column';
     const kindA=mediaKindA(item.url);
     const isVideo=kindA==='video';
     const isEmbed=kindA==='youtube'||kindA==='vimeo'||kindA==='drive';
@@ -1793,21 +1793,21 @@ function renderMediaGallery(){
     const isHeroTab = currentMediaTab==='hero';
     const isActiveHero = isHeroTab && CONTENT.hero_image_url && item.url===CONTENT.hero_image_url;
     div.innerHTML=`
-      <div style="aspect-ratio:${ratio};overflow:hidden;background:#132238;position:relative">
-        ${isEmbed?`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#1E293B;color:#fff;font-size:28px">▶</div><span style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,.6);color:#fff;font-size:10px;padding:4px 6px;border-radius:999px">${kindA.toUpperCase()}</span>`:(isVideo?`<video src="${item.url}" muted preload="metadata" style="width:100%;height:100%;object-fit:cover"></video><span style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,.6);color:#fff;font-size:10px;padding:4px 6px;border-radius:999px">VIDEO</span>`:`<img src="${item.url}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.opacity=.25">`)}
-        <span style="position:absolute;left:8px;top:8px;background:${item.published?'#10B981':'#64748B'};color:#fff;font-size:10px;padding:3px 6px;border-radius:999px">${item.published?'LIVE':'DRAFT'}</span>
-        ${isActiveHero?'<span style="position:absolute;right:8px;top:8px;background:#7C3AED;color:#fff;font-size:10px;padding:3px 8px;border-radius:999px">ACTIVE HERO</span>':''}
-        <input type="checkbox" class="media-check" value="${item.id}" title="Select for bulk action" style="position:absolute;left:8px;bottom:8px;width:18px;height:18px;accent-color:#0B1220;cursor:pointer">
+      <div style="aspect-ratio:${ratio};overflow:hidden;background:var(--paper-3);position:relative">
+        ${isEmbed?`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:var(--paper-3);color:var(--navy);font-size:28px">▶</div><span style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,.6);color:#fff;font-size:10px;padding:4px 6px;border-radius:999px">${kindA.toUpperCase()}</span>`:(isVideo?`<video src="${item.url}" muted preload="metadata" style="width:100%;height:100%;object-fit:cover"></video><span style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,.6);color:#fff;font-size:10px;padding:4px 6px;border-radius:999px">VIDEO</span>`:`<img src="${item.url}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.opacity=.25">`)}
+        <span style="position:absolute;left:8px;top:8px;background:${item.published?'#0F6B49':'#64748B'};color:#fff;font-size:10px;padding:3px 6px;border-radius:999px">${item.published?'LIVE':'DRAFT'}</span>
+        ${isActiveHero?'<span style="position:absolute;right:8px;top:8px;background:#C8323E;color:#fff;font-size:10px;padding:3px 8px;border-radius:999px">ACTIVE HERO</span>':''}
+        <input type="checkbox" class="media-check" value="${item.id}" title="Select for bulk action" style="position:absolute;left:8px;bottom:8px;width:18px;height:18px;accent-color:var(--accent);cursor:pointer">
       </div>
       <div style="padding:10px;display:grid;gap:6px">
         <b style="font-size:13px">${item.caption||'(no caption)'}</b>
-        <small style="color:#94A3B8">${item.category||' '} • ${item.result_stat||''}</small>
-        <small style="color:#94A3B8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${item.url}</small>
+        <small style="color:#5A6685">${item.category||' '} • ${item.result_stat||''}</small>
+        <small style="color:#5A6685;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${item.url}</small>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           ${isHeroTab?`<button class="btn btn-primary" data-sethero="${item.id}" style="padding:6px 10px;font-size:11px" ${isActiveHero?'disabled':''}>${isActiveHero?'Active ✓':'Set as Hero'}</button>`:''}
           <button class="btn btn-ghost" data-edit="${item.id}" style="padding:6px 10px;font-size:11px">Edit</button>
           <button class="btn btn-ghost" data-toggle="${item.id}" style="padding:6px 10px;font-size:11px">${item.published?'Unpublish':'Publish'}</button>
-          <button class="btn btn-ghost" data-del="${item.id}" style="padding:6px 10px;font-size:11px;color:#F87171">Delete</button>
+          <button class="btn btn-ghost" data-del="${item.id}" style="padding:6px 10px;font-size:11px;color:#B4232F">Delete</button>
         </div>
       </div>
     `;
@@ -1905,7 +1905,7 @@ $('input[name="file"]').addEventListener('change', e=>{
       let v=$('#media-preview-video');
       if(!v){
         v=document.createElement('video');
-        v.id='media-preview-video'; v.controls=true; v.muted=true; v.style.cssText='max-width:100%;max-height:220px;border-radius:8px;background:#0B1220';
+        v.id='media-preview-video'; v.controls=true; v.muted=true; v.style.cssText='max-width:100%;max-height:220px;border-radius:8px;background:var(--paper-2)';
         prevImg.replaceWith(v);
       }
       v.src=URL.createObjectURL(f);
@@ -1934,7 +1934,7 @@ $('input[name="url"]').addEventListener('input', e=>{
       let pv=$('#media-preview-video');
       if(!pv){
         pv=document.createElement('video');
-        pv.id='media-preview-video'; pv.controls=true; pv.muted=true; pv.style.cssText='max-width:100%;max-height:220px;border-radius:8px;background:#0B1220';
+        pv.id='media-preview-video'; pv.controls=true; pv.muted=true; pv.style.cssText='max-width:100%;max-height:220px;border-radius:8px;background:var(--paper-2)';
         const old=$('#media-preview-img'); if(old) old.replaceWith(pv);
       }
       pv.src=v;
@@ -2039,7 +2039,7 @@ $('#media-form').addEventListener('submit', async e=>{
     await loadMedia();
   }catch(err){
     $('#upload-text').textContent=err.message;
-    $('#upload-bar').style.background='#F87171';
+    $('#upload-bar').style.background='#B4232F';
   }
 });
 
@@ -2102,35 +2102,35 @@ $('#edit-media-save').addEventListener('click', async e=>{
 async function loadTeam(){
   const list=$('#team-list');
   try{
-    list.innerHTML='<div style="font-size:12px;color:#94A3B8">Loading experts...</div>';
+    list.innerHTML='<div style="font-size:12px;color:#5A6685">Loading experts...</div>';
     const r=await fetch('/api/team', {headers: authHeaders()});
     if(!r.ok) throw new Error('Server returned '+r.status+' - try logging out and back in');
     TEAM=await r.json();
   }catch(e){
-    list.innerHTML='<div style="font-size:12px;color:#F87171;border:1px solid #FECACA;border-radius:10px;padding:10px">Could not load experts: '+e.message+'</div>';
+    list.innerHTML='<div style="font-size:12px;color:#B4232F;border:1px solid #E7B6B6;border-radius:10px;padding:10px">Could not load experts: '+e.message+'</div>';
     return;
   }
   list.innerHTML='';
   if(!TEAM.length){
-    list.innerHTML='<div style="font-size:12px;color:#94A3B8;border:1px dashed #E2E8F0;border-radius:10px;padding:14px;text-align:center">No experts yet - add your first expert with the form above. They appear instantly in the homepage Experts section.</div>';
+    list.innerHTML='<div style="font-size:12px;color:#5A6685;border:1px dashed #E2E8F0;border-radius:10px;padding:14px;text-align:center">No experts yet - add your first expert with the form above. They appear instantly in the homepage Experts section.</div>';
     return;
   }
   TEAM.forEach(m=>{
     const div=document.createElement('div');
-    div.style.cssText='display:flex;gap:12px;align-items:center;background:#0B1220;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:10px';
+    div.style.cssText='display:flex;gap:12px;align-items:center;background:var(--paper-2);border:1px solid var(--border);border-radius:12px;padding:10px';
     div.draggable=true; div.dataset.id=m.id;
     div.innerHTML=`
-      <input type="checkbox" class="team-check" value="${m.id}" title="Select for bulk action" style="accent-color:#0B1220;width:16px;height:16px;flex:0 0 auto">
-      <img src="${m.photo_url||''}" style="width:64px;height:64px;border-radius:10px;object-fit:cover;background:#132238">
+      <input type="checkbox" class="team-check" value="${m.id}" title="Select for bulk action" style="accent-color:var(--accent);width:16px;height:16px;flex:0 0 auto">
+      <img src="${m.photo_url||''}" style="width:64px;height:64px;border-radius:10px;object-fit:cover;background:var(--paper-3)">
       <div style="flex:1">
-        <b>${m.name}</b> <small style="color:#94A3B8">  ${m.role||''}</small>
-        <div style="font-size:12px;color:#94A3B8">${m.credibility_note||''}</div>
-        <small style="color:${m.published?'#34D399':'#F87171'}">${m.published?'Published':'Draft'}</small>
+        <b>${m.name}</b> <small style="color:#5A6685">  ${m.role||''}</small>
+        <div style="font-size:12px;color:#5A6685">${m.credibility_note||''}</div>
+        <small style="color:${m.published?'#0F6B49':'#B4232F'}">${m.published?'Published':'Draft'}</small>
       </div>
       <div style="display:flex;gap:6px;flex-direction:column">
         <button class="btn btn-ghost" data-tedit="${m.id}" style="padding:6px 10px;font-size:11px">Edit</button>
         <button class="btn btn-ghost" data-ttoggle="${m.id}" style="padding:6px 10px;font-size:11px">${m.published?'Unpublish':'Publish'}</button>
-        <button class="btn btn-ghost" data-tdel="${m.id}" style="padding:6px 10px;font-size:11px;color:#F87171">Delete</button>
+        <button class="btn btn-ghost" data-tdel="${m.id}" style="padding:6px 10px;font-size:11px;color:#B4232F">Delete</button>
       </div>
     `;
     div.addEventListener('dragstart', e=>{ if(e.target && e.target.matches && e.target.matches('input[type=checkbox]')){ e.preventDefault(); return; } e.dataTransfer.setData('text/plain', m.id); });
@@ -2236,13 +2236,13 @@ async function loadSections(){
   SECTIONS.sort((a,b)=>a.display_order-b.display_order).forEach(sec=>{
     const div=document.createElement('div');
     div.draggable=true; div.dataset.key=sec.key;
-    div.style.cssText='display:flex;gap:10px;align-items:center;background:#0B1220;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:10px';
+    div.style.cssText='display:flex;gap:10px;align-items:center;background:var(--paper-2);border:1px solid var(--border);border-radius:12px;padding:10px';
     div.innerHTML=`
       <span style="cursor:grab">≡</span>
       <b style="flex:1">${sec.key}</b>
       <label style="flex-direction:row;gap:6px;align-items:center">Visible<input type="checkbox" ${sec.visible?'checked':''} data-vis></label>
       <label style="flex-direction:row;gap:6px;align-items:center">Anim<input type="checkbox" ${sec.animation_enabled?'checked':''} data-anim></label>
-      <small style="color:#94A3B8">#${sec.display_order}</small>
+      <small style="color:#5A6685">#${sec.display_order}</small>
     `;
     div.addEventListener('dragstart', e=> e.dataTransfer.setData('text/plain', sec.key));
     div.addEventListener('dragover', e=> e.preventDefault());
@@ -2305,7 +2305,7 @@ function renderLeads(){
       const isHigh=lead.wasScammed==='yes';
       card.innerHTML=`
         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-          <b>${lead.name||' '}</b> ${isHigh?'<span class="badge" style="background:#F59E0B;color:#fff">High Empathy Needed</span>':''}
+          <b>${lead.name||' '}</b> ${isHigh?'<span class="badge" style="background:#92400E;color:#fff">High Empathy Needed</span>':''}
           <span class="badge ${lead.webhook_status==='sent'?'badge-sent':lead.webhook_status==='failed'?'badge-failed':'badge-pending'}">${lead.webhook_status||'pending'}</span>
         </div>
         <small>${lead.storeName||''} • ${lead.preferredNiche||''} ${lead.preferredNicheOther?`(${lead.preferredNicheOther})`:''}</small>
@@ -2313,12 +2313,12 @@ function renderLeads(){
         <small>${lead.investmentRange||''} • ${lead.storeStatus||''} • ${lead.source||''}</small>
         ${lead.scamDetails?`<small style="background:rgba(245,158,11,.12);padding:6px;border-radius:8px"><b>Scam details:</b> ${lead.scamDetails}</small>`:''}
         <div style="display:flex;gap:4px;flex-wrap:wrap">
-          <select data-stage="${lead.id}" style="flex:1;padding:6px;border-radius:8px;background:#132238;color:#F1F5F9;border:1px solid rgba(255,255,255,.08)">
+          <select data-stage="${lead.id}" style="flex:1;padding:6px;border-radius:8px;background:var(--paper-3);color:var(--navy);border:1px solid var(--border)">
             ${stages.map(s=>`<option value="${s.key}" ${s.key===st.key?'selected':''}>${s.label}</option>`).join('')}
           </select>
           <button class="btn btn-ghost" data-resend="${lead.id}" style="padding:6px 8px;font-size:11px">Resend</button>
-          <button class="btn btn-ghost" data-email="${lead.id}" style="padding:6px 8px;font-size:11px;border-color:#7C3AED;color:#7C3AED" title="Send personal email via Gmail (same Client ID)">Email</button>
-          <button class="btn btn-ghost" data-dellead="${lead.id}" style="padding:6px 8px;font-size:11px;color:#F87171" title="Delete this lead everywhere">Delete</button>
+          <button class="btn btn-ghost" data-email="${lead.id}" style="padding:6px 8px;font-size:11px;border-color:#C8323E;color:#C8323E" title="Send personal email via Gmail (same Client ID)">Email</button>
+          <button class="btn btn-ghost" data-dellead="${lead.id}" style="padding:6px 8px;font-size:11px;color:#B4232F" title="Delete this lead everywhere">Delete</button>
         </div>
       `;
       col.appendChild(card);
@@ -2327,16 +2327,16 @@ function renderLeads(){
   });
   // table fallback (with selection + bulk actions)
   const table=$('#leads-table');
-  if(LEADS.length===0) table.innerHTML='<p style="color:#94A3B8">No leads found.</p>';
+  if(LEADS.length===0) table.innerHTML='<p style="color:#5A6685">No leads found.</p>';
   else {
-    let html = `<div id="leads-bulkbar" style="display:none;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:8px 10px">`
+    let html = `<div id="leads-bulkbar" style="display:none;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;background:#FBE9EB;border:1px solid #E8BFC3;border-radius:10px;padding:8px 10px">`
       + `<b id="leads-bulkcount" style="font-size:12px">0 selected</b>`
       + `<select id="leads-bulk-stage"><option value="new">New Application</option><option value="contacted">Contacted</option><option value="scheduled">Call Scheduled</option><option value="closed">Client Closed</option><option value="archived">Archived</option></select>`
       + `<button class="btn btn-ghost" id="btn-leads-bulk-stage" style="padding:5px 10px;font-size:11px">Move Stage</button>`
-      + `<button class="btn btn-ghost" id="btn-leads-bulk-del" style="padding:5px 10px;font-size:11px;color:#F87171">Delete</button></div>`;
+      + `<button class="btn btn-ghost" id="btn-leads-bulk-del" style="padding:5px 10px;font-size:11px;color:#B4232F">Delete</button></div>`;
     html+='<table><tr><th><input type="checkbox" id="leads-check-all"></th><th>Name</th><th>Store</th><th>Niche</th><th>WhatsApp</th><th>Email</th><th>Status</th><th>Webhook</th><th>Created</th><th></th></tr>';
     LEADS.forEach(l=>{
-      html+=`<tr><td><input type="checkbox" class="lead-check" value="${l.id}"></td><td>${l.name||''} ${l.wasScammed==='yes'?'<span style="background:#F59E0B;color:#fff;padding:2px 6px;border-radius:999px;font-size:10px">High Empathy</span>':''}</td><td>${l.storeName||''}</td><td>${l.preferredNiche||''}</td><td>${l.whatsapp||''}</td><td>${l.email||''}</td><td>${l.pipeline_stage||''}</td><td>${l.webhook_status||''} (${l.webhook_attempts||0})</td><td>${(l.created_at||'').slice(0,16)}</td><td><button class="btn btn-ghost" data-dellead="${l.id}" style="padding:4px 8px;font-size:11px;color:#F87171">Delete</button></td></tr>`;
+      html+=`<tr><td><input type="checkbox" class="lead-check" value="${l.id}"></td><td>${l.name||''} ${l.wasScammed==='yes'?'<span style="background:#92400E;color:#fff;padding:2px 6px;border-radius:999px;font-size:10px">High Empathy</span>':''}</td><td>${l.storeName||''}</td><td>${l.preferredNiche||''}</td><td>${l.whatsapp||''}</td><td>${l.email||''}</td><td>${l.pipeline_stage||''}</td><td>${l.webhook_status||''} (${l.webhook_attempts||0})</td><td>${(l.created_at||'').slice(0,16)}</td><td><button class="btn btn-ghost" data-dellead="${l.id}" style="padding:4px 8px;font-size:11px;color:#B4232F">Delete</button></td></tr>`;
     });
     html+='</table>'; table.innerHTML=html;
     const boxes = [...table.querySelectorAll('.lead-check')];
@@ -2448,22 +2448,22 @@ async function loadChats(){
 function renderChats(){
   const wrap=$('#chats-list'); if(!wrap) return;
   wrap.innerHTML='';
-  if(!CHATS.length){ wrap.innerHTML='<div style="font-size:12px;color:#94A3B8;border:1px dashed #E2E8F0;border-radius:10px;padding:16px;text-align:center">No conversations yet.<br>Ask something in the frontend chatbot, then Refresh.</div>'; return; }
+  if(!CHATS.length){ wrap.innerHTML='<div style="font-size:12px;color:#5A6685;border:1px dashed #E2E8F0;border-radius:10px;padding:16px;text-align:center">No conversations yet.<br>Ask something in the frontend chatbot, then Refresh.</div>'; return; }
   CHATS.forEach(c=>{
     const isSel=SELECTED_CHAT===c.session_id;
     const div=document.createElement('div');
-    div.style.cssText=`border:1px solid ${isSel?'#7C3AED':'#E2E8F0'};border-radius:12px;padding:10px;background:${isSel?'rgba(124,58,237,.07)':'#fff'};cursor:pointer;display:grid;gap:4px`;
+    div.style.cssText=`border:1px solid ${isSel?'#C8323E':'#E2E8F0'};border-radius:12px;padding:10px;background:${isSel?'rgba(200,50,62,.07)':'#fff'};cursor:pointer;display:grid;gap:4px`;
     const whoName=c.name||'Anonymous';
     const whoEmail=c.email||'no email';
     div.innerHTML=`
       <div style="display:flex;gap:8px;align-items:center;justify-content:space-between">
-        <span style="display:flex;gap:6px;align-items:center;min-width:0"><input type="checkbox" class="chat-check" value="${escChat(c.session_id)}" title="Select for bulk delete" style="accent-color:#0B1220;flex:0 0 auto"><b style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px">👤 ${escChat(whoName)}</b></span>
-        <span style="font-size:10px;background:#0B1220;color:#fff;padding:2px 8px;border-radius:999px">${c.message_count} msgs</span>
+        <span style="display:flex;gap:6px;align-items:center;min-width:0"><input type="checkbox" class="chat-check" value="${escChat(c.session_id)}" title="Select for bulk delete" style="accent-color:var(--accent);flex:0 0 auto"><b style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px">👤 ${escChat(whoName)}</b></span>
+        <span style="font-size:10px;background:var(--navy);color:#fff;padding:2px 8px;border-radius:999px">${c.message_count} msgs</span>
       </div>
-      <div style="font-size:11px;color:#7C3AED;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">✉️ ${escChat(whoEmail)}</div>
-      <div style="font-size:12px;color:#0B1220;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">“${escChat(c.preview||'(no preview)')}”</div>
+      <div style="font-size:11px;color:#C8323E;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">✉️ ${escChat(whoEmail)}</div>
+      <div style="font-size:12px;color:#0F183D;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">“${escChat(c.preview||'(no preview)')}”</div>
       <div style="font-size:11px;color:#64748B">${c.user_count||0} you • ${c.bot_count||0} bot • ${fmtChatTime(c.last_seen)}</div>
-      <div style="font-size:10px;color:#94A3B8;font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escChat(c.session_id)}">${escChat(String(c.session_id).slice(0,28))}</div>`;
+      <div style="font-size:10px;color:#5A6685;font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escChat(c.session_id)}">${escChat(String(c.session_id).slice(0,28))}</div>`;
     div.addEventListener('click',e=>{
       if(e.target && e.target.matches && e.target.matches('input[type=checkbox]')) return;
       selectChat(c.session_id);
@@ -2498,7 +2498,7 @@ async function selectChat(sessionId){
   renderChats();
   const title=$('#chat-thread-title'); const thread=$('#chat-thread'); const del=$('#btn-delete-chat');
   if(title) title.textContent='👤 '+String(sessionId).slice(0,24)+'...';
-  if(thread) thread.innerHTML='<div style="font-size:12px;color:#94A3B8">Loading conversation...</div>';
+  if(thread) thread.innerHTML='<div style="font-size:12px;color:#5A6685">Loading conversation...</div>';
   if(del) del.style.display='none';
   try{
     const r=await fetch('/api/admin/chats/'+encodeURIComponent(sessionId),{headers:authHeaders()});
@@ -2507,17 +2507,17 @@ async function selectChat(sessionId){
     if(thread){
       thread.innerHTML='';
       const head=document.createElement('div');
-      head.style.cssText='background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:8px 10px;font-size:12px;color:#0B1220';
-      head.innerHTML=`<b>👤 ${escChat(j.name||'Anonymous')}</b> <span style="color:#7C3AED">✉️ ${escChat(j.email||'no email')}</span> <span style="color:#94A3B8;font-family:monospace">${escChat(String(sessionId).slice(0,20))}…</span>`;
+      head.style.cssText='background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:8px 10px;font-size:12px;color:#0F183D';
+      head.innerHTML=`<b>👤 ${escChat(j.name||'Anonymous')}</b> <span style="color:#C8323E">✉️ ${escChat(j.email||'no email')}</span> <span style="color:#5A6685;font-family:monospace">${escChat(String(sessionId).slice(0,20))}…</span>`;
       thread.appendChild(head);
-      if(!j.messages.length) thread.innerHTML='<div style="font-size:12px;color:#94A3B8">Empty conversation.</div>';
+      if(!j.messages.length) thread.innerHTML='<div style="font-size:12px;color:#5A6685">Empty conversation.</div>';
       j.messages.forEach(m=>{
         const isUser=m.role==='user';
         const b=document.createElement('div');
-        b.style.cssText=`max-width:88%;padding:10px 12px;border-radius:14px;font-size:13px;line-height:1.5;white-space:pre-wrap;word-break:break-word;${isUser?'justify-self:end;background:#0B1220;color:#fff;border-bottom-right-radius:4px':'justify-self:start;background:#F1F5F9;color:#0B1220;border:1px solid #E2E8F0;border-bottom-left-radius:4px'}`;
+        b.style.cssText=`max-width:88%;padding:10px 12px;border-radius:14px;font-size:13px;line-height:1.5;white-space:pre-wrap;word-break:break-word;${isUser?'justify-self:end;background:var(--accent);color:#fff;border-bottom-right-radius:4px':'justify-self:start;background:#F1F5F9;color:#0F183D;border:1px solid #E2E8F0;border-bottom-left-radius:4px'}`;
         b.textContent=m.text||'';
         const meta=document.createElement('div');
-        meta.style.cssText=`font-size:10px;color:#94A3B8;margin-top:4px;${isUser?'text-align:right':''}`;
+        meta.style.cssText=`font-size:10px;color:#5A6685;margin-top:4px;${isUser?'text-align:right':''}`;
         meta.textContent=(isUser?'You • ':'Bot • ')+fmtChatTime(m.created_at);
         const w=document.createElement('div'); w.style.display='grid'; w.style.justifyItems=isUser?'end':'start';
         w.appendChild(b); w.appendChild(meta);
@@ -2527,7 +2527,7 @@ async function selectChat(sessionId){
     }
     if(title) title.textContent=`👤 ${(j.name||'Anonymous').slice(0,20)} • ${j.count} messages`;
     if(del) del.style.display='inline-block';
-  }catch(e){ if(thread) thread.innerHTML='<div style="font-size:12px;color:#F87171">Failed to load conversation.</div>'; }
+  }catch(e){ if(thread) thread.innerHTML='<div style="font-size:12px;color:#B4232F">Failed to load conversation.</div>'; }
 }
 $('#chat-search')?.addEventListener('input', debounce(loadChats, 400));
 $('#btn-refresh-chats')?.addEventListener('click', loadChats);
@@ -2536,7 +2536,7 @@ $('#btn-delete-chat')?.addEventListener('click', async()=>{
   await fetch('/api/admin/chats/'+encodeURIComponent(SELECTED_CHAT),{method:'DELETE',headers:authHeaders()});
   SELECTED_CHAT=null; $('#btn-delete-chat').style.display='none';
   $('#chat-thread-title').textContent='Select a conversation →';
-  $('#chat-thread').innerHTML='<div style="font-size:12px;color:#94A3B8">Deleted. Select another conversation.</div>';
+  $('#chat-thread').innerHTML='<div style="font-size:12px;color:#5A6685">Deleted. Select another conversation.</div>';
   loadChats();
 });
 
@@ -2561,7 +2561,7 @@ async function loadAnalytics(){
   drawChart('chart-daily', ANALYTICS.daily.map(d=>d.d), ANALYTICS.daily.map(d=>d.c), 'Views');
   drawChart('chart-cta', ANALYTICS.ctaClicks.map(c=>c.element_id), ANALYTICS.ctaClicks.map(c=>c.c), 'Clicks');
   drawChart('chart-source', ANALYTICS.trafficSource.map(s=>s.name||'Unknown'), ANALYTICS.trafficSource.map(s=>s.c), 'Leads');
-  $('#top-portfolio').innerHTML = ANALYTICS.topPortfolio.length? ANALYTICS.topPortfolio.map(t=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)"><span>${t.element_id||' '}</span><b>${t.c}</b></div>`).join('') : '<small style="color:#94A3B8">No portfolio views yet.</small>';
+  $('#top-portfolio').innerHTML = ANALYTICS.topPortfolio.length? ANALYTICS.topPortfolio.map(t=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)"><span>${t.element_id||' '}</span><b>${t.c}</b></div>`).join('') : '<small style="color:#5A6685">No portfolio views yet.</small>';
 }
 function drawChart(id, labels, values, label){
   const canvas=document.getElementById(id);
@@ -2569,8 +2569,8 @@ function drawChart(id, labels, values, label){
   const ctx=canvas.getContext('2d');
   const W=canvas.width=canvas.clientWidth*2, H=canvas.height=160*2;
   ctx.clearRect(0,0,W,H);
-  ctx.fillStyle='#0B1220'; ctx.fillRect(0,0,W,H);
-  if(!values.length){ ctx.fillStyle='#94A3B8'; ctx.font='12px Inter'; ctx.fillText('No data', 20,40); return; }
+  ctx.fillStyle='#0F183D'; ctx.fillRect(0,0,W,H);
+  if(!values.length){ ctx.fillStyle='#5A6685'; ctx.font='12px Inter'; ctx.fillText('No data', 20,40); return; }
   const max=Math.max(...values,1);
   const pad=30;
   const barW=(W-pad*2)/labels.length*0.6;
@@ -2579,9 +2579,9 @@ function drawChart(id, labels, values, label){
     const h=(v/max)*(H-pad*2);
     const x=pad + i*gap + gap*0.2;
     const y=H-pad - h;
-    ctx.fillStyle='#00D1FF';
+    ctx.fillStyle='#C8323E';
     ctx.fillRect(x,y,barW,h);
-    ctx.fillStyle='#94A3B8'; ctx.font='10px Inter';
+    ctx.fillStyle='#5A6685'; ctx.font='10px Inter';
     const lbl=String(labels[i]).slice(0,10);
     ctx.fillText(lbl, x, H-8);
     ctx.fillText(String(v), x, y-6);
@@ -2605,11 +2605,11 @@ async function loadFollowupStatus(){
     if(pill){
       const on = s.enabled ? (s.instantEnabled||s.dailyEnabled) : false;
       pill.textContent = !s.enabled ? 'OFF' : `ON • sent ${j.counts?.totalSent||0} (${j.counts?.todaySent||0} today) • unsub ${j.counts?.unsubscribed||0} • Gmail ${j.gmail?.email||'not connected'}`;
-      pill.style.color = on ? '#10B981' : '#F59E0B';
+      pill.style.color = on ? '#0F6B49' : '#92400E';
       pill.style.borderColor = on ? '#A7F3D0' : '#FDE68A';
     }
     const uc=$('#unsub-count'); if(uc) uc.textContent = j.counts?.unsubscribed ?? 0;
-    if(!j.gmail?.email) { const m=$('#followup-msg'); if(m) m.innerHTML = '<span style="color:#F59E0B">Gmail not connected - follow-ups will fail until you Connect Gmail (same Client ID) in Integrations or Campaigns.</span>'; }
+    if(!j.gmail?.email) { const m=$('#followup-msg'); if(m) m.innerHTML = '<span style="color:#92400E">Gmail not connected - follow-ups will fail until you Connect Gmail (same Client ID) in Integrations or Campaigns.</span>'; }
   }catch(e){ const p=$('#followup-status-pill'); if(p) p.textContent='Error: '+e.message; }
 }
 async function loadFollowupLogs(){
@@ -2624,8 +2624,8 @@ async function loadFollowupLogs(){
     const cnt=$('#followup-count');
     if(cnt) cnt.textContent = `${j.logs?.length||0} shown • ${j.total||0} total`;
     if(wrap){
-      if(!j.logs?.length){ wrap.innerHTML='<div style="font-size:12px;color:#94A3B8;border:1px dashed #E2E8F0;border-radius:10px;padding:12px;text-align:center">No follow-ups sent yet - submit a test lead or chat, then Refresh. Instant sends appear here + in Outbox.</div>'; }
-      else wrap.innerHTML = j.logs.map(l=> `<div style="border:1px solid #E2E8F0;border-radius:10px;padding:8px 10px;background:#fff;display:flex;gap:8px;justify-content:space-between;align-items:start;flex-wrap:wrap"><div style="flex:1;min-width:200px"><div style="font-size:12px;font-weight:700">${(l.subject||'(no subject)').slice(0,90)}</div><div style="font-size:11px;color:#64748B">to <b>${l.email}</b> • <span style="background:#F1F5F9;border-radius:999px;padding:1px 6px">${l.kind}${l.day_number?` d${l.day_number}`:''}</span> • <span style="color:${l.status==='sent'?'#10B981':(l.status==='skipped'?'#F59E0B':'#F87171')}">${l.status}</span> • ${l.sent_at||''}${l.message_id?` • <small>${String(l.message_id).slice(0,16)}</small>`:''}${l.error?` • <small style="color:#F87171">${String(l.error).slice(0,80)}</small>`:''}</div></div><button data-delfu="${l.id}" title="Delete from backend + database" style="font-size:10px;border:1px solid #FECACA;color:#F87171;border-radius:999px;padding:3px 8px;background:#fff;cursor:pointer;flex-shrink:0">Delete</button></div>`).join('');
+      if(!j.logs?.length){ wrap.innerHTML='<div style="font-size:12px;color:#5A6685;border:1px dashed #E2E8F0;border-radius:10px;padding:12px;text-align:center">No follow-ups sent yet - submit a test lead or chat, then Refresh. Instant sends appear here + in Outbox.</div>'; }
+      else wrap.innerHTML = j.logs.map(l=> `<div style="border:1px solid #E2E8F0;border-radius:10px;padding:8px 10px;background:#fff;display:flex;gap:8px;justify-content:space-between;align-items:start;flex-wrap:wrap"><div style="flex:1;min-width:200px"><div style="font-size:12px;font-weight:700">${(l.subject||'(no subject)').slice(0,90)}</div><div style="font-size:11px;color:#64748B">to <b>${l.email}</b> • <span style="background:#F1F5F9;border-radius:999px;padding:1px 6px">${l.kind}${l.day_number?` d${l.day_number}`:''}</span> • <span style="color:${l.status==='sent'?'#0F6B49':(l.status==='skipped'?'#92400E':'#B4232F')}">${l.status}</span> • ${l.sent_at||''}${l.message_id?` • <small>${String(l.message_id).slice(0,16)}</small>`:''}${l.error?` • <small style="color:#B4232F">${String(l.error).slice(0,80)}</small>`:''}</div></div><button data-delfu="${l.id}" title="Delete from backend + database" style="font-size:10px;border:1px solid #E7B6B6;color:#B4232F;border-radius:999px;padding:3px 8px;background:#fff;cursor:pointer;flex-shrink:0">Delete</button></div>`).join('');
       wrap.querySelectorAll('[data-delfu]').forEach(b=> b.addEventListener('click', async()=>{
         if(!confirm('Delete this follow-up record from the backend and database (also removes its outbox copy)?')) return;
         b.textContent='...'; b.disabled=true;
@@ -2637,7 +2637,7 @@ async function loadFollowupLogs(){
         loadFollowupLogs(); loadFollowupStatus(); loadOutbox();
       }));
     }
-  }catch(e){ const w=$('#followup-list'); if(w) w.innerHTML='<div style="color:#F87171;font-size:12px">Error: '+e.message+'</div>'; }
+  }catch(e){ const w=$('#followup-list'); if(w) w.innerHTML='<div style="color:#B4232F;font-size:12px">Error: '+e.message+'</div>'; }
 }
 async function loadUnsubs(){
   try{
@@ -2645,8 +2645,8 @@ async function loadUnsubs(){
     const j = await r.json();
     const wrap=$('#unsub-list');
     if(wrap){
-      if(!j.length){ wrap.innerHTML='<small style="color:#94A3B8">No opt-outs.</small>'; return; }
-      wrap.innerHTML = j.map(u=> `<div style="display:flex;gap:8px;align-items:center;font-size:11px;border:1px solid #E2E8F0;border-radius:8px;padding:4px 8px;background:#FFFBEB"><input type="checkbox" class="unsub-check" value="${u.email}" style="accent-color:#0B1220"><span style="flex:1">${u.email} <small style="color:#94A3B8">${u.created_at||''}</small></span><button data-resub="${u.email}" style="font-size:10px;border:1px solid #10B981;color:#10B981;border-radius:999px;padding:2px 8px;background:#fff;cursor:pointer">Resubscribe</button></div>`).join('');
+      if(!j.length){ wrap.innerHTML='<small style="color:#5A6685">No opt-outs.</small>'; return; }
+      wrap.innerHTML = j.map(u=> `<div style="display:flex;gap:8px;align-items:center;font-size:11px;border:1px solid #E2E8F0;border-radius:8px;padding:4px 8px;background:#FFFBEB"><input type="checkbox" class="unsub-check" value="${u.email}" style="accent-color:var(--accent)"><span style="flex:1">${u.email} <small style="color:#5A6685">${u.created_at||''}</small></span><button data-resub="${u.email}" style="font-size:10px;border:1px solid #0F6B49;color:#0F6B49;border-radius:999px;padding:2px 8px;background:#fff;cursor:pointer">Resubscribe</button></div>`).join('');
       wrap.querySelectorAll('[data-resub]').forEach(b=> b.addEventListener('click', async()=>{
         if(!confirm('Resubscribe '+b.dataset.resub+'?')) return;
         await fetch('/api/admin/followups/unsubscribes/'+encodeURIComponent(b.dataset.resub), { method:'DELETE', headers: authHeaders() });
@@ -2695,7 +2695,7 @@ $('#btn-save-followup')?.addEventListener('click', async()=>{
     const r = await fetch('/api/admin/followups/settings', { method:'PUT', headers:{'Content-Type':'application/json', ...authHeaders()}, body: JSON.stringify(body) });
     const j = await r.json();
     if(!r.ok) throw new Error(j.error||'Save failed');
-    if(msg){ msg.innerHTML='<span style="color:#10B981">Saved ✓ - instant + daily follow-ups updated.</span>'; }
+    if(msg){ msg.innerHTML='<span style="color:#0F6B49">Saved ✓ - instant + daily follow-ups updated.</span>'; }
     loadFollowupStatus();
   }catch(e){ if(msg) msg.textContent='Error: '+e.message; }
 });
@@ -2706,7 +2706,7 @@ $('#btn-test-followup')?.addEventListener('click', async()=>{
     const r = await fetch('/api/admin/followups/test', { method:'POST', headers: authHeaders() });
     const j = await r.json();
     if(!r.ok) throw new Error(j.error||'Send failed');
-    if(msg) msg.innerHTML=`<span style="color:#10B981">Test sent ✓ to ${j.to} - subject: ${j.subject} ${j.ai?'(AI-generated)':'(template fallback - check Gemini key)'}. Check inbox + Logs below + Outbox.</span>`;
+    if(msg) msg.innerHTML=`<span style="color:#0F6B49">Test sent ✓ to ${j.to} - subject: ${j.subject} ${j.ai?'(AI-generated)':'(template fallback - check Gemini key)'}. Check inbox + Logs below + Outbox.</span>`;
     loadFollowupLogs(); loadFollowupStatus();
   }catch(e){ if(msg) msg.textContent='Error: '+e.message; }
 });
@@ -2720,7 +2720,7 @@ $('#btn-run-daily')?.addEventListener('click', async()=>{
     if(!r.ok) throw new Error(j.error||'Run failed');
     if(msg){
       if(j.dryRun) msg.innerHTML=`<span style="color:#64748B">Dry run: would send <b>${j.wouldSend}</b> (Day 2–${j.maxDays}). ${ (j.emails||[]).slice(0,5).map(e=>e.email).join(', ')||''}</span>`;
-      else msg.innerHTML=`<span style="color:#10B981">Daily run done ✓ sent ${j.sent}, failed ${j.failed}, skipped ${j.skipped} (total ${j.total}). See Logs + Outbox.</span>`;
+      else msg.innerHTML=`<span style="color:#0F6B49">Daily run done ✓ sent ${j.sent}, failed ${j.failed}, skipped ${j.skipped} (total ${j.total}). See Logs + Outbox.</span>`;
     }
     loadFollowupLogs(); loadFollowupStatus();
   }catch(e){ if(msg) msg.textContent='Error: '+e.message; }
@@ -2733,7 +2733,7 @@ $('#btn-clear-followup')?.addEventListener('click', async()=>{
     const r=await fetch('/api/admin/followups/logs',{method:'DELETE',headers:authHeaders()});
     const j=await r.json().catch(()=>({}));
     if(!r.ok) throw new Error(j.error||'Clear failed');
-    if(msg) msg.innerHTML='<span style="color:#10B981">Cleared '+j.cleared+' log(s), '+j.outboxUnlinked+' outbox cop(ies) removed.</span>';
+    if(msg) msg.innerHTML='<span style="color:#0F6B49">Cleared '+j.cleared+' log(s), '+j.outboxUnlinked+' outbox cop(ies) removed.</span>';
   }catch(e){ if(msg) msg.textContent='Error: '+e.message; }
   loadFollowupStatus(); loadFollowupLogs(); loadOutbox();
 });
@@ -2766,12 +2766,12 @@ async function loadBackupStatus(){
     if(pill){
       const total = Object.values(j.counts||{}).filter(v=>v>=0).reduce((a,b)=>a+b,0);
       pill.textContent = `Backend OK • ${total} records • disk ${j.usePg?'postgres':'sqlite:'+(j.dataDir||'local')} • ${j.fileBackups?.length||0} snapshots`;
-      pill.style.color = '#10B981'; pill.style.borderColor = '#A7F3D0';
+      pill.style.color = '#0F6B49'; pill.style.borderColor = '#A7F3D0';
     }
     const wrap = $('#backup-saved-state');
     if(wrap){
       const c = j.counts||{}, s = j.secrets||{};
-      const row = (k,v,ok)=> `<div style="display:flex;gap:8px;align-items:center;border:1px solid #E2E8F0;border-radius:8px;padding:4px 8px;background:#fff"><span style="flex:1">${k}</span><b style="color:${ok===false?'#F87171':'#10B981'}">${v}</b></div>`;
+      const row = (k,v,ok)=> `<div style="display:flex;gap:8px;align-items:center;border:1px solid #E2E8F0;border-radius:8px;padding:4px 8px;background:#fff"><span style="flex:1">${k}</span><b style="color:${ok===false?'#B4232F':'#0F6B49'}">${v}</b></div>`;
       let html = '';
       html += row('Content keys', (c.content??'?')+' saved', true);
       html += row('Leads (CRM)', (c.leads??'?')+' saved', true);
@@ -2799,7 +2799,7 @@ async function loadBackupStatus(){
           a.download = 'nexatech-backup-' + new Date().toISOString().slice(0,10) + '.json';
           a.click();
           setTimeout(()=> URL.revokeObjectURL(a.href), 5000);
-          if(msg) msg.innerHTML = '<span style="color:#10B981">Downloaded ✓ - keep this file to restore later from any browser.</span>';
+          if(msg) msg.innerHTML = '<span style="color:#0F6B49">Downloaded ✓ - keep this file to restore later from any browser.</span>';
         }catch(err){ if(msg) msg.textContent = 'Error: ' + err.message; }
       });
     }
@@ -2812,14 +2812,14 @@ async function loadBackupFiles(){
     const j = await r.json();
     const wrap = $('#backup-files');
     if(!wrap) return;
-    if(!j.files?.length){ wrap.innerHTML = '<small style="color:#94A3B8">No snapshots yet - click Save Snapshot Now. Nightly auto-snapshot at 03:30.</small>'; return; }
-    wrap.innerHTML = j.files.map(f=> `<div style="display:flex;gap:8px;align-items:center;font-size:11px;border:1px solid #E2E8F0;border-radius:8px;padding:6px 8px;background:#F8FAFC"><span style="flex:1"><b>${f.file}</b> <small style="color:#94A3B8">${(f.size/1024).toFixed(1)}kb • ${f.modified||''}</small></span><button data-restore="${f.file}" style="font-size:10px;border:1px solid #10B981;color:#10B981;border-radius:999px;padding:3px 8px;background:#fff;cursor:pointer">Restore</button><button data-delbackup="${f.file}" style="font-size:10px;border:none;background:transparent;color:#F87171;cursor:pointer">Delete</button></div>`).join('');
+    if(!j.files?.length){ wrap.innerHTML = '<small style="color:#5A6685">No snapshots yet - click Save Snapshot Now. Nightly auto-snapshot at 03:30.</small>'; return; }
+    wrap.innerHTML = j.files.map(f=> `<div style="display:flex;gap:8px;align-items:center;font-size:11px;border:1px solid #E2E8F0;border-radius:8px;padding:6px 8px;background:#F8FAFC"><span style="flex:1"><b>${f.file}</b> <small style="color:#5A6685">${(f.size/1024).toFixed(1)}kb • ${f.modified||''}</small></span><button data-restore="${f.file}" style="font-size:10px;border:1px solid #0F6B49;color:#0F6B49;border-radius:999px;padding:3px 8px;background:#fff;cursor:pointer">Restore</button><button data-delbackup="${f.file}" style="font-size:10px;border:none;background:transparent;color:#B4232F;cursor:pointer">Delete</button></div>`).join('');
     wrap.querySelectorAll('[data-restore]').forEach(b=> b.addEventListener('click', async()=>{
       if(!confirm('Restore snapshot '+b.dataset.restore+'? Current content is auto-backed-up first (reversible).')) return;
       const msg=$('#backup-msg'); if(msg) msg.textContent='Restoring...';
       const rr = await fetch('/api/admin/backup/files/'+encodeURIComponent(b.dataset.restore)+'/restore', { method:'POST', headers: authHeaders() });
       const jj = await rr.json().catch(()=>({}));
-      if(msg) msg.innerHTML = rr.ok ? '<span style="color:#10B981">Restored ✓ - refresh the site to see it.</span>' : ('Error: '+(jj.error||'failed'));
+      if(msg) msg.innerHTML = rr.ok ? '<span style="color:#0F6B49">Restored ✓ - refresh the site to see it.</span>' : ('Error: '+(jj.error||'failed'));
       if(rr.ok){ await loadContent(); loadBackupStatus(); }
     }));
     wrap.querySelectorAll('[data-delbackup]').forEach(b=> b.addEventListener('click', async()=>{
@@ -2835,7 +2835,7 @@ $('#btn-backup-snapshot')?.addEventListener('click', async()=>{
     const r = await fetch('/api/admin/backup/files', { method:'POST', headers:{'Content-Type':'application/json', ...authHeaders()}, body: JSON.stringify({}) });
     const j = await r.json();
     if(!r.ok) throw new Error(j.error||'failed');
-    if(msg) msg.innerHTML = `<span style="color:#10B981">Snapshot saved ✓ ${j.file} - visible in every browser.</span>`;
+    if(msg) msg.innerHTML = `<span style="color:#0F6B49">Snapshot saved ✓ ${j.file} - visible in every browser.</span>`;
     loadBackupFiles(); loadBackupStatus();
   }catch(e){ if(msg) msg.textContent='Error: '+e.message; }
 });
@@ -2850,7 +2850,7 @@ $('#backup-restore-file')?.addEventListener('change', async (e)=>{
     const r = await fetch('/api/admin/backup/import', { method:'POST', headers:{'Content-Type':'application/json', ...authHeaders()}, body: JSON.stringify(dump) });
     const j = await r.json().catch(()=>({}));
     if(!r.ok) throw new Error(j.error||'restore failed');
-    if(msg) msg.innerHTML='<span style="color:#10B981">Restored ✓ - refresh the site to see it.</span>';
+    if(msg) msg.innerHTML='<span style="color:#0F6B49">Restored ✓ - refresh the site to see it.</span>';
     await loadContent(); loadBackupStatus();
   }catch(err){ if(msg) msg.textContent='Error: '+err.message; }
   e.target.value='';
@@ -2922,10 +2922,10 @@ $('#btn-save-notify')?.addEventListener('click', async ()=>{
     const r = await fetch('/api/content', { method: 'PUT', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(payload) });
     const j = await r.json().catch(() => ({}));
     if(!r.ok) throw new Error(j.error || 'Save failed');
-    if(msg){ msg.textContent = 'Saved ✓ - alerts will now go to ' + (payload.owner_notify_email || 'your email') + '.'; msg.style.color = '#10B981'; }
+    if(msg){ msg.textContent = 'Saved ✓ - alerts will now go to ' + (payload.owner_notify_email || 'your email') + '.'; msg.style.color = '#0F6B49'; }
     if($('#int-callmebot-key')) $('#int-callmebot-key').value = '';
     await loadContent(); fillNotifyForm();
-  }catch(e){ if(msg){ msg.textContent = 'Error: ' + e.message; msg.style.color = '#F87171'; } }
+  }catch(e){ if(msg){ msg.textContent = 'Error: ' + e.message; msg.style.color = '#B4232F'; } }
   finally{ if(btn){ btn.disabled = false; btn.textContent = 'Save Notifications'; } }
 });
 $('#btn-test-notify')?.addEventListener('click', async ()=>{
@@ -2940,10 +2940,10 @@ $('#btn-test-notify')?.addEventListener('click', async ()=>{
       const problems = [];
       if(!j.gmail_connected) problems.push('EMAIL will NOT send - Google is not connected. Add nexatechdropshipping@gmail.com as a test user in Google Cloud → OAuth consent screen → Audience, then click Connect Google Sheets in Integrations.');
       if(!j.callmebot_set) problems.push('WHATSAPP will NOT send - paste your CallMeBot apikey and Save first.');
-      if(problems.length){ msg.textContent = 'Test fired, but: ' + problems.join(' '); msg.style.color = '#F59E0B'; }
-      else { msg.textContent = 'Test alert sent ✓ - check ' + (j.owner_email || 'your email') + ' and WhatsApp (' + (j.owner_whatsapp || '') + ').'; msg.style.color = '#10B981'; }
+      if(problems.length){ msg.textContent = 'Test fired, but: ' + problems.join(' '); msg.style.color = '#92400E'; }
+      else { msg.textContent = 'Test alert sent ✓ - check ' + (j.owner_email || 'your email') + ' and WhatsApp (' + (j.owner_whatsapp || '') + ').'; msg.style.color = '#0F6B49'; }
     }
-  }catch(e){ if(msg){ msg.textContent = 'Error: ' + e.message; msg.style.color = '#F87171'; } }
+  }catch(e){ if(msg){ msg.textContent = 'Error: ' + e.message; msg.style.color = '#B4232F'; } }
   finally{ if(btn){ btn.disabled = false; btn.textContent = 'Send Test Alert →'; } }
 });
 $('#btn-save-payments')?.addEventListener('click', async ()=>{
@@ -2962,10 +2962,10 @@ $('#btn-save-payments')?.addEventListener('click', async ()=>{
     const r = await fetch('/api/content', { method: 'PUT', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(payload) });
     const j = await r.json().catch(() => ({}));
     if(!r.ok) throw new Error(j.error || 'Save failed');
-    if(msg){ msg.textContent = 'Saved ✓ - checkout now charges inline (USD).'; msg.style.color = '#10B981'; }
+    if(msg){ msg.textContent = 'Saved ✓ - checkout now charges inline (USD).'; msg.style.color = '#0F6B49'; }
     for(const id of ['int-flw-secret', 'int-flw-enc', 'int-flw-hash']){ const el = document.getElementById(id); if(el) el.value = ''; }
     await loadContent(); fillPaymentsForm();
-  }catch(e){ if(msg){ msg.textContent = 'Error: ' + e.message; msg.style.color = '#F87171'; } }
+  }catch(e){ if(msg){ msg.textContent = 'Error: ' + e.message; msg.style.color = '#B4232F'; } }
   finally{ if(btn){ btn.disabled = false; btn.textContent = 'Save Payment Keys'; } }
 });
 
@@ -3002,9 +3002,9 @@ $('#btn-save-fx')?.addEventListener('click', async ()=>{
     const r = await fetch('/api/content', { method: 'PUT', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(payload) });
     const j = await r.json().catch(() => ({}));
     if(!r.ok) throw new Error(j.error || 'Save failed');
-    if(msg){ msg.textContent = 'Saved ✓'; msg.style.color = '#10B981'; }
+    if(msg){ msg.textContent = 'Saved ✓'; msg.style.color = '#0F6B49'; }
     await loadContent();
-  }catch(e){ if(msg){ msg.textContent = 'Error: ' + e.message; msg.style.color = '#F87171'; } }
+  }catch(e){ if(msg){ msg.textContent = 'Error: ' + e.message; msg.style.color = '#B4232F'; } }
   finally{ if(btn){ btn.disabled = false; btn.textContent = 'Save Currency Settings'; } }
 });
 $('#btn-refresh-fx')?.addEventListener('click', async ()=>{
@@ -3014,9 +3014,9 @@ $('#btn-refresh-fx')?.addEventListener('click', async ()=>{
     const r = await fetch('/api/admin/fx/refresh', { method: 'POST', headers: authHeaders() });
     const j = await r.json().catch(() => ({}));
     if(!r.ok) throw new Error(j.error || 'Refresh failed');
-    if(msg){ msg.textContent = `Refreshed ✓ ${j.count} rates via ${j.source}`; msg.style.color = '#10B981'; }
+    if(msg){ msg.textContent = `Refreshed ✓ ${j.count} rates via ${j.source}`; msg.style.color = '#0F6B49'; }
     fillFxForm();
-  }catch(e){ if(msg){ msg.textContent = 'Error: ' + e.message + ' (checkout falls back to USD)'; msg.style.color = '#F87171'; } }
+  }catch(e){ if(msg){ msg.textContent = 'Error: ' + e.message + ' (checkout falls back to USD)'; msg.style.color = '#B4232F'; } }
   finally{ if(btn){ btn.disabled = false; btn.textContent = 'Refresh Rates Now'; } }
 });
 function themeMoney(cents, cur){
@@ -3041,15 +3041,16 @@ async function loadThemesAdmin(){
       d.style.cssText = 'border:1px solid #E2E8F0;border-radius:12px;overflow:hidden;background:#fff';
       d.style.position = 'relative';
       d.innerHTML =
-        `<input type="checkbox" class="theme-check" value="${t.id}" title="Select for bulk action" style="position:absolute;left:8px;top:8px;width:18px;height:18px;accent-color:#0B1220;cursor:pointer;z-index:2">` +
-        (t.preview_url ? `<img src="${escAttr(t.preview_url)}" style="width:100%;aspect-ratio:16/10;object-fit:cover" loading="lazy">` : `<div style="aspect-ratio:16/10;display:grid;place-items:center;background:#F1F5F9;color:#94A3B8;font-size:12px">No preview</div>`) +
+        `<input type="checkbox" class="theme-check" value="${t.id}" title="Select for bulk action" style="position:absolute;left:8px;top:8px;width:18px;height:18px;accent-color:var(--accent);cursor:pointer;z-index:2">` +
+        (t.preview_url ? `<img src="${escAttr(t.preview_url)}" style="width:100%;aspect-ratio:16/10;object-fit:cover" loading="lazy">` : `<div style="aspect-ratio:16/10;display:grid;place-items:center;background:#F1F5F9;color:#5A6685;font-size:12px">No preview</div>`) +
         `<div style="padding:10px"><b>${escAttr(t.name)}</b><br>` +
-        `<small style="color:#64748B">/${escAttr(t.slug)} · ${escAttr(themeMoney(t.price_cents, t.currency))} · ${t.published ? '<span style="color:#10B981">LIVE</span>' : '<span style="color:#F59E0B">DRAFT</span>'}</small><br>` +
-        `<small style="color:#64748B">${t.zip_filename ? '📦 ZIP ' + escAttr(fmtSize(t.zip_size)) : '⚠️ no ZIP uploaded'}</small>` +
+        `<small style="color:#64748B">/${escAttr(t.slug)} · ${escAttr(themeMoney(t.price_cents, t.currency))} · ${t.published ? '<span style="color:#0F6B49">LIVE</span>' : '<span style="color:#92400E">DRAFT</span>'}</small><br>` +
+        `<small style="color:#64748B">${t.zip_filename ? '📦 ZIP ' + escAttr(fmtSize(t.zip_size)) : '⚠️ no ZIP uploaded'}</small><br>` +
+        `<small style="color:#64748B">${t.demo_url ? '<a href="' + escAttr(t.demo_url) + '" target="_blank" rel="noopener" style="color:#2563EB">Live Demo</a>' : 'No Live Demo link'}</small>` +
         `<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">` +
         `<button class="btn btn-ghost" data-act="edit" style="padding:5px 10px;font-size:11px">Edit</button>` +
         `<button class="btn btn-ghost" data-act="toggle" style="padding:5px 10px;font-size:11px">${t.published ? 'Unpublish' : 'Publish'}</button>` +
-        `<button class="btn btn-ghost" data-act="del" style="padding:5px 10px;font-size:11px;color:#F87171">Delete</button>` +
+        `<button class="btn btn-ghost" data-act="del" style="padding:5px 10px;font-size:11px;color:#B4232F">Delete</button>` +
         `</div></div>`;
       d.querySelector('[data-act="edit"]').addEventListener('click', () => editThemeAdmin(t.id));
       d.querySelector('[data-act="toggle"]').addEventListener('click', async () => {
@@ -3067,7 +3068,7 @@ async function loadThemesAdmin(){
     updateThemesBulk();
     const tsa = $('#themes-select-all');
     if(tsa && !tsa.dataset.bound){ tsa.dataset.bound = '1'; tsa.addEventListener('change', () => { list.querySelectorAll('.theme-check').forEach(c => { c.checked = tsa.checked; }); updateThemesBulk(); }); }
-  }catch(e){ if(list) list.innerHTML = '<p style="color:#F87171">Failed to load themes: ' + escAttr(e.message) + '</p>'; }
+  }catch(e){ if(list) list.innerHTML = '<p style="color:#B4232F">Failed to load themes: ' + escAttr(e.message) + '</p>'; }
 }
 function selectedThemeIds(){
   return [...document.querySelectorAll('.theme-check:checked')].map(c => parseInt(c.value, 10)).filter(Number.isFinite);
@@ -3103,6 +3104,7 @@ function editThemeAdmin(id){
   $('#theme-currency').value = t.currency || 'USD';
   $('#theme-desc').value = t.description || '';
   $('#theme-preview-url').value = t.preview_url || '';
+  $('#theme-demo-url').value = t.demo_url || '';
   $('#theme-published').checked = !!t.published;
   updateThemePreview();
   $('#theme-form-title').innerHTML = 'Edit Theme <small style="font-weight:500;color:#64748B">/' + escAttr(t.slug) + '</small>';
@@ -3150,8 +3152,8 @@ $('#theme-form')?.addEventListener('submit', (e) => {
   msg.textContent = ''; msg.style.color = '#64748B';
   const name = $('#theme-name').value.trim();
   const price = $('#theme-price').value.trim();
-  if(!name){ msg.textContent = 'Theme name is required.'; msg.style.color = '#F87171'; return; }
-  if(price === '' || !(parseFloat(price) >= 0)){ msg.textContent = 'Price (USD) must be 0 or more (0 = free/test).'; msg.style.color = '#F87171'; return; }
+  if(!name){ msg.textContent = 'Theme name is required.'; msg.style.color = '#B4232F'; return; }
+  if(price === '' || !(parseFloat(price) >= 0)){ msg.textContent = 'Price (USD) must be 0 or more (0 = free/test).'; msg.style.color = '#B4232F'; return; }
   const fd = new FormData();
   fd.append('name', name);
   fd.append('slug', $('#theme-slug').value.trim());
@@ -3159,13 +3161,14 @@ $('#theme-form')?.addEventListener('submit', (e) => {
   fd.append('currency', $('#theme-currency').value.trim() || 'USD');
   fd.append('description', $('#theme-desc').value);
   fd.append('preview_url', $('#theme-preview-url').value.trim());
+  fd.append('demo_url', $('#theme-demo-url').value.trim());
   fd.append('published', $('#theme-published').checked ? '1' : '0');
   const pf = $('#theme-preview-file').files[0];
   if(pf) fd.append('preview', pf);
   const zf = $('#theme-zip-file').files[0];
   if(zf){
-    if(!/\.zip$/i.test(zf.name)){ msg.textContent = 'Theme package must be a .zip file.'; msg.style.color = '#F87171'; return; }
-    if(zf.size > 200 * 1024 * 1024){ msg.textContent = 'ZIP too large - limit is 200MB.'; msg.style.color = '#F87171'; return; }
+    if(!/\.zip$/i.test(zf.name)){ msg.textContent = 'Theme package must be a .zip file.'; msg.style.color = '#B4232F'; return; }
+    if(zf.size > 200 * 1024 * 1024){ msg.textContent = 'ZIP too large - limit is 200MB.'; msg.style.color = '#B4232F'; return; }
     fd.append('zipfile', zf);
   }
   const url = EDITING_THEME_ID ? '/api/admin/themes/' + EDITING_THEME_ID : '/api/admin/themes';
@@ -3188,12 +3191,12 @@ $('#theme-form')?.addEventListener('submit', (e) => {
     try{
       const j = JSON.parse(xhr.responseText);
       if(xhr.status >= 200 && xhr.status < 300){
-        msg.textContent = 'Saved ✓'; msg.style.color = '#10B981';
+        msg.textContent = 'Saved ✓'; msg.style.color = '#0F6B49';
         resetThemeForm(); loadThemesAdmin();
-      } else { msg.textContent = 'Error: ' + (j.error || ('HTTP ' + xhr.status)); msg.style.color = '#F87171'; }
-    }catch{ msg.textContent = 'Error: bad server response.'; msg.style.color = '#F87171'; }
+      } else { msg.textContent = 'Error: ' + (j.error || ('HTTP ' + xhr.status)); msg.style.color = '#B4232F'; }
+    }catch{ msg.textContent = 'Error: bad server response.'; msg.style.color = '#B4232F'; }
   };
-  xhr.onerror = () => { btn.disabled = false; pwrap.style.display = 'none'; msg.textContent = 'Upload failed - check connection and retry.'; msg.style.color = '#F87171'; };
+  xhr.onerror = () => { btn.disabled = false; pwrap.style.display = 'none'; msg.textContent = 'Upload failed - check connection and retry.'; msg.style.color = '#B4232F'; };
   xhr.send(fd);
 });
 // ================= CUSTOM OFFERS (Fiverr-style) =================
@@ -3215,8 +3218,8 @@ $('#btn-save-offers-texts')?.addEventListener('click', async () => {
     const r = await fetch('/api/content', { method: 'PUT', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(payload) });
     if(!r.ok) throw new Error('HTTP ' + r.status);
     Object.assign(CONTENT, payload);
-    msg.textContent = 'Saved ✓'; msg.style.color = '#10B981';
-  }catch(e){ msg.textContent = 'Save failed: ' + e.message; msg.style.color = '#F87171'; }
+    msg.textContent = 'Saved ✓'; msg.style.color = '#0F6B49';
+  }catch(e){ msg.textContent = 'Save failed: ' + e.message; msg.style.color = '#B4232F'; }
 });
 function offerMoney(cents, cur){
   const c = String(cur || 'USD').toUpperCase();
@@ -3239,16 +3242,16 @@ async function loadOffersAdmin(){
       const d = document.createElement('div');
       d.style.cssText = 'border:1px solid #E2E8F0;border-radius:12px;overflow:hidden;background:#fff;position:relative';
       d.innerHTML =
-        `<input type="checkbox" class="offer-check" value="${o.id}" title="Select for bulk action" style="position:absolute;left:8px;top:8px;width:18px;height:18px;accent-color:#0B1220;cursor:pointer;z-index:2">` +
+        `<input type="checkbox" class="offer-check" value="${o.id}" title="Select for bulk action" style="position:absolute;left:8px;top:8px;width:18px;height:18px;accent-color:var(--accent);cursor:pointer;z-index:2">` +
         (o.image_url ? `<img src="${escAttr(o.image_url)}" style="width:100%;aspect-ratio:16/10;object-fit:cover" loading="lazy" onerror="this.style.display='none'">` : '') +
         `<div style="padding:10px"><b>${escAttr(o.title)}</b><br>` +
-        `<small style="color:#64748B">/${escAttr(o.slug)} · ${escAttr(offerMoney(o.price_cents, o.currency))} · ${o.published ? '<span style="color:#10B981">LIVE</span>' : '<span style="color:#F59E0B">DRAFT</span>'}</small><br>` +
+        `<small style="color:#64748B">/${escAttr(o.slug)} · ${escAttr(offerMoney(o.price_cents, o.currency))} · ${o.published ? '<span style="color:#0F6B49">LIVE</span>' : '<span style="color:#92400E">DRAFT</span>'}</small><br>` +
         (o.delivery_label ? `<small style="color:#64748B">⏱ ${escAttr(o.delivery_label)}</small><br>` : '') +
         `<small style="color:#64748B">🔗 /checkout?kind=offer&item=${escAttr(o.slug)}</small>` +
         `<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">` +
         `<button class="btn btn-ghost" data-act="edit" style="padding:5px 10px;font-size:11px">Edit</button>` +
         `<button class="btn btn-ghost" data-act="toggle" style="padding:5px 10px;font-size:11px">${o.published ? 'Unpublish' : 'Publish'}</button>` +
-        `<button class="btn btn-ghost" data-act="del" style="padding:5px 10px;font-size:11px;color:#F87171">Delete</button>` +
+        `<button class="btn btn-ghost" data-act="del" style="padding:5px 10px;font-size:11px;color:#B4232F">Delete</button>` +
         `</div></div>`;
       d.querySelector('[data-act="edit"]').addEventListener('click', () => editOfferAdmin(o.id));
       d.querySelector('[data-act="toggle"]').addEventListener('click', async () => {
@@ -3266,7 +3269,7 @@ async function loadOffersAdmin(){
     updateOffersBulk();
     const osa = $('#offers-select-all');
     if(osa && !osa.dataset.bound){ osa.dataset.bound = '1'; osa.addEventListener('change', () => { list.querySelectorAll('.offer-check').forEach(c => { c.checked = osa.checked; }); updateOffersBulk(); }); }
-  }catch(e){ if(list) list.innerHTML = '<p style="color:#F87171">Failed to load offers: ' + escAttr(e.message) + '</p>'; }
+  }catch(e){ if(list) list.innerHTML = '<p style="color:#B4232F">Failed to load offers: ' + escAttr(e.message) + '</p>'; }
 }
 function selectedOfferIds(){
   return [...document.querySelectorAll('.offer-check:checked')].map(c => parseInt(c.value, 10)).filter(Number.isFinite);
@@ -3326,8 +3329,8 @@ $('#offer-form')?.addEventListener('submit', async (e) => {
   msg.textContent = ''; msg.style.color = '#64748B';
   const title = $('#offer-title').value.trim();
   const price = $('#offer-price').value.trim();
-  if(!title){ msg.textContent = 'Offer title is required.'; msg.style.color = '#F87171'; return; }
-  if(price === '' || !(parseFloat(price) >= 0)){ msg.textContent = 'Price (USD) must be 0 or more (0 = free/test).'; msg.style.color = '#F87171'; return; }
+  if(!title){ msg.textContent = 'Offer title is required.'; msg.style.color = '#B4232F'; return; }
+  if(price === '' || !(parseFloat(price) >= 0)){ msg.textContent = 'Price (USD) must be 0 or more (0 = free/test).'; msg.style.color = '#B4232F'; return; }
   const payload = {
     title, slug: $('#offer-slug').value.trim(), price,
     currency: $('#offer-currency').value.trim() || 'USD',
@@ -3342,9 +3345,9 @@ $('#offer-form')?.addEventListener('submit', async (e) => {
     const r = await fetch(url, { method: EDITING_OFFER_ID ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(payload) });
     const j = await r.json().catch(() => ({}));
     if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
-    msg.textContent = 'Saved ✓ - live on the homepage after Mentorship.'; msg.style.color = '#10B981';
+    msg.textContent = 'Saved ✓ - live on the homepage after Mentorship.'; msg.style.color = '#0F6B49';
     resetOfferForm(); loadOffersAdmin();
-  }catch(err){ msg.textContent = 'Error: ' + err.message; msg.style.color = '#F87171'; }
+  }catch(err){ msg.textContent = 'Error: ' + err.message; msg.style.color = '#B4232F'; }
   btn.disabled = false; btn.textContent = EDITING_OFFER_ID ? 'Update Offer' : 'Save Offer';
 });
 // ================= ORDERS MANAGEMENT =================
@@ -3356,7 +3359,7 @@ async function bulkPost(url, action, ids, extra){
   return j;
 }
 function orderPill(s){
-  const c = s === 'paid' ? '#10B981' : s === 'pending' ? '#F59E0B' : '#F87171';
+  const c = s === 'paid' ? '#0F6B49' : s === 'pending' ? '#92400E' : '#B4232F';
   return `<span style="font-size:11px;font-weight:800;color:${c};border:1px solid ${c};border-radius:999px;padding:2px 8px">${escAttr(String(s || '').toUpperCase())}</span>`;
 }
 function ordersQuery(){
@@ -3378,14 +3381,14 @@ async function loadOrdersSection(){
     ORDERS_ROWS = await r.json();
     renderOrdersStats();
     renderOrdersTable();
-  }catch(e){ if(table) table.innerHTML = '<tr><td style="color:#F87171">Failed to load orders: ' + escAttr(e.message) + '</td></tr>'; }
+  }catch(e){ if(table) table.innerHTML = '<tr><td style="color:#B4232F">Failed to load orders: ' + escAttr(e.message) + '</td></tr>'; }
 }
 function renderOrdersStats(){
   const box = $('#orders-stats');
   if(!box) return;
   const paid = ORDERS_ROWS.filter(o => o.status === 'paid');
   const pend = ORDERS_ROWS.filter(o => o.status === 'pending');
-  const card = (label, val, color, sub) => `<div class="card" style="margin:0;padding:12px"><small style="color:#64748B">${label}</small><div style="font-size:20px;font-weight:800;color:${color || '#0B1220'}">${val}</div>${sub ? `<small style="color:#64748B">${sub}</small>` : ''}</div>`;
+  const card = (label, val, color, sub) => `<div class="card" style="margin:0;padding:12px"><small style="color:#64748B">${label}</small><div style="font-size:20px;font-weight:800;color:${color || '#0F183D'}">${val}</div>${sub ? `<small style="color:#64748B">${sub}</small>` : ''}</div>`;
   // Per-currency totals (identify what was actually paid in).
   const byCur = {};
   paid.forEach(o => {
@@ -3394,11 +3397,11 @@ function renderOrdersStats(){
   });
   const parts = Object.keys(byCur).sort().map(c => `${fmtMoney(byCur[c], c)} ${c}`);
   // Render immediately with native totals, then upgrade to USD-converted total.
-  box.innerHTML = card('Total Orders', ORDERS_ROWS.length) + card('Pending', pend.length, '#F59E0B') + card('Paid', paid.length, '#10B981') + card('Revenue (paid)', parts.length ? parts.join(' + ') : '$0', '#10B981', 'converting to USD…');
+  box.innerHTML = card('Total Orders', ORDERS_ROWS.length) + card('Pending', pend.length, '#92400E') + card('Paid', paid.length, '#0F6B49') + card('Revenue (paid)', parts.length ? parts.join(' + ') : '$0', '#0F6B49', 'converting to USD…');
   fxToUsdCents(paid).then(usdCents => {
     if(!document.body.contains(box)) return;
     const sub = parts.length ? parts.join(' + ') + ' → auto-converted' : 'no paid orders';
-    box.innerHTML = card('Total Orders', ORDERS_ROWS.length) + card('Pending', pend.length, '#F59E0B') + card('Paid', paid.length, '#10B981') + card('Revenue (paid)', '$' + (usdCents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), '#10B981', escAttr(sub));
+    box.innerHTML = card('Total Orders', ORDERS_ROWS.length) + card('Pending', pend.length, '#92400E') + card('Paid', paid.length, '#0F6B49') + card('Revenue (paid)', '$' + (usdCents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), '#0F6B49', escAttr(sub));
   }).catch(() => {});
 }
 // Zero-decimal currencies (minor unit = 1, not 100) - mirrors server FX_ZERO_DECIMAL.
@@ -3449,15 +3452,15 @@ function renderOrdersTable(){
     const amt = themeMoney(o.amount_cents, o.currency);
     html += `<tr data-oid="${o.id}">`
       + `<td><input type="checkbox" class="order-check" value="${o.id}"></td>`
-      + `<td><b>${escAttr(o.order_ref)}</b><br><small style="color:#94A3B8">${escAttr(o.kind)}</small></td>`
-      + `<td>${escAttr(o.item_name)}<br><small style="color:#94A3B8">${escAttr(o.item_ref)}</small></td>`
-      + `<td><b>${escAttr(amt)}</b> <small style="color:#94A3B8">${escAttr(o.currency || '')}</small></td>`
-      + `<td>${escAttr(o.customer_name)}<br><small style="color:#94A3B8">${escAttr(o.customer_email)}<br>${escAttr(o.customer_whatsapp)}</small></td>`
+      + `<td><b>${escAttr(o.order_ref)}</b><br><small style="color:#5A6685">${escAttr(o.kind)}</small></td>`
+      + `<td>${escAttr(o.item_name)}<br><small style="color:#5A6685">${escAttr(o.item_ref)}</small></td>`
+      + `<td><b>${escAttr(amt)}</b> <small style="color:#5A6685">${escAttr(o.currency || '')}</small></td>`
+      + `<td>${escAttr(o.customer_name)}<br><small style="color:#5A6685">${escAttr(o.customer_email)}<br>${escAttr(o.customer_whatsapp)}</small></td>`
       + `<td>${orderPill(o.status)}</td>`
       + `<td><small>${escAttr((o.created_at || '').slice(0, 16))}${o.paid_at ? '<br>paid ' + escAttr(o.paid_at.slice(0, 16)) : ''}</small></td>`
       + `<td style="white-space:nowrap"><button class="btn btn-ghost" data-odetail="${o.id}" style="padding:4px 8px;font-size:11px">View</button> `
-      + (o.status === 'pending' ? `<button class="btn btn-ghost" data-opaid="${o.id}" style="padding:4px 8px;font-size:11px;color:#10B981">Mark Paid</button> ` : '')
-      + `<button class="btn btn-ghost" data-odel="${o.id}" style="padding:4px 8px;font-size:11px;color:#F87171">Delete</button></td></tr>`
+      + (o.status === 'pending' ? `<button class="btn btn-ghost" data-opaid="${o.id}" style="padding:4px 8px;font-size:11px;color:#0F6B49">Mark Paid</button> ` : '')
+      + `<button class="btn btn-ghost" data-odel="${o.id}" style="padding:4px 8px;font-size:11px;color:#B4232F">Delete</button></td></tr>`
       + `<tr class="hidden" data-odetailrow="${o.id}"><td colspan="8" style="background:#F8FAFC;font-size:12px">`
       + `Provider ref: <b>${escAttr(o.cryptomus_order_id || '-')}</b> · Payment page: ${o.payment_url ? `<a href="${escAttr(o.payment_url)}" target="_blank">open →</a>` : '-'}`
       + (o.download_token ? ` · Download: <a href="/api/themes/${encodeURIComponent(o.item_ref)}/download?token=${encodeURIComponent(o.download_token)}" target="_blank">zip ↓</a> <button class="btn btn-ghost" data-ocopy="${o.id}" style="padding:2px 8px;font-size:10px">Copy Link</button>` : '')
@@ -3534,10 +3537,10 @@ async function loadDmStatus(){
     const r = await fetch('/api/dm/owner/status');
     const j = await r.json().catch(()=>({}));
     el.textContent = j.configured ? 'Set ✓' : 'Not set';
-    el.style.color = j.configured ? '#34D399' : '#F59E0B';
+    el.style.color = j.configured ? '#0F6B49' : '#92400E';
   }catch{
     el.textContent = 'Unknown';
-    el.style.color = '#94A3B8';
+    el.style.color = '#5A6685';
   }
 }
 $('#btn-dm-show-pass')?.addEventListener('click', () => {
@@ -3553,8 +3556,8 @@ $('#btn-dm-save-pass')?.addEventListener('click', async () => {
   if(!a || !b || !msg) return;
   msg.textContent = '';
   const passcode = a.value;
-  if(passcode.length < 8){ msg.style.color = '#F87171'; msg.textContent = 'Passcode must be at least 8 characters.'; return; }
-  if(passcode !== b.value){ msg.style.color = '#F87171'; msg.textContent = 'Passcodes do not match.'; return; }
+  if(passcode.length < 8){ msg.style.color = '#B4232F'; msg.textContent = 'Passcode must be at least 8 characters.'; return; }
+  if(passcode !== b.value){ msg.style.color = '#B4232F'; msg.textContent = 'Passcodes do not match.'; return; }
   btn.disabled = true;
   const original = btn.textContent;
   btn.textContent = 'Saving...';
@@ -3566,12 +3569,12 @@ $('#btn-dm-save-pass')?.addEventListener('click', async () => {
     });
     const j = await r.json().catch(()=>({}));
     if(!r.ok) throw new Error(j.error || 'Could not save the passcode.');
-    msg.style.color = '#34D399';
+    msg.style.color = '#0F6B49';
     msg.textContent = j.message || 'Inbox passcode saved.';
     a.value = ''; b.value = '';
     loadDmStatus();
   }catch(e){
-    msg.style.color = '#F87171';
+    msg.style.color = '#B4232F';
     msg.textContent = e.message;
   }finally{
     btn.disabled = false;

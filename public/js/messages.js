@@ -158,12 +158,12 @@ async function loadBrand() {
     $$('[data-brand-fallback]').forEach((el) => { el.textContent = (name[0] || 'N').toUpperCase(); });
     $$('[data-brand-logo]').forEach((img) => {
       const fallback = img.nextElementSibling;
-      if (!b.logo_url) return;
+      const src = b.logo_url || '/icons/icon-512.png';
       img.onload = () => { img.classList.remove('dm-hidden'); if (fallback) fallback.classList.add('dm-hidden'); };
       img.onerror = () => { img.classList.add('dm-hidden'); if (fallback) fallback.classList.remove('dm-hidden'); };
-      img.src = b.logo_url;
+      if (img.getAttribute('src') !== src) img.src = src;
     });
-    const icon = b.favicon_url || b.logo_url;
+    const icon = b.favicon_url || b.logo_url || '/icons/icon-512.png';
     if (icon) $('#dm-favicon')?.setAttribute('href', icon);
     const wa = String(b.whatsapp_number || '').replace(/[^\d]/g, '');
     const waLink = $('#dm-wa-link');

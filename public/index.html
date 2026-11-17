@@ -3,10 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0F183D">
 <title id="seo-title">Done-For-You Dropshipping Store Setup | Nexatech</title>
-<meta id="seo-desc" name="description" content="We build, launch and hand over your dropshipping store in 7 to 14 days: products, suppliers, payments and design. You own 100%. Based in Lagos, serving worldwide.">
+<meta id="seo-desc" name="description" content="We build, launch and hand over your dropshipping store in 7 to 14 days: products, suppliers, payments and design. You own 100%. Serving clients worldwide.">
 <meta property="og:title" content="Done-For-You Dropshipping Store Setup | Nexatech">
-<meta property="og:description" content="We build, launch and hand over your dropshipping store in 7 to 14 days: products, suppliers, payments and design. You own 100%. Based in Lagos, serving worldwide.">
+<meta property="og:description" content="We build, launch and hand over your dropshipping store in 7 to 14 days: products, suppliers, payments and design. You own 100%. Serving clients worldwide.">
 <meta property="og:type" content="website">
 <meta id="og-image" property="og:image" content="https://dropshippingstore.dpdns.org/og-image.png">
 <meta property="og:image:width" content="1200">
@@ -17,7 +18,7 @@
 <meta property="og:locale" content="en_US">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Done-For-You Dropshipping Store Setup | Nexatech">
-<meta name="twitter:description" content="We build, launch and hand over your dropshipping store in 7 to 14 days: products, suppliers, payments and design. You own 100%. Based in Lagos, serving worldwide.">
+<meta name="twitter:description" content="We build, launch and hand over your dropshipping store in 7 to 14 days: products, suppliers, payments and design. You own 100%. Serving clients worldwide.">
 <meta name="twitter:image" content="https://dropshippingstore.dpdns.org/og-image.png">
 <link rel="canonical" href="https://dropshippingstore.dpdns.org/">
 <meta name="robots" content="index,follow">
@@ -37,18 +38,7 @@
       "email": "saheednexatech@gmail.com",
       "telephone": "+447411200927",
       "founder": { "@id": "https://dropshippingstore.dpdns.org/#founder" },
-      "address": {
-        "@type": "PostalAddress",
-        "addressLocality": "Lagos",
-        "addressCountry": "NG"
-      },
-      "areaServed": [
-        { "@type": "Country", "name": "Nigeria" },
-        { "@type": "Country", "name": "United Kingdom" },
-        { "@type": "Country", "name": "United States" },
-        { "@type": "Country", "name": "Canada" },
-        { "@type": "Country", "name": "United Arab Emirates" }
-      ],
+      "areaServed": "Worldwide",
       "contactPoint": {
         "@type": "ContactPoint",
         "telephone": "+447411200927",
@@ -152,112 +142,144 @@
 <link rel="manifest" href="/site.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800;900&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/tokens.css">
 <link rel="stylesheet" href="/css/style.css">
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
-  }
-}
-</script>
-<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js" defer></script>
-<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js" defer></script>
+<script src="/vendor/gsap/dist/gsap.min.js" defer></script>
+<script src="/vendor/gsap/dist/ScrollTrigger.min.js" defer></script>
 </head>
-<body class="nx-3d">
+<body class="nx-home">
 <a class="skip-link" href="#hero">Skip to content</a>
-<div id="old-browser-warn" class="hidden" style="background:#B91C1C;color:#fff;font-size:13px;font-weight:600;text-align:center;padding:10px 16px;position:relative;z-index:200">Your browser is too old - buttons and the form won't work. Please update Chrome/Safari, or <a href="https://wa.me/447411200927?text=Hi%20Nexatech!" style="color:#fff;text-decoration:underline">contact us on WhatsApp instead →</a></div>
+<div id="old-browser-warn" class="hidden" style="background:#A7372B;color:#FFFBF4;font-size:13px;font-weight:600;text-align:center;padding:10px 16px;position:relative;z-index:200">Your browser is too old for this site's interactive features. Please update Chrome or Safari, or <a href="https://wa.me/447411200927?text=Hi%20Nexatech!" style="color:#FFFBF4;text-decoration:underline">contact us on WhatsApp</a>.</div>
 <script nomodule>document.getElementById('old-browser-warn').className='';</script>
 
-<!-- Scroll progress + custom cursor -->
-<div id="scroll-progress" aria-hidden="true"><i id="scroll-progress-fill"></i></div>
-<div id="cursor-dot" aria-hidden="true"></div>
-<div id="cursor-ring" aria-hidden="true"></div>
-
-<!-- Global ambient 3D background : disabled for fast load (see initAmbientWebGL) -->
-<canvas id="webgl-fixed" aria-hidden="true" style="display:none"></canvas>
-<div class="ambient-orbs" aria-hidden="true" style="display:none"><span></span><span></span><span></span></div>
-<div id="cam-vignette" aria-hidden="true" style="display:none"></div>
-<nav id="cam-hud" aria-label="Camera locations" style="display:none"></nav>
-
 <main>
-<!-- ============ HERO : immersive 3D stage ============ -->
-<section class="hero hero-3d" id="hero" data-section="hero">
-  <div class="hero-bg" aria-hidden="true">
-    <canvas id="hero-webgl"></canvas>
-    <div class="aurora"><span></span><span></span><span></span></div>
-    <div class="grid-lines"><i></i><i></i><i></i><i></i><i></i></div>
-    <canvas id="hero-particles"></canvas>
-    <div class="hero-floor"></div>
-    <div class="hero-vignette"></div>
-  </div>
+<section class="hero" id="hero" data-section="hero">
   <div class="hero-inner">
-<div class="hero-copy">
-      <div class="badge eyebrow-hero glass" id="hero-badge"><span class="dot"></span> <span id="hero-badge-text">Only 5 build slots left this month</span></div>
-      <h1 class="hero-title" id="hero-title" data-split>Done-For-You Dropshipping Store Built, Launched & Ready to Sell</h1>
-      <p class="hero-sub" id="hero-subtitle">We build, launch and hand over your dropshipping store in 7 to 14 days: products, suppliers, payments and design. You own 100%. Based in Lagos, serving worldwide.</p>
-      <div class="answer-block" style="margin:20px 0;padding:16px;background:rgba(0,209,255,.06);border:1px solid rgba(0,209,255,.14);border-radius:12px;margin-top:12px">
-        <strong>Nexatech is a done-for-you dropshipping store building service based in Lagos, Nigeria. We research products, build your store, connect suppliers and payments, and hand over full ownership in 7 to 14 days.</strong>
-      </div>
+    <div class="hero-copy">
+      <p class="hero-eyebrow"><span aria-hidden="true"></span>NexaTech Dropshipping</p>
+      <h1 class="hero-title" id="hero-title"><span class="hero-line"><span>Products that sell,</span></span><span class="hero-line"><span><em>delivered without the inventory.</em></span></span></h1>
+      <p class="hero-sub" id="hero-subtitle">We source, list and ship winning products so you can focus on growing the store.</p>
       <div class="hero-ctas">
-        <a class="btn btn-primary btn-glow magnetic" id="hero-book" href="/messages">Talk to Us Directly →</a>
-        <a class="btn btn-ghost glass magnetic" id="hero-pricing" href="/pricing">Check Pricing →</a>
-        <a class="btn btn-ghost glass magnetic" id="hero-wa" href="https://wa.me/447411200927?text=Hi%20Nexatech!%20I%20am%20interested%20in%20a%20dropshipping%20store%20can%20we%20talk?" target="_blank" rel="noopener">Chat on WhatsApp</a>
+        <a class="btn btn-primary" id="hero-book" href="/messages">Start selling <span aria-hidden="true">→</span></a>
+        <a class="btn btn-link" id="hero-pricing" href="#how-it-works">See how it works <span aria-hidden="true">↓</span></a>
       </div>
-      <div class="trust-row">
-        <span class="trust-chip glass" id="trust-1">✔ <b>7 to 14 Day</b> Delivery</span>
-        <span class="trust-chip glass" id="trust-2">✔ <b>100%</b> Ownership</span>
-        <span class="trust-chip glass" id="trust-3">✔ <b>Real Sales</b> Proof</span>
-      </div>
-      <div class="hero-hint" aria-hidden="true"><span class="mouse"><i></i></span> Scroll to explore the 3D store</div>
+      <ul class="hero-trust" aria-label="Service highlights">
+        <li id="trust-1"><b>Fast shipping.</b></li>
+        <li id="trust-2"><b>Vetted suppliers.</b></li>
+        <li id="trust-3"><b>Real support.</b></li>
+      </ul>
     </div>
-    <div class="hero-visual tilt-scene" id="hero-visual" aria-hidden="true">
-      <div class="tilt spotlight" data-tilt data-tilt-max="10">
-        <div class="browser-bar"><i style="background:#FF5F56"></i><i style="background:#FFBD2E"></i><i style="background:#27CA3F"></i><span id="hero-visual-domain" style="margin-left:auto;font-size:12px;color:var(--text-muted);font-weight:700">nexatech.store</span></div>
-        <div class="mock-img">
-          <img id="hero-mock-img" src="https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=900" alt="Store mockup" loading="eager" decoding="async" fetchpriority="high">
-          <div class="chip float-3d" id="chip-1"><span style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#00D1FF,#7C3AED);display:grid;place-items:center;color:#fff">$</span><div><b id="chip-1-t">Payments Connected</b><br><small id="chip-1-s">Local and international</small></div></div>
-          <div class="chip float-3d" id="chip-2"><span style="width:36px;height:36px;border-radius:10px;background:#10B981;display:grid;place-items:center;color:#fff">&#10003;</span><div><b id="chip-2-t">Suppliers Connected</b><br><small id="chip-2-s">Vetted and tested</small></div></div>
-          <div class="chip float-3d" id="chip-3"><span style="width:36px;height:36px;border-radius:10px;background:#0B1220;display:grid;place-items:center;color:#fff">&#9733;</span><div><b id="chip-3-t">Full Ownership</b><br><small id="chip-3-s">You own 100%</small></div></div>
+    <div class="hero-visual" id="hero-visual">
+      <div class="hero-stage" id="hero-stage" data-scene="store">
+        <div class="hs-dock" role="tablist" aria-label="Store build preview">
+          <button type="button" role="tab" aria-selected="true" class="is-active" data-hs-view="store">Storefront</button>
+          <button type="button" role="tab" aria-selected="false" data-hs-view="listing">Product listing</button>
+          <button type="button" role="tab" aria-selected="false" data-hs-view="live">Published</button>
         </div>
-        <div class="hero-visual-glow"></div>
+        <div class="hs-window" aria-hidden="true">
+          <div class="hs-chrome">
+            <span class="hs-dots"><i></i><i></i><i></i></span>
+            <span class="hs-address"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2.5" y="5" width="7" height="5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.1"/><path d="M4 5V3.8A2 2 0 0 1 8 3.8V5" fill="none" stroke="currentColor" stroke-width="1.1"/></svg>yourstore.com</span>
+            <span class="hs-live"><i></i>Live</span>
+          </div>
+          <div class="hs-store">
+            <div class="hs-storebar">
+              <span class="hs-brand">AURA</span>
+              <span class="hs-nav"><i>Shop</i><i>New in</i><i>About</i><i>Journal</i></span>
+              <span class="hs-bag">Bag <b>2</b></span>
+            </div>
+            <div class="hs-banner">
+              <img src="/uploads/theme-elegance.jpg" alt="" decoding="async">
+              <div class="hs-banner-copy">
+                <small>The autumn edit</small>
+                <b>Essentials that move.</b>
+                <span>Shop the drop <em>→</em></span>
+              </div>
+            </div>
+            <div class="hs-products">
+              <article>
+                <img src="/uploads/theme-elegance.jpg" alt="" loading="lazy" decoding="async">
+                <div><b>Everyday tote</b><span>$48</span></div>
+              </article>
+              <article>
+                <img src="/uploads/theme-glowlab.jpg" alt="" loading="lazy" decoding="async">
+                <div><b>Glow serum</b><span>$32</span></div>
+              </article>
+              <article>
+                <img src="/uploads/theme-technest.jpg" alt="" loading="lazy" decoding="async">
+                <div><b>Halo lamp</b><span>$39</span></div>
+              </article>
+            </div>
+          </div>
+        </div>
+        <div class="hs-listing" aria-hidden="true">
+          <div class="hs-listing-head"><span><i></i>Product listing</span><b>Draft</b></div>
+          <div class="hs-listing-product">
+            <img src="/uploads/theme-technest.jpg" alt="" loading="lazy" decoding="async">
+            <div><b>Halo desk lamp</b><span>$39.00 · 4 photos</span></div>
+            <span class="hs-check">✓</span>
+          </div>
+          <div class="hs-listing-steps"><span>Photos</span><span>Pricing</span><span>SEO</span></div>
+          <div class="hs-progress"><i></i></div>
+          <div class="hs-listing-foot"><span>Publishing to store…</span><b>92%</b></div>
+        </div>
+        <div class="hs-toast" aria-hidden="true"><span>✓</span> Product live</div>
       </div>
+      <div class="hero-meta"><span>02</span><span>Store build / product listing</span></div>
     </div>
+  </div>
+  <div class="hero-foot container">
+    <span>Worldwide · 7–14 day build</span>
+    <span class="hero-scroll">Scroll <i aria-hidden="true"></i></span>
   </div>
 </section>
 
-<!-- Private messages -->
 <section class="dm-promo" id="messages-promo" aria-labelledby="dm-promo-title">
   <div class="container">
     <div class="dm-promo-card">
       <div class="dm-promo-copy">
-        <div class="dm-promo-eyebrow"><span></span> Private Messages</div>
-        <h2 class="dm-promo-title" id="dm-promo-title">Talk to me directly</h2>
-        
-        <div class="dm-promo-actions">
-          <a class="btn btn-primary btn-glow magnetic" href="/messages">Start a private chat</a>
-          
+        <div class="section-kicker"><span>01</span><span class="eyebrow">Private Messages</span></div>
+        <h2 class="dm-promo-title" id="dm-promo-title">Talk to me directly.</h2>
+        <p class="dm-promo-sub">Questions about products, payments, suppliers or the build? Send a private message and we will answer in the open.</p>
+        <div class="dm-promo-points">
+          <span>Private thread</span>
+          <span>Files and offers in one place</span>
+          <span>No mailing list</span>
         </div>
-
-</div>
+        <div class="dm-promo-actions">
+          <a class="btn btn-primary" href="/messages">Start a private chat <span aria-hidden="true">→</span></a>
+          <a class="btn btn-link" href="/faq">Read the FAQ</a>
+        </div>
+      </div>
+      <div class="dm-promo-visual" aria-hidden="true">
+        <div class="dm-promo-panel">
+          <div class="dm-promo-panel-head"><span class="dm-promo-avatar">N</span><span><b>Nexatech</b><small>Private line</small></span><i></i></div>
+          <div class="dm-promo-bubble them">What are you building?</div>
+          <div class="dm-promo-bubble me">A fashion store for the UK.</div>
+          <div class="dm-promo-bubble them">Good. I will map the products, suppliers and payment flow first.</div>
+          <div class="dm-promo-offer"><small>PROJECT</small><b>Fashion / UK</b><span>Research · Build · Handover</span><span class="dm-promo-offer-btn">Open thread</span></div>
+        </div>
+      </div>
     </div>
   </div>
 </section>
 
-<!-- Social Proof Strip -->
-<section class="strip glass-strip" id="social-proof" data-section="social_proof">
+<section class="strip" id="social-proof" data-section="social_proof" aria-label="Nexatech in numbers">
   <div class="marquee" id="marquee"></div>
 </section>
 
-<!-- Portfolio -->
 <section class="section" id="portfolio" data-section="portfolio" data-reveal>
   <div class="container">
-    <div class="eyebrow" id="portfolio-eyebrow">Dropshipping Store Portfolio</div>
-    <h2 class="h2 gradient-text" id="portfolio-title">Dropshipping Store Portfolio: Stores We Built</h2>
-    <p class="sub" id="portfolio-subtitle">Real stores we’ve built - explore by niche, see the numbers.</p>
-    <div class="filter-bar" id="filter-bar">
+    <div class="section-head">
+      <span class="section-num">02</span>
+      <div>
+        <div class="eyebrow" id="portfolio-eyebrow">Dropshipping Store Portfolio</div>
+        <h2 class="h2" id="portfolio-title">Dropshipping Store Portfolio: Stores We Built</h2>
+        <p class="sub" id="portfolio-subtitle">Real dropshipping stores we have built — explore by niche and see the numbers.</p>
+      </div>
+    </div>
+    <div class="filter-bar" id="filter-bar" aria-label="Filter portfolio">
       <button class="pill active" data-filter="All">All</button>
       <button class="pill" data-filter="Fashion">Fashion</button>
       <button class="pill" data-filter="Beauty">Beauty</button>
@@ -266,16 +288,20 @@
       <button class="pill" data-filter="Home">Home</button>
       <button class="pill" data-filter="Eco Friendly">Eco Friendly</button>
     </div>
-    <div class="masonry perspective-grid" id="portfolio-grid"></div>
+    <div class="masonry" id="portfolio-grid"></div>
   </div>
 </section>
 
-<!-- Dropshipping Explained by the Founder -->
-<section class="section" id="dropshipping" data-section="dropshipping" data-reveal>
+<section class="section section-alt" id="dropshipping" data-section="dropshipping" data-reveal>
   <div class="container">
-    <div class="eyebrow" id="dropshipping-eyebrow">What Is Dropshipping? A Simple Explanation</div>
-    <h2 class="h2 gradient-text" id="dropshipping-title">What Is Dropshipping? A Simple Explanation</h2>
-    <p class="sub" id="dropshipping-subtitle">What dropshipping really is - in simple English, no big grammar.</p>
+    <div class="section-head">
+      <span class="section-num">03</span>
+      <div>
+        <div class="eyebrow" id="dropshipping-eyebrow">What Is Dropshipping?</div>
+        <h2 class="h2" id="dropshipping-title">What Is Dropshipping? A Simple Explanation</h2>
+        <p class="sub" id="dropshipping-subtitle">What dropshipping really is, in simple English — no big grammar.</p>
+      </div>
+    </div>
     <div class="duo">
       <div class="duo-copy">
         <div class="ds-steps">
@@ -287,41 +313,49 @@
         <p class="ds-job" id="dropshipping-job">Your job is just to bring customers and sell. The supplier's job is to send the product.</p>
         <div class="ds-profit">
           <b id="dropshipping-profit-title">How you make profit</b>
-          <p id="dropshipping-profit-text">You find a product that costs, say, $100 from the supplier. You sell it in your shop for $250. The supplier gets their $100, you keep the $150 difference. That's your profit. You don't pay for the product until someone actually buys it - so there's no risk of buying things that won't sell.</p>
+          <p id="dropshipping-profit-text">You find a product that costs, say, $100 from the supplier. You sell it in your shop for $250. The supplier gets their $100, you keep the $150 difference. That's your profit. You don't pay for the product until someone actually buys it — so there's no risk of buying things that won't sell.</p>
         </div>
       </div>
-      <div class="duo-media">
+      <figure class="duo-media">
         <img id="dropshipping-img" src="https://dropshippingstore.dpdns.org/uploads/1788949090415-102669406.webp" alt="Akinyemi Ifeoluwa, Founder of Nexatech" loading="lazy" decoding="async">
-        <div class="duo-card"><div><b id="dropshipping-name">Akinyemi Ifeoluwa</b><br><small id="dropshipping-role">Founder, Nexatech</small></div><a id="dropshipping-cta" class="btn btn-primary" href="/pricing">Start Your Own Store →</a></div>
-      </div>
+        <figcaption class="duo-card"><div><b id="dropshipping-name">Akinyemi Ifeoluwa</b><br><small id="dropshipping-role">Founder, Nexatech</small></div><a id="dropshipping-cta" class="btn btn-link" href="/pricing">Start Your Own Store <span aria-hidden="true">→</span></a></figcaption>
+      </figure>
     </div>
   </div>
 </section>
 
-<!-- Sales Proof -->
-<section class="section section-alt" id="proof" data-section="sales_proof" data-reveal>
+<section class="section" id="proof" data-section="sales_proof" data-reveal>
   <div class="container">
-    <div class="eyebrow" id="proof-eyebrow">Client Reviews and Proof</div>
-    <h2 class="h2 gradient-text" id="sales-proof-title">Client Reviews and Proof: Real Results</h2>
-    <p class="sub" id="sales-proof-subtitle">Dashboard screenshots &amp; payout proofs from stores we launched.</p>
-    <div class="proof-grid perspective-grid" id="proof-grid"></div>
+    <div class="section-head">
+      <span class="section-num">04</span>
+      <div>
+        <div class="eyebrow" id="proof-eyebrow">Client Reviews and Proof</div>
+        <h2 class="h2" id="sales-proof-title">Client Reviews and Proof: Real Results</h2>
+        <p class="sub" id="sales-proof-subtitle">Dashboard screenshots and payout proofs from stores we launched.</p>
+      </div>
+    </div>
+    <div class="proof-grid" id="proof-grid"></div>
   </div>
 </section>
 
-<!-- What We Do at NexaTech -->
-<section class="section" id="whatwedo" data-section="whatwedo" data-reveal>
+<section class="section section-alt" id="whatwedo" data-section="whatwedo" data-reveal>
   <div class="container">
-    <div class="eyebrow" id="whatwedo-eyebrow">What We Do For You</div>
-    <h2 class="h2 gradient-text" id="whatwedo-title">What We Do For You</h2>
-    <p class="sub" id="whatwedo-subtitle">We help people start and run an online store through dropshipping, without needing any tech skills.</p>
+    <div class="section-head">
+      <span class="section-num">05</span>
+      <div>
+        <div class="eyebrow" id="whatwedo-eyebrow">What We Do For You</div>
+        <h2 class="h2" id="whatwedo-title">What We Do For You</h2>
+        <p class="sub" id="whatwedo-subtitle">We build and launch your dropshipping store, connect suppliers and payments, and hand over full ownership.</p>
+      </div>
+    </div>
     <div class="duo rev">
       <div class="duo-copy">
-        <p class="wwd-handle">Here's what we handle for you:</p>
+        <p class="wwd-handle">Here is what we handle for you:</p>
         <div class="wwd-list" id="whatwedo-list">
           <div class="ds-step"><div class="step-num">01</div><p><b>We build your store</b><span>A full online shop, set up and ready to sell.</span></p></div>
           <div class="ds-step"><div class="step-num">02</div><p><b>We pick your products</b><span>Researching what actually sells, so you're not guessing.</span></p></div>
           <div class="ds-step"><div class="step-num">03</div><p><b>We connect you with suppliers</b><span>The people who make and ship the products.</span></p></div>
-          <div class="ds-step"><div class="step-num">04</div><p><b>We set up the theme/design</b><span>Making the store look professional (theme cost depends on your budget).</span></p></div>
+          <div class="ds-step"><div class="step-num">04</div><p><b>We set up the theme and design</b><span>Making the store look professional, within your budget.</span></p></div>
           <div class="ds-step"><div class="step-num">05</div><p><b>We handle SEO</b><span>So your store can be found on Google.</span></p></div>
           <div class="ds-step"><div class="step-num">06</div><p><b>We manage the day-to-day running</b><span>You don't have to do the technical work.</span></p></div>
         </div>
@@ -329,7 +363,7 @@
           <b id="whatwedo-note-title">Your part is simple</b>
           <p id="whatwedo-note-text">Check in on how the store is doing, and work with us on marketing to bring in customers.</p>
         </div>
-        <a id="whatwedo-cta" class="btn btn-primary" href="/pricing" style="margin-top:14px">See Our Packages →</a>
+        <a id="whatwedo-cta" class="btn btn-primary" href="/pricing">See Our Packages <span aria-hidden="true">→</span></a>
       </div>
       <div class="duo-media duo-logo">
         <img id="whatwedo-img" alt="NexaTech logo" loading="lazy" decoding="async" onerror="this.closest('.duo-media').style.display='none'">
@@ -338,51 +372,69 @@
   </div>
 </section>
 
-<!-- Experts -->
 <section class="section" id="experts" data-section="experts" data-reveal>
   <div class="container">
-    <div class="eyebrow" id="experts-eyebrow">Meet the Team</div>
-    <h2 class="h2 gradient-text" id="experts-title">Meet the Team</h2>
-    <p class="sub" id="experts-subtitle">The team that engineers your storefront.</p>
+    <div class="section-head">
+      <span class="section-num">06</span>
+      <div>
+        <div class="eyebrow" id="experts-eyebrow">Meet the Team</div>
+        <h2 class="h2" id="experts-title">Meet the Team</h2>
+        <p class="sub" id="experts-subtitle">The people who research, build and launch your store.</p>
+      </div>
+    </div>
     <div class="team-grid" id="team-grid"></div>
-    <div style="text-align:center;margin-top:16px"><a href="#" id="view-full-team" class="btn btn-ghost hidden">View full team →</a></div>
+    <div class="section-action"><a href="#" id="view-full-team" class="btn btn-link hidden">View full team <span aria-hidden="true">→</span></a></div>
   </div>
 </section>
 
-<!-- How It Works -->
 <section class="section section-alt" id="how-it-works" data-section="how_it_works" data-reveal>
   <div class="container">
-    <div class="eyebrow" id="how-eyebrow">How Our 4-Step Store Launch Works</div>
-    <h2 class="h2 gradient-text" id="how-title">How Our 4-Step Store Launch Works</h2>
-    <p class="sub" id="how-subtitle">From niche to live store in under 2 weeks.</p>
-    <div class="progress-line" id="progress-line"></div>
+    <div class="section-head">
+      <span class="section-num">07</span>
+      <div>
+        <div class="eyebrow" id="how-eyebrow">How Our 4-Step Store Launch Works</div>
+        <h2 class="h2" id="how-title">How Our 4-Step Store Launch Works</h2>
+        <p class="sub" id="how-subtitle">From niche to live store in under two weeks.</p>
+      </div>
+    </div>
+    <div class="progress-line" id="progress-line" aria-hidden="true"></div>
     <div class="steps" id="steps">
-      <div class="step tilt spotlight" data-tilt data-step="1" style="opacity:1;transform:none;visibility:visible"><div class="step-num">01</div><h3 id="step1-title">Niche &amp; Product Mining</h3><p class="sub" style="margin:0" id="step1-desc">We deep-dive trending data to isolate a low competition, high demand niche and handpick winning products with proven ROAS.</p></div>
-      <div class="step tilt spotlight" data-tilt data-step="2" style="opacity:1;transform:none;visibility:visible"><div class="step-num">02</div><h3 id="step2-title">Store Architecture</h3><p class="sub" style="margin:0" id="step2-desc">Premium theme build, conversion-optimized copy, high res creatives, and mobile first design built for trust &amp; speed.</p></div>
-      <div class="step tilt spotlight" data-tilt data-step="3" style="opacity:1;transform:none;visibility:visible"><div class="step-num">03</div><h3 id="step3-title">Fulfillment &amp; Automation Setup</h3><p class="sub" style="margin:0" id="step3-desc">Supplier vetting, DSers/AutoDS integration, tracking automation, and payment gateway wiring - hands free fulfillment.</p></div>
-      <div class="step tilt spotlight" data-tilt data-step="4" style="opacity:1;transform:none;visibility:visible"><div class="step-num">04</div><h3 id="step4-title">Handover &amp; Scaling Roadmap</h3><p class="sub" style="margin:0" id="step4-desc">Full ownership transfer, Loom walkthroughs, ad-angle playbook, and a 30-day scaling roadmap to your first profitable month.</p></div>
+      <div class="step" data-step="1"><div class="step-num">01</div><h3 id="step1-title">Niche &amp; Product Mining</h3><p class="sub" id="step1-desc">We deep-dive trending data to isolate a low competition, high demand niche and handpick winning products with proven ROAS.</p></div>
+      <div class="step" data-step="2"><div class="step-num">02</div><h3 id="step2-title">Store Architecture</h3><p class="sub" id="step2-desc">Premium theme build, conversion-optimized copy, high res creatives, and mobile first design built for trust &amp; speed.</p></div>
+      <div class="step" data-step="3"><div class="step-num">03</div><h3 id="step3-title">Fulfillment &amp; Automation Setup</h3><p class="sub" id="step3-desc">Supplier vetting, DSers/AutoDS integration, tracking automation, and payment gateway wiring — hands free fulfillment.</p></div>
+      <div class="step" data-step="4"><div class="step-num">04</div><h3 id="step4-title">Handover &amp; Scaling Roadmap</h3><p class="sub" id="step4-desc">Full ownership transfer, Loom walkthroughs, ad-angle playbook, and a 30-day scaling roadmap to your first profitable month.</p></div>
     </div>
   </div>
 </section>
 
-<!-- Why Nexatech -->
-<section class="section section-alt" id="why-nexatech" data-reveal>
-  <div class="container" style="max-width:900px">
-    <div class="eyebrow">Why Nexatech</div>
-    <h2 class="h2 gradient-text" id="why-nexatech-title">Why Choose Nexatech for Your Done-For-You Dropshipping Store</h2>
-    <p class="sub">A clear look at who we are, what we build, and what you own at the end.</p>
-    <p>Nexatech is a done-for-you dropshipping store building service founded by Akinyemi Ifeoluwa in Lagos, Nigeria. We handle product research, store design, supplier setup, payment integration and handover, so you can launch without learning the technical side.</p>
-    <p>You keep full ownership of the store, domain, content and customer data. We do not promise guaranteed sales or overnight results.</p>
-    <p><a class="btn btn-primary btn-glow" id="why-read-more" href="/why-nexatech">Read More About Nexatech</a></p>
+<section class="section why-band" id="why-nexatech" data-reveal>
+  <div class="container narrow">
+    <div class="section-head">
+      <span class="section-num">08</span>
+      <div>
+        <div class="eyebrow">Why Nexatech</div>
+        <h2 class="h2" id="why-nexatech-title">Why Choose Nexatech for Your Done-For-You Dropshipping Store</h2>
+        <p class="sub">A clear look at who we are, what we build, and what you own at the end.</p>
+      </div>
+    </div>
+    <div class="statement">
+      <p>Nexatech is a done-for-you dropshipping store building service founded by Akinyemi Ifeoluwa and serving clients worldwide. We handle product research, store design, supplier setup, payment integration and handover, so you can launch without learning the technical side.</p>
+      <p>You keep full ownership of the store, domain, content and customer data. We do not promise guaranteed sales or overnight results.</p>
+    </div>
+    <p class="section-action"><a class="btn btn-primary" id="why-read-more" href="/why-nexatech">Read More About Nexatech <span aria-hidden="true">→</span></a></p>
   </div>
 </section>
 
-<!-- Order options -->
 <section class="section section-alt" id="order-options" data-section="order_options" data-reveal>
   <div class="container">
-    <div class="eyebrow" id="order-options-eyebrow">Order or Design</div>
-    <h2 class="h2 gradient-text" id="order-options-title">Choose How You Want to Start</h2>
-    <p class="sub" id="order-options-subtitle">Order a done-for-you store or buy a ready-made theme and launch on your own.</p>
+    <div class="section-head">
+      <span class="section-num">09</span>
+      <div>
+        <div class="eyebrow" id="order-options-eyebrow">Order or Design</div>
+        <h2 class="h2" id="order-options-title">Choose How You Want to Start</h2>
+        <p class="sub" id="order-options-subtitle">Order a done-for-you store or buy a ready-made theme and launch on your own.</p>
+      </div>
+    </div>
     <div class="order-choice-grid">
       <article class="order-choice-card">
         <div class="order-choice-kicker">Done-For-You</div>
@@ -393,7 +445,7 @@
           <li>Starter, Pro and Elite packages</li>
           <li>7 to 14 day build and handover</li>
         </ul>
-        <a class="btn btn-primary btn-glow" id="order-store-cta" href="/pricing">View Pricing &amp; Order</a>
+        <a class="btn btn-primary" id="order-store-cta" href="/pricing">View Pricing &amp; Order <span aria-hidden="true">→</span></a>
       </article>
       <article class="order-choice-card">
         <div class="order-choice-kicker">Ready-Made</div>
@@ -404,18 +456,22 @@
           <li>Fashion, beauty and gadget designs</li>
           <li>One-time purchase, instant access</li>
         </ul>
-        <a class="btn btn-ghost" id="order-theme-cta" href="/themes">Browse &amp; Buy Themes</a>
+        <a class="btn btn-link" id="order-theme-cta" href="/themes">Browse &amp; Buy Themes <span aria-hidden="true">→</span></a>
       </article>
     </div>
   </div>
 </section>
 
-<!-- Testimonials -->
-<section class="section section-alt" id="testimonials" data-section="testimonials" data-reveal>
+<section class="section" id="testimonials" data-section="testimonials" data-reveal>
   <div class="container">
-    <div class="eyebrow" id="testimonials-eyebrow">Testimonials</div>
-    <h2 class="h2 gradient-text" id="testimonials-title">Client Testimonials</h2>
-    <p class="sub" id="testimonials-subtitle">Honest feedback from store owners.</p>
+    <div class="section-head">
+      <span class="section-num">10</span>
+      <div>
+        <div class="eyebrow" id="testimonials-eyebrow">Client Testimonials</div>
+        <h2 class="h2" id="testimonials-title">Client Testimonials</h2>
+        <p class="sub" id="testimonials-subtitle">Honest feedback from store owners.</p>
+      </div>
+    </div>
     <div class="testi-carousel-wrap">
       <button class="testi-nav prev" id="testi-prev" aria-label="Previous testimonials">‹</button>
       <div class="testi-viewport" id="testi-viewport">
@@ -427,217 +483,237 @@
   </div>
 </section>
 
-<!-- Reviews Screenshot Wall -->
 <section class="section" id="reviews" data-section="reviews" data-reveal hidden>
   <div class="container">
-    <div class="eyebrow" id="reviews-eyebrow">Customer Reviews</div>
-    <h2 class="h2 gradient-text" id="reviews-title">Client Reviews and Video Testimonials: Proof You Can See</h2>
-    <p class="sub" id="reviews-subtitle">Real WhatsApp, Trustpilot and video review screenshots. Click any to view full screen.</p>
-    <div class="reviews-grid" id="reviews-grid"></div>
-    <div id="reviews-empty" class="hidden" style="text-align:center;padding:28px;border:1px dashed var(--border);border-radius:16px;color:var(--text-muted);font-size:13px">No reviews uploaded yet - add them in Admin → Media Manager → <b>Review Screenshots</b>.</div>
-  </div>
-</section>
-
-<!-- Certificates & Awards -->
-<section class="section section-alt" id="certificates" data-section="certificates" data-reveal hidden>
-  <div class="container">
-    <div class="eyebrow" id="certs-eyebrow">Awards</div>
-    <h2 class="h2 gradient-text" id="certificates-title">Certificates &amp; Awards</h2>
-    <p class="sub" id="certificates-subtitle">Verified credentials, partnerships and awards that prove credibility.</p>
-    <div class="certs-grid" id="certs-grid"></div>
-    <div id="certs-empty" class="hidden" style="text-align:center;padding:28px;border:1px dashed var(--border);border-radius:16px;color:var(--text-muted);font-size:13px">No certificates uploaded yet - add them in Admin → Media Manager → <b>Certificates &amp; Awards</b>.</div>
-  </div>
-</section>
-
-<!-- FAQ -->
-<section class="section" id="faq" data-section="faq" data-reveal>
-  <div class="container">
-    <div class="eyebrow" id="faq-eyebrow">FAQ</div>
-    <h2 class="h2 gradient-text" id="faq-title">Questions? We’ve Got Honest Answers.</h2>
-    <p class="sub" id="faq-subtitle">No hype. Just clear terms.</p>
-    <div class="faq" id="faq-list">
-      <div class="faq-item open">
-        <button class="faq-q" aria-expanded="true"><span>Do I own the store 100%?</span><span class="chev">?</span></button>
-        <div class="faq-a"><div style="color:var(--text-muted);font-size:14px">Yes. You own the domain, Shopify/store account, and all assets. We build it in your account nothing is held hostage.</div></div>
-      </div>
-      <div class="faq-item">
-        <button class="faq-q" aria-expanded="false"><span>How long until my store is live?</span><span class="chev">?</span></button>
-        <div class="faq-a"><div style="color:var(--text-muted);font-size:14px">7 to 14 days from kickoff, depending on tier. Timeline is in your contract.</div></div>
-      </div>
-      <div class="faq-item">
-        <button class="faq-q" aria-expanded="false"><span>I've been scammed before how are you different?</span><span class="chev">?</span></button>
-        <div class="faq-a"><div style="color:var(--text-muted);font-size:14px">We show live, DB-verified proof, offer video walkthroughs of past stores, and you own everything before final payment. No vague promises.</div></div>
-      </div>
-      <div class="faq-item">
-        <button class="faq-q" aria-expanded="false"><span>What if my store doesn't convert?</span><span class="chev">?</span></button>
-        <div class="faq-a"><div style="color:var(--text-muted);font-size:14px">Elite includes 60-day CRO support + ad-angle pivots. We don't ghost after handover our roadmap targets your first profitable month.</div></div>
-      </div>
-      <div class="faq-item">
-        <button class="faq-q" aria-expanded="false"><span>What’s the refund/support policy?</span><span class="chev">?</span></button>
-        <div class="faq-a"><div style="color:var(--text-muted);font-size:14px">Due to done-for-you labor, deposits are non-refundable, but we revise until handover criteria are met. Support window depends on tier (14/30/60 days).</div></div>
-      </div>
-      <div class="faq-item">
-        <button class="faq-q" aria-expanded="false"><span>Do you run ads for me?</span><span class="chev">?</span></button>
-        <div class="faq-a"><div style="color:var(--text-muted);font-size:14px">We set up your pixel, first campaigns, and hand you the scaling playbook. Ongoing media buying is optional via mentorship.</div></div>
+    <div class="section-head">
+      <span class="section-num">+</span>
+      <div>
+        <div class="eyebrow" id="reviews-eyebrow">Customer Reviews</div>
+        <h2 class="h2" id="reviews-title">Client Reviews and Video Testimonials: Proof You Can See</h2>
+        <p class="sub" id="reviews-subtitle">Real WhatsApp, Trustpilot and video review screenshots — click any to view full screen.</p>
       </div>
     </div>
-    <p style="margin-top:20px;text-align:center">Still have questions? Read the full <a href="/faq">dropshipping store setup FAQ</a> or <a href="/messages">ask us directly</a>.</p>
+    <div class="reviews-grid" id="reviews-grid"></div>
+    <div id="reviews-empty" class="hidden empty-note">No reviews uploaded yet — add them in Admin → Media Manager → <b>Review Screenshots</b>.</div>
   </div>
 </section>
 
-<!-- Lead Form -->
+<section class="section section-alt" id="certificates" data-section="certificates" data-reveal hidden>
+  <div class="container">
+    <div class="section-head">
+      <span class="section-num">+</span>
+      <div>
+        <div class="eyebrow" id="certs-eyebrow">Awards</div>
+        <h2 class="h2" id="certificates-title">Certificates &amp; Awards</h2>
+        <p class="sub" id="certificates-subtitle">Verified credentials, partnerships and awards that prove credibility.</p>
+      </div>
+    </div>
+    <div class="certs-grid" id="certs-grid"></div>
+    <div id="certs-empty" class="hidden empty-note">No certificates uploaded yet — add them in Admin → Media Manager → <b>Certificates &amp; Awards</b>.</div>
+  </div>
+</section>
+
+<section class="section" id="faq" data-section="faq" data-reveal>
+  <div class="container">
+    <div class="section-head">
+      <span class="section-num">11</span>
+      <div>
+        <div class="eyebrow" id="faq-eyebrow">Dropshipping Store Setup FAQ</div>
+        <h2 class="h2" id="faq-title">Questions? We’ve Got Honest Answers.</h2>
+        <p class="sub" id="faq-subtitle">No hype. Just clear terms.</p>
+      </div>
+    </div>
+    <div class="faq" id="faq-list">
+      <div class="faq-item open">
+        <button class="faq-q" aria-expanded="true"><span>Do I own the store 100%?</span><span class="chev">+</span></button>
+        <div class="faq-a"><div>Yes. You own the domain, Shopify/store account, and all assets. We build it in your account — nothing is held hostage.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false"><span>How long until my store is live?</span><span class="chev">+</span></button>
+        <div class="faq-a"><div>7 to 14 days from kickoff, depending on tier. Timeline is in your contract.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false"><span>I've been scammed before — how are you different?</span><span class="chev">+</span></button>
+        <div class="faq-a"><div>We show live, DB-verified proof, offer video walkthroughs of past stores, and you own everything before final payment. No vague promises.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false"><span>What if my store doesn't convert?</span><span class="chev">+</span></button>
+        <div class="faq-a"><div>Elite includes 60-day CRO support and ad-angle pivots. We don't ghost after handover — our roadmap targets your first profitable month.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false"><span>What’s the refund and support policy?</span><span class="chev">+</span></button>
+        <div class="faq-a"><div>Due to done-for-you labor, deposits are non-refundable, but we revise until handover criteria are met. Support window depends on tier (14/30/60 days).</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false"><span>Do you run ads for me?</span><span class="chev">+</span></button>
+        <div class="faq-a"><div>We set up your pixel and first campaigns, then hand you the scaling playbook. Ongoing media buying is optional via mentorship.</div></div>
+      </div>
+    </div>
+    <p class="center-note">Still have questions? Read the full <a href="/faq">dropshipping store setup FAQ</a> or <a href="/messages">ask us directly</a>.</p>
+  </div>
+</section>
+
 <section class="section section-alt" id="apply" data-section="lead_form" data-reveal>
   <div class="container">
-    <div class="form-wrap glass glow-border tilt-scene" id="lead-form-wrap">
+    <div class="form-wrap" id="lead-form-wrap">
       <div class="form-head">
-        <h2 class="h2 gradient-text" style="margin:0" id="lead-form-title">Apply for Your Custom Store Launch</h2>
-        <p class="sub" style="margin:6px 0 0" id="lead-form-subtitle">Tell us about your goals so we can prepare the right plan before we chat.</p>
+        <div class="section-kicker"><span>12</span><span class="eyebrow">Application</span></div>
+        <h2 class="h2" id="lead-form-title">Apply for Your Custom Store Launch</h2>
+        <p class="sub" id="lead-form-subtitle">Tell us about your goals so we can prepare the right plan before we chat.</p>
         <div class="steps-bar"><i id="bar1" class="on"></i><i id="bar2"></i><i id="bar3"></i></div>
-        <div style="font-size:12px;color:var(--text-muted);margin-top:6px"><span id="step-indicator">Step 1 of 3 - Vision</span></div>
+        <div class="step-caption"><span id="step-indicator">Step 1 of 3 - Vision</span></div>
       </div>
       <form class="form-body" id="lead-form" novalidate>
         <div class="honey"><label>Leave blank<input name="honeypot" autocomplete="off"></label></div>
         <div data-step="1">
-          <div class="field"><label id="f-label-name">Full Name *</label><input name="name" required placeholder="Ada Lovelace" autocomplete="name"><small id="f-req-1">Required</small></div>
-          <div class="field"><label id="f-label-store">Desired Brand / Niche Name *</label><input name="storeName" required placeholder="GlowLab"><small id="f-req-2">Required</small></div>
-          <div class="field"><label id="f-label-niche">Preferred Niche *</label>
-            <select name="preferredNiche" required><option value="">Select</option><option>Fashion</option><option>Beauty</option><option>Electronics</option><option>Home</option><option>Health</option><option>Pets</option><option>Fitness</option><option>General</option><option>Other</option></select><small id="f-req-3">Required</small>
+          <div class="field"><label id="f-label-name" for="lead-name">Full Name *</label><input id="lead-name" name="name" required placeholder="Ada Lovelace" autocomplete="name"><small id="f-req-1">Required</small></div>
+          <div class="field"><label id="f-label-store" for="lead-store">Desired Brand / Niche Name *</label><input id="lead-store" name="storeName" required placeholder="GlowLab"><small id="f-req-2">Required</small></div>
+          <div class="field"><label id="f-label-niche" for="lead-niche">Preferred Niche *</label>
+            <select id="lead-niche" name="preferredNiche" required><option value="">Select</option><option>Fashion</option><option>Beauty</option><option>Electronics</option><option>Home</option><option>Health</option><option>Pets</option><option>Fitness</option><option>General</option><option>Other</option></select><small id="f-req-3">Required</small>
           </div>
-          <div class="field hidden" id="other-niche-field"><label id="f-label-niche-other">Other niche - tell us</label><input name="preferredNicheOther" placeholder="e.g. Eco-friendly baby products"></div>
-          <div class="field"><label id="f-label-investment">Investment Range *</label>
-            <select name="investmentRange" required><option value="">Select</option><option>Starter</option><option>Scale</option><option>Elite</option><option>Not sure yet</option></select><small id="f-req-4">Required</small>
+          <div class="field hidden" id="other-niche-field"><label id="f-label-niche-other" for="lead-niche-other">Other niche — tell us</label><input id="lead-niche-other" name="preferredNicheOther" placeholder="e.g. Eco-friendly baby products"></div>
+          <div class="field"><label id="f-label-investment" for="lead-investment">Investment Range *</label>
+            <select id="lead-investment" name="investmentRange" required><option value="">Select</option><option>Starter</option><option>Scale</option><option>Elite</option><option>Not sure yet</option></select><small id="f-req-4">Required</small>
           </div>
         </div>
         <div data-step="2" class="hidden">
-          <div class="field"><label id="f-label-status">Current Status *</label>
-            <select name="storeStatus" required><option value="">Select</option><option value="brand_new">Brand new - no store yet</option><option value="existing_not_converting">Have a store that isn't converting</option></select><small id="f-req-5">Required</small>
+          <div class="field"><label id="f-label-status" for="lead-status">Current Status *</label>
+            <select id="lead-status" name="storeStatus" required><option value="">Select</option><option value="brand_new">Brand new — no store yet</option><option value="existing_not_converting">Have a store that isn't converting</option></select><small id="f-req-5">Required</small>
           </div>
-          <div class="field"><label id="f-label-scammed">Previously lost money to a fake mentor/agency? *</label>
-            <select name="wasScammed" required><option value="">Select</option><option value="yes">Yes</option><option value="no">No</option></select><small id="f-req-6">Required</small>
+          <div class="field"><label id="f-label-scammed" for="lead-scammed">Previously lost money to a fake mentor or agency? *</label>
+            <select id="lead-scammed" name="wasScammed" required><option value="">Select</option><option value="yes">Yes</option><option value="no">No</option></select><small id="f-req-6">Required</small>
           </div>
-          <div class="field hidden" id="scam-details-field"><label id="f-label-scam-details">What happened? (so we can help better)</label><textarea name="scamDetails" rows="3" placeholder="Briefly describe..."></textarea></div>
+          <div class="field hidden" id="scam-details-field"><label id="f-label-scam-details" for="lead-scam-details">What happened? (so we can help better)</label><textarea id="lead-scam-details" name="scamDetails" rows="3" placeholder="Briefly describe..."></textarea></div>
         </div>
         <div data-step="3" class="hidden">
-          <div class="field"><label id="f-label-whatsapp">WhatsApp number *</label>
-            <div style="display:flex;gap:8px"><select name="wa_code" style="max-width:120px"><option value="+234">🇳🇬 +234</option><option value="+1">🇺🇸 +1</option><option value="+44">🇬🇧 +44</option><option value="+27">🇿🇦 +27</option><option value="+971">🇦🇪 +971</option></select><input name="whatsapp" required placeholder="812 345 6789" inputmode="tel" style="flex:1"></div><small id="f-wa-invalid">Enter a valid WhatsApp number</small>
+          <div class="field"><label id="f-label-whatsapp" for="lead-whatsapp">WhatsApp number *</label>
+            <div class="phone-row"><select name="wa_code" aria-label="Country code"><option value="+234">+234 NG</option><option value="+1">+1 US</option><option value="+44">+44 UK</option><option value="+27">+27 ZA</option><option value="+971">+971 AE</option></select><input id="lead-whatsapp" name="whatsapp" required placeholder="812 345 6789" inputmode="tel"></div><small id="f-wa-invalid">Enter a valid WhatsApp number</small>
           </div>
-          <div class="field"><label id="f-label-email">Business Email *</label><input name="email" type="email" required placeholder="you@example.com" autocomplete="email"><small id="f-email-invalid">Enter a valid email</small></div>
-          <div class="field"><label id="f-label-contact-time">Preferred contact time / timezone</label><input name="preferredContactTime" placeholder="e.g. Evenings WAT"></div>
-          <div class="field"><label id="f-label-source">How did you hear about us?</label>
-            <select name="source"><option value="">Select</option><option>Instagram</option><option>WhatsApp status</option><option>TikTok</option><option>Referral</option><option>Google</option><option>Other</option></select>
+          <div class="field"><label id="f-label-email" for="lead-email">Business Email *</label><input id="lead-email" name="email" type="email" required placeholder="you@example.com" autocomplete="email"><small id="f-email-invalid">Enter a valid email</small></div>
+          <div class="field"><label id="f-label-contact-time" for="lead-contact-time">Preferred contact time / timezone</label><input id="lead-contact-time" name="preferredContactTime" placeholder="e.g. Evenings WAT"></div>
+          <div class="field"><label id="f-label-source" for="lead-source">How did you hear about us?</label>
+            <select id="lead-source" name="source"><option value="">Select</option><option>Instagram</option><option>WhatsApp status</option><option>TikTok</option><option>Referral</option><option>Google</option><option>Other</option></select>
           </div>
-          <div class="field"><label id="f-label-traffic">Traffic-source plan</label>
-            <select name="trafficPlan"><option value="">Select</option><option>TikTok Ads</option><option>Meta Ads</option><option>Google SEO</option><option>Influencers</option><option>Undecided</option></select>
+          <div class="field"><label id="f-label-traffic" for="lead-traffic">Traffic-source plan</label>
+            <select id="lead-traffic" name="trafficPlan"><option value="">Select</option><option>TikTok Ads</option><option>Meta Ads</option><option>Google SEO</option><option>Influencers</option><option>Undecided</option></select>
           </div>
-          <div class="field"><label id="f-label-consent" style="text-transform:none;letter-spacing:0;font-weight:600"><input type="checkbox" name="consent" required> <span id="f-consent-text">I agree to be contacted via WhatsApp/Email about my application. *</span></label><small id="f-consent-required">Consent required</small></div>
+          <div class="field field-consent"><label id="f-label-consent" for="lead-consent"><input id="lead-consent" type="checkbox" name="consent" required> <span id="f-consent-text">I agree to be contacted via WhatsApp or email about my application. *</span></label><small id="f-consent-required">Consent required</small></div>
         </div>
         <div class="form-actions">
-          <button type="button" class="btn btn-ghost hidden" id="btn-prev">← Back</button>
-          <button type="button" class="btn btn-primary btn-glow" id="btn-next">Continue →</button>
-          <button type="submit" class="btn btn-primary btn-glow hidden" id="btn-submit">Submit Application &amp; Start Chat</button>
+          <button type="button" class="btn btn-link hidden" id="btn-prev">← Back</button>
+          <button type="button" class="btn btn-primary" id="btn-next">Continue →</button>
+          <button type="submit" class="btn btn-primary hidden" id="btn-submit">Submit Application &amp; Start Chat</button>
         </div>
-        <div id="form-msg" style="font-size:13px;font-weight:600"></div>
+        <div id="form-msg" role="status"></div>
       </form>
     </div>
   </div>
 </section>
 
-<!-- CTA Band -->
-<section class="section" data-section="cta_band" data-reveal>
+<section class="section cta-section" data-section="cta_band" data-reveal>
   <div class="container">
-    <div class="cta-band cta-3d">
+    <div class="cta-band">
       <div>
-        <h3 style="margin:0" id="cta-band-title">Ready to Own a Store That Sells?</h3>
-        <p style="margin:6px 0 0;opacity:.85" id="cta-band-subtitle">Slots are limited by real capacity - apply today and lock your build window.</p>
+        <div class="eyebrow light">Next step</div>
+        <h3 id="cta-band-title">Ready to Own a Store That Sells?</h3>
+        <p id="cta-band-subtitle">Slots are limited by real capacity — apply today and lock your build window.</p>
       </div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <a class="btn btn-ghost magnetic" id="cta-wa" href="https://wa.me/447411200927?text=Hi%20Nexatech!%20I%20am%20ready%20to%20own%20a%20store%20that%20sells%20what%20is%20the%20next%20step?" target="_blank" rel="noopener">Chat on WhatsApp</a>
-        <a class="btn magnetic" id="cta-book" href="/messages" style="background:#fff;color:var(--primary)">Start a Chat →</a>
+      <div class="cta-actions">
+        <a class="btn btn-light" id="cta-wa" href="https://wa.me/447411200927?text=Hi%20Nexatech!%20I%20am%20ready%20to%20own%20a%20store%20that%20sells%20what%20is%20the%20next%20step?" target="_blank" rel="noopener">Chat on WhatsApp</a>
+        <a class="btn btn-outline-light" id="cta-book" href="/messages">Start a Chat <span aria-hidden="true">→</span></a>
       </div>
     </div>
   </div>
 </section>
 </main>
 
-<!-- Footer -->
 <footer class="footer" data-section="footer">
   <div class="container">
-    <div class="footer-grid">
-      <div>
+    <div class="footer-top">
+      <div class="footer-brand">
         <div class="foot-logo" id="footer-logo">NEXATECH</div>
-        <p style="color:#94A3B8;font-size:13px;margin:8px 0 0" id="footer-tagline">We engineer high-converting storefronts backed by real, current sales proof.</p>
-        <div style="display:flex;gap:10px;margin-top:12px">
-          <a href="#" id="soc-instagram" aria-label="Instagram" target="_blank" rel="noopener">◎</a><a href="#" id="soc-x" aria-label="X" target="_blank" rel="noopener">𝕏</a><a href="#" id="soc-tiktok" aria-label="TikTok" target="_blank" rel="noopener">♪</a><a href="#" id="soc-linkedin" aria-label="LinkedIn" target="_blank" rel="noopener">in</a><a href="#" id="soc-facebook" aria-label="Facebook" target="_blank" rel="noopener" style="display:none">f</a><a href="#" id="soc-youtube" aria-label="YouTube" target="_blank" rel="noopener" style="display:none">▶</a>
+        <p id="footer-tagline">We engineer high-converting storefronts backed by real, current sales proof.</p>
+        <div class="footer-socials">
+          <a href="#" id="soc-instagram" aria-label="Instagram" target="_blank" rel="noopener">Instagram</a>
+          <a href="#" id="soc-x" aria-label="X" target="_blank" rel="noopener">X</a>
+          <a href="#" id="soc-tiktok" aria-label="TikTok" target="_blank" rel="noopener">TikTok</a>
+          <a href="#" id="soc-linkedin" aria-label="LinkedIn" target="_blank" rel="noopener">LinkedIn</a>
+          <a href="#" id="soc-facebook" aria-label="Facebook" target="_blank" rel="noopener" style="display:none">Facebook</a>
+          <a href="#" id="soc-youtube" aria-label="YouTube" target="_blank" rel="noopener" style="display:none">YouTube</a>
         </div>
       </div>
-      <div>
-        <b style="color:#fff" id="footer-quick-links">Quick Links</b>
-        <div style="display:grid;gap:8px;margin-top:10px;font-size:13px">
-          <a href="/#portfolio" id="footer-link-portfolio">Portfolio</a><a href="/#proof" id="footer-link-proof">Proof</a><a href="/pricing" id="footer-link-pricing">Pricing</a><a href="/themes" id="footer-link-themes">Themes</a><a href="/offers" id="footer-link-offers">Custom Offers</a><a href="/faq" id="footer-link-faq">FAQ</a><a href="/blog" id="footer-link-blog">Blog</a><a href="/messages" id="footer-link-messages">Messages</a>
-        </div>
+      <nav class="footer-col" aria-label="Explore">
+        <b id="footer-quick-links">Quick Links</b>
+        <a href="/#portfolio" id="footer-link-portfolio">Work</a>
+        <a href="/pricing" id="footer-link-pricing">Pricing</a>
+        <a href="/themes" id="footer-link-themes">Themes</a>
+        <a href="/offers" id="footer-link-offers">Custom Offers</a>
+        <a href="/blog" id="footer-link-blog">Journal</a>
+        <a href="/blog/countries" id="footer-link-countries">Country Guides</a>
+        <a href="/faq" id="footer-link-faq">FAQ</a>
+      </nav>
+      <div class="footer-col">
+        <b id="footer-contact-h">Contact</b>
+        <a href="mailto:saheednexatech@gmail.com" id="footer-email">saheednexatech@gmail.com</a>
+        <a href="tel:+447411200927" id="footer-phone">+44 7411 200927</a>
+        <span id="footer-address">Serving clients worldwide</span>
+        <a href="/messages" id="footer-link-messages">Messages</a>
       </div>
-      <div>
-        <b style="color:#fff" id="footer-contact-h">Contact</b>
-        <div style="display:grid;gap:8px;margin-top:10px;font-size:13px">
-          <a href="mailto:saheednexatech@gmail.com" id="footer-email">saheednexatech@gmail.com</a>
-          <a href="tel:+447411200927" id="footer-phone">+44 7411 200927</a>
-          <span id="footer-address">Lagos, Nigeria - Serving clients worldwide</span>
-        </div>
-      </div>
-      <div>
-        <b style="color:#fff" id="footer-legal-h">Legal</b>
-        <div style="display:grid;gap:8px;margin-top:10px;font-size:13px">
-          <a href="/privacy.html" id="privacy-link">Privacy Policy</a><a href="/terms.html" id="terms-link">Terms of Service</a>
-        </div>
+      <div class="footer-col">
+        <b id="footer-legal-h">Legal</b>
+        <a href="/privacy.html" id="privacy-link">Privacy Policy</a>
+        <a href="/terms.html" id="terms-link">Terms of Service</a>
       </div>
     </div>
-    <div class="copy">
+    <div class="footer-bottom">
       <span id="footer-copyright">© 2026 Nexatech Dropshipping Store. All rights reserved.</span>
-      <span id="footer-built-note">Built with honesty - all proof numbers are live from our database.</span>
+      <span id="footer-built-note">Built with honesty — all proof numbers are live from our database.</span>
     </div>
   </div>
 </footer>
 
-<!-- Portfolio Modal -->
-<div class="modal-backdrop" id="portfolio-modal" role="dialog" aria-modal="true">
-  <div class="modal glass-strong">
+<div class="modal-backdrop" id="portfolio-modal" role="dialog" aria-modal="true" aria-label="Project details">
+  <div class="modal">
     <div class="modal-media" id="modal-media">
-      <button class="close-x" id="modal-close">✕</button>
-      <button class="carousel-btn prev" id="modal-prev">‹</button>
+      <button class="close-x" id="modal-close" aria-label="Close">Close</button>
+      <button class="carousel-btn prev" id="modal-prev" aria-label="Previous">‹</button>
       <img id="modal-img" alt="">
-      <button class="carousel-btn next" id="modal-next">›</button>
+      <button class="carousel-btn next" id="modal-next" aria-label="Next">›</button>
     </div>
     <div class="modal-body">
-      <span class="tag" id="modal-tag" style="background:var(--bg-alt);color:var(--text);border-color:var(--border)">Category</span>
-      <h3 id="modal-title" style="margin:10px 0 6px">Store Name</h3>
-      <div id="modal-result" style="font-weight:800;color:var(--success);font-size:13px"></div>
-      <p id="modal-desc" style="color:var(--text-muted);font-size:13px;line-height:1.6;margin:12px 0 0"></p>
-      <a id="modal-cta" href="#" target="_blank" class="btn btn-primary btn-glow" style="margin-top:16px">Start a Store Like This →</a>
+      <span class="tag" id="modal-tag">Category</span>
+      <h3 id="modal-title">Store Name</h3>
+      <div id="modal-result"></div>
+      <p id="modal-desc"></p>
+      <a id="modal-cta" href="#" target="_blank" class="btn btn-primary">Start a Store Like This <span aria-hidden="true">→</span></a>
+      <a id="modal-demo" href="#" target="_blank" rel="noopener" class="btn btn-ghost hidden">Live Demo ↗</a>
     </div>
   </div>
 </div>
 
-<!-- Chatbot -->
-<button class="chat-btn chat-3d" id="chat-btn" aria-label="Chat">💬</button>
-<div class="chat-win glass-strong" id="chat-win">
-  <div class="chat-head"><b id="chat-title">Nexatech Assistant</b><button id="chat-close" style="background:none;border:none;color:#fff;cursor:pointer">✕</button></div>
-  <div class="chat-actions" style="display:flex;gap:6px;padding:8px;background:rgba(248,250,252,.8);border-bottom:1px solid var(--border);flex-wrap:wrap">
-    <button id="chat-new" class="btn btn-ghost" style="padding:6px 10px;font-size:11px">+ New Chat</button>
-    <button id="chat-recent" class="btn btn-ghost" style="padding:6px 10px;font-size:11px">Recent ▾</button>
-    <a id="chat-whatsapp" href="https://wa.me/447411200927?text=Hi%20Nexatech" target="_blank" class="btn btn-ghost" style="padding:6px 10px;font-size:11px;border-color:#25D366;color:#25D366">WhatsApp Us</a>
+<button class="chat-btn" id="chat-btn" aria-label="Open chat">
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 11.5a7.5 7.5 0 0 1-11.1 6.7L4 20l1.8-4.9A7.5 7.5 0 1 1 20 11.5Z" stroke="currentColor" stroke-width="1.5"/></svg>
+</button>
+<div class="chat-win" id="chat-win">
+  <div class="chat-head"><b id="chat-title">Nexatech Assistant</b><button id="chat-close" aria-label="Close chat">Close</button></div>
+  <div class="chat-actions">
+    <button id="chat-new">New Chat</button>
+    <button id="chat-recent">Recent</button>
+    <a id="chat-whatsapp" href="https://wa.me/447411200927?text=Hi%20Nexatech" target="_blank" rel="noopener">WhatsApp</a>
   </div>
-  <div id="chat-recent-list" style="display:none;max-height:140px;overflow:auto;border-bottom:1px solid var(--border);background:#fff;padding:8px"></div>
+  <div id="chat-recent-list"></div>
   <div class="chat-body" id="chat-body">
-    <div class="msg bot">Hi! I’m the Nexatech assistant. Ask me about packages, timelines, or proof - or tap a quick question below.</div>
+    <div class="msg bot">Hi! I’m the Nexatech assistant. Ask me about packages, timelines, or proof — or tap a quick question below.</div>
     <div class="quick">
       <button data-q="What’s included in Pro?">What’s included in Pro?</button>
       <button data-q="How long to launch?">How long to launch?</button>
       <button data-q="Do I own the store?">Do I own the store?</button>
     </div>
   </div>
-  <div class="chat-input"><input id="chat-input" placeholder="Type a message..." autocomplete="off"><button class="btn btn-primary" id="chat-send" style="padding:8px 14px;border-radius:999px">Send</button></div>
+  <div class="chat-input"><input id="chat-input" placeholder="Type a message..." autocomplete="off" aria-label="Message"><button id="chat-send">Send</button></div>
 </div>
 
+<script src="/js/hero-store.js" defer></script>
 <script src="/js/app.js" type="module"></script>
 </body>
 </html>
