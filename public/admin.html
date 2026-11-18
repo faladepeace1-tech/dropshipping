@@ -87,7 +87,7 @@
 
       <!-- Brand / Logo - backend only, logo in logo-mark, logo first -->
       <section data-panel="brand" class="hidden">
-        <div class="card" style="border-color:rgba(200,50,62,.25)">
+        <div class="card" style="border-color:rgba(31,79,216,.25)">
           <h3>Brand - Logo & Favicon <small style="font-weight:500;color:#64748B">backend only</small></h3>
           <p style="font-size:12px;color:#64748B;margin:6px 0 0">Logo is rendered in <code>&lt;span class="logo-mark"&gt;N&lt;/span&gt;</code> - the <b>logo mark</b> - shown <b>before</b> the brand name as <b>(logo) NEXATECH</b>. Upload here, saved permanently.</p>
           <div style="display:grid;gap:14px;margin-top:14px">
@@ -229,7 +229,7 @@
               <span style="color:#64748B">or</span>
               <label style="flex:1">Image/Video URL - direct mp4/webm/mov link, or YouTube / Vimeo / Drive link<input name="url" placeholder="https://..."></label>
             </div>
-            <div id="media-hint" style="background:#FBE9EB;border:1px solid #E8BFC3;border-radius:10px;padding:10px;font-size:12px;color:#A92732;display:none"><b>Tip:</b> <span id="media-hint-text"></span></div>
+            <div id="media-hint" style="background:#E8EEFF;border:1px solid #B9C8F5;border-radius:10px;padding:10px;font-size:12px;color:#163BB0;display:none"><b>Tip:</b> <span id="media-hint-text"></span></div>
             <div id="media-preview" style="display:none;border:1px dashed #CBD5E1;border-radius:12px;padding:10px"><img id="media-preview-img" style="max-height:180px;border-radius:8px"><div id="media-preview-meta" style="font-size:12px;color:#64748B;margin-top:6px"></div></div>
             <div id="upload-progress" style="display:none"><div style="height:8px;background:#E2E8F0;border-radius:999px;overflow:hidden"><div id="upload-bar" style="height:100%;width:0%;background:var(--paper-2);transition:width .2s"></div></div><small id="upload-text" style="color:#64748B">Uploading…</small></div>
             <button class="btn btn-primary" type="submit">Upload</button>
@@ -438,7 +438,7 @@
 
       <!-- Campaigns - HubSpot-like bulk + personal email via same Google OAuth -->
       <section data-panel="campaigns" class="hidden">
-        <div class="card" style="border-color:rgba(200,50,62,.25)">
+        <div class="card" style="border-color:rgba(31,79,216,.25)">
           <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between">
             <h3 style="margin:0">Campaigns & Email CRM <small style="font-weight:500;color:#64748B"> - bulk + personal via same Google Client ID/Secret (Gmail)</small></h3>
             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
@@ -477,7 +477,7 @@
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
             <button class="btn btn-primary" id="btn-save-followup" style="padding:8px 14px;font-size:12px">Save Follow-up Settings</button>
-            <button class="btn btn-ghost" id="btn-test-followup" style="padding:8px 12px;font-size:12px;border-color:#C8323E;color:#C8323E">Send Test Follow-up to Me →</button>
+            <button class="btn btn-ghost" id="btn-test-followup" style="padding:8px 12px;font-size:12px;border-color:#1F4FD8;color:#1F4FD8">Send Test Follow-up to Me →</button>
             <button class="btn btn-ghost" id="btn-run-daily" style="padding:8px 12px;font-size:12px;border-color:#0F6B49;color:#0F6B49">Run Daily Now (preview / send)</button>
             <button class="btn btn-ghost" id="btn-refresh-followup" style="padding:8px 12px;font-size:12px">Refresh Logs</button>
             <button class="btn btn-ghost" id="btn-clear-followup" style="padding:8px 12px;font-size:12px;color:#B4232F;border-color:#E7B6B6">Clear All Logs</button>
@@ -525,7 +525,7 @@
               <label>Campaign Name<input id="camp-name"></label>
               <label>Subject (supports {{name}}, {{storeName}}, {{preferredNiche}}, {{email}}, {{whatsapp}} etc)<input id="camp-subject" placeholder="Welcome {{name}}!"></label>
               <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-                <button class="btn btn-ghost" id="btn-camp-ai-subject" type="button" style="padding:6px 10px;font-size:11px;border-color:#C8323E;color:#C8323E">✨ AI Suggest Subject</button>
+                <button class="btn btn-ghost" id="btn-camp-ai-subject" type="button" style="padding:6px 10px;font-size:11px;border-color:#1F4FD8;color:#1F4FD8">✨ AI Suggest Subject</button>
                 <span id="camp-ai-subject-msg" style="font-size:11px;color:#5A6685"></span>
               </div>
               <div id="camp-ai-subjects" style="display:grid;gap:4px"></div>
@@ -545,7 +545,7 @@
               </div>
               <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
                 <button class="btn btn-ghost" id="btn-camp-preview-audience" style="padding:6px 10px;font-size:11px">Preview Audience</button>
-                <button class="btn btn-primary" id="btn-camp-send" style="background:#C8323E;border-color:#C8323E">Send Bulk Campaign →</button>
+                <button class="btn btn-primary" id="btn-camp-send" style="background:#1F4FD8;border-color:#1F4FD8">Send Bulk Campaign →</button>
                 <label style="display:flex;gap:6px;align-items:center;font-size:11px"><input type="checkbox" id="camp-dryrun"> Dry run (no send)</label>
               </div>
               <div id="camp-audience-preview" style="margin-top:8px;font-size:12px;max-height:160px;overflow:auto"></div>
@@ -679,15 +679,15 @@
       <section data-panel="settings" class="hidden">
         <p style="font-size:12px;color:#64748B;margin:0 0 10px">Integrations are saved <b>permanently in backend</b>. Change your admin password below.</p>
 
-        <details class="card" id="details-password" style="border-color:rgba(239,68,68,.35);background:rgba(239,68,68,.04)">
-          <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:10px"><div><h3 style="margin:0">🔒 Change Password</h3><small style="color:#5A6685">Admin security - <span id="password-user" style="color:#0F183D">admin</span> • <span id="password-summary-status" style="color:#64748B">not changed</span></small></div><span style="font-size:12px;color:#DC2626;border:1px solid #E7B6B6;border-radius:999px;padding:4px 10px;background:#FFF">Edit ▾</span></summary>
+        <details class="card" id="details-password" style="border-color:rgba(31,79,216,.35);background:rgba(31,79,216,.04)">
+          <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:10px"><div><h3 style="margin:0">🔒 Change Password</h3><small style="color:#5A6685">Admin security - <span id="password-user" style="color:#0F183D">admin</span> • <span id="password-summary-status" style="color:#64748B">not changed</span></small></div><span style="font-size:12px;color:#1F4FD8;border:1px solid #B9C8F5;border-radius:999px;padding:4px 10px;background:#FFF">Edit ▾</span></summary>
           <div style="display:grid;gap:10px;margin-top:12px">
-            <div style="font-size:11px;color:#64748B;background:#FFF;border:1px solid #E7B6B6;border-radius:8px;padding:8px">Logged in as <b id="password-current-user">admin</b> • This changes your backend login password. Use a strong password and keep it safe.</div>
+            <div style="font-size:11px;color:#64748B;background:#FFF;border:1px solid #B9C8F5;border-radius:8px;padding:8px">Logged in as <b id="password-current-user">admin</b> • This changes your backend login password. Use a strong password and keep it safe.</div>
             <label>Current Password <input id="pwd-current" type="password" placeholder="••••••••" autocomplete="current-password"></label>
             <label>New Password <input id="pwd-new" type="password" placeholder="At least 6 characters" autocomplete="new-password"></label>
             <label>Confirm New Password <input id="pwd-confirm" type="password" placeholder="Repeat new password" autocomplete="new-password"></label>
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
-              <button class="btn btn-primary" id="btn-change-password" style="background:#DC2626;border-color:#DC2626">Change Password</button>
+              <button class="btn btn-primary" id="btn-change-password" style="background:#1F4FD8;border-color:#1F4FD8">Change Password</button>
               <button class="btn btn-ghost" id="btn-show-pwd" type="button" style="padding:6px 10px;font-size:11px">Show</button>
             </div>
             <div id="pwd-msg" style="font-size:13px;margin-top:4px;min-height:18px"></div>
@@ -706,7 +706,7 @@
           </div>
           <div id="int-msg" style="font-size:13px;margin-top:8px"></div>
         </div>
-        <div class="card" style="border-color:rgba(200,50,62,.35)">
+        <div class="card" style="border-color:rgba(31,79,216,.35)">
           <h3>Card Payments - Flutterwave <small style="font-weight:500;color:#64748B">buyers pay inside the checkout page (USD)</small></h3>
           <p style="font-size:12px;color:#5A6685">From Flutterwave dashboard → Settings → API Keys: paste your <b>Secret</b> + <b>Public</b> keys and <b>Encryption key</b>. In Settings → Webhooks set:<br>Webhook URL <code>https://dropshippingstore.dpdns.org/api/checkout/webhook/flutterwave</code> · Secret hash must match the field below.<br>Keys are stored permanently and never shown on the public site.</p>
           <label>Secret Key<input id="int-flw-secret" type="password" placeholder="FLWSECK-... (paste whole key)"></label>
@@ -762,7 +762,7 @@
             <button class="btn btn-primary" id="btn-save-google-sheets">Save Google Sheets</button>
             <button class="btn btn-ghost" id="btn-connect-google" style="border-color:#0F6B49;color:#0F6B49">Connect Google Sheets →</button>
             <button class="btn btn-ghost" id="btn-detect-google" style="border-color:#92400E;color:#92400E">Auto-Detect Sheet & Columns →</button>
-            <button class="btn btn-ghost" id="btn-test-google-sheets" style="border-color:#C8323E;color:#C8323E">Test Append Row →</button>
+            <button class="btn btn-ghost" id="btn-test-google-sheets" style="border-color:#1F4FD8;color:#1F4FD8">Test Append Row →</button>
             <button class="btn btn-ghost" id="btn-disconnect-google" style="color:#B4232F">Disconnect</button>
           </div>
           <div id="google-msg" style="font-size:13px;margin-top:8px"></div>
@@ -789,7 +789,7 @@
           </div>
           <div style="font-size:11px;color:#5A6685;margin-top:8px">Keys are saved <b>permanently</b> in DB (content table: google_client_id / google_client_secret / google_sheets_doc_id / google_sheets_sheet_name / tokens). They persist across deploys and only change when you edit & Save again. Use <b>Auto-Detect</b> to list sheets inside the spreadsheet, see current header row, highlight missing columns, and auto-create the 22 lead columns: <code>Timestamp, Name, Store Name, Preferred Niche, Preferred Niche Other, Investment Range, Store Status, Was Scammed, Scam Details, WhatsApp, Email, Preferred Contact Time, Source, Traffic Plan, Page URL, Session ID, UTM Source, UTM Medium, UTM Campaign, Pipeline Stage, Webhook Status, Submitted At</code>.</div>
         </div>
-        <div class="card" style="border-color:rgba(200,50,62,.3)">
+        <div class="card" style="border-color:rgba(31,79,216,.3)">
           <h3>Chatbot - Gemini Direct (replaces n8n webhook for chat) <small style="font-weight:500;color:#64748B" id="gemini-summary-status">checking...</small></h3>
           <p style="font-size:12px;color:#5A6685">Paste your Gemini API key here to run the chatbot directly via Google Gemini. Form leads go directly to Google Sheets (above). Key is stored securely in DB and never shown publicly.</p>
           <label>Gemini API Key <input id="int-gemini-key" type="password" placeholder="AQ.Ab8RN6... or AIza... (paste whole key)"></label>
@@ -800,7 +800,7 @@
           <label>Gemini Model <input id="int-gemini-model" placeholder="gemini-3.5-flash-lite (current free)"></label>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
             <button class="btn btn-primary" id="btn-save-gemini">Save Gemini Key</button>
-            <button class="btn btn-ghost" id="btn-test-gemini" style="border-color:#C8323E;color:#C8323E">Test Gemini →</button>
+            <button class="btn btn-ghost" id="btn-test-gemini" style="border-color:#1F4FD8;color:#1F4FD8">Test Gemini →</button>
           </div>
           <div id="gemini-msg" style="font-size:13px;margin-top:8px"></div>
           <pre id="gemini-test-result" style="display:none;background:var(--paper-2);border:1px solid var(--border);border-radius:10px;padding:12px;font-size:11px;color:#5A6685;overflow:auto;max-height:240px;white-space:pre-wrap;word-break:break-all"></pre>

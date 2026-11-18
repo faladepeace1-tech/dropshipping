@@ -922,7 +922,7 @@ export async function initDb() {
       ['og_image', '', 'text'],
       ['color_primary', '#0F183D', 'color'],
       ['color_primary_light', '#16224F', 'color'],
-      ['color_accent', '#C8323E', 'color'],
+      ['color_accent', '#1F4FD8', 'color'],
       ['color_accent_2', '#0F183D', 'color'],
       ['color_bg', '#FFFFFF', 'color'],
       ['color_bg_alt', '#F4F6FB', 'color'],
@@ -1516,7 +1516,7 @@ export async function initDb() {
       }
       if(changed) console.log('Migrated editorial defaults: ' + changed + ' content rows');
     }catch(e){ console.error('Editorial migration failed:', e.message); }
-    // Final navy/logo-red palette migration: convert untouched legacy and editorial defaults.
+    // Final navy/blue palette migration: convert untouched legacy and editorial defaults.
     // Custom Admin colors are preserved because each update matches an exact old default.
     try{
       const palette = [
@@ -1524,9 +1524,8 @@ export async function initDb() {
         ['color_primary', '#14130F', '#0F183D'],
         ['color_primary_light', '#132238', '#16224F'],
         ['color_primary_light', '#2C2922', '#16224F'],
-        ['color_accent', '#00D1FF', '#C8323E'],
-        ['color_accent', '#1F4FD8', '#C8323E'],
-        ['color_accent', '#FF3D8B', '#C8323E'],
+        ['color_accent', '#00D1FF', '#1F4FD8'],
+        ['color_accent', '#FF3D8B', '#1F4FD8'],
         ['color_accent_2', '#7C3AED', '#0F183D'],
         ['color_accent_2', '#14130F', '#0F183D'],
         ['color_bg', '#F4EFE6', '#FFFFFF'],
@@ -1546,7 +1545,7 @@ export async function initDb() {
         const r = await db.prepare('UPDATE content SET value=? WHERE key=? AND value=?').run(to, key, from);
         if(r && r.changes) changed += r.changes;
       }
-      if(changed) console.log('Migrated navy/logo-red palette: ' + changed + ' content rows');
+      if(changed) console.log('Migrated navy/blue palette: ' + changed + ' content rows');
     }catch(e){ console.error('Palette migration failed:', e.message); }
     // upgrade retired models to gemini-3.6-flash (2.5-flash no longer served to new projects)
     try{ const gm = (await db.prepare('SELECT value FROM content WHERE key=?').get('gemini_model'))?.value; if(gm && (gm.includes('1.5') || gm.trim() === 'gemini-2.5-flash')) await db.prepare("UPDATE content SET value='gemini-3.6-flash' WHERE key='gemini_model'").run(); }catch{}
@@ -1576,6 +1575,38 @@ export async function initDb() {
     if(phoneOld && (phoneOld.includes('234 812') || phoneOld.includes('928 382'))) {
       await db.prepare("UPDATE content SET value=? WHERE key='footer_phone'").run('+44 7411 200927');
     }
+    // One-time contact cleanup: the owner number must be consistent in editable copy too.
+    try{
+      const phoneMarker = await db.prepare("SELECT value FROM content WHERE key='phone_44_migrated'").get();
+      if(!phoneMarker){
+        const replacements = [
+          ['+1 928 382 5389', '+44 7411 200927'],
+          ['+1 (928) 382-5389', '+44 7411 200927'],
+          ['1 928 382 5389', '+44 7411 200927'],
+          ['+19283825389', '+447411200927'],
+          ['19283825389', '447411200927']
+        ];
+        let changed = 0;
+        for(const [from, to] of replacements){
+          const pattern = '%' + from + '%';
+          const contentRun = await db.prepare('UPDATE content SET value=REPLACE(value,?,?) WHERE value LIKE ?').run(from, to, pattern);
+          if(contentRun && contentRun.changes) changed += contentRun.changes;
+          const pageRun = await db.prepare('UPDATE page_overrides SET content=REPLACE(content,?,?) WHERE content LIKE ?').run(from, to, pattern);
+          if(pageRun && pageRun.changes) changed += pageRun.changes;
+        }
+        await db.prepare("INSERT INTO content (key,value,type) VALUES ('phone_44_migrated','1','text') ON CONFLICT(key) DO NOTHING").run();
+        if(changed) console.log('Migrated owner phone number: ' + changed + ' content rows');
+      }
+    }catch(e){ console.error('Phone migration failed:', e.message); }
+    // One-time brand palette migration: cobalt blue becomes the primary accent.
+    try{
+      const paletteMarker = await db.prepare("SELECT value FROM content WHERE key='palette_blue_migrated'").get();
+      if(!paletteMarker){
+        const r = await db.prepare("UPDATE content SET value='#1F4FD8' WHERE key='color_accent' AND value='#C8323E'").run();
+        await db.prepare("INSERT INTO content (key,value,type) VALUES ('palette_blue_migrated','1','text') ON CONFLICT(key) DO NOTHING").run();
+        if(r && r.changes) console.log('Migrated brand accent to cobalt blue');
+      }
+    }catch(e){ console.error('Blue palette migration failed:', e.message); }
     // SEO + messaging migration (2026): align stored copy with the keyword-focused static pages.
     try{
       const seoMarker = await db.prepare("SELECT value FROM content WHERE key='seo_2026_migrated'").get();

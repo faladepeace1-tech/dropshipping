@@ -20,7 +20,7 @@ export async function initHero3D({ canvas, stage } = {}){
     const key = new THREE.DirectionalLight(0xffffff, 4.2);
     key.position.set(-4.2, 5.2, 5.4);
     scene.add(key);
-    const fill = new THREE.DirectionalLight(0xffc2c6, 1.8);
+    const fill = new THREE.DirectionalLight(0xA9BDFF, 1.8);
     fill.position.set(5.2, -1.4, 4.2);
     scene.add(fill);
     const rim = new THREE.DirectionalLight(0xffffff, 2.8);
@@ -31,8 +31,8 @@ export async function initHero3D({ canvas, stage } = {}){
     scene.add(root);
 
     const sphereMat = new THREE.MeshStandardMaterial({
-      color: 0xC8323E,
-      emissive: 0xC8323E,
+      color: 0x1F4FD8,
+      emissive: 0x1F4FD8,
       emissiveIntensity: 0.06,
       roughness: 0.52,
       metalness: 0.02,

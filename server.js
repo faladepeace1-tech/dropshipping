@@ -5419,7 +5419,7 @@ app.post('/api/admin/webhook-test', requireAuth, async (req, res) => {
       storeStatus: 'brand_new',
       wasScammed: 'no',
       scamDetails: '',
-      whatsapp: '+19283825389',
+      whatsapp: '+447411200927',
       email: 'test+'+Date.now()+'@example.com',
       preferredContactTime: 'Anytime',
       source: 'webhook_test',
@@ -5699,7 +5699,7 @@ app.put('/api/admin/google/sheets', requireAuth, async (req, res) => {
   res.json({ ok:true, updated, saved: { docId: cfg.docId, sheetName: cfg.sheetName, hasClientId: !!cfg.clientId, hasClientSecret: !!cfg.clientSecret } });
 });
 app.post('/api/admin/google/test', requireAuth, async (req, res) => {
-  const testLead = { name:'Test User', storeName:'Test Store', preferredNiche:'Fashion', preferredNicheOther:'', investmentRange:'Starter', storeStatus:'brand_new', wasScammed:'no', scamDetails:'', whatsapp:'+19283825389', email:'test@example.com', preferredContactTime:'', source:'google_test', trafficPlan:'', pageUrl:'https://dropshippingstore.dpdns.org', sessionId:'test-'+Date.now(), utm_source:'test', utm_medium:'admin', utm_campaign:'sheets_test', pipeline_stage:'new', webhook_status:'test', submittedAt: new Date().toISOString() };
+  const testLead = { name:'Test User', storeName:'Test Store', preferredNiche:'Fashion', preferredNicheOther:'', investmentRange:'Starter', storeStatus:'brand_new', wasScammed:'no', scamDetails:'', whatsapp:'+447411200927', email:'test@example.com', preferredContactTime:'', source:'google_test', trafficPlan:'', pageUrl:'https://dropshippingstore.dpdns.org', sessionId:'test-'+Date.now(), utm_source:'test', utm_medium:'admin', utm_campaign:'sheets_test', pipeline_stage:'new', webhook_status:'test', submittedAt: new Date().toISOString() };
   const r = await appendToGoogleSheet(testLead);
   res.json(r);
 });
@@ -6018,7 +6018,7 @@ app.post('/api/admin/campaigns/:id/test', requireAuth, async (req,res)=>{
   const target = (to||cfg.gmailConnectedEmail||'').trim();
   if(!target) return res.status(400).json({ error: 'Provide to email or connect Gmail first' });
   // render with sample lead (live prices injected so {{proPrice}} etc. stay current)
-  const sampleLead = await withLivePrices((await db.prepare('SELECT * FROM leads ORDER BY created_at DESC LIMIT 1').get()) || { name:'Test Founder', storeName:'Test Store', preferredNiche:'Fashion', whatsapp:'+19283825389', email: target });
+  const sampleLead = await withLivePrices((await db.prepare('SELECT * FROM leads ORDER BY created_at DESC LIMIT 1').get()) || { name:'Test Founder', storeName:'Test Store', preferredNiche:'Fashion', whatsapp:'+447411200927', email: target });
   const subject = renderTemplate(c.subject, sampleLead);
   const html = renderTemplate(c.body_html, sampleLead);
   const text = renderTemplate(c.body_text, sampleLead);
@@ -6367,7 +6367,7 @@ app.post('/api/admin/followups/test', requireAuth, async (req, res) => {
     const cfg = await getGoogleConfig();
     const to = (req.body?.to || cfg.gmailConnectedEmail || '').trim();
     if(!to) return res.status(400).json({ error: 'Provide to email or connect Gmail first' });
-    const sampleLead = (await db.prepare('SELECT * FROM leads ORDER BY created_at DESC LIMIT 1').get()) || { name:'Test Founder', storeName:'Test Store', preferredNiche:'Fashion', investmentRange:'Pro', email: to, whatsapp:'+19283825389' };
+    const sampleLead = (await db.prepare('SELECT * FROM leads ORDER BY created_at DESC LIMIT 1').get()) || { name:'Test Founder', storeName:'Test Store', preferredNiche:'Fashion', investmentRange:'Pro', email: to, whatsapp:'+447411200927' };
     const r = await sendFollowupEmail({ to, name: sampleLead.name||'Founder', lead: { ...sampleLead, email: to }, leadId: sampleLead.id??null, sessionId:'test-'+Date.now(), kind:'form_instant', dayNumber:1, transcript:'', baseUrl: getBaseUrl(req) });
     // test should not be blocked by dedup - if skipped as already sent, force with unique session
     if(r.ok) return res.json({ ok:true, to, subject: r.subject, ai: r.ai });

@@ -451,7 +451,14 @@ function applyTheme(c){
   if(c.cta_band_title) $('#cta-band-title').textContent=c.cta_band_title;
   if(c.cta_band_subtitle) $('#cta-band-subtitle').textContent=c.cta_band_subtitle;
   if(c.footer_email) $('#footer-email').textContent=c.footer_email;
-  if(c.footer_phone) $('#footer-phone').textContent=c.footer_phone;
+  if(c.footer_phone){
+    const phoneEl=$('#footer-phone');
+    if(phoneEl){
+      phoneEl.textContent=c.footer_phone;
+      const tel=String(c.footer_phone).replace(/[^\d+]/g,'');
+      if(tel) phoneEl.href='tel:'+tel;
+    }
+  }
   if(c.footer_address) $('#footer-address').textContent=c.footer_address;
   if(c.footer_copyright) $('#footer-copyright').textContent=c.footer_copyright + ` ${new Date().getFullYear()}`;
   else $('#footer-copyright').textContent=`© ${new Date().getFullYear()} Nexatech Dropshipping Store. All rights reserved.`;
