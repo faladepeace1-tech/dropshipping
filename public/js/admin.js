@@ -2124,6 +2124,7 @@ async function loadTeam(){
       <div style="flex:1">
         <b>${m.name}</b> <small style="color:#5A6685">  ${m.role||''}</small>
         <div style="font-size:12px;color:#5A6685">${m.credibility_note||''}</div>
+        <div style="font-size:11px;color:#5A6685">TikTok: ${m.tiktok_url?'Linked':'Missing'} · Instagram: ${m.instagram_url?'Linked':'Missing'}</div>
         <small style="color:${m.published?'#0F6B49':'#B4232F'}">${m.published?'Published':'Draft'}</small>
       </div>
       <div style="display:flex;gap:6px;flex-direction:column">
@@ -2206,7 +2207,8 @@ function openEditTeam(id){
     <label>Credibility note<input id="et-note" value="${escAttr(it.credibility_note)}"></label>
     <label>Photo URL<input id="et-photo" value="${escAttr(it.photo_url)}"></label>
     <label>Replace photo<input type="file" id="et-file" accept="image/*"></label>
-    <label>Social URL<input id="et-social" value="${escAttr(it.social_url)}"></label>
+    <label>TikTok URL<input id="et-tiktok" value="${escAttr(it.tiktok_url)}"></label>
+    <label>Instagram URL<input id="et-instagram" value="${escAttr(it.instagram_url)}"></label>
     <label style="flex-direction:row;gap:8px;align-items:center"><input type="checkbox" id="et-pub" ${it.published?'checked':''}> Published</label>
   `;
   document.getElementById('edit-team-dialog').showModal();
@@ -2219,7 +2221,8 @@ $('#edit-team-save').addEventListener('click', async e=>{
   fd.append('role', $('#et-role').value);
   fd.append('credibility_note', $('#et-note').value);
   fd.append('photo_url', $('#et-photo').value);
-  fd.append('social_url', $('#et-social').value);
+  fd.append('tiktok_url', $('#et-tiktok').value);
+  fd.append('instagram_url', $('#et-instagram').value);
   fd.append('published', $('#et-pub').checked?'1':'0');
   const f=$('#et-file').files[0];
   if(f) fd.append('photo', f);

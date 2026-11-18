@@ -206,6 +206,8 @@ export async function initDb() {
         credibility_note TEXT DEFAULT '',
         photo_url TEXT DEFAULT '',
         social_url TEXT DEFAULT '',
+        tiktok_url TEXT DEFAULT '',
+        instagram_url TEXT DEFAULT '',
         display_order INTEGER DEFAULT 0,
         published INTEGER DEFAULT 1
       );
@@ -533,6 +535,8 @@ export async function initDb() {
       credibility_note TEXT DEFAULT '',
       photo_url TEXT DEFAULT '',
       social_url TEXT DEFAULT '',
+      tiktok_url TEXT DEFAULT '',
+      instagram_url TEXT DEFAULT '',
       display_order INTEGER DEFAULT 0,
       published INTEGER DEFAULT 1
     );
@@ -835,8 +839,12 @@ export async function initDb() {
   try{ await db.prepare("ALTER TABLE dm_push_subscriptions ADD COLUMN role TEXT DEFAULT 'user'").run(); }catch{}
   try{ await db.prepare('ALTER TABLE dm_push_subscriptions ADD COLUMN user_id INTEGER').run(); }catch{}
   try{ await db.prepare("ALTER TABLE themes ADD COLUMN demo_url TEXT DEFAULT ''").run(); }catch{}
+  try{ await db.prepare("ALTER TABLE team ADD COLUMN tiktok_url TEXT DEFAULT ''").run(); }catch{}
+  try{ await db.prepare("ALTER TABLE team ADD COLUMN instagram_url TEXT DEFAULT ''").run(); }catch{}
   try{ await db.prepare("UPDATE themes SET name=REPLACE(name, ?, ?) WHERE name LIKE ?").run('\uFFFD', 'é', '%\uFFFD%'); }catch{}
   try{ await db.prepare("UPDATE team SET social_url='' WHERE social_url IN ('https://linkedin.com','https://www.linkedin.com','http://linkedin.com','http://www.linkedin.com')").run(); }catch{}
+  try{ await db.prepare("UPDATE team SET tiktok_url=social_url WHERE (tiktok_url IS NULL OR tiktok_url='') AND social_url LIKE '%tiktok.com%'").run(); }catch{}
+  try{ await db.prepare("UPDATE team SET instagram_url=social_url WHERE (instagram_url IS NULL OR instagram_url='') AND social_url LIKE '%instagram.com%'").run(); }catch{}
 
   // Helper to handle async get
   const getCount = async (table) => {
@@ -1338,14 +1346,14 @@ export async function initDb() {
 
   const teamCount = await getCount('team');
   const teamsDef = [
-      ['David Okafor','Founder & Store Architect','Built 120+ stores, ex-Jumia growth lead','https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400','',1,1],
-      ['Amara Eze','Product Research Lead','Sourced 500+ winning products, 2.8 avg ROAS','https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400','',2,1],
-      ['Chidi Nwosu','Fulfillment & Automation','DSers & AutoDS specialist, 99.2% fulfillment SLA','https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400','',3,1],
-      ['Zainab Musa','CRO & Performance','CRO strategist, +42% avg conversion lift','https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400','',4,1]
+      ['David Okafor','Founder & Store Architect','Built 120+ stores, ex-Jumia growth lead','https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400','','','',1,1],
+      ['Amara Eze','Product Research Lead','Sourced 500+ winning products, 2.8 avg ROAS','https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400','','','',2,1],
+      ['Chidi Nwosu','Fulfillment & Automation','DSers & AutoDS specialist, 99.2% fulfillment SLA','https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400','','','',3,1],
+      ['Zainab Musa','CRO & Performance','CRO strategist, +42% avg conversion lift','https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400','','','',4,1]
   ];
   if (teamCount === 0 || forceReset) {
     if (forceReset && teamCount !== 0) { try { await db.exec('DELETE FROM team'); } catch {} }
-    for (const r of teamsDef) await db.prepare('INSERT INTO team (name,role,credibility_note,photo_url,social_url,display_order,published) VALUES (?,?,?,?,?,?,?)').run(r[0],r[1],r[2],r[3],r[4],r[5],r[6]);
+    for (const r of teamsDef) await db.prepare('INSERT INTO team (name,role,credibility_note,photo_url,social_url,tiktok_url,instagram_url,display_order,published) VALUES (?,?,?,?,?,?,?,?,?)').run(r[0],r[1],r[2],r[3],r[4],r[5],r[6],r[7],r[8]);
     if (forceReset) console.log('FORCE_DEFAULT_CONTENT: reseeded team');
   }
 

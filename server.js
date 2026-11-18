@@ -2980,13 +2980,13 @@ app.get('/api/team', async (req, res) => {
   res.json(rows);
 });
 app.post('/api/team', requireAuth, upload.single('photo'), async (req, res) => {
-  const { name, role, credibility_note, photo_url, social_url } = req.body;
+  const { name, role, credibility_note, photo_url, social_url, tiktok_url, instagram_url } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
   let finalPhoto = photo_url;
   if (req.file) finalPhoto = await persistUpload(req.file);
   const _teamOrder = await db.prepare('SELECT COALESCE(MAX(display_order),0)+1 as n FROM team').get();
   const order = _teamOrder ? _teamOrder.n : 1;
-  const info = await db.prepare('INSERT INTO team (name,role,credibility_note,photo_url,social_url,display_order,published) VALUES (?,?,?,?,?,?,1)').run(name, role||'', credibility_note||'', finalPhoto||'', social_url||'', order);
+  const info = await db.prepare('INSERT INTO team (name,role,credibility_note,photo_url,social_url,tiktok_url,instagram_url,display_order,published) VALUES (?,?,?,?,?,?,?,?,1)').run(name, role||'', credibility_note||'', finalPhoto||'', social_url||'', tiktok_url||'', instagram_url||'', order);
   res.json(await db.prepare('SELECT * FROM team WHERE id=?').get(info.lastInsertRowid));
 });
 app.patch('/api/team/:id', requireAuth, upload.single('photo'), async (req, res) => {
@@ -3000,11 +3000,13 @@ app.patch('/api/team/:id', requireAuth, upload.single('photo'), async (req, res)
     credibility_note: req.body.credibility_note ?? ex.credibility_note,
     photo_url,
     social_url: req.body.social_url ?? ex.social_url,
+    tiktok_url: req.body.tiktok_url ?? ex.tiktok_url,
+    instagram_url: req.body.instagram_url ?? ex.instagram_url,
     display_order: req.body.display_order ?? ex.display_order,
     published: req.body.published !== undefined ? parseBool(req.body.published) : ex.published
   };
-  await db.prepare('UPDATE team SET name=?,role=?,credibility_note=?,photo_url=?,social_url=?,display_order=?,published=? WHERE id=?')
-    .run(fields.name, fields.role, fields.credibility_note, fields.photo_url, fields.social_url, fields.display_order, fields.published, req.params.id);
+  await db.prepare('UPDATE team SET name=?,role=?,credibility_note=?,photo_url=?,social_url=?,tiktok_url=?,instagram_url=?,display_order=?,published=? WHERE id=?')
+    .run(fields.name, fields.role, fields.credibility_note, fields.photo_url, fields.social_url, fields.tiktok_url, fields.instagram_url, fields.display_order, fields.published, req.params.id);
   res.json(await db.prepare('SELECT * FROM team WHERE id=?').get(req.params.id));
 });
 app.delete('/api/team/:id', requireAuth, async (req, res) => {
@@ -6499,7 +6501,7 @@ async function restoreBackup(dump){
   };
   const added = {};
   added.media = await appendMissing('media', ['id','type','category','url','caption','alt_text','tags','result_stat','case_study_text','display_order','published']);
-  added.team = await appendMissing('team', ['id','name','role','credibility_note','photo_url','social_url','display_order','published']);
+  added.team = await appendMissing('team', ['id','name','role','credibility_note','photo_url','social_url','tiktok_url','instagram_url','display_order','published']);
   added.email_templates = await appendMissing('email_templates', ['id','name','subject','body_html','body_text','category']);
   added.leads = await appendMissing('leads', ['id','name','storeName','preferredNiche','preferredNicheOther','investmentRange','storeStatus','wasScammed','scamDetails','whatsapp','email','preferredContactTime','source','trafficPlan','consent','submittedAt','pageUrl','sessionId','utm_source','utm_medium','utm_campaign','webhook_status','webhook_attempts','pipeline_stage','created_at']);
   added.events = await appendMissing('events', ['id','event_type','element_id','session_id','timestamp','page_url','utm_source','utm_medium','utm_campaign','metadata']);

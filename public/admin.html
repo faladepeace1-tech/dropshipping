@@ -378,6 +378,7 @@
       <section data-panel="team" class="hidden">
         <div class="card">
           <h3>Add Expert</h3>
+          <p style="font-size:12px;color:#5A6685;margin:0 0 2px">Each member can show both TikTok and Instagram links. Leave a URL empty to hide that link.</p>
           <form id="team-form" style="display:grid;gap:10px">
             <div style="display:flex;gap:10px;flex-wrap:wrap">
               <label>Name<input name="name" required></label>
@@ -387,7 +388,8 @@
             <div style="display:flex;gap:10px;flex-wrap:wrap">
               <label>Photo file<input type="file" name="photo" accept="image/*"></label>
               <label style="flex:1">or Photo URL<input name="photo_url" placeholder="https://..."></label>
-              <label>Social URL<input name="social_url" placeholder="https://www.tiktok.com/@..."></label>
+              <label>TikTok URL<input name="tiktok_url" placeholder="https://www.tiktok.com/@..."></label>
+              <label>Instagram URL<input name="instagram_url" placeholder="https://www.instagram.com/..."></label>
             </div>
             <button class="btn btn-primary" type="submit">Add Expert</button>
           </form>
