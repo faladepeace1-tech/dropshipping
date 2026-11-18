@@ -28,6 +28,7 @@ function getUTM(){
   return {source:p.get('utm_source')||'',medium:p.get('utm_medium')||'',campaign:p.get('utm_campaign')||''};
 }
 function sanitize(t){const d=document.createElement('div');d.textContent=t;return d.innerHTML;}
+function socialLabel(url){try{const host=new URL(url).hostname.replace(/^www\./i,'').toLowerCase();const domains=[['tiktok.com','TikTok'],['facebook.com','Facebook'],['instagram.com','Instagram'],['x.com','X'],['twitter.com','X'],['youtube.com','YouTube'],['fiverr.com','Fiverr']];const match=domains.find(([domain])=>host===domain||host.endsWith('.'+domain));return match?match[1]:'Profile';}catch{return 'Profile';}}
 function whatsappLink(num, msg){ const n=(num||'').replace(/\D/g,''); return `https://wa.me/${n}?text=${encodeURIComponent(msg||'')}`; }
 // Accepts phone/WhatsApp numbers from ALL countries (E.164: max 15 digits):
 // optional + / 00 prefix, spaces, dashes, dots, brackets, slashes.
@@ -955,7 +956,7 @@ async function loadMedia(){
     const vis=teamExpanded?team:team.slice(0,4);
     vis.forEach((m)=>{
       const card=document.createElement('div'); card.className='team-card in';
-      card.innerHTML=`<img src="${m.photo_url||'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200'}" alt="${sanitize(m.name)}" loading="lazy" decoding="async"><div><h4>${sanitize(m.name)}</h4><small>${sanitize(m.role)}</small><p>${sanitize(m.credibility_note)}</p>${m.social_url?`<a href="${m.social_url}" target="_blank" rel="noopener" style="font-size:12px;color:var(--accent-2)">TikTok →</a>`:''}</div>`;
+      card.innerHTML=`<img src="${m.photo_url||'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200'}" alt="${sanitize(m.name)}" loading="lazy" decoding="async"><div><h4>${sanitize(m.name)}</h4><small>${sanitize(m.role)}</small><p>${sanitize(m.credibility_note)}</p>${m.social_url?`<a href="${m.social_url}" target="_blank" rel="noopener" style="font-size:12px;color:var(--accent-2)">${socialLabel(m.social_url)} →</a>`:''}</div>`;
       tGrid2.appendChild(card);
     });
     const more=$('#view-full-team');

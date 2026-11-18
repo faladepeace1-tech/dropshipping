@@ -836,7 +836,7 @@ export async function initDb() {
   try{ await db.prepare('ALTER TABLE dm_push_subscriptions ADD COLUMN user_id INTEGER').run(); }catch{}
   try{ await db.prepare("ALTER TABLE themes ADD COLUMN demo_url TEXT DEFAULT ''").run(); }catch{}
   try{ await db.prepare("UPDATE themes SET name=REPLACE(name, ?, ?) WHERE name LIKE ?").run('\uFFFD', 'é', '%\uFFFD%'); }catch{}
-  try{ await db.prepare("UPDATE team SET social_url='' WHERE social_url LIKE '%linkedin.com%'").run(); }catch{}
+  try{ await db.prepare("UPDATE team SET social_url='' WHERE social_url IN ('https://linkedin.com','https://www.linkedin.com','http://linkedin.com','http://www.linkedin.com')").run(); }catch{}
 
   // Helper to handle async get
   const getCount = async (table) => {
