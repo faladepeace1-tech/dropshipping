@@ -1275,7 +1275,7 @@ async function saveBrand(){
     const r=await fetch('/api/content',{method:'PUT',headers:{'Content-Type':'application/json',...authHeaders()},body:JSON.stringify(payload)});
     const j=await r.json().catch(()=>({}));
     if(!r.ok) throw new Error(j.error||'Save failed');
-    if(msgEl){ msgEl.innerHTML='<span style="color:#0F6B49">Saved ✓ - (logo) NEXATECH, frontend header updates instantly. <a href="/" target="_blank" style="color:#1F4FD8">Preview →</a></span>'; }
+    if(msgEl){ msgEl.innerHTML='<span style="color:#0F6B49">Saved ✓ - (logo) NEXATECH, frontend header updates instantly. <a href="/" target="_blank" style="color:#C8323E">Preview →</a></span>'; }
     await loadContent(); await loadBrand();
   }catch(e){ if(msgEl){ msgEl.textContent='Error: '+e.message; msgEl.style.color='#B4232F'; } }
   finally{ if(btn){ btn.disabled=false; btn.textContent='Save Brand'; } }
@@ -1417,7 +1417,7 @@ function renderCampaigns(){
   CAMPAIGNS.forEach(c=>{
     const div=document.createElement('div');
     const isSel = SELECTED_CAMP && SELECTED_CAMP.id===c.id;
-    div.style.cssText=`border:1px solid ${isSel?'#1F4FD8':'#E2E8F0'};border-radius:10px;padding:10px;background:${isSel?'rgba(31,79,216,.06)':'#fff'};cursor:pointer`;
+    div.style.cssText=`border:1px solid ${isSel?'#C8323E':'#E2E8F0'};border-radius:10px;padding:10px;background:${isSel?'rgba(200,50,62,.06)':'#fff'};cursor:pointer`;
     const statusColor = c.status==='sent'?'#0F6B49':c.status==='sending'?'#92400E':c.status==='failed'?'#B4232F':'#64748B';
     div.innerHTML=`<div style="display:flex;gap:8px;align-items:center;justify-content:space-between"><b style="font-size:13px">${c.name}</b><span style="font-size:10px;background:${statusColor};color:#fff;padding:2px 6px;border-radius:999px">${c.status}</span></div><div style="font-size:11px;color:#64748B;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.subject}</div><div style="font-size:11px;color:#5A6685;margin-top:4px">${c.sent||0}/${c.total||c.total_recipients||0} sent ${c.failed?' • '+c.failed+' failed':''} • ${String(c.created_at||'').slice(0,10)}</div>`;
     div.addEventListener('click', ()=> selectCampaign(c.id));
@@ -1795,7 +1795,7 @@ function renderMediaGallery(){
       <div style="aspect-ratio:${ratio};overflow:hidden;background:var(--paper-3);position:relative">
         ${isEmbed?`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:var(--paper-3);color:var(--navy);font-size:28px">▶</div><span style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,.6);color:#fff;font-size:10px;padding:4px 6px;border-radius:999px">${kindA.toUpperCase()}</span>`:(isVideo?`<video src="${item.url}" muted preload="metadata" style="width:100%;height:100%;object-fit:cover"></video><span style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,.6);color:#fff;font-size:10px;padding:4px 6px;border-radius:999px">VIDEO</span>`:`<img src="${item.url}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.opacity=.25">`)}
         <span style="position:absolute;left:8px;top:8px;background:${item.published?'#0F6B49':'#64748B'};color:#fff;font-size:10px;padding:3px 6px;border-radius:999px">${item.published?'LIVE':'DRAFT'}</span>
-        ${isActiveHero?'<span style="position:absolute;right:8px;top:8px;background:#1F4FD8;color:#fff;font-size:10px;padding:3px 8px;border-radius:999px">ACTIVE HERO</span>':''}
+        ${isActiveHero?'<span style="position:absolute;right:8px;top:8px;background:#C8323E;color:#fff;font-size:10px;padding:3px 8px;border-radius:999px">ACTIVE HERO</span>':''}
         <input type="checkbox" class="media-check" value="${item.id}" title="Select for bulk action" style="position:absolute;left:8px;bottom:8px;width:18px;height:18px;accent-color:var(--accent);cursor:pointer">
       </div>
       <div style="padding:10px;display:grid;gap:6px">
@@ -2319,7 +2319,7 @@ function renderLeads(){
             ${stages.map(s=>`<option value="${s.key}" ${s.key===st.key?'selected':''}>${s.label}</option>`).join('')}
           </select>
           <button class="btn btn-ghost" data-resend="${lead.id}" style="padding:6px 8px;font-size:11px">Resend</button>
-          <button class="btn btn-ghost" data-email="${lead.id}" style="padding:6px 8px;font-size:11px;border-color:#1F4FD8;color:#1F4FD8" title="Send personal email via Gmail (same Client ID)">Email</button>
+          <button class="btn btn-ghost" data-email="${lead.id}" style="padding:6px 8px;font-size:11px;border-color:#C8323E;color:#C8323E" title="Send personal email via Gmail (same Client ID)">Email</button>
           <button class="btn btn-ghost" data-dellead="${lead.id}" style="padding:6px 8px;font-size:11px;color:#B4232F" title="Delete this lead everywhere">Delete</button>
         </div>
       `;
@@ -2454,7 +2454,7 @@ function renderChats(){
   CHATS.forEach(c=>{
     const isSel=SELECTED_CHAT===c.session_id;
     const div=document.createElement('div');
-    div.style.cssText=`border:1px solid ${isSel?'#1F4FD8':'#E2E8F0'};border-radius:12px;padding:10px;background:${isSel?'rgba(31,79,216,.07)':'#fff'};cursor:pointer;display:grid;gap:4px`;
+    div.style.cssText=`border:1px solid ${isSel?'#C8323E':'#E2E8F0'};border-radius:12px;padding:10px;background:${isSel?'rgba(200,50,62,.07)':'#fff'};cursor:pointer;display:grid;gap:4px`;
     const whoName=c.name||'Anonymous';
     const whoEmail=c.email||'no email';
     div.innerHTML=`
@@ -2462,7 +2462,7 @@ function renderChats(){
         <span style="display:flex;gap:6px;align-items:center;min-width:0"><input type="checkbox" class="chat-check" value="${escChat(c.session_id)}" title="Select for bulk delete" style="accent-color:var(--accent);flex:0 0 auto"><b style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px">👤 ${escChat(whoName)}</b></span>
         <span style="font-size:10px;background:var(--navy);color:#fff;padding:2px 8px;border-radius:999px">${c.message_count} msgs</span>
       </div>
-      <div style="font-size:11px;color:#1F4FD8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">✉️ ${escChat(whoEmail)}</div>
+      <div style="font-size:11px;color:#C8323E;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">✉️ ${escChat(whoEmail)}</div>
       <div style="font-size:12px;color:#0F183D;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">“${escChat(c.preview||'(no preview)')}”</div>
       <div style="font-size:11px;color:#64748B">${c.user_count||0} you • ${c.bot_count||0} bot • ${fmtChatTime(c.last_seen)}</div>
       <div style="font-size:10px;color:#5A6685;font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escChat(c.session_id)}">${escChat(String(c.session_id).slice(0,28))}</div>`;
@@ -2510,7 +2510,7 @@ async function selectChat(sessionId){
       thread.innerHTML='';
       const head=document.createElement('div');
       head.style.cssText='background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:8px 10px;font-size:12px;color:#0F183D';
-      head.innerHTML=`<b>👤 ${escChat(j.name||'Anonymous')}</b> <span style="color:#1F4FD8">✉️ ${escChat(j.email||'no email')}</span> <span style="color:#5A6685;font-family:monospace">${escChat(String(sessionId).slice(0,20))}…</span>`;
+      head.innerHTML=`<b>👤 ${escChat(j.name||'Anonymous')}</b> <span style="color:#C8323E">✉️ ${escChat(j.email||'no email')}</span> <span style="color:#5A6685;font-family:monospace">${escChat(String(sessionId).slice(0,20))}…</span>`;
       thread.appendChild(head);
       if(!j.messages.length) thread.innerHTML='<div style="font-size:12px;color:#5A6685">Empty conversation.</div>';
       j.messages.forEach(m=>{
@@ -2581,7 +2581,7 @@ function drawChart(id, labels, values, label){
     const h=(v/max)*(H-pad*2);
     const x=pad + i*gap + gap*0.2;
     const y=H-pad - h;
-    ctx.fillStyle='#1F4FD8';
+    ctx.fillStyle='#C8323E';
     ctx.fillRect(x,y,barW,h);
     ctx.fillStyle='#5A6685'; ctx.font='10px Inter';
     const lbl=String(labels[i]).slice(0,10);
