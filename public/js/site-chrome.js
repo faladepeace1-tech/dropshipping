@@ -82,7 +82,7 @@
       if(url){
         if(!img){ img = document.createElement('img'); img.className = 'logo-img'; img.alt = T(c, 'site_name', 'Nexatech'); logo.insertBefore(img, textEl); }
         if(img.getAttribute('src') !== url) img.src = url;
-      } else if(img){ img.remove(); }
+      }
     }
     const nav = $('.nx-site-nav') || $('.nx-nav');
     if(nav){

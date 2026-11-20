@@ -159,8 +159,8 @@ async function loadBrand() {
     $$('[data-brand-logo]').forEach((img) => {
       const fallback = img.nextElementSibling;
       const src = b.logo_url || '/icons/icon-512.png';
-      img.onload = () => { img.classList.remove('dm-hidden'); if (fallback) fallback.classList.add('dm-hidden'); };
-      img.onerror = () => { img.classList.add('dm-hidden'); if (fallback) fallback.classList.remove('dm-hidden'); };
+      img.onload = () => { img.removeAttribute('hidden'); img.classList.remove('dm-hidden'); if (fallback) fallback.classList.add('dm-hidden'); };
+      img.onerror = () => { img.setAttribute('hidden', ''); img.classList.add('dm-hidden'); if (fallback) fallback.classList.remove('dm-hidden'); };
       if (img.getAttribute('src') !== src) img.src = src;
     });
     const icon = b.favicon_url || b.logo_url || '/icons/icon-512.png';

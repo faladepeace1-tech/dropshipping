@@ -249,7 +249,7 @@ app.use('/api/', generalLimiter);
 // browsers and CDNs can never serve stale code after you publish backend edits.
 const ASSET_VER = (()=>{ try{
   const h = crypto.createHash('md5');
-  for(const f of ['public/js/app.js','public/js/admin.js','public/js/checkout.js','public/js/offers.js','public/js/pricing.js','public/js/messages.js','public/js/inbox.js','public/js/call.js','public/js/site-chrome.js','public/js/hero-store.js','public/js/hero-3d.js','public/js/hero-editorial.js','public/js/theme-links.js','public/css/tokens.css','public/css/style.css','public/css/inner.css','public/css/pages.css','public/css/admin.css','public/css/dm.css','public/css/site-header.css','public/index.html','public/admin.html','public/checkout.html','public/offers.html','public/pricing.html','public/messages.html','public/inbox.html','public/themes.html']){
+  for(const f of ['public/js/app.js','public/js/admin.js','public/js/checkout.js','public/js/offers.js','public/js/pricing.js','public/js/messages.js','public/js/inbox.js','public/js/call.js','public/js/site-chrome.js','public/js/premium.js','public/js/hero-store.js','public/js/hero-3d.js','public/js/hero-editorial.js','public/js/theme-links.js','public/css/tokens.css','public/css/style.css','public/css/inner.css','public/css/pages.css','public/css/premium.css','public/css/admin.css','public/css/dm.css','public/css/site-header.css','public/index.html','public/admin.html','public/checkout.html','public/offers.html','public/pricing.html','public/messages.html','public/inbox.html','public/themes.html']){
     try{ const st = fs.statSync(path.join(__dirname, f)); h.update(f + ':' + st.mtimeMs + ':' + st.size); }catch{}
   }
   return h.digest('hex').slice(0,8);
@@ -329,17 +329,21 @@ function finalizeHtml(html, file){
              .split('/js/call.js').join('/js/call.js?v='+ASSET_VER)
              .split('/js/hero-store.js').join('/js/hero-store.js?v='+ASSET_VER)
              .split('/js/theme-links.js').join('/js/theme-links.js?v='+ASSET_VER)
+             .split('/js/premium.js').join('/js/premium.js?v='+ASSET_VER)
              .split('/css/tokens.css').join('/css/tokens.css?v='+ASSET_VER)
              .split('/css/style.css').join('/css/style.css?v='+ASSET_VER)
              .split('/css/inner.css').join('/css/inner.css?v='+ASSET_VER)
              .split('/css/admin.css').join('/css/admin.css?v='+ASSET_VER)
              .split('/css/dm.css').join('/css/dm.css?v='+ASSET_VER)
-             .split('/css/pages.css').join('/css/pages.css?v='+ASSET_VER);
+             .split('/css/pages.css').join('/css/pages.css?v='+ASSET_VER)
+             .split('/css/premium.css').join('/css/premium.css?v='+ASSET_VER);
   const publicPage = /^(index|pricing|themes|faq|blog|offers|privacy|terms|404|why-nexatech)\.html$/i.test(file) || /(^|[\\/])(themes|blog)[\\/]/i.test(file);
+  const uiPage = publicPage || /^(checkout|messages)\.html$/i.test(file);
   const isHomePage = normalizePageKey(file) === 'index.html';
   const head = [];
   if (isHomePage && !/\/css\/tokens\.css/.test(html)) head.push(`<link rel="stylesheet" href="/css/tokens.css?v=${ASSET_VER}">`);
   if (publicPage) head.push(`<link rel="stylesheet" href="/css/site-header.css?v=${ASSET_VER}">`);
+  if (uiPage) head.push(`<link rel="stylesheet" href="/css/premium.css?v=${ASSET_VER}">`);
   if (GSC_VERIFICATION) head.push(`<meta name="google-site-verification" content="${GSC_VERIFICATION.replace(/[^A-Za-z0-9_-]/g,'')}">`);
   if (BING_VERIFICATION) head.push(`<meta name="msvalidate.01" content="${BING_VERIFICATION.replace(/[^A-Za-z0-9_-]/g,'')}">`);
   if (publicPage && GA4_ID && /^[A-Za-z0-9_-]+$/.test(GA4_ID)) {
@@ -351,6 +355,7 @@ function finalizeHtml(html, file){
   }
   if (head.length) html = html.replace('</head>', head.join('\n') + '\n</head>');
   if (publicPage) html = applyPublicHeader(html, file);
+  if (publicPage || /^checkout\.html$/i.test(file)) html = html.replace('</body>', '<script src="/js/premium.js?v='+ASSET_VER+'"></script>\n</body>');
   if (publicPage && !/^index\.html$/i.test(file)) html = html.replace('</body>', '<script src="/js/site-chrome.js?v='+ASSET_VER+'"></script>\n</body>');
   return html;
 }

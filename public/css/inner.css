@@ -5,6 +5,10 @@
 :root{
   --primary:#0F183D;
   --primary-light:#16224F;
+  --navy:#0F183D;
+  --white:#FFFFFF;
+  --red:#C8323E;
+  --red-deep:#A92732;
   --accent:#C8323E;
   --accent-2:#A92732;
   --bg:#FFFFFF;
@@ -12,6 +16,7 @@
   --text:#0F183D;
   --text-muted:#5A6685;
   --border:#DCE2EE;
+  --line-strong:rgba(15,24,61,.30);
   --success:#148A5B;
   --radius:14px;
   --radius-lg:22px;
